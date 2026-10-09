@@ -1,0 +1,57 @@
+name: gridly
+description: "格子记账 — 一格一账的本地优先记账工具"
+publish_to: 'none'
+
+version: 0.1.0+1   # P0 阶段从 0.1.0 开始
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # ===== UI & 主题 =====
+  cupertino_icons: ^1.0.8
+
+  # ===== 状态管理 =====
+  flutter_riverpod: ^2.5.1
+
+  # ===== 路由 =====
+  go_router: ^14.2.7
+
+  # ===== 数据库 =====
+  drift: ^2.20.0
+  sqlite3_flutter_libs: ^0.5.24
+  path_provider: ^2.1.4
+  path: ^1.9.0
+
+  # ===== 图表(P1 启用,先装上不引用)=====
+  fl_chart: ^0.69.0
+
+  # ===== 工具 =====
+  intl: ^0.20.3
+  uuid: ^4.5.1
+
+  # ===== i18n =====
+  # flutter_localizations 已在顶部声明
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+
+  # 代码生成
+  drift_dev: ^2.20.0
+  build_runner: ^2.4.13
+
+  # Lint
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/logo/
