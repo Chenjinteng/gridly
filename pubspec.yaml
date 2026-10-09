@@ -36,6 +36,7 @@ dependencies:
   intl: ^0.20.3
   uuid: ^4.5.1
   shared_preferences: ^2.3.2
+  share_plus: ^10.0.0
 
   # ===== i18n =====
   # flutter_localizations 已在顶部声明
