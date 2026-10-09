@@ -27,7 +27,7 @@ class CategoryRepository {
     });
   }
 
-  /// 全部分类(按 sortOrder 排序)
+  /// 全部分类(按 sortOrder 升序)
   Future<List<Category>> all() {
     return (_db.select(_db.categories)
           ..orderBy([(c) => OrderingTerm.asc(c.sortOrder)]))
@@ -40,6 +40,45 @@ class CategoryRepository {
           ..where((c) => c.type.equals(type))
           ..orderBy([(c) => OrderingTerm.asc(c.sortOrder)]))
         .get();
+  }
+
+  /// 新增分类
+  Future<int> create({
+    required String name,
+    required String icon,
+    required int color,
+    required String type,
+    int sortOrder = 0,
+  }) {
+    return _db.into(_db.categories).insert(
+          CategoriesCompanion.insert(
+            name: name,
+            icon: icon,
+            color: color,
+            type: type,
+            isSystem: const Value(false),
+            sortOrder: Value(sortOrder),
+          ),
+        );
+  }
+
+  /// 改分类
+  Future<bool> update(Category c) {
+    return _db.update(_db.categories).replace(c);
+  }
+
+  /// 删分类(系统分类也允许删,但如果有流水引用会因外键失败)
+  Future<int> delete(int id) {
+    return (_db.delete(_db.categories)..where((c) => c.id.equals(id))).go();
+  }
+
+  /// 检查分类是否被引用
+  Future<int> usageCount(int id) async {
+    return (_db.selectOnly(_db.transactions)
+          ..addColumns([_db.transactions.id.count()])
+          ..where(_db.transactions.categoryId.equals(id)))
+        .map((row) => row.read(_db.transactions.id.count())!)
+        .getSingle();
   }
 
   CategoriesCompanion _toCompanion(DefaultCategory c) {

@@ -1,5 +1,5 @@
 // lib/core/router/app_router.dart
-// go_router 配置 —— P0 阶段只挂空壳,后续 P1+ 在这里加业务路由
+// go_router 配置 —— 包含 P3+ 子路由(分类管理等)
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +11,7 @@ import '../../features/ledger/ui/ledger_page.dart';
 import '../../features/add/ui/add_transaction_page.dart';
 import '../../features/stats/ui/stats_page.dart';
 import '../../features/settings/ui/settings_page.dart';
+import '../../features/settings/ui/category_management_page.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 final _shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
@@ -20,13 +21,11 @@ final routerProvider = Provider<GoRouter>((ref) {
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/',
     routes: [
-      // 启动页(2 秒后跳到 /home)
       GoRoute(
         path: '/',
         name: 'splash',
         builder: (context, state) => const SplashPage(),
       ),
-      // 主 Tab 容器
       ShellRoute(
         navigatorKey: _shellNavigatorKey,
         builder: (context, state, child) => MainShell(child: child),
@@ -57,6 +56,13 @@ final routerProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) => const NoTransitionPage(child: SettingsPage()),
           ),
         ],
+      ),
+      // Tab 外的子页面(在 root navigator 栈上,不全屏被 Shell 覆盖)
+      GoRoute(
+        path: '/settings/categories',
+        name: 'categoryManagement',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const CategoryManagementPage(),
       ),
     ],
   );

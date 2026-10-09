@@ -1,12 +1,14 @@
 // lib/features/settings/ui/settings_page.dart
-// 设置:主题切换 + 关于
+// 设置:主题切换 / 数据导出 / 分类管理 / 关于
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/theme_mode_provider.dart';
+import 'widgets/csv_export_sheet.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -78,7 +80,7 @@ class SettingsPage extends ConsumerWidget {
             ),
           ),
 
-          // 外观分组
+          // 外观
           _SectionHeader(title: '外观'),
           Padding(
             padding: const EdgeInsets.symmetric(
@@ -134,20 +136,22 @@ class SettingsPage extends ConsumerWidget {
             ),
           ),
 
-          // 数据分组(预留)
+          // 数据
           _SectionHeader(title: '数据'),
-          _DisabledTile(
+          _ActionTile(
             icon: Icons.upload_outlined,
             title: '导出 CSV',
-            subtitle: 'P2 启用',
+            subtitle: '按时间范围导出流水',
+            onTap: () => _openExportSheet(context),
           ),
-          _DisabledTile(
-            icon: Icons.cloud_download_outlined,
-            title: '从飞书导入',
-            subtitle: 'P3 启用',
+          _ActionTile(
+            icon: Icons.category_outlined,
+            title: '分类管理',
+            subtitle: '增删改查自定义分类',
+            onTap: () => context.push('/settings/categories'),
           ),
 
-          // 关于分组
+          // 关于
           _SectionHeader(title: '关于'),
           _InfoTile(
             icon: Icons.tag,
@@ -172,6 +176,18 @@ class SettingsPage extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  void _openExportSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      builder: (_) => const CsvExportSheet(),
     );
   }
 }
@@ -201,6 +217,34 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
+class _ActionTile extends StatelessWidget {
+  const _ActionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(icon, size: 20),
+      title: Text(title, style: const TextStyle(fontSize: 14)),
+      subtitle: Text(
+        subtitle,
+        style: const TextStyle(fontSize: 11, color: AppGray.g600),
+      ),
+      trailing: const Icon(Icons.chevron_right, size: 18, color: AppGray.g400),
+      onTap: onTap,
+      dense: true,
+    );
+  }
+}
+
 class _InfoTile extends StatelessWidget {
   const _InfoTile({
     required this.icon,
@@ -217,34 +261,6 @@ class _InfoTile extends StatelessWidget {
       leading: Icon(icon, size: 20),
       title: Text(title, style: const TextStyle(fontSize: 14)),
       trailing: trailing,
-      dense: true,
-    );
-  }
-}
-
-class _DisabledTile extends StatelessWidget {
-  const _DisabledTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
-  final IconData icon;
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      enabled: false,
-      leading: Icon(icon, size: 20),
-      title: Text(title, style: const TextStyle(fontSize: 14)),
-      trailing: Text(
-        subtitle,
-        style: TextStyle(
-          fontSize: 11,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
-      ),
       dense: true,
     );
   }
