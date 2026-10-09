@@ -32,6 +32,13 @@ class AppDatabase extends _$AppDatabase {
           await customStatement('PRAGMA foreign_keys = ON');
         },
       );
+
+  /// 清空所有用户数据:流水 + 自定义分类
+  /// 保留系统预置分类(餐饮/交通/...)和数据库 schema
+  Future<void> clearAllData() async {
+    await delete(transactions).go();
+    await (delete(categories)..where((c) => c.isSystem.equals(false))).go();
+  }
 }
 
 LazyDatabase _openConnection() {

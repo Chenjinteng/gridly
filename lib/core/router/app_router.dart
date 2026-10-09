@@ -12,6 +12,7 @@ import '../../features/add/ui/add_transaction_page.dart';
 import '../../features/stats/ui/stats_page.dart';
 import '../../features/settings/ui/settings_page.dart';
 import '../../features/settings/ui/category_management_page.dart';
+import '../../features/settings/ui/about_page.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 final _shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
@@ -63,6 +64,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'categoryManagement',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const CategoryManagementPage(),
+      ),
+      GoRoute(
+        path: '/settings/about',
+        name: 'about',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const AboutPage(),
       ),
     ],
   );
