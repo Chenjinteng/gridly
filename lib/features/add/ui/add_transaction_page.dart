@@ -1,5 +1,5 @@
 // lib/features/add/ui/add_transaction_page.dart
-// 记一笔 —— 类型切换 / 金额大字号 / 分类网格 / 备注 / 数字键盘 / 保存
+// 记一笔 —— 类型切换 / 表达式 / 金额大字号 / 分类网格 / 备注 / 计算器键盘 / 保存
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -19,12 +19,20 @@ class AddTransactionPage extends ConsumerStatefulWidget {
   ConsumerState<AddTransactionPage> createState() => _AddTransactionPageState();
 }
 
+class _CalcState {
+  String display = '0';           // 当前显示字符串
+  String expression = '';         // 表达式(已计算的部分)
+  double? previousValue;          // 上一个数
+  String? pendingOp;              // 等待中的运算符
+  bool justEvaluated = false;     // 上一次按键是 =
+}
+
 class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
   String _type = 'expense';
-  String _amount = '';
   int? _categoryId;
   final DateTime _occurredAt = DateTime.now();
   final _noteController = TextEditingController();
+  final _calc = _CalcState();
 
   @override
   void dispose() {
@@ -34,31 +42,141 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
 
   void _onKey(String key) {
     setState(() {
+      if (key == 'C') {
+        _calc.display = '0';
+        _calc.expression = '';
+        _calc.previousValue = null;
+        _calc.pendingOp = null;
+        _calc.justEvaluated = false;
+        return;
+      }
       if (key == '⌫') {
-        if (_amount.isNotEmpty) {
-          _amount = _amount.substring(0, _amount.length - 1);
+        if (_calc.justEvaluated) {
+          _calc.display = '0';
+          _calc.justEvaluated = false;
+          return;
         }
+        if (_calc.display.length > 1) {
+          _calc.display = _calc.display.substring(0, _calc.display.length - 1);
+          if (_calc.display == '-') _calc.display = '0';
+        } else {
+          _calc.display = '0';
+        }
+        return;
+      }
+      if (key == '%') {
+        final v = double.tryParse(_calc.display) ?? 0;
+        _calc.display = _formatNumber(v / 100);
+        _calc.justEvaluated = true;
+        return;
+      }
+      if (key == '±') {
+        if (_calc.display.startsWith('-')) {
+          _calc.display = _calc.display.substring(1);
+        } else if (_calc.display != '0') {
+          _calc.display = '-$_calc.display';
+        }
+        return;
+      }
+      if ('+-×÷'.contains(key)) {
+        if (_calc.pendingOp != null && !_calc.justEvaluated) {
+          _evaluate();
+        }
+        _calc.previousValue = double.tryParse(_calc.display);
+        _calc.pendingOp = key;
+        _calc.justEvaluated = false;
+        _calc.expression = '${_formatNumber(_calc.previousValue ?? 0)} $key';
+        _calc.display = '0';
+        return;
+      }
+      if (key == '=') {
+        _evaluate();
         return;
       }
       if (key == '.') {
-        if (!_amount.contains('.')) {
-          _amount = _amount.isEmpty ? '0.' : '$_amount.';
+        if (_calc.justEvaluated) {
+          _calc.display = '0.';
+          _calc.justEvaluated = false;
+          return;
+        }
+        if (!_calc.display.contains('.')) {
+          _calc.display = '${_calc.display}.';
         }
         return;
       }
-      // 数字
-      if (_amount.contains('.')) {
-        final parts = _amount.split('.');
-        if (parts.length == 2 && parts[1].length >= 2) return;
+      if (key == '00') {
+        if (_calc.justEvaluated) {
+          _calc.display = '0';
+          _calc.justEvaluated = false;
+          return;
+        }
+        if (_calc.display == '0') return;
+        if (_calc.display.length >= 11) return;
+        _calc.display = '$_calc.display' '00';
+        return;
       }
-      final intPart = _amount.split('.').first;
-      if (intPart.length >= 8) return;
-      _amount = (_amount == '0' && key != '.') ? key : '$_amount$key';
+      // 数字 0-9
+      if (_calc.justEvaluated) {
+        _calc.display = key;
+        _calc.justEvaluated = false;
+        _calc.previousValue = null;
+        _calc.pendingOp = null;
+        _calc.expression = '';
+      } else if (_calc.display == '0') {
+        _calc.display = key;
+      } else {
+        if (_calc.display.length >= 12) return;
+        _calc.display = '$_calc.display$key';
+      }
     });
   }
 
+  void _evaluate() {
+    if (_calc.pendingOp == null || _calc.previousValue == null) return;
+    final current = double.tryParse(_calc.display) ?? 0;
+    final prev = _calc.previousValue!;
+    double result;
+    switch (_calc.pendingOp) {
+      case '+':
+        result = prev + current;
+        break;
+      case '-':
+        result = prev - current;
+        break;
+      case '×':
+        result = prev * current;
+        break;
+      case '÷':
+        if (current == 0) {
+          _toast('不能除以 0');
+          return;
+        }
+        result = prev / current;
+        break;
+      default:
+        return;
+    }
+    _calc.expression =
+        '${_formatNumber(prev)} ${_calc.pendingOp} ${_formatNumber(current)} =';
+    _calc.display = _formatNumber(result);
+    _calc.previousValue = result;
+    _calc.pendingOp = null;
+    _calc.justEvaluated = true;
+  }
+
+  String _formatNumber(double v) {
+    if (v == v.truncateToDouble() && v.abs() < 1e15) {
+      return v.toInt().toString();
+    }
+    var s = v.toStringAsFixed(6);
+    // 去掉尾随 0 和无意义的小数点
+    s = s.replaceFirst(RegExp(r'0+$'), '');
+    s = s.replaceFirst(RegExp(r'\.$'), '');
+    return s;
+  }
+
   Future<void> _save() async {
-    final value = double.tryParse(_amount);
+    final value = double.tryParse(_calc.display);
     if (value == null || value <= 0) {
       _toast('金额要大于 0');
       return;
@@ -74,7 +192,6 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
           occurredAt: _occurredAt,
           note: _noteController.text.isEmpty ? null : _noteController.text,
         );
-    // 刷新流水数据
     ref.invalidate(allTransactionsByDayProvider);
     ref.invalidate(monthTransactionsProvider);
     if (!mounted) return;
@@ -116,7 +233,30 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                 }),
               ),
             ),
-            AmountDisplay(amount: _amount, type: _type),
+            // 表达式 + 金额
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (_calc.expression.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        _calc.expression,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w400,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  AmountDisplay(amount: _calc.display, type: _type),
+                ],
+              ),
+            ),
             Expanded(
               flex: 2,
               child: Padding(
@@ -147,7 +287,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
             ),
             const Divider(height: 1),
             Padding(
-              padding: const EdgeInsets.all(AppSpacing.s2),
+              padding: const EdgeInsets.all(AppSpacing.s1),
               child: Numpad(onKey: _onKey),
             ),
           ],
