@@ -1,5 +1,5 @@
 // lib/features/add/ui/add_transaction_page.dart
-// 记一笔 —— 类型切换 / 表达式 / 金额大字号 / 分类网格 / 备注 / 计算器键盘 / 保存
+// 记一笔 —— 类型切换 / 表达式 / 金额大字号 / 分类下拉 / 备注 / 计算器键盘 / 保存
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,7 +8,7 @@ import '../../../core/database/providers.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../ledger/application/transactions_providers.dart';
 import 'widgets/amount_display.dart';
-import 'widgets/category_grid.dart';
+import 'widgets/category_selector.dart';
 import 'widgets/numpad.dart';
 import 'widgets/type_toggle.dart';
 
@@ -257,15 +257,12 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                 ],
               ),
             ),
-            Expanded(
-              flex: 2,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
-                child: CategoryGrid(
-                  type: _type,
-                  selected: _categoryId,
-                  onSelect: (id) => setState(() => _categoryId = id),
-                ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
+              child: CategorySelector(
+                type: _type,
+                selected: _categoryId,
+                onSelect: (id) => setState(() => _categoryId = id),
               ),
             ),
             Padding(
