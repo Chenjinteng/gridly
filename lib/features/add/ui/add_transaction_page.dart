@@ -286,9 +286,12 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
               ),
             ),
             const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.s1),
-              child: Numpad(onKey: _onKey),
+            SizedBox(
+              height: 280,
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.s1),
+                child: Numpad(onKey: _onKey),
+              ),
             ),
           ],
         ),
