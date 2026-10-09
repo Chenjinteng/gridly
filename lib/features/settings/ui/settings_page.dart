@@ -1,13 +1,17 @@
 // lib/features/settings/ui/settings_page.dart
-// 设置:主题切换 / 数据导出 / 分类管理 / 关于
+// 设置:主题切换 / 预算 / 数据导出 / 分类管理 / 关于
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// ignore: unused_import
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/theme_mode_provider.dart';
+import '../../../core/utils/budget_provider.dart';
+import '../../../core/utils/formatters.dart';
+import 'widgets/budget_sheet.dart';
 import 'widgets/csv_export_sheet.dart';
 
 class SettingsPage extends ConsumerWidget {
@@ -136,6 +140,10 @@ class SettingsPage extends ConsumerWidget {
             ),
           ),
 
+          // 预算
+          _SectionHeader(title: '预算'),
+          _BudgetTile(),
+
           // 数据
           _SectionHeader(title: '数据'),
           _ActionTile(
@@ -174,6 +182,12 @@ class SettingsPage extends ConsumerWidget {
               style: TextStyle(color: AppGray.g600),
             ),
           ),
+          _ActionTile(
+            icon: Icons.info_outline,
+            title: '关于格子记账',
+            subtitle: '品牌 + 隐私政策 + 清空数据',
+            onTap: () => context.push('/settings/about'),
+          ),
         ],
       ),
     );
@@ -188,6 +202,34 @@ class SettingsPage extends ConsumerWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
       ),
       builder: (_) => const CsvExportSheet(),
+    );
+  }
+}
+
+class _BudgetTile extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final budget = ref.watch(monthlyBudgetProvider);
+    return ListTile(
+      leading: const Icon(Icons.savings_outlined, size: 20),
+      title: const Text('月度预算', style: TextStyle(fontSize: 14)),
+      subtitle: Text(
+        budget > 0 ? '当前 ¥${Formatters.amount(budget)}' : '未设置',
+        style: const TextStyle(fontSize: 11, color: AppGray.g600),
+      ),
+      trailing: const Icon(Icons.chevron_right, size: 18, color: AppGray.g400),
+      onTap: () {
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+          ),
+          builder: (_) => const BudgetSheet(),
+        );
+      },
+      dense: true,
     );
   }
 }

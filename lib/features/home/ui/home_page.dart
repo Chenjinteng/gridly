@@ -10,6 +10,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../ledger/application/transactions_providers.dart';
 import '../../ledger/ui/widgets/monthly_summary.dart';
 import '../../ledger/ui/widgets/transaction_tile.dart';
+import 'widgets/budget_progress.dart';
 
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
@@ -30,6 +31,8 @@ class HomePage extends ConsumerWidget {
         child: ListView(
           children: const [
             MonthlySummary(),
+            SizedBox(height: AppSpacing.s2),
+            BudgetProgress(),
             _RecentHeader(),
             _RecentList(),
             SizedBox(height: AppSpacing.s6),
