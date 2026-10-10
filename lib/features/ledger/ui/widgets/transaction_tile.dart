@@ -35,84 +35,99 @@ class TransactionTile extends ConsumerWidget {
             transaction.type == 'income' ? AppBrand.gold : AppStatus.error;
         final prefix = transaction.type == 'income' ? '+' : '-';
         final theme = Theme.of(context);
-        return Material(
-          // InkWell 涟漪需要 Material 祖先
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: AppRadius.brLg,
-            onLongPress: () => _confirmDelete(context, ref, cat),
-            child: Container(
-              margin: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.s4,
-                vertical: AppSpacing.s1,
+        return Dismissible(
+          key: ValueKey('tx-${transaction.id}'),
+          direction: DismissDirection.endToStart,
+          background: const SizedBox.shrink(),
+          secondaryBackground: Container(
+            margin: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.s4,
+              vertical: AppSpacing.s1,
+            ),
+            decoration: BoxDecoration(
+              color: AppStatus.error,
+              borderRadius: AppRadius.brLg,
+            ),
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s5),
+            child: const Icon(
+              Icons.delete_outline_rounded,
+              color: Colors.white,
+              size: 26,
+            ),
+          ),
+          onDismissed: (_) => _onSwipedDelete(context, ref),
+          child: Container(
+            margin: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.s4,
+              vertical: AppSpacing.s1,
+            ),
+            padding: const EdgeInsets.all(AppSpacing.s3),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerLow,
+              borderRadius: AppRadius.brLg,
+              border: Border.all(
+                color: theme.colorScheme.outlineVariant,
+                width: 0.5,
               ),
-              padding: const EdgeInsets.all(AppSpacing.s3),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerLow,
-                borderRadius: AppRadius.brLg,
-                border: Border.all(
-                  color: theme.colorScheme.outlineVariant,
-                  width: 0.5,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: AppRadius.brXs,
+                    border: Border.all(
+                      color: color.withValues(alpha: 0.3),
+                      width: 0.5,
+                    ),
+                  ),
+                  child: Icon(
+                    CategoryIcons.map[cat?.icon ?? 'category'] ??
+                        Icons.category_rounded,
+                    color: color,
+                    size: 18,
+                  ),
                 ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.12),
-                      borderRadius: AppRadius.brXs,
-                      border: Border.all(
-                        color: color.withValues(alpha: 0.3),
-                        width: 0.5,
-                      ),
-                    ),
-                    child: Icon(
-                      CategoryIcons.map[cat?.icon ?? 'category'] ??
-                          Icons.category_rounded,
-                      color: color,
-                      size: 18,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.s3),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          cat?.name ?? '未分类',
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                          ),
+                const SizedBox(width: AppSpacing.s3),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        cat?.name ?? '未分类',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
                         ),
-                        if (transaction.note != null &&
-                            transaction.note!.isNotEmpty) ...[
+                      ),
+                      if (transaction.note != null &&
+                          transaction.note!.isNotEmpty) ...[
                           const SizedBox(height: 2),
-                          Text(
-                            transaction.note!,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                        Text(
+                          transaction.note!,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
-                        ],
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ],
-                    ),
+                    ],
                   ),
-                  Text(
-                    '$prefix ¥${Formatters.amount(transaction.amount)}',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: amountColor,
-                    ),
+                ),
+                Text(
+                  '$prefix ¥${Formatters.amount(transaction.amount)}',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: amountColor,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         );
@@ -126,48 +141,11 @@ class TransactionTile extends ConsumerWidget {
     );
   }
 
-  /// 长按触发:弹确认对话框 → 确认后删 + 广谱 invalidate 所有依赖 provider
-  /// 删一笔会影响首页月度汇总 / 流水列表 / 报表饼图 + Top 10 + 月度趋势
-  Future<void> _confirmDelete(
-    BuildContext context,
-    WidgetRef ref,
-    Category? cat,
-  ) async {
-    final amountStr =
-        '${transaction.type == 'income' ? '+' : '-'} ¥${Formatters.amount(transaction.amount)}';
-    final label = cat?.name ?? '未分类';
-    final noteStr = (transaction.note != null && transaction.note!.isNotEmpty)
-        ? '\n${transaction.note}'
-        : '';
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('删除这条流水?'),
-        content: Text('$label  $amountStr$noteStr'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppStatus.error,
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text(
-              '删除',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-
+  /// 左滑删除触发:删 + 广谱 invalidate + 轻量 SnackBar 提示
+  /// (不再弹确认对话框 —— 用户嫌弹窗太多)
+  Future<void> _onSwipedDelete(BuildContext context, WidgetRef ref) async {
     await ref.read(transactionRepositoryProvider).delete(transaction.id);
-    // 广谱刷新 —— 流水 / 首页 / 报表 / 分类页都同步更新
     refreshAllData(ref);
-
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
