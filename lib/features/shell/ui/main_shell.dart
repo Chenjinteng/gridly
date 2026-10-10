@@ -41,12 +41,19 @@ class MainShell extends StatelessWidget {
         height: 72,
         selectedIndex: currentIndex,
         onDestinationSelected: (i) {
-          // shell 内 4 个 tab 用 go 切换(清 stack 到目标)
-          if (i == 2) {
-            // 中央 "+" —— 推到 root navigator 的 modal 页面,关闭后自动回当前 tab
-            context.push('/add');
-          } else {
-            context.go(_tabs[i]);
+          // 5 个 destination:0=首页 / 1=流水 / 2=中央 "+" / 3=报表 / 4=我的
+          // i==2 推到 root modal,其它用 go 清栈切换
+          switch (i) {
+            case 0:
+              context.go('/home');
+            case 1:
+              context.go('/ledger');
+            case 2:
+              context.push('/add');
+            case 3:
+              context.go('/stats');
+            case 4:
+              context.go('/settings');
           }
         },
         backgroundColor: Theme.of(context).colorScheme.surface,
