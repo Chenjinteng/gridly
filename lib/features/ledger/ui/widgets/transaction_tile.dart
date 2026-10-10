@@ -1,6 +1,6 @@
 // lib/features/ledger/ui/widgets/transaction_tile.dart
 // 单条流水卡片:左分类色块 + 中描述 + 右金额
-// 长按 → 弹确认对话框 → 删除(防误删错记录)
+// 删除交互:左滑露出红色垃圾桶按钮(不立刻删),点击按钮才真正删除
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -35,28 +35,9 @@ class TransactionTile extends ConsumerWidget {
             transaction.type == 'income' ? AppBrand.gold : AppStatus.error;
         final prefix = transaction.type == 'income' ? '+' : '-';
         final theme = Theme.of(context);
-        return Dismissible(
+        return _SwipeToDelete(
           key: ValueKey('tx-${transaction.id}'),
-          direction: DismissDirection.endToStart,
-          background: const SizedBox.shrink(),
-          secondaryBackground: Container(
-            margin: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.s4,
-              vertical: AppSpacing.s1,
-            ),
-            decoration: BoxDecoration(
-              color: AppStatus.error,
-              borderRadius: AppRadius.brLg,
-            ),
-            alignment: Alignment.centerRight,
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s5),
-            child: const Icon(
-              Icons.delete_outline_rounded,
-              color: Colors.white,
-              size: 26,
-            ),
-          ),
-          onDismissed: (_) => _onSwipedDelete(context, ref),
+          onDelete: () => _onDeleteRequested(context, ref),
           child: Container(
             margin: const EdgeInsets.symmetric(
               horizontal: AppSpacing.s4,
@@ -105,7 +86,7 @@ class TransactionTile extends ConsumerWidget {
                       ),
                       if (transaction.note != null &&
                           transaction.note!.isNotEmpty) ...[
-                          const SizedBox(height: 2),
+                        const SizedBox(height: 2),
                         Text(
                           transaction.note!,
                           style: TextStyle(
@@ -141,9 +122,8 @@ class TransactionTile extends ConsumerWidget {
     );
   }
 
-  /// 左滑删除触发:删 + 广谱 invalidate + 轻量 SnackBar 提示
-  /// (不再弹确认对话框 —— 用户嫌弹窗太多)
-  Future<void> _onSwipedDelete(BuildContext context, WidgetRef ref) async {
+  /// 点击删除按钮触发:删 + 广谱 invalidate + SnackBar 提示
+  Future<void> _onDeleteRequested(BuildContext context, WidgetRef ref) async {
     await ref.read(transactionRepositoryProvider).delete(transaction.id);
     refreshAllData(ref);
     if (context.mounted) {
@@ -154,5 +134,135 @@ class TransactionTile extends ConsumerWidget {
         ),
       );
     }
+  }
+}
+
+/// 手势滑动展开操作按钮 —— 类似 iOS Mail.app 的滑动效果
+///
+/// 行为:
+///   - 左滑超过阈值 → snap 露出操作按钮(不执行)
+///   - 操作按钮可点 → 触发 onDelete
+///   - 点 tile 其他位置 → 自动弹回关闭
+class _SwipeToDelete extends StatefulWidget {
+  const _SwipeToDelete({
+    super.key,
+    required this.child,
+    required this.onDelete,
+  });
+
+  final Widget child;
+  final VoidCallback onDelete;
+
+  @override
+  State<_SwipeToDelete> createState() => _SwipeToDeleteState();
+}
+
+class _SwipeToDeleteState extends State<_SwipeToDelete>
+    with SingleTickerProviderStateMixin {
+  /// 划开的固定宽度(px)—— 露出 56px 宽的删除按钮区域
+  static const double _kOpenOffset = 76;
+
+  /// snap 阈值:划到这个距离就锁住,否则弹回
+  static const double _kSnapThreshold = 40;
+
+  late AnimationController _ctrl;
+  double _offset = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _animateTo(double target) {
+    final start = _offset;
+    final delta = target - start;
+    _ctrl
+      ..reset()
+      ..addListener(() {
+        setState(() => _offset = start + delta * _ctrl.value);
+      })
+      ..forward();
+  }
+
+  void _onDragUpdate(DragUpdateDetails d) {
+    // 只响应向左滑(delta < 0)
+    if (d.primaryDelta! > 0) return;
+    setState(() => _offset = (_offset + d.primaryDelta!).clamp(-_kOpenOffset, 0.0));
+  }
+
+  void _onDragEnd(DragEndDetails _) {
+    // 划得够远 → 锁在 open 状态;否则弹回关闭
+    if (_offset.abs() > _kSnapThreshold) {
+      _animateTo(-_kOpenOffset);
+    } else {
+      _animateTo(0);
+    }
+  }
+
+  void _close() {
+    if (_offset != 0) _animateTo(0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Stack(
+      children: [
+        // 底层:删除按钮(红色背景 + 垃圾桶)
+        Positioned.fill(
+          child: Container(
+            margin: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.s4,
+              vertical: AppSpacing.s1,
+            ),
+            decoration: BoxDecoration(
+              color: AppStatus.error,
+              borderRadius: AppRadius.brLg,
+            ),
+            alignment: Alignment.centerRight,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                onTap: widget.onDelete,
+                child: Container(
+                  width: _kOpenOffset,
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: Colors.white,
+                    size: 26,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        // 上层:卡片本身(随 _offset 水平平移)
+        Transform.translate(
+          offset: Offset(_offset, 0),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onHorizontalDragUpdate: _onDragUpdate,
+            onHorizontalDragEnd: _onDragEnd,
+            onTap: _close,
+            child: Container(
+              color: theme.colorScheme.surface,
+              child: widget.child,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
