@@ -111,35 +111,52 @@ Container(
                     style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(height: AppSpacing.s3),
-                  SizedBox(
-                    width: double.infinity,
-                    child: SegmentedButton<ThemeMode>(
-                      // 缩字号 + 缩图标:避免"跟随系统"在窄屏上换行
-                      style: SegmentedButton.styleFrom(
-                        textStyle: const TextStyle(fontSize: 12),
-                        iconSize: 16,
-                      ),
-                      segments: const [
-                        ButtonSegment(
+                  // 主题选择 —— 改用 RadioGroup + RadioListTile 整行排列,
+                  // 每行全宽,不再被 SegmentedButton 内部 padding 卡住而换行
+                  // (Flutter 3.32+ RadioListTile 单独用 onChanged/groupValue 被 deprecated)
+                  RadioGroup<ThemeMode>(
+                    groupValue: mode,
+                    onChanged: (v) {
+                      if (v != null) {
+                        ref.read(themeModeProvider.notifier).set(v);
+                      }
+                    },
+                    child: const Column(
+                      children: [
+                        RadioListTile<ThemeMode>(
                           value: ThemeMode.system,
-                          icon: Icon(Icons.brightness_auto_outlined, size: 16),
-                          label: Text('跟随系统'),
+                          title: Text('跟随系统'),
+                          secondary: Icon(
+                            Icons.brightness_auto_outlined,
+                            size: 18,
+                          ),
+                          dense: true,
+                          visualDensity: VisualDensity.compact,
+                          contentPadding: EdgeInsets.zero,
                         ),
-                        ButtonSegment(
+                        RadioListTile<ThemeMode>(
                           value: ThemeMode.light,
-                          icon: Icon(Icons.light_mode_outlined, size: 16),
-                          label: Text('浅色'),
+                          title: Text('浅色'),
+                          secondary: Icon(
+                            Icons.light_mode_outlined,
+                            size: 18,
+                          ),
+                          dense: true,
+                          visualDensity: VisualDensity.compact,
+                          contentPadding: EdgeInsets.zero,
                         ),
-                        ButtonSegment(
+                        RadioListTile<ThemeMode>(
                           value: ThemeMode.dark,
-                          icon: Icon(Icons.dark_mode_outlined, size: 16),
-                          label: Text('深色'),
+                          title: Text('深色'),
+                          secondary: Icon(
+                            Icons.dark_mode_outlined,
+                            size: 18,
+                          ),
+                          dense: true,
+                          visualDensity: VisualDensity.compact,
+                          contentPadding: EdgeInsets.zero,
                         ),
                       ],
-                      selected: {mode},
-                      onSelectionChanged: (s) {
-                        ref.read(themeModeProvider.notifier).set(s.first);
-                      },
                     ),
                   ),
                 ],
