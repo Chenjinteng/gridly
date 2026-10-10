@@ -1,6 +1,7 @@
 // lib/features/stats/ui/widgets/range_tabs.dart
-// 时间范围选择:3 段 SegmentedButton(本月 / 本年 / 全部)
-// + 本月段联动月份 dropdown(选具体某月)
+// 时间范围选择 —— 3 段自定义 tab(本月 / 本年 / 全部)
+// "本月" 段内嵌 chevron 弹月份 sheet,选过的具体月份直接显示在 label 上
+// 不在 SegmentedButton 之外额外加 dropdown,保持 3 段紧凑
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -15,54 +16,63 @@ class RangeTabs extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final range = ref.watch(statsRangeProvider);
+    final custom = ref.watch(statsCustomMonthProvider);
+    final isThisMonth = range == StatsRange.thisMonth;
+
+    // 本月段 label:选了具体月就显示"X 年 X 月",否则显示"本月"
+    final monthLabel = isThisMonth
+        ? (custom == null
+            ? '本月'
+            : '${custom.year} 年 ${custom.month} 月')
+        : '本月';
+
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.s4),
-      child: Row(
-        children: [
-          Expanded(
-            child: SegmentedButton<StatsRange>(
-              segments: const [
-                ButtonSegment(value: StatsRange.thisMonth, label: Text('本月')),
-                ButtonSegment(value: StatsRange.thisYear, label: Text('本年')),
-                ButtonSegment(value: StatsRange.all, label: Text('全部')),
-              ],
-              selected: {range},
-              onSelectionChanged: (s) {
-                final newRange = s.first;
-                ref.read(statsRangeProvider.notifier).state = newRange;
-                // 切到非本月段时清掉自定义月份,避免回去又跳到上次选月
-                if (newRange != StatsRange.thisMonth) {
-                  ref.read(statsCustomMonthProvider.notifier).state = null;
-                }
-              },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerLow,
+          borderRadius: AppRadius.brLg,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: _RangeSegment(
+                label: monthLabel,
+                selected: isThisMonth,
+                showChevron: true,
+                onLabelTap: () {
+                  ref.read(statsRangeProvider.notifier).state =
+                      StatsRange.thisMonth;
+                },
+                onChevronTap: () => _pickMonth(context, ref, custom),
+              ),
             ),
-          ),
-          const SizedBox(width: AppSpacing.s2),
-          _MonthDropdown(enabled: range == StatsRange.thisMonth),
-        ],
+            Expanded(
+              child: _RangeSegment(
+                label: '本年',
+                selected: range == StatsRange.thisYear,
+                showChevron: false,
+                onLabelTap: () {
+                  ref.read(statsRangeProvider.notifier).state =
+                      StatsRange.thisYear;
+                  ref.read(statsCustomMonthProvider.notifier).state = null;
+                },
+              ),
+            ),
+            Expanded(
+              child: _RangeSegment(
+                label: '全部',
+                selected: range == StatsRange.all,
+                showChevron: false,
+                onLabelTap: () {
+                  ref.read(statsRangeProvider.notifier).state = StatsRange.all;
+                  ref.read(statsCustomMonthProvider.notifier).state = null;
+                },
+              ),
+            ),
+          ],
+        ),
       ),
-    );
-  }
-}
-
-/// 月份 dropdown —— 仅本月段激活时可用,选完弹回 statsCustomMonthProvider
-class _MonthDropdown extends ConsumerWidget {
-  const _MonthDropdown({required this.enabled});
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final custom = ref.watch(statsCustomMonthProvider);
-    final now = DateTime.now();
-    final active = custom != null;
-    final label = custom == null
-        ? '${now.month} 月'
-        : '${custom.year} 年 ${custom.month} 月';
-    return _MonthDropdownField(
-      label: label,
-      active: active,
-      enabled: enabled,
-      onTap: enabled ? () => _pickMonth(context, ref, custom) : null,
     );
   }
 
@@ -91,7 +101,80 @@ class _MonthDropdown extends ConsumerWidget {
   }
 }
 
-/// 月份选择 sheet —— 12 个月 grid + 翻年箭头
+/// 单段 tab —— 整体选中态背景,label 可点切到该段,chevron 可点弹月份 sheet
+class _RangeSegment extends StatelessWidget {
+  const _RangeSegment({
+    required this.label,
+    required this.selected,
+    required this.showChevron,
+    required this.onLabelTap,
+    this.onChevronTap,
+  });
+
+  final String label;
+  final bool selected;
+  final bool showChevron;
+  final VoidCallback onLabelTap;
+  final VoidCallback? onChevronTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final fg = selected
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurfaceVariant;
+    return Container(
+      decoration: BoxDecoration(
+        color: selected
+            ? theme.colorScheme.primary.withValues(alpha: 0.12)
+            : Colors.transparent,
+        borderRadius: AppRadius.brLg,
+      ),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.s2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          InkWell(
+            borderRadius: AppRadius.brSm,
+            onTap: onLabelTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.s2,
+                vertical: AppSpacing.s1,
+              ),
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: fg,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+          if (showChevron)
+            InkWell(
+              borderRadius: AppRadius.brSm,
+              onTap: onChevronTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 2,
+                  vertical: AppSpacing.s1,
+                ),
+                child: Icon(
+                  Icons.expand_more,
+                  size: 16,
+                  color: fg,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 月份选择 sheet —— 12 个月 grid + 翻年箭头 + "回到本月"按钮
 class _MonthPickerSheet extends StatefulWidget {
   const _MonthPickerSheet({
     required this.currentYear,
@@ -123,6 +206,10 @@ class _MonthPickerSheetState extends State<_MonthPickerSheet> {
     return month > widget.anchorMonth;
   }
 
+  bool get _isOnAnchorMonth =>
+      widget.currentYear == widget.anchorYear &&
+      widget.currentMonth == widget.anchorMonth;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -148,12 +235,22 @@ class _MonthPickerSheetState extends State<_MonthPickerSheet> {
                 vertical: AppSpacing.s2,
               ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
                     '选择月份',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                   ),
+                  const Spacer(),
+                  // 仅当选过具体月份时,才显示"回到本月"
+                  if (!_isOnAnchorMonth)
+                    TextButton.icon(
+                      icon: const Icon(Icons.today_rounded, size: 16),
+                      label: const Text('回到本月'),
+                      onPressed: () => Navigator.pop(
+                        context,
+                        (year: widget.anchorYear, month: widget.anchorMonth),
+                      ),
+                    ),
                   TextButton(
                     onPressed: () => Navigator.pop(context),
                     child: const Text('关闭'),
@@ -256,74 +353,6 @@ class _MonthPickerSheetState extends State<_MonthPickerSheet> {
               ),
             ),
             const SizedBox(height: AppSpacing.s4),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 紧凑 dropdown 按钮 —— label + value + 箭头
-class _MonthDropdownField extends StatelessWidget {
-  const _MonthDropdownField({
-    required this.label,
-    required this.active,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool active;
-  final bool enabled;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final bg = !enabled
-        ? theme.colorScheme.surfaceContainerLow
-        : active
-            ? theme.colorScheme.primary.withValues(alpha: 0.08)
-            : theme.colorScheme.surfaceContainerLow;
-    final fg = !enabled
-        ? theme.colorScheme.outlineVariant
-        : active
-            ? theme.colorScheme.primary
-            : theme.colorScheme.onSurface;
-    return InkWell(
-      borderRadius: AppRadius.brMd,
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.s3,
-          vertical: AppSpacing.s2,
-        ),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: AppRadius.brMd,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.calendar_today_rounded,
-              size: 14,
-              color: fg,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: fg,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            Icon(
-              Icons.expand_more,
-              size: 16,
-              color: fg,
-            ),
           ],
         ),
       ),
