@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/utils/formatters.dart';
 import '../../application/stats_providers.dart';
 
 class MonthlyTrend extends ConsumerWidget {
@@ -135,6 +136,20 @@ class MonthlyTrend extends ConsumerWidget {
                       handleBuiltInTouches: true,
                       touchTooltipData: LineTouchTooltipData(
                         getTooltipColor: (_) => AppBrand.ink,
+                        // 自定义 tooltip 内容,避免 fl_chart 默认
+                        // double.toString() 暴露浮点尾数(如 25420.7600000002)
+                        getTooltipItems: (touchedSpots) => touchedSpots
+                            .map(
+                              (s) => LineTooltipItem(
+                                '¥${Formatters.amount(s.y)}',
+                                TextStyle(
+                                  color: s.bar.color,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            )
+                            .toList(),
                       ),
                     ),
                   ),
