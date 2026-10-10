@@ -97,7 +97,10 @@ class _TopList extends ConsumerWidget {
       data: (txs) {
         if (txs.isEmpty) {
           return Column(
-            children: List.generate(_slotCount, (_) => const _EmptyRow(height: _rowHeight)),
+            children: List.generate(
+              _slotCount,
+              (i) => _EmptyRow(height: _rowHeight, slot: i + 1),
+            ),
           );
         }
         return Column(
@@ -113,9 +116,9 @@ class _TopList extends ConsumerWidget {
                 trailingSub: DateFormat('M月d日').format(t.occurredAt),
                 trailingColor: AppStatus.error,
               ),
-            // 不足 10 条,补空行
+            // 不足 10 条,补空行 —— 浅灰显示 "#N" 占位序号
             for (int i = txs.length; i < _slotCount; i++)
-              const _EmptyRow(height: _rowHeight),
+              _EmptyRow(height: _rowHeight, slot: i + 1),
           ],
         );
       },
@@ -141,7 +144,10 @@ class _TopByCategory extends ConsumerWidget {
         final top = data.take(_slotCount).toList();
         if (top.isEmpty) {
           return Column(
-            children: List.generate(_slotCount, (_) => const _EmptyRow(height: _rowHeight)),
+            children: List.generate(
+              _slotCount,
+              (i) => _EmptyRow(height: _rowHeight, slot: i + 1),
+            ),
           );
         }
         return Column(
@@ -156,9 +162,9 @@ class _TopByCategory extends ConsumerWidget {
                 trailing: '¥${Formatters.amount(e.amount)}',
                 trailingColor: Color(e.color),
               ),
-            // 不足 10 条,补空行
+            // 不足 10 条,补空行 —— 浅灰显示 "#N" 占位序号
             for (int i = top.length; i < _slotCount; i++)
-              const _EmptyRow(height: _rowHeight),
+              _EmptyRow(height: _rowHeight, slot: i + 1),
           ],
         );
       },
@@ -279,10 +285,12 @@ class _DataRow extends StatelessWidget {
   }
 }
 
-// 空行(占位,顶部 0.5px 分隔线)
+// 空行(占位,浅灰 "#N" 序号 + 顶部 0.5px 分隔线)
+// 用途:数据不足 10 条时,补足行高,让卡片高度恒定,避免底部"留白"
 class _EmptyRow extends StatelessWidget {
-  const _EmptyRow({required this.height});
+  const _EmptyRow({required this.height, required this.slot});
   final double height;
+  final int slot; // 1-based
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -290,6 +298,20 @@ class _EmptyRow extends StatelessWidget {
       decoration: const BoxDecoration(
         border: Border(
           top: BorderSide(color: AppGray.g100, width: 0.5),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            '#$slot',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: AppGray.g400, // 浅灰,与数据行视觉区分
+            ),
+          ),
         ),
       ),
     );
