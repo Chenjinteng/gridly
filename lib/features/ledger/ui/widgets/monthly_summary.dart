@@ -25,7 +25,6 @@ class MonthlySummary extends ConsumerWidget {
     final hidden = !ref.watch(amountVisibilityProvider);
     final now = DateTime.now();
     final sheetTitle = '${now.year}年${now.month}月';
-    final theme = Theme.of(context);
     // 日均支出 = 当月支出 / 当日已过天数(月初时 = 当日)
     final dailyAvg =
         now.day > 0 ? summary.expense / now.day : summary.expense;
@@ -38,7 +37,7 @@ class MonthlySummary extends ConsumerWidget {
       decoration: BoxDecoration(
         borderRadius: AppRadius.brLg,
         border: Border.all(
-          color: theme.colorScheme.outlineVariant,
+          color: AppBrand.gold, // 格子主题 · 改用品牌金(原 outlineVariant 太浅)
           width: 0.5,
         ),
       ),
@@ -171,7 +170,7 @@ class MonthlySummary extends ConsumerWidget {
               decoration: const BoxDecoration(
                 color: AppBrand.ink,
                 border: Border(
-                  top: BorderSide(color: AppBrand.charcoal, width: 0.5),
+                  top: BorderSide(color: AppBrand.gold, width: 0.5),
                 ),
               ),
               child: Row(
@@ -224,12 +223,12 @@ class _Cell extends StatelessWidget {
         color: AppBrand.ink,
         border: Border(
           top: const BorderSide(
-            color: AppBrand.charcoal,
+            color: AppBrand.gold, // 格子主题 · 改用品牌金
             width: 0.5,
           ),
           left: showDivider
               ? const BorderSide(
-                  color: AppBrand.charcoal,
+                  color: AppBrand.gold, // 格子主题 · 改用品牌金
                   width: 0.5,
                 )
               : BorderSide.none,
