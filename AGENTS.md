@@ -198,3 +198,48 @@ features/<name>/
 - 关键技术决策 + D 系列:[`docs/DEV.md`](docs/DEV.md)
 - UI/UX AI 助手指令:[`docs/UI_UX.md`](docs/UI_UX.md)
 - 设计稿源文件:[`docs/design/`](docs/design/)
+
+---
+
+## Repository 状态速查(2026-10-10)
+
+**接手本项目的 AI 协作者必读**,免得每轮从零摸索。
+
+### 5 个未拍板的 non-merge 文件(未 commit 进 git / 等 user 决定)
+
+| 文件 | 状态 | 处理 |
+|------|------|------|
+| `.metadata` | tracked,modified | Flutter Tool 用的版本标记,默认不应手动改 |
+| `analysis_options.yaml` | tracked,modified | lint 规则,等 user 拍板 active 哪些 rule |
+| `docs/girdly.md` | **untracked**(typo,正名是 `gridly.md`) | 等 user 决定删错名文件还是补内容 |
+| `macos/` | untracked,Flutter Scaffold 全套 | user 倾向不要 macOS 端,等拍板 |
+| `web/` | untracked,Flutter Scaffold 全套 | 不维护 web,等拍板删 |
+
+**原则**:不主动 `git add` 这 5 个,等 user 显式说怎么处理。
+
+### 设计稿 Reference(本机 macOS,**项目外**的目录)
+
+```
+~/Documents/References/记账App/
+├── assets/logos/v1-v6_*.jpg      # 设计稿迭代历史(6 大版,v1-v6 logo 系列)
+├── TECH_STACK.md
+└── FEISHU_DESIGN_REFERENCE.md
+```
+
+**改 UI/LOGO 之前先扫一眼这目录**(也许能找到 9 月讨论过的设计稿)。注意这目录**不进 git**。
+
+### 资产现状(2026-10-10)
+
+- `assets/fonts/MaterialIconsRound.otf` (391 KB) —— 静态纯 filled 图标字体,按钮图标用
+- `assets/images/logo/` 含 3 个 LOGO PNG:
+  - `logo_primary.png` 2048×2048 — 白底 + LOGO(主品牌)
+  - `logo_reverse.png` 2048×2048 — 深炭黑底 + LOGO(反色,品牌资料用)
+  - `logo_horizontal.png` 2752×1536 — LOGO + "格子记账" 文字(横版品牌)
+- **Launcher icon**(5 个 mipmap-*/ic_launcher.png)当前从 `logo_primary.png` 派生,2026-10-10 改成白底风格
+
+### 这台机器的实际 host
+
+- **jintengchen 用户**(不是 dev 机 snow)
+- 项目根:`~/Documents/Projects/gridly/`
+- 设计稿 Reference 根:`~/Documents/References/记账App/`
+- temp 脚本根:`~/Documents/MinimaxWorkspace/temps/`
