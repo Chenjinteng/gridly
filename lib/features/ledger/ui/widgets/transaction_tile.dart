@@ -345,7 +345,7 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
                             onTap: widget.onEdit,
                             child: const Center(
                               child: Text(
-                                '\ue3c9',  // Material Symbols "edit"
+                                '\uf097',  // Material Symbols "edit" primary codepoint (支持 FILL axis)
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontFamily: 'MaterialSymbols',
