@@ -1,9 +1,10 @@
 // lib/shared/constants/default_categories.dart
 // 默认分类:支出 12 类 + 收入 5 类
-// 配色严格按 design/THEME.md §3.5 记账语义映射
-//   - 支出 → teal 系
-//   - 收入 → gold 系
-//   - 中性类(其他/退款) → 灰
+// 配色:v3 起每个分类独占语义色(支付宝记账本风格),
+// 用于报表圆环 / 图例 / 流水图标背景的"分类维度"区分
+//   - 支出 → 11 类各色 + 其他用灰
+//   - 收入 → 4 类各色 + 退款用灰
+// 所有色都集中定义在 AppCategory(见 app_colors.dart),不在本文件硬编码
 import 'package:gridly/core/theme/app_colors.dart';
 import 'package:flutter/material.dart';
 
@@ -64,29 +65,29 @@ class CategoryIcons {
 class DefaultCategories {
   DefaultCategories._();
 
-  /// 支出 12 类 —— 每个分类一个独特图标
+  /// 支出 12 类 —— 每个分类一个独特图标 + 一个独特颜色
   static const List<DefaultCategory> expense = [
-    DefaultCategory(name: '餐饮', icon: 'restaurant',        color: AppBrand.teal, type: 'expense', sortOrder: 0),
-    DefaultCategory(name: '交通', icon: 'directions_bus',    color: AppBrand.teal, type: 'expense', sortOrder: 1),
-    DefaultCategory(name: '购物', icon: 'shopping_bag',      color: AppBrand.teal, type: 'expense', sortOrder: 2),
-    DefaultCategory(name: '居住', icon: 'home',              color: AppBrand.teal, type: 'expense', sortOrder: 3),
-    DefaultCategory(name: '通讯', icon: 'phone_iphone',      color: AppBrand.teal, type: 'expense', sortOrder: 4),
-    DefaultCategory(name: '医疗', icon: 'medical_services',  color: AppBrand.teal, type: 'expense', sortOrder: 5),
-    DefaultCategory(name: '教育', icon: 'school',            color: AppBrand.teal, type: 'expense', sortOrder: 6),
-    DefaultCategory(name: '娱乐', icon: 'movie',             color: AppBrand.teal, type: 'expense', sortOrder: 7),
-    DefaultCategory(name: '居家', icon: 'chair',             color: AppBrand.teal, type: 'expense', sortOrder: 8),
-    DefaultCategory(name: '美妆', icon: 'spa',               color: AppBrand.teal, type: 'expense', sortOrder: 9),
-    DefaultCategory(name: '宠物', icon: 'pets',              color: AppBrand.teal, type: 'expense', sortOrder: 10),
-    DefaultCategory(name: '其他', icon: 'more_horiz',        color: AppGray.g400,  type: 'expense', sortOrder: 99),
+    DefaultCategory(name: '餐饮', icon: 'restaurant',        color: AppCategory.food,           type: 'expense', sortOrder: 0),
+    DefaultCategory(name: '交通', icon: 'directions_bus',    color: AppCategory.transport,      type: 'expense', sortOrder: 1),
+    DefaultCategory(name: '购物', icon: 'shopping_bag',      color: AppCategory.shopping,       type: 'expense', sortOrder: 2),
+    DefaultCategory(name: '居住', icon: 'home',              color: AppCategory.housing,        type: 'expense', sortOrder: 3),
+    DefaultCategory(name: '通讯', icon: 'phone_iphone',      color: AppCategory.telecom,        type: 'expense', sortOrder: 4),
+    DefaultCategory(name: '医疗', icon: 'medical_services',  color: AppCategory.medical,        type: 'expense', sortOrder: 5),
+    DefaultCategory(name: '教育', icon: 'school',            color: AppCategory.education,      type: 'expense', sortOrder: 6),
+    DefaultCategory(name: '娱乐', icon: 'movie',             color: AppCategory.entertainment,  type: 'expense', sortOrder: 7),
+    DefaultCategory(name: '居家', icon: 'chair',             color: AppCategory.home,           type: 'expense', sortOrder: 8),
+    DefaultCategory(name: '美妆', icon: 'spa',               color: AppCategory.beauty,         type: 'expense', sortOrder: 9),
+    DefaultCategory(name: '宠物', icon: 'pets',              color: AppCategory.pet,            type: 'expense', sortOrder: 10),
+    DefaultCategory(name: '其他', icon: 'more_horiz',        color: AppCategory.neutral,        type: 'expense', sortOrder: 99),
   ];
 
-  /// 收入 5 类 —— 每个分类一个独特图标
+  /// 收入 5 类 —— 每个分类一个独特图标 + 一个独特颜色
   static const List<DefaultCategory> income = [
-    DefaultCategory(name: '工资', icon: 'payments',          color: AppBrand.gold, type: 'income', sortOrder: 0),
-    DefaultCategory(name: '奖金', icon: 'card_giftcard',     color: AppBrand.gold, type: 'income', sortOrder: 1),
-    DefaultCategory(name: '理财', icon: 'savings',           color: AppBrand.gold, type: 'income', sortOrder: 2),
-    DefaultCategory(name: '兼职', icon: 'work',              color: AppBrand.gold, type: 'income', sortOrder: 3),
-    DefaultCategory(name: '退款', icon: 'replay',            color: AppGray.g400,  type: 'income', sortOrder: 99),
+    DefaultCategory(name: '工资', icon: 'payments',          color: AppCategory.salary,     type: 'income', sortOrder: 0),
+    DefaultCategory(name: '奖金', icon: 'card_giftcard',     color: AppCategory.bonus,      type: 'income', sortOrder: 1),
+    DefaultCategory(name: '理财', icon: 'savings',           color: AppCategory.invest,     type: 'income', sortOrder: 2),
+    DefaultCategory(name: '兼职', icon: 'work',              color: AppCategory.parttime,   type: 'income', sortOrder: 3),
+    DefaultCategory(name: '退款', icon: 'replay',            color: AppCategory.neutral,    type: 'income', sortOrder: 99),
   ];
 }
 
