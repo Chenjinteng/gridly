@@ -218,30 +218,30 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
     final theme = Theme.of(context);
     return Stack(
       children: [
-        // 底层:删除按钮(只在右侧 _kOpenOffset 宽度内,跟 tile 同 margin + 圆角)
-        // 不铺满整宽 → 视觉上只是"右侧露出一个红按钮",不是"整片红"
-        Positioned(
-          right: AppSpacing.s4,
-          top: AppSpacing.s1,
-          bottom: AppSpacing.s1,
-          width: _kOpenOffset,
-          child: Material(
-            color: AppStatus.error,
-            borderRadius: const BorderRadius.only(
-              topRight: Radius.circular(AppRadius.lg),
-              bottomRight: Radius.circular(AppRadius.lg),
+        // 底层:红色按钮(跟 tile 完全同形状——同 margin + 同圆角)
+        // tile 滑过去后,自然露出一块"红色版本"的 tile,视觉是一体的
+        Positioned.fill(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.s4,
+              vertical: AppSpacing.s1,
             ),
-            child: InkWell(
-              borderRadius: const BorderRadius.only(
-                topRight: Radius.circular(AppRadius.lg),
-                bottomRight: Radius.circular(AppRadius.lg),
-              ),
-              onTap: widget.onDelete,
-              child: const Center(
-                child: Icon(
-                  Icons.delete_outline_rounded,
-                  color: Colors.white,
-                  size: 26,
+            child: Material(
+              color: AppStatus.error,
+              borderRadius: AppRadius.brLg,
+              child: InkWell(
+                borderRadius: AppRadius.brLg,
+                onTap: widget.onDelete,
+                child: const Align(
+                  alignment: Alignment.centerRight,
+                  child: Padding(
+                    padding: EdgeInsets.only(right: AppSpacing.s4),
+                    child: Icon(
+                      Icons.delete_outline_rounded,
+                      color: Colors.white,
+                      size: 26,
+                    ),
+                  ),
                 ),
               ),
             ),
