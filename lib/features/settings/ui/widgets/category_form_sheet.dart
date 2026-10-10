@@ -26,14 +26,28 @@ class _CategoryFormSheetState extends ConsumerState<CategoryFormSheet> {
   late int _color;
   bool _saving = false;
 
+  /// 17 个语义化图标(与默认分类一一对应) + 3 个通用 fallback
   static const _iconKeys = [
-    'circle',
-    'square',
-    'triangle',
-    'diamond',
-    'star',
-    'hexagon',
-    'pentagon',
+    // 支出
+    'restaurant',
+    'directions_bus',
+    'shopping_bag',
+    'home',
+    'phone_iphone',
+    'medical_services',
+    'school',
+    'movie',
+    'chair',
+    'spa',
+    'pets',
+    'more_horiz',
+    // 收入
+    'payments',
+    'card_giftcard',
+    'savings',
+    'work',
+    'replay',
+    // fallback
     'category',
   ];
 

@@ -11,6 +11,8 @@ void main() async {
   final container = ProviderContainer();
   // 首次启动(或表空时)seed 默认分类
   await container.read(categoryRepositoryProvider).seedDefaultsIfEmpty();
+  // 把老用户的系统分类 icon 升级到 v2 语义化图标(幂等,无命中也无害)
+  await container.read(categoryRepositoryProvider).syncCategoryIcons();
   runApp(
     UncontrolledProviderScope(
       container: container,

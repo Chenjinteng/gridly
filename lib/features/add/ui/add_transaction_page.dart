@@ -11,8 +11,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/database/app_database.dart';
 import '../../../core/database/providers.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../shared/constants/default_categories.dart';
 import '../../ledger/application/transactions_providers.dart';
 import 'widgets/amount_display.dart';
 import 'widgets/category_selector.dart';
@@ -211,6 +215,104 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     );
   }
 
+  /// 键盘上方的保存栏 —— 左侧展示当前已选分类(没选就给提示),
+  /// 右侧是保存动作按钮。位置贴近键盘,输完金额可一步保存,
+  /// 不必抬拇指到 AppBar 右上角。
+  Widget _saveBar(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final catsAsync = ref.watch(categoriesByTypeProvider(_type));
+    Category? current;
+    catsAsync.whenData((cats) {
+      for (final c in cats) {
+        if (c.id == _categoryId) {
+          current = c;
+          break;
+        }
+      }
+    });
+    final canSave = _categoryId != null;
+    // 捕获成本地 final,Dart 能在 else 分支自动提升非空
+    final sel = current;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.s4,
+        vertical: AppSpacing.s2,
+      ),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(
+          top: BorderSide(
+            color: theme.colorScheme.outlineVariant,
+            width: 0.5,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: sel == null
+                ? const Text(
+                    '先选个分类',
+                    style: TextStyle(fontSize: 13, color: AppGray.g600),
+                  )
+                : Row(
+                    children: [
+                      Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: Color(sel.color).withValues(alpha: 0.12),
+                          borderRadius: AppRadius.brMd,
+                        ),
+                        child: Icon(
+                          CategoryIcons.map[sel.icon] ??
+                              Icons.category_rounded,
+                          color: Color(sel.color),
+                          size: 16,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.s2),
+                      Flexible(
+                        child: Text(
+                          sel.name,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+          SizedBox(
+            height: 44,
+            child: FilledButton(
+              onPressed: canSave ? _save : null,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppBrand.ink,
+                disabledBackgroundColor: AppGray.g200,
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s5),
+                shape: RoundedRectangleBorder(
+                  borderRadius: AppRadius.brLg,
+                ),
+              ),
+              child: const Text(
+                '保存',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -220,12 +322,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
           icon: const Icon(Icons.close),
           onPressed: () => context.go('/home'),
         ),
-        actions: [
-          TextButton(
-            onPressed: _save,
-            child: const Text('保存', style: TextStyle(fontWeight: FontWeight.w600)),
-          ),
-        ],
+        // 保存按钮移到了键盘上方(见 _saveBar),方便输完金额直接点
       ),
       body: SafeArea(
         child: Column(
@@ -290,8 +387,8 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
               ),
             ),
             const Divider(height: 1),
-            SizedBox(
-              height: 280,
+            _saveBar(context, ref),
+            Expanded(
               child: Padding(
                 padding: const EdgeInsets.all(AppSpacing.s1),
                 child: Numpad(onKey: _onKey),

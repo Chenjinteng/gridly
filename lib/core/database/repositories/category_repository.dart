@@ -81,6 +81,21 @@ class CategoryRepository {
         .getSingle();
   }
 
+  /// 把系统分类的 icon 升级到 v2(语义化图标)。
+  /// 按 name 匹配:在迁移表里的就更新到新 key,不在的不动(用户自定义分类不会被改)。
+  /// 每次启动都会跑,但只有命中的行会被 UPDATE,代价很低。
+  Future<void> syncCategoryIcons() async {
+    await _db.batch((batch) {
+      for (final entry in kIconMigrationV2.entries) {
+        batch.update(
+          _db.categories,
+          CategoriesCompanion(icon: Value(entry.value)),
+          where: (c) => c.name.equals(entry.key) & c.isSystem.equals(true),
+        );
+      }
+    });
+  }
+
   CategoriesCompanion _toCompanion(DefaultCategory c) {
     return CategoriesCompanion.insert(
       name: c.name,
