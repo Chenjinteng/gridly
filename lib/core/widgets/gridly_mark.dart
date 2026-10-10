@@ -63,30 +63,35 @@ class _OrganicMarkPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final s = size.width;
     // 三个块的中心点(相对)+ 边长 + 旋转角(弧度,顺时针为正)
-    // 倒三角:上 2 下 1,无重叠
+    // **2x2 网格,左对齐** —— design/THEME.md §1.2:
+    //   ┌─墨─┐ ┌──金──┐
+    //   └────┘ └──────┘
+    //   ┌───青───┐
+    //   └────────┘
+    // 右下角空着,三块互不重叠
     final blocks = <_BlockSpec>[
-      // 上左:墨(略小,微微左倾)
+      // 左上:墨
       _BlockSpec(
-        center: Offset(s * 0.26, s * 0.28),
+        center: Offset(s * 0.25, s * 0.27),
         w: s * 0.46,
         h: s * 0.42,
-        rotation: -0.10,
+        rotation: -0.08,
         color: ink,
       ),
-      // 上右:金(略大,微右倾)
+      // 右上:金(略大)
       _BlockSpec(
         center: Offset(s * 0.74, s * 0.26),
         w: s * 0.50,
         h: s * 0.46,
-        rotation: 0.12,
+        rotation: 0.10,
         color: gold,
       ),
-      // 下中:青(中等,微左倾)
+      // 左下:青
       _BlockSpec(
-        center: Offset(s * 0.50, s * 0.74),
+        center: Offset(s * 0.25, s * 0.74),
         w: s * 0.48,
         h: s * 0.42,
-        rotation: -0.08,
+        rotation: -0.06,
         color: teal,
       ),
     ];
