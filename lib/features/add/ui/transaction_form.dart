@@ -277,7 +277,7 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (_) => _CategoryPickerSheet(
         categories: cats,
         selected: _categoryId,
@@ -543,13 +543,16 @@ class _CategoryPickerSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
       minChildSize: 0.3,
       maxChildSize: 0.9,
       expand: false,
       builder: (context, scrollController) {
-        return Column(
+        return Container(
+          color: theme.colorScheme.surface,
+          child: Column(
           children: [
             // 把手
             Container(
@@ -647,6 +650,7 @@ class _CategoryPickerSheet extends StatelessWidget {
               ),
             ),
           ],
+        ),
         );
       },
     );
