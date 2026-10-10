@@ -67,7 +67,7 @@ class TopExpenses extends ConsumerWidget {
               ),
             ),
             SizedBox(
-              height: 400,
+              height: 520,
               child: const TabBarView(
                 physics: NeverScrollableScrollPhysics(),
                 children: [
@@ -86,6 +86,9 @@ class TopExpenses extends ConsumerWidget {
 class _TopList extends ConsumerWidget {
   const _TopList();
 
+  static const int _slotCount = 10;
+  static const double _rowHeight = 50;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final topAsync = ref.watch(topExpensesProvider);
@@ -93,109 +96,27 @@ class _TopList extends ConsumerWidget {
     return topAsync.when(
       data: (txs) {
         if (txs.isEmpty) {
-          return const _Empty('该时段无支出');
+          return Column(
+            children: List.generate(_slotCount, (_) => const _EmptyRow(height: _rowHeight)),
+          );
         }
-        return ListView.separated(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.s2),
-          itemCount: txs.length,
-          separatorBuilder: (_, _) => const Divider(
-            height: 1,
-            thickness: 0.5,
-            indent: AppSpacing.s4,
-            endIndent: AppSpacing.s4,
-          ),
-          itemBuilder: (context, i) {
-            final t = txs[i];
-            Category? cat;
-            for (final c in cats) {
-              if (c.id == t.categoryId) {
-                cat = c;
-                break;
-              }
-            }
-            final color = cat == null ? AppGray.g400 : Color(cat.color);
-            return InkWell(
-              onTap: null,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.s4,
-                  vertical: AppSpacing.s2,
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.12),
-                        borderRadius: AppRadius.brXs,
-                        border: Border.all(
-                          color: color.withValues(alpha: 0.3),
-                          width: 0.5,
-                        ),
-                      ),
-                      child: Icon(
-                        CategoryIcons.map[cat?.icon ?? 'category'] ??
-                            Icons.category_rounded,
-                        color: color,
-                        size: 14,
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.s2),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            cat?.name ?? '未分类',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          if (t.note != null && t.note!.isNotEmpty)
-                            Text(
-                              t.note!,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: AppGray.g600,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.s2),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '¥${Formatters.amount(t.amount)}',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: AppStatus.error,
-                          ),
-                        ),
-                        Text(
-                          DateFormat('M月d日').format(t.occurredAt),
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: AppGray.g600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+        return Column(
+          children: [
+            for (final t in txs.take(_slotCount))
+              _DataRow(
+                height: _rowHeight,
+                color: _colorForCategory(t.categoryId, cats),
+                iconKey: _iconKeyForCategory(t.categoryId, cats),
+                primary: _categoryNameForCategory(t.categoryId, cats),
+                secondary: t.note,
+                trailing: '¥${Formatters.amount(t.amount)}',
+                trailingSub: DateFormat('M月d日').format(t.occurredAt),
+                trailingColor: AppStatus.error,
               ),
-            );
-          },
+            // 不足 10 条,补空行
+            for (int i = txs.length; i < _slotCount; i++)
+              const _EmptyRow(height: _rowHeight),
+          ],
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -207,94 +128,38 @@ class _TopList extends ConsumerWidget {
 class _TopByCategory extends ConsumerWidget {
   const _TopByCategory();
 
+  static const int _slotCount = 10;
+  static const double _rowHeight = 50;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final expensesAsync = ref.watch(expenseByCategoryProvider);
     final cats = ref.watch(allCategoriesProvider).valueOrNull ?? const <Category>[];
     return expensesAsync.when(
       data: (data) {
-        if (data.isEmpty) {
-          return const _Empty('该时段无支出');
-        }
         final total = data.fold<double>(0, (s, e) => s + e.amount);
-        final top = data.take(10).toList();
-        return ListView.separated(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.s2),
-          itemCount: top.length,
-          separatorBuilder: (_, _) => const Divider(
-            height: 1,
-            thickness: 0.5,
-            indent: AppSpacing.s4,
-            endIndent: AppSpacing.s4,
-          ),
-          itemBuilder: (context, i) {
-            final e = top[i];
-            // CategoryExpense 不带 icon,查 allCategories 拿
-            String iconKey = 'category';
-            for (final c in cats) {
-              if (c.id == e.categoryId) {
-                iconKey = c.icon;
-                break;
-              }
-            }
-            final color = Color(e.color);
-            final pct = (e.amount / total * 100).toStringAsFixed(0);
-            return Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.s4,
-                vertical: AppSpacing.s2,
+        final top = data.take(_slotCount).toList();
+        if (top.isEmpty) {
+          return Column(
+            children: List.generate(_slotCount, (_) => const _EmptyRow(height: _rowHeight)),
+          );
+        }
+        return Column(
+          children: [
+            for (final e in top)
+              _DataRow(
+                height: _rowHeight,
+                color: Color(e.color),
+                iconKey: _iconKeyForCategory(e.categoryId, cats),
+                primary: e.name,
+                secondary: '${(e.amount / total * 100).toStringAsFixed(0)}%',
+                trailing: '¥${Formatters.amount(e.amount)}',
+                trailingColor: Color(e.color),
               ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.12),
-                      borderRadius: AppRadius.brXs,
-                      border: Border.all(
-                        color: color.withValues(alpha: 0.3),
-                        width: 0.5,
-                      ),
-                    ),
-                    child: Icon(
-                      CategoryIcons.map[iconKey] ?? Icons.category_rounded,
-                      color: color,
-                      size: 14,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.s2),
-                  Expanded(
-                    child: Text(
-                      e.name,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Text(
-                    '$pct%',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppGray.g600,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.s2),
-                  Text(
-                    '¥${Formatters.amount(e.amount)}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: color,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
+            // 不足 10 条,补空行
+            for (int i = top.length; i < _slotCount; i++)
+              const _EmptyRow(height: _rowHeight),
+          ],
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -302,17 +167,153 @@ class _TopByCategory extends ConsumerWidget {
     );
   }
 }
+// 固定高度的数据行(单笔 / 分类共用)
+class _DataRow extends StatelessWidget {
+  const _DataRow({
+    required this.height,
+    required this.color,
+    required this.iconKey,
+    required this.primary,
+    this.secondary,
+    required this.trailing,
+    this.trailingSub,
+    required this.trailingColor,
+  });
+  final double height;
+  final Color color;
+  final String iconKey;
+  final String primary;
+  final String? secondary;
+  final String trailing;
+  final String? trailingSub;
+  final Color trailingColor;
 
-class _Empty extends StatelessWidget {
-  const _Empty(this.text);
-  final String text;
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        text,
-        style: const TextStyle(color: AppGray.g600, fontSize: 13),
+    return Container(
+      height: height,
+      decoration: const BoxDecoration(
+        border: Border(
+          top: BorderSide(color: AppGray.g100, width: 0.5),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.s4,
+          vertical: AppSpacing.s1,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: AppRadius.brXs,
+                border: Border.all(
+                  color: color.withValues(alpha: 0.3),
+                  width: 0.5,
+                ),
+              ),
+              child: Icon(
+                CategoryIcons.map[iconKey] ?? Icons.category_rounded,
+                color: color,
+                size: 14,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.s2),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    primary,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (secondary != null && secondary!.isNotEmpty)
+                    Text(
+                      secondary!,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppGray.g600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: AppSpacing.s2),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  trailing,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: trailingColor,
+                  ),
+                ),
+                if (trailingSub != null && trailingSub!.isNotEmpty)
+                  Text(
+                    trailingSub!,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: AppGray.g600,
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
+}
+
+// 空行(占位,顶部 0.5px 分隔线)
+class _EmptyRow extends StatelessWidget {
+  const _EmptyRow({required this.height});
+  final double height;
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: height,
+      decoration: const BoxDecoration(
+        border: Border(
+          top: BorderSide(color: AppGray.g100, width: 0.5),
+        ),
+      ),
+    );
+  }
+}
+
+// 分类查找辅助(根据 categoryId 找 cat,fallback 默认)
+Color _colorForCategory(int id, List<Category> cats) {
+  for (final c in cats) {
+    if (c.id == id) return Color(c.color);
+  }
+  return AppGray.g400;
+}
+
+String _iconKeyForCategory(int id, List<Category> cats) {
+  for (final c in cats) {
+    if (c.id == id) return c.icon;
+  }
+  return 'category';
+}
+
+String _categoryNameForCategory(int id, List<Category> cats) {
+  for (final c in cats) {
+    if (c.id == id) return c.name;
+  }
+  return '未分类';
 }
