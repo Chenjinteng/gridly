@@ -285,7 +285,7 @@ class _FilterBar extends ConsumerWidget {
       options: options,
       currentValue: typeFilter,
     );
-    if (selected is _SheetDismissed) return;
+    if (selected == null || selected is _SheetDismissed) return;
     if (selected is _AllPicked) {
       onTypeChanged('all');
       return;
@@ -305,7 +305,7 @@ class _FilterBar extends ConsumerWidget {
       options: options,
       currentValue: monthFilter,
     );
-    if (selected is _SheetDismissed) return;
+    if (selected == null || selected is _SheetDismissed) return;
     // 选"全部" → 触发 onMonthChanged(null) 重置
     if (selected is _AllPicked) {
       onMonthChanged(null);
