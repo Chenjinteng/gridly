@@ -19,7 +19,6 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../shared/constants/default_categories.dart';
 import '../../ledger/application/transactions_providers.dart';
 import 'widgets/amount_display.dart';
-import 'widgets/category_selector.dart';
 import 'widgets/numpad.dart';
 import 'widgets/type_toggle.dart';
 
@@ -215,9 +214,9 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     );
   }
 
-  /// 键盘上方的保存栏 —— 左侧展示当前已选分类(没选就给提示),
-  /// 右侧是保存动作按钮。位置贴近键盘,输完金额可一步保存,
-  /// 不必抬拇指到 AppBar 右上角。
+  /// 键盘上方的保存栏 —— 左侧"选分类"入口 + 已选分类显示,
+  /// 右侧保存按钮。点左侧任意位置都弹分类选择器,既是显示又是入口。
+  /// 位置贴近键盘,输完金额可一步保存,不必抬拇指到 AppBar 右上角。
   Widget _saveBar(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final catsAsync = ref.watch(categoriesByTypeProvider(_type));
@@ -250,42 +249,92 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
       child: Row(
         children: [
           Expanded(
-            child: sel == null
-                ? const Text(
-                    '先选个分类',
-                    style: TextStyle(fontSize: 13, color: AppGray.g600),
-                  )
-                : Row(
-                    children: [
-                      Container(
-                        width: 28,
-                        height: 28,
-                        decoration: BoxDecoration(
-                          color: Color(sel.color).withValues(alpha: 0.12),
-                          borderRadius: AppRadius.brMd,
-                        ),
-                        child: Icon(
-                          CategoryIcons.map[sel.icon] ??
-                              Icons.category_rounded,
-                          color: Color(sel.color),
-                          size: 16,
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.s2),
-                      Flexible(
-                        child: Text(
-                          sel.name,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
+            child: InkWell(
+              borderRadius: AppRadius.brMd,
+              onTap: _openCategoryPicker,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.s2),
+                child: sel == null
+                    ? Row(
+                        children: [
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surfaceContainerHigh,
+                              borderRadius: AppRadius.brXs,
+                              border: Border.all(
+                                color: theme.colorScheme.outlineVariant,
+                                width: 0.5,
+                              ),
+                            ),
+                            child: Icon(
+                              Icons.category_outlined,
+                              size: 16,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                          const SizedBox(width: AppSpacing.s2),
+                          const Text(
+                            '选个分类',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: AppGray.g600,
+                            ),
+                          ),
+                          const Spacer(),
+                          Icon(
+                            Icons.expand_more,
+                            size: 20,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: Color(sel.color).withValues(alpha: 0.12),
+                              borderRadius: AppRadius.brXs,
+                              border: Border.all(
+                                color: Color(sel.color).withValues(alpha: 0.3),
+                                width: 0.5,
+                              ),
+                            ),
+                            child: Icon(
+                              CategoryIcons.map[sel.icon] ??
+                                  Icons.category_rounded,
+                              color: Color(sel.color),
+                              size: 16,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.s2),
+                          Flexible(
+                            child: Text(
+                              sel.name,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const Spacer(),
+                          Icon(
+                            Icons.expand_more,
+                            size: 20,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+              ),
+            ),
           ),
+          const SizedBox(width: AppSpacing.s3),
           SizedBox(
             height: 44,
             child: FilledButton(
@@ -309,6 +358,31 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// 弹分类选择底部 sheet,选完自动关
+  void _openCategoryPicker() {
+    final cats = ref.read(categoriesByTypeProvider(_type)).valueOrNull ?? [];
+    if (cats.isEmpty) {
+      _toast('没有可用分类');
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      builder: (_) => _CategoryPickerSheet(
+        categories: cats,
+        selected: _categoryId,
+        onSelect: (id) {
+          setState(() => _categoryId = id);
+          Navigator.pop(context);
+        },
       ),
     );
   }
@@ -363,17 +437,6 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
-              child: CategorySelector(
-                type: _type,
-                selected: _categoryId,
-                onSelect: (id) => setState(() => _categoryId = id),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.s4,
-                vertical: AppSpacing.s2,
-              ),
               child: TextField(
                 controller: _noteController,
                 maxLength: 30,
@@ -397,6 +460,137 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 分类选择底部 sheet —— 在记一笔页 SaveBar 左侧点击时弹出。
+/// 之前是独立文件 category_selector.dart,现在合并进记一笔页(分类入口只此一处)。
+class _CategoryPickerSheet extends StatelessWidget {
+  const _CategoryPickerSheet({
+    required this.categories,
+    required this.selected,
+    required this.onSelect,
+  });
+  final List<Category> categories;
+  final int? selected;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.3,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (context, scrollController) {
+        return Column(
+          children: [
+            // 把手
+            Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(top: 8, bottom: 12),
+              decoration: BoxDecoration(
+                color: AppGray.g400,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // 标题 + 计数
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.s4,
+                0,
+                AppSpacing.s4,
+                AppSpacing.s2,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    '选分类',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    '${categories.length} 个',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppGray.g600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            // 列表
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                itemCount: categories.length,
+                itemBuilder: (context, i) {
+                  final c = categories[i];
+                  final isSel = c.id == selected;
+                  final color = Color(c.color);
+                  return InkWell(
+                    onTap: () => onSelect(c.id),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.s4,
+                        vertical: AppSpacing.s3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSel
+                            ? color.withValues(alpha: 0.10)
+                            : Colors.transparent,
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: 0.12),
+                              borderRadius: AppRadius.brXs,
+                              border: Border.all(
+                                color: color.withValues(alpha: 0.3),
+                                width: 0.5,
+                              ),
+                            ),
+                            child: Icon(
+                              CategoryIcons.map[c.icon] ??
+                                  Icons.category_rounded,
+                              color: color,
+                              size: 16,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.s3),
+                          Expanded(
+                            child: Text(
+                              c.name,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: isSel
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                                color: isSel ? color : null,
+                              ),
+                            ),
+                          ),
+                          if (isSel)
+                            Icon(Icons.check_circle, color: color, size: 20),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
