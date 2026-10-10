@@ -1,6 +1,6 @@
 // lib/features/splash/splash_page.dart
-// 启动屏:LOGO 居中 + 三色横条 + Tagline
-// 设计参考:design/THEME.md §6.1
+// 启动屏:GridlyMark(LOGO mark)+ App 名 + Tagline + 三色横条
+// LOGO 实现统一在 core/widgets/gridly_mark.dart,严格按 design/THEME.html .logo3
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -8,8 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_colors.dart';
-import '../../core/theme/app_radius.dart';
 import '../../core/theme/app_spacing.dart';
+import '../../core/widgets/gridly_mark.dart';
 
 class SplashPage extends ConsumerStatefulWidget {
   const SplashPage({super.key});
@@ -44,27 +44,9 @@ class _SplashPageState extends ConsumerState<SplashPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Spacer(),
-            // 简化的 LOGO(用 Container 画三色方块,避免 P0 阶段 LOGO 图没到位)
-            SizedBox(
-              width: 120,
-              height: 120,
-              child: Stack(
-                children: [
-                  Positioned(
-                    top: 0, right: 0,
-                    child: _Square(size: 80, color: AppBrand.gold),
-                  ),
-                  Positioned(
-                    bottom: 0, left: 0,
-                    child: _Square(size: 80, color: AppBrand.teal),
-                  ),
-                  Positioned(
-                    top: 20, left: 0,
-                    child: _Square(size: 80, color: AppSecondary.cream),
-                  ),
-                ],
-              ),
-            ),
+            // 统一 LOGO mark:2×2 + -8° + 6.67% gap + 16.67% 圆角
+            // onDark=true:ink 块在深底上变 cream,避免融背景
+            const GridlyMark(size: 120, onDark: true),
             const SizedBox(height: AppSpacing.s6),
             const Text(
               '格子记账',
@@ -85,7 +67,7 @@ class _SplashPageState extends ConsumerState<SplashPage> {
               ),
             ),
             const Spacer(),
-            // 三色横条(THEME.md §6.1 启动屏规范)
+            // 三色横条(经典 gridly 标志)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: AppSpacing.s8),
               child: Row(
@@ -101,24 +83,6 @@ class _SplashPageState extends ConsumerState<SplashPage> {
             const SizedBox(height: AppSpacing.s6),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _Square extends StatelessWidget {
-  const _Square({required this.size, required this.color});
-  final double size;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: AppRadius.brXl,
       ),
     );
   }
