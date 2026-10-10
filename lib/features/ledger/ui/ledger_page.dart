@@ -12,12 +12,19 @@ import '../../../core/utils/formatters.dart';
 import '../application/transactions_providers.dart';
 import 'widgets/transaction_tile.dart';
 
-/// Sentinel —— ModalBottomSheet dismiss 时返回,跟"选了全部(null)"区分开
+/// Sentinel —— ModalBottomSheet dismiss 时返回,跟"选了全部"区分开
 class _SheetDismissed {
   const _SheetDismissed();
 }
 
 const _sheetDismissed = _SheetDismissed();
+
+/// Sentinel —— 用户明确点了"全部"项(等价于 reset 到默认值)
+class _AllPicked {
+  const _AllPicked();
+}
+
+const _allPicked = _AllPicked();
 
 class LedgerPage extends ConsumerStatefulWidget {
   const LedgerPage({super.key});
@@ -267,8 +274,8 @@ class _FilterBar extends ConsumerWidget {
 
   // ============ 弹层:类型(单选) ============
   Future<void> _showTypePicker(BuildContext context) async {
-    const options = [
-      ('all', '全部'),
+    final options = <(Object?, String)>[
+      (_allPicked, '全部'),
       ('expense', '支出'),
       ('income', '收入'),
     ];
@@ -278,14 +285,18 @@ class _FilterBar extends ConsumerWidget {
       options: options,
       currentValue: typeFilter,
     );
-    if (selected == null || selected is _SheetDismissed) return;
+    if (selected is _SheetDismissed) return;
+    if (selected is _AllPicked) {
+      onTypeChanged('all');
+      return;
+    }
     onTypeChanged(selected as String);
   }
 
   // ============ 弹层:月份(单选) ============
   Future<void> _showMonthPicker(BuildContext context) async {
-    final options = <(int?, String)>[
-      (null, '全部'),
+    final options = <(Object?, String)>[
+      (_allPicked, '全部'),
       ...monthKeys.map((k) => (k, formatMonthKey(k))),
     ];
     final selected = await _showSingleSelectSheet<int?>(
@@ -294,9 +305,12 @@ class _FilterBar extends ConsumerWidget {
       options: options,
       currentValue: monthFilter,
     );
-    // sentinel = dismiss(点外面 / "关闭"按钮),不算选择
-    if (selected == null || selected is _SheetDismissed) return;
-    // 选 "全部" (value=null) 也算有效选择,触发 onMonthChanged(null) 重置
+    if (selected is _SheetDismissed) return;
+    // 选"全部" → 触发 onMonthChanged(null) 重置
+    if (selected is _AllPicked) {
+      onMonthChanged(null);
+      return;
+    }
     onMonthChanged(selected as int?);
   }
 
@@ -320,15 +334,15 @@ class _FilterBar extends ConsumerWidget {
 
 /// 单选弹层(类型 / 月份)—— 选完自动关闭
 ///
-/// ⚠️ 关键修复:必须用 sentinel 对象区分"用户点了全部(null)"和"用户 dismiss"
-/// 因为类型/月份的"全部" 值本身就是 null,跟 ModalBottomSheet 默认的 dismiss 返回值冲突。
-/// 选项 tap → pop(value,可能为 null)
-/// 关闭按钮 + barrier → pop(_SheetDismissed)
-/// 返回 Object? —— 调用方先 is _SheetDismissed 判断,再 cast T
+/// ⚠️ 关键修复:用两个 sentinel 严格区分:
+///   - _SheetDismissed → barrier dismiss / "关闭"按钮(没操作)
+///   - _AllPicked → 用户明确点"全部"(要 reset 到默认值)
+///   - 其他 value → 用户点了某个具体选项
+/// 选项用 `Object?` 而非 T,因为"全部"用 sentinel 不能跟 T 类型混
 Future<Object?> _showSingleSelectSheet<T>(
   BuildContext context, {
   required String title,
-  required List<(T, String)> options,
+  required List<(Object?, String)> options,
   required T currentValue,
 }) {
   return showModalBottomSheet<Object?>(
@@ -383,7 +397,9 @@ Future<Object?> _showSingleSelectSheet<T>(
                   itemCount: options.length,
                   itemBuilder: (_, i) {
                     final (value, label) = options[i];
-                    final selected = value == currentValue;
+                    // 选中态判断:value 是 _allPicked 且 currentValue 是 null
+                    final selected = (value is _AllPicked && currentValue == null) ||
+                        (value == currentValue);
                     return InkWell(
                       onTap: () => Navigator.pop(ctx, value),
                       child: Padding(
