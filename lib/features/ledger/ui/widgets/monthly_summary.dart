@@ -20,12 +20,17 @@ class MonthlySummary extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final summary = ref.watch(monthSummaryProvider);
+    final hidden = ref.watch(monthlySummaryHiddenProvider);
     final now = DateTime.now();
     final sheetTitle = '${now.year}年${now.month}月';
     final theme = Theme.of(context);
     // 日均支出 = 当月支出 / 当日已过天数(月初时 = 当日)
     final dailyAvg =
         now.day > 0 ? summary.expense / now.day : summary.expense;
+
+    // 金额文本:隐藏时显示「¥ •••••」占位(位数感保留),不暴露具体数字
+    String amountText(double v) => hidden ? '••••••' : '¥${Formatters.amount(v)}';
+
     return Container(
       margin: const EdgeInsets.all(AppSpacing.s4),
       decoration: BoxDecoration(
@@ -70,9 +75,43 @@ class MonthlySummary extends ConsumerWidget {
                       ),
                     ],
                   ),
-                  const Text(
-                    '本月结余',
-                    style: TextStyle(color: AppGray.g400, fontSize: 11),
+                  // 眼睛按钮 —— 切换金额显示/隐藏
+                  InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => ref
+                        .read(monthlySummaryHiddenProvider.notifier)
+                        .state = !hidden,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 4,
+                      ),
+                      child: Row(
+                        children: [
+                          Text(
+                            hidden ? '显示金额' : '本月结余',
+                            style: TextStyle(
+                              color: hidden
+                                  ? AppSecondary.cream
+                                  : AppGray.g400,
+                              fontSize: 11,
+                              fontWeight:
+                                  hidden ? FontWeight.w600 : FontWeight.w400,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            hidden
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                            size: 14,
+                            color: hidden
+                                ? AppSecondary.cream
+                                : AppGray.g400,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -89,9 +128,9 @@ class MonthlySummary extends ConsumerWidget {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  '¥${Formatters.amount(summary.balance)}',
-                  style: const TextStyle(
-                    color: AppSecondary.cream,
+                  amountText(summary.balance),
+                  style: TextStyle(
+                    color: hidden ? AppGray.g400 : AppSecondary.cream,
                     fontSize: 30,
                     fontWeight: FontWeight.w700,
                     letterSpacing: -0.5,
@@ -106,7 +145,7 @@ class MonthlySummary extends ConsumerWidget {
                   Expanded(
                     child: _Cell(
                       label: '收入',
-                      amount: summary.income,
+                      amount: hidden ? null : summary.income,
                       color: AppBrand.gold,
                       showDivider: true,
                     ),
@@ -114,7 +153,7 @@ class MonthlySummary extends ConsumerWidget {
                   Expanded(
                     child: _Cell(
                       label: '支出',
-                      amount: summary.expense,
+                      amount: hidden ? null : summary.expense,
                       color: AppStatus.error,
                       showDivider: false,
                     ),
@@ -142,9 +181,9 @@ class MonthlySummary extends ConsumerWidget {
                   ),
                   const Spacer(),
                   Text(
-                    '¥${Formatters.amount(dailyAvg)}',
-                    style: const TextStyle(
-                      color: AppStatus.error,
+                    hidden ? '••••••' : '¥${Formatters.amount(dailyAvg)}',
+                    style: TextStyle(
+                      color: hidden ? AppGray.g400 : AppStatus.error,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),
@@ -167,7 +206,9 @@ class _Cell extends StatelessWidget {
     required this.showDivider,
   });
   final String label;
-  final double amount;
+
+  /// null = 隐藏(显示 ••••••)
+  final double? amount;
   final Color color;
   final bool showDivider;
 
@@ -203,9 +244,9 @@ class _Cell extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(
-            '¥${Formatters.amount(amount)}',
+            amount == null ? '••••••' : '¥${Formatters.amount(amount!)}',
             style: TextStyle(
-              color: color,
+              color: amount == null ? AppGray.g400 : color,
               fontSize: 15,
               fontWeight: FontWeight.w600,
             ),

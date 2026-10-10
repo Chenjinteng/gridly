@@ -26,6 +26,10 @@ final monthTransactionsProvider = FutureProvider<List<Transaction>>((ref) async 
       .get();
 });
 
+/// 月度汇总金额显示/隐藏 —— 防止屏幕被偷窥 / 截图分享
+/// true = 显示金额(默认),false = 显示 •••••• 马赛克
+final monthlySummaryHiddenProvider = StateProvider<bool>((_) => false);
+
 /// 本月汇总(收入 / 支出)
 class MonthSummary {
   const MonthSummary({required this.income, required this.expense});
