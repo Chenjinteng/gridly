@@ -54,7 +54,7 @@ class MonthlySummary extends ConsumerWidget {
                   Row(
                     children: [
                       // LOGO 三色方块 mark(深色底上,Ink → cream)
-                      const GridlyMark(size: 22, onDark: true),
+                      const GridlyMark(size: 26, onDark: true),
                       const SizedBox(width: AppSpacing.s2),
                       Text(
                         sheetTitle,
