@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/gridly_mark.dart';
 import '../../../core/theme/theme_mode_provider.dart';
 import '../../../core/utils/budget_provider.dart';
 import '../../../core/utils/formatters.dart';
@@ -42,17 +43,16 @@ class SettingsPage extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  Container(
+Container(
                     width: 56,
                     height: 56,
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.06),
                       borderRadius: AppRadius.brMd,
                     ),
-                    child: const Icon(
-                      Icons.grid_view_rounded,
-                      color: AppBrand.gold,
-                      size: 32,
+                    child: const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: GridlyMark(onDark: true),
                     ),
                   ),
                   const SizedBox(width: AppSpacing.s3),

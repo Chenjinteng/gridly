@@ -7,6 +7,7 @@ import '../../../core/database/providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/gridly_mark.dart';
 
 class AboutPage extends ConsumerWidget {
   const AboutPage({super.key});
@@ -34,11 +35,7 @@ class AboutPage extends ConsumerWidget {
               ),
               child: Column(
                 children: const [
-                  Icon(
-                    Icons.grid_view_rounded,
-                    color: AppBrand.gold,
-                    size: 56,
-                  ),
+  GridlyMark(size: 64, onDark: true),
                   SizedBox(height: AppSpacing.s3),
                   Text(
                     '格子记账',
