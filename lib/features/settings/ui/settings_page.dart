@@ -114,20 +114,25 @@ Container(
                   SizedBox(
                     width: double.infinity,
                     child: SegmentedButton<ThemeMode>(
+                      // 缩字号 + 缩图标:避免"跟随系统"在窄屏上换行
+                      style: SegmentedButton.styleFrom(
+                        textStyle: const TextStyle(fontSize: 12),
+                        iconSize: 16,
+                      ),
                       segments: const [
                         ButtonSegment(
                           value: ThemeMode.system,
-                          icon: Icon(Icons.brightness_auto_outlined, size: 18),
+                          icon: Icon(Icons.brightness_auto_outlined, size: 16),
                           label: Text('跟随系统'),
                         ),
                         ButtonSegment(
                           value: ThemeMode.light,
-                          icon: Icon(Icons.light_mode_outlined, size: 18),
+                          icon: Icon(Icons.light_mode_outlined, size: 16),
                           label: Text('浅色'),
                         ),
                         ButtonSegment(
                           value: ThemeMode.dark,
-                          icon: Icon(Icons.dark_mode_outlined, size: 18),
+                          icon: Icon(Icons.dark_mode_outlined, size: 16),
                           label: Text('深色'),
                         ),
                       ],
