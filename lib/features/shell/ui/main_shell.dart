@@ -1,12 +1,15 @@
 // lib/features/shell/ui/main_shell.dart
 // 5 Tab 主容器:首页 / 流水 / 记一笔(中央) / 报表 / 我的
 // 设计参考:design/THEME.md §6.2
+//
+// Stack 底层铺 LedgerGridBackground(16×16 格子纸背景),强化"格子"主题。
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/ledger_grid_background.dart';
 
 class MainShell extends StatelessWidget {
   const MainShell({super.key, required this.child});
@@ -25,7 +28,12 @@ class MainShell extends StatelessWidget {
     final currentIndex = _currentIndex(context);
 
     return Scaffold(
-      body: child,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: LedgerGridBackground()),
+          Positioned.fill(child: child),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         height: 72,
         selectedIndex: currentIndex,

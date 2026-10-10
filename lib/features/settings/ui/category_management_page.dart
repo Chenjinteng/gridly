@@ -194,16 +194,20 @@ class _CategoryTile extends StatelessWidget {
       ),
       child: ListTile(
         leading: Container(
-          width: 40,
-          height: 40,
+          width: 36,
+          height: 36,
           decoration: BoxDecoration(
             color: color.withValues(alpha: 0.12),
-            borderRadius: AppRadius.brMd,
+            borderRadius: AppRadius.brXs,
+            border: Border.all(
+              color: color.withValues(alpha: 0.3),
+              width: 0.5,
+            ),
           ),
           child: Icon(
             CategoryIcons.map[category.icon] ?? Icons.category_rounded,
             color: color,
-            size: 20,
+            size: 18,
           ),
         ),
         title: Text(

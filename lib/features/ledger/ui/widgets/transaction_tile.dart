@@ -49,17 +49,21 @@ class TransactionTile extends ConsumerWidget {
           child: Row(
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.12),
-                  borderRadius: AppRadius.brMd,
+                  borderRadius: AppRadius.brXs,
+                  border: Border.all(
+                    color: color.withValues(alpha: 0.3),
+                    width: 0.5,
+                  ),
                 ),
                 child: Icon(
                   CategoryIcons.map[cat?.icon ?? 'category'] ??
                       Icons.category_rounded,
                   color: color,
-                  size: 22,
+                  size: 18,
                 ),
               ),
               const SizedBox(width: AppSpacing.s3),

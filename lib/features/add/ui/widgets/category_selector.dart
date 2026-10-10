@@ -58,17 +58,21 @@ class CategorySelector extends ConsumerWidget {
               children: [
                 if (hasSelection) ...[
                   Container(
-                    width: 36,
-                    height: 36,
+                    width: 32,
+                    height: 32,
                     decoration: BoxDecoration(
                       color: Color(current.color).withValues(alpha: 0.12),
-                      borderRadius: AppRadius.brMd,
+                      borderRadius: AppRadius.brXs,
+                      border: Border.all(
+                        color: Color(current.color).withValues(alpha: 0.3),
+                        width: 0.5,
+                      ),
                     ),
                     child: Icon(
                       CategoryIcons.map[current.icon] ??
                           Icons.category_rounded,
                       color: Color(current.color),
-                      size: 18,
+                      size: 16,
                     ),
                   ),
                   const SizedBox(width: AppSpacing.s3),
@@ -247,17 +251,21 @@ class _CategoryPickerSheet extends StatelessWidget {
                       child: Row(
                         children: [
                           Container(
-                            width: 36,
-                            height: 36,
+                            width: 32,
+                            height: 32,
                             decoration: BoxDecoration(
                               color: color.withValues(alpha: 0.12),
-                              borderRadius: AppRadius.brMd,
+                              borderRadius: AppRadius.brXs,
+                              border: Border.all(
+                                color: color.withValues(alpha: 0.3),
+                                width: 0.5,
+                              ),
                             ),
                             child: Icon(
                               CategoryIcons.map[c.icon] ??
                                   Icons.category_rounded,
                               color: color,
-                              size: 18,
+                              size: 16,
                             ),
                           ),
                           const SizedBox(width: AppSpacing.s3),
