@@ -63,3 +63,65 @@ final allTransactionsByDayProvider =
     FutureProvider<Map<DateTime, List<Transaction>>>((ref) async {
   return ref.watch(transactionRepositoryProvider).groupedByDay();
 });
+
+// ============================================================
+// 流水筛选(流水页用)—— 类型 / 月份 / 分类 / 搜索关键字
+// ============================================================
+
+/// 类型筛选:'all' / 'expense' / 'income'
+final ledgerTypeFilterProvider = StateProvider<String>((ref) => 'all');
+
+/// 月份筛选:null = 全部,否则用 `year*100 + month` 做 key(如 202610 = 2026 年 10 月)
+final ledgerMonthFilterProvider = StateProvider<int?>((ref) => null);
+
+/// 分类筛选:null = 全部
+final ledgerCategoryFilterProvider = StateProvider<int?>((ref) => null);
+
+/// 搜索关键字:匹配 note(备注)和分类名
+final ledgerSearchQueryProvider = StateProvider<String>((ref) => '');
+
+/// 应用所有筛选后按日分组的结果
+/// 一次取所有流水,在内存里过滤 + 重新分组(数据量小,响应快)
+final filteredTransactionsByDayProvider =
+    FutureProvider<Map<DateTime, List<Transaction>>>((ref) async {
+  final typeFilter = ref.watch(ledgerTypeFilterProvider);
+  final monthFilter = ref.watch(ledgerMonthFilterProvider);
+  final categoryFilter = ref.watch(ledgerCategoryFilterProvider);
+  final query = ref.watch(ledgerSearchQueryProvider).trim().toLowerCase();
+
+  // 取分类一次,用来按分类名匹配搜索关键字
+  final allCats = ref.watch(allCategoriesProvider).valueOrNull ?? const [];
+  final queryCatIds = query.isEmpty
+      ? <int>{}
+      : allCats
+          .where((c) => c.name.toLowerCase().contains(query))
+          .map((c) => c.id)
+          .toSet();
+
+  final all = await ref.watch(transactionRepositoryProvider).all();
+  final filtered = all.where((t) {
+    // 类型
+    if (typeFilter != 'all' && t.type != typeFilter) return false;
+    // 月份
+    if (monthFilter != null) {
+      final dt = t.occurredAt;
+      if (dt.year * 100 + dt.month != monthFilter) return false;
+    }
+    // 分类
+    if (categoryFilter != null && t.categoryId != categoryFilter) return false;
+    // 搜索关键字(note 命中 或 分类名命中)
+    if (query.isNotEmpty) {
+      final noteHit = (t.note ?? '').toLowerCase().contains(query);
+      final catHit = queryCatIds.contains(t.categoryId);
+      if (!noteHit && !catHit) return false;
+    }
+    return true;
+  });
+
+  final map = <DateTime, List<Transaction>>{};
+  for (final t in filtered) {
+    final day = DateTime(t.occurredAt.year, t.occurredAt.month, t.occurredAt.day);
+    map.putIfAbsent(day, () => []).add(t);
+  }
+  return map;
+});
