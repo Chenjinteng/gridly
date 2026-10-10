@@ -21,51 +21,39 @@ class HomePage extends ConsumerWidget {
       appBar: AppBar(),
       body: RefreshIndicator(
         onRefresh: () async => refreshAllData(ref),
-        child: LayoutBuilder(
-          builder: (context, constraints) => SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            child: ConstrainedBox(
-              // 至少撑满一屏,让内容垂直居中(ConstraintLayout 模式)
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: IntrinsicHeight(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.s4,
-                    AppSpacing.s6,
-                    AppSpacing.s4,
-                    AppSpacing.s8, // 留出底部 nav bar 空间
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const Spacer(),
-                      // LOGO + 产品名 —— 居中组成品牌标识
-                      const Center(
-                        child: GridlyMark(size: 96),
-                      ),
-                      const SizedBox(height: AppSpacing.s3),
-                      const Center(
-                        child: Text(
-                          '格子记账',
-                          style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.s5),
-                      // 月度汇总(本月结余 + 收入/支出 + 日均支出)
-                      const MonthlySummary(),
-                      const SizedBox(height: AppSpacing.s4),
-                      // 预算进度
-                      const BudgetProgress(),
-                      const Spacer(),
-                    ],
+        child: SingleChildScrollView(
+          // AlwaysScrollableScrollPhysics 让 RefreshIndicator 在内容未溢出时也能下拉刷新
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.s4, // horizontal
+            AppSpacing.s4, // top —— 原 s6=32,降到 16 让 splash 区紧凑
+            AppSpacing.s4,
+            AppSpacing.s6, // bottom —— 原 s8=48,降到 32 够 nav bar 留位
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: AppSpacing.s6), // splash 顶部呼吸区
+              // LOGO + 产品名 —— 紧凑居中组成品牌标识
+              const Center(child: GridlyMark(size: 80)), // 原 96
+              const SizedBox(height: AppSpacing.s2), // 原 s3=12,降到 8
+              const Center(
+                child: Text(
+                  '格子记账',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
                   ),
                 ),
               ),
-            ),
+              const SizedBox(height: AppSpacing.s3), // 原 s5=24,降到 12
+              // 月度汇总(本月结余 + 收入/支出 + 日均支出)
+              const MonthlySummary(),
+              const SizedBox(height: AppSpacing.s3), // 原 s4=16,降到 12
+              // 预算进度(无预算时 SizedBox.shrink,不影响布局)
+              const BudgetProgress(),
+            ],
           ),
         ),
       ),
