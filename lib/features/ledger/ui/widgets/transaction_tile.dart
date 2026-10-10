@@ -10,8 +10,8 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/utils/refresh_providers.dart';
 import '../../../../shared/constants/default_categories.dart';
-import '../../../stats/application/stats_providers.dart';
 import '../../application/transactions_providers.dart';
 
 class TransactionTile extends ConsumerWidget {
@@ -165,14 +165,8 @@ class TransactionTile extends ConsumerWidget {
     if (confirmed != true) return;
 
     await ref.read(transactionRepositoryProvider).delete(transaction.id);
-    // 广谱 invalidate —— 流水 / 首页汇总 / 报表汇总 + 饼图 + Top 10 + 趋势
-    ref.invalidate(allTransactionsByDayProvider);
-    ref.invalidate(filteredTransactionsByDayProvider);
-    ref.invalidate(monthTransactionsProvider);
-    ref.invalidate(statsTransactionsProvider);
-    ref.invalidate(expenseByCategoryProvider);
-    ref.invalidate(topExpensesProvider);
-    ref.invalidate(monthlyTrendProvider);
+    // 广谱刷新 —— 流水 / 首页 / 报表 / 分类页都同步更新
+    refreshAllData(ref);
 
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

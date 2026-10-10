@@ -80,7 +80,13 @@ final ledgerCategoryFilterProvider = StateProvider<Set<int>>((ref) => <int>{});
 /// 搜索关键字:匹配 note(备注)和分类名
 final ledgerSearchQueryProvider = StateProvider<String>((ref) => '');
 
+/// 流水 / 月度汇总 / 报表 + 分类管理 等所有"依赖流水"的 provider 一起 invalidate
+/// 写新流水 / 删流水 / 用户下拉刷新都调用这个,保证全 App 数据同步
+/// 实现见 lib/core/utils/refresh_providers.dart 的 refreshAllData()
+/// (为避免 ledger 模块反向依赖 stats 模块,helper 放在 core/utils/)
+
 /// 应用所有筛选后按日分组的结果
+/// 一次取所有流水,在内存里过滤 + 重新分组(数据量小,响应快)
 /// 一次取所有流水,在内存里过滤 + 重新分组(数据量小,响应快)
 final filteredTransactionsByDayProvider =
     FutureProvider<Map<DateTime, List<Transaction>>>((ref) async {

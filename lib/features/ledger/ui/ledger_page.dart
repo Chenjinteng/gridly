@@ -9,6 +9,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/refresh_providers.dart';
 import '../application/transactions_providers.dart';
 import 'widgets/transaction_tile.dart';
 
@@ -128,27 +129,49 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
                 ref.read(ledgerCategoryFilterProvider.notifier).state = v,
           ),
           Expanded(
-            child: filteredAsync.when(
-              data: (grouped) {
-                if (grouped.isEmpty) {
-                  return _EmptyState(searching: _searching);
-                }
-                final days = grouped.keys.toList()
-                  ..sort((a, b) => b.compareTo(a));
-                return ListView.builder(
-                  padding: const EdgeInsets.only(
-                      top: AppSpacing.s2, bottom: AppSpacing.s6),
-                  itemCount: days.length,
-                  itemBuilder: (context, i) {
-                    final day = days[i];
-                    final txs = grouped[day]!;
-                    return _DaySection(day: day, transactions: txs);
-                  },
-                );
-              },
-              loading: () =>
-                  const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('加载失败:$e')),
+            child: RefreshIndicator(
+              onRefresh: () async => refreshAllData(ref),
+              // AlwaysScrollableScrollPhysics:即使空态/内容不满一屏也能下拉触发刷新
+              child: filteredAsync.when(
+                data: (grouped) {
+                  if (grouped.isEmpty) {
+                    return ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        const SizedBox(height: 120),
+                        _EmptyState(searching: _searching),
+                      ],
+                    );
+                  }
+                  final days = grouped.keys.toList()
+                    ..sort((a, b) => b.compareTo(a));
+                  return ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.only(
+                        top: AppSpacing.s2, bottom: AppSpacing.s6),
+                    itemCount: days.length,
+                    itemBuilder: (context, i) {
+                      final day = days[i];
+                      final txs = grouped[day]!;
+                      return _DaySection(day: day, transactions: txs);
+                    },
+                  );
+                },
+                loading: () => ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: const [
+                    SizedBox(height: 120),
+                    Center(child: CircularProgressIndicator()),
+                  ],
+                ),
+                error: (e, _) => ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  children: [
+                    const SizedBox(height: 120),
+                    Center(child: Text('加载失败:$e')),
+                  ],
+                ),
+              ),
             ),
           ),
         ],

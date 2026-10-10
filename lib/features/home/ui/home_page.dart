@@ -6,8 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/utils/refresh_providers.dart';
 import '../../../core/widgets/gridly_mark.dart';
-import '../../ledger/application/transactions_providers.dart';
 import '../../ledger/ui/widgets/monthly_summary.dart';
 import 'widgets/budget_progress.dart';
 
@@ -20,10 +20,7 @@ class HomePage extends ConsumerWidget {
       // 不设 AppBar.title —— 产品名"格子记账"挪到 body 内 LOGO 下方
       appBar: AppBar(),
       body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(monthTransactionsProvider);
-          ref.invalidate(allTransactionsByDayProvider);
-        },
+        onRefresh: () async => refreshAllData(ref),
         child: LayoutBuilder(
           builder: (context, constraints) => SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),

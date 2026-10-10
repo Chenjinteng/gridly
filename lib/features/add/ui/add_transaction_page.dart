@@ -17,6 +17,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/refresh_providers.dart';
 import '../../../shared/constants/default_categories.dart';
 import '../../ledger/application/transactions_providers.dart';
 import 'widgets/amount_display.dart';
@@ -203,8 +204,8 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
           occurredAt: _occurredAt,
           note: _noteController.text.isEmpty ? null : _noteController.text,
         );
-    ref.invalidate(allTransactionsByDayProvider);
-    ref.invalidate(monthTransactionsProvider);
+    // 广谱刷新 —— 流水 / 首页 / 报表 / 分类页都同步更新
+    refreshAllData(ref);
     if (!mounted) return;
     context.go('/home');
   }
