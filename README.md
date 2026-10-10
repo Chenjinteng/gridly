@@ -7,7 +7,7 @@
 ![platform](https://img.shields.io/badge/platform-Android-success)
 ![platform](https://img.shields.io/badge/platform-macOS-informational)
 ![platform](https://img.shields.io/badge/platform-iOS-lightgrey)
-![license](https://img.shields.io/badge/license-MIT-green)
+![license](https://img.shields.io/badge/license-AGPL--3.0-red)
 ![commits](https://img.shields.io/badge/commits-50-orange)
 
 ---
@@ -186,3 +186,21 @@ gridly/
 - **第三方依赖无 pandas/openpyxl** —— Python 数据迁移脚本纯 stdlib(sqlite3 + csv)
 - **Sheets "全部" 与 dismiss 区分** —— 用 `_AllPicked` + `_SheetDismissed` 两个 sentinel 严格分开"用户选了全部"(reset 默认值)和"用户 dismiss"(放弃)
 - **金额可见性** —— 月度汇总 / 预算 / 收入 / 支出 / 日均的数字都受 `amountVisibilityProvider` 控制,设置页统一开关
+
+---
+
+## 📄 开源协议
+
+**GNU Affero General Public License v3.0(AGPL-3.0)**
+
+本项目采用 **AGPL-3.0** 协议发布 —— 强 copyleft + 网络服务端开源触发。
+
+- ✅ **允许**:个人学习、非商业使用、二次开发并开源
+- ⚠️ **商用受限**:任何商业使用(包括但不限于销售、付费服务、SaaS 提供、企业内训)都必须以 AGPL-3.0 开源全部衍生代码,网络服务端同样触发
+- ❌ **禁止**:闭源商用、私有化分销、转授权闭源衍生作品
+
+完整文本见 [`LICENSE`](LICENSE)。如需商业授权,请联系作者单独洽谈。
+
+```
+Copyright (C) 2026 Chenjinteng
+```
