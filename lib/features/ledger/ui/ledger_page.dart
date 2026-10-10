@@ -12,6 +12,13 @@ import '../../../core/utils/formatters.dart';
 import '../application/transactions_providers.dart';
 import 'widgets/transaction_tile.dart';
 
+/// Sentinel —— ModalBottomSheet dismiss 时返回,跟"选了全部(null)"区分开
+class _SheetDismissed {
+  const _SheetDismissed();
+}
+
+const _sheetDismissed = _SheetDismissed();
+
 class LedgerPage extends ConsumerStatefulWidget {
   const LedgerPage({super.key});
 
@@ -271,7 +278,8 @@ class _FilterBar extends ConsumerWidget {
       options: options,
       currentValue: typeFilter,
     );
-    if (selected != null) onTypeChanged(selected);
+    if (selected == null || selected is _SheetDismissed) return;
+    onTypeChanged(selected as String);
   }
 
   // ============ 弹层:月份(单选) ============
@@ -286,7 +294,10 @@ class _FilterBar extends ConsumerWidget {
       options: options,
       currentValue: monthFilter,
     );
-    if (selected != null) onMonthChanged(selected);
+    // sentinel = dismiss(点外面 / "关闭"按钮),不算选择
+    if (selected == null || selected is _SheetDismissed) return;
+    // 选 "全部" (value=null) 也算有效选择,触发 onMonthChanged(null) 重置
+    onMonthChanged(selected as int?);
   }
 
   // ============ 弹层:分类(多选) ============
@@ -308,13 +319,19 @@ class _FilterBar extends ConsumerWidget {
 }
 
 /// 单选弹层(类型 / 月份)—— 选完自动关闭
-Future<T?> _showSingleSelectSheet<T>(
+///
+/// ⚠️ 关键修复:必须用 sentinel 对象区分"用户点了全部(null)"和"用户 dismiss"
+/// 因为类型/月份的"全部" 值本身就是 null,跟 ModalBottomSheet 默认的 dismiss 返回值冲突。
+/// 选项 tap → pop(value,可能为 null)
+/// 关闭按钮 + barrier → pop(_SheetDismissed)
+/// 返回 Object? —— 调用方先 is _SheetDismissed 判断,再 cast T
+Future<Object?> _showSingleSelectSheet<T>(
   BuildContext context, {
   required String title,
   required List<(T, String)> options,
   required T currentValue,
 }) {
-  return showModalBottomSheet<T>(
+  return showModalBottomSheet<Object?>(
     context: context,
     backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
@@ -353,7 +370,7 @@ Future<T?> _showSingleSelectSheet<T>(
                       ),
                     ),
                     TextButton(
-                      onPressed: () => Navigator.pop(ctx),
+                      onPressed: () => Navigator.pop(ctx, _sheetDismissed),
                       child: const Text('关闭'),
                     ),
                   ],
