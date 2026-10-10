@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // ignore: unused_import
 import 'package:go_router/go_router.dart';
 
+import '../../../core/settings/amount_visibility_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -21,6 +22,7 @@ class SettingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(themeModeProvider);
+    final amountVisible = ref.watch(amountVisibilityProvider);
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('我的')),
@@ -138,6 +140,30 @@ Container(
                 ],
               ),
             ),
+          ),
+
+          // 隐私
+          _SectionHeader(title: '隐私'),
+          ListTile(
+            leading: Icon(
+              amountVisible
+                  ? Icons.visibility_outlined
+                  : Icons.visibility_off_outlined,
+              size: 20,
+            ),
+            title: const Text('显示金额', style: TextStyle(fontSize: 14)),
+            subtitle: Text(
+              amountVisible
+                  ? '首页 / 流水 / 预算的金额正常显示'
+                  : '全部金额以 •••••• 遮挡,防偷窥',
+              style: const TextStyle(fontSize: 11, color: AppGray.g600),
+            ),
+            trailing: Switch(
+              value: amountVisible,
+              onChanged: (v) =>
+                  ref.read(amountVisibilityProvider.notifier).set(v),
+            ),
+            dense: true,
           ),
 
           // 预算

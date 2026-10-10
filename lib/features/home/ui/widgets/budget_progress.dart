@@ -1,8 +1,10 @@
 // lib/features/home/ui/widgets/budget_progress.dart
 // 预算进度条:已花 / 预算,颜色按状态
+// 金额默认受 amountVisibilityProvider 控制(防偷窥 / 截图分享)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/settings/amount_visibility_provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -21,6 +23,11 @@ class BudgetProgress extends ConsumerWidget {
     final spent = summary.expense;
     final percent = (spent / budget).clamp(0.0, 1.5);
     final state = _status(spent, budget);
+    final hidden = !ref.watch(amountVisibilityProvider);
+
+    // 隐藏时金额占位(数字与单位都用 •••••• 替代,保留长度感)
+    String money(double v) => hidden ? '••••••' : '¥${Formatters.amount(v)}';
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
       padding: const EdgeInsets.all(AppSpacing.s4),
@@ -43,7 +50,7 @@ class BudgetProgress extends ConsumerWidget {
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
               ),
               Text(
-                _statusText(state, percent, spent, budget),
+                _statusText(state, percent, spent, budget, hidden),
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
@@ -67,11 +74,11 @@ class BudgetProgress extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '已花 ¥${Formatters.amount(spent)}',
+                '已花 ${money(spent)}',
                 style: const TextStyle(fontSize: 12),
               ),
               Text(
-                '预算 ¥${Formatters.amount(budget)}',
+                '预算 ${money(budget)}',
                 style: const TextStyle(
                   fontSize: 12,
                   color: AppGray.g600,
@@ -99,7 +106,22 @@ class BudgetProgress extends ConsumerWidget {
     };
   }
 
-  String _statusText(_BudgetState s, double percent, double spent, double budget) {
+  String _statusText(
+    _BudgetState s,
+    double percent,
+    double spent,
+    double budget,
+    bool hidden,
+  ) {
+    // 隐藏时只显示百分比(无金额),状态文字也简化
+    if (hidden) {
+      final pct = (percent * 100).toStringAsFixed(0);
+      return switch (s) {
+        _BudgetState.ok => '已用 $pct%',
+        _BudgetState.warning => '快超了 · $pct%',
+        _BudgetState.over => '已超 · $pct%',
+      };
+    }
     final pct = (percent * 100).toStringAsFixed(0);
     final remaining = budget - spent;
     return switch (s) {

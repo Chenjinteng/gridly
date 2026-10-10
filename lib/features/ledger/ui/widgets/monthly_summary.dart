@@ -7,6 +7,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/settings/amount_visibility_provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -20,7 +21,8 @@ class MonthlySummary extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final summary = ref.watch(monthSummaryProvider);
-    final hidden = ref.watch(monthlySummaryHiddenProvider);
+    // hidden = 关闭了金额可见性(防偷窥)
+    final hidden = !ref.watch(amountVisibilityProvider);
     final now = DateTime.now();
     final sheetTitle = '${now.year}年${now.month}月';
     final theme = Theme.of(context);
@@ -78,9 +80,8 @@ class MonthlySummary extends ConsumerWidget {
                   // 眼睛按钮 —— 切换金额显示/隐藏
                   InkWell(
                     borderRadius: BorderRadius.circular(12),
-                    onTap: () => ref
-                        .read(monthlySummaryHiddenProvider.notifier)
-                        .state = !hidden,
+                    onTap: () =>
+                        ref.read(amountVisibilityProvider.notifier).toggle(),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 6,
