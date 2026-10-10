@@ -59,3 +59,9 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/logo/
+  fonts:
+    # Material Symbols Outlined (variable font) —— 用于显式获取 filled 渲染
+    # 旧 Icons.* 在 Flutter 3.47 视觉偏 outline,改用这个字体 + fontVariations 强制 FILL=1
+    - family: MaterialSymbols
+      fonts:
+        - asset: assets/fonts/MaterialSymbolsOutlined.ttf

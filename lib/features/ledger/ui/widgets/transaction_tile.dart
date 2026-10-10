@@ -330,7 +330,7 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 左按钮(编辑)—— Material Symbols filled 风格
+                  // 左按钮(编辑)—— Material Symbols Filled(variable font + FILL=1 via Text)
                   Transform.translate(
                     offset: Offset(slideInOffset, 0),
                     child: Opacity(
@@ -344,10 +344,16 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
                             borderRadius: AppRadius.brLg,
                             onTap: widget.onEdit,
                             child: const Center(
-                              child: Icon(
-                                Icons.edit_sharp,
-                                color: Colors.white,
-                                size: 26,
+                              child: Text(
+                                '\ue3c9',  // Material Symbols "edit"
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontFamily: 'MaterialSymbols',
+                                  fontSize: 26,
+                                  color: Colors.white,
+                                  fontVariations: [FontVariation('FILL', 1)],
+                                  height: 1.0,
+                                ),
                               ),
                             ),
                           ),
@@ -357,7 +363,7 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
                   ),
                   // 中间 4px surface 色 gap
                   const SizedBox(width: 4),
-                  // 右按钮(删除)—— 同款 filled 风格 + 红色 destructive 语义
+                  // 右按钮(删除)—— 同款 Filled + 红色 destructive 语义
                   Transform.translate(
                     offset: Offset(slideInOffset, 0),
                     child: Opacity(
@@ -371,10 +377,16 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
                             borderRadius: AppRadius.brLg,
                             onTap: widget.onDelete,
                             child: const Center(
-                              child: Icon(
-                                Icons.delete_sharp,
-                                color: Colors.white,
-                                size: 26,
+                              child: Text(
+                                '\ue92e',  // Material Symbols "delete"
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontFamily: 'MaterialSymbols',
+                                  fontSize: 26,
+                                  color: Colors.white,
+                                  fontVariations: [FontVariation('FILL', 1)],
+                                  height: 1.0,
+                                ),
                               ),
                             ),
                           ),
