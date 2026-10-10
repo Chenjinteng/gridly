@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="color-scheme" content="light" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>设计文档 · 格子记账</title>
+<style>
+  :root{
+    --ink:#0F1419; --charcoal:#1F2329; --gold:#F5BC1F; --teal:#14B8A6;
+    --cream:#F5F1E8; --bg:#FAFAFA; --fg:#18181B; --muted:#52525B;
+    --card:#FFFFFF; --border:#E4E4E7; --code-bg:#F4F4F5;
+    --r-sm:8px; --r-md:12px; --r-lg:16px; --r-xl:24px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--fg);
+    font-family:-apple-system,"PingFang SC","Noto Sans SC",sans-serif;
+    line-height:1.65;font-size:15px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:920px;margin:0 auto;padding:48px 24px 96px}
+  a{color:var(--teal);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .back{font-size:13px;color:var(--muted);margin-bottom:24px;display:inline-block}
+  h1{font-size:32px;margin:0 0 8px;letter-spacing:-.5px}
+  .lede{color:var(--muted);margin:0 0 32px;font-size:15px}
+  .doc{display:grid;grid-template-columns:auto 1fr auto;gap:20px;align-items:center;
+    padding:24px;background:var(--card);border:1px solid var(--border);
+    border-radius:var(--r-lg);margin-bottom:14px;transition:all .15s ease;color:inherit}
+  .doc:hover{border-color:var(--teal);text-decoration:none;
+    transform:translateY(-1px);box-shadow:0 4px 12px rgba(15,20,25,.06)}
+  .doc .icon{width:48px;height:48px;border-radius:var(--r-md);
+    background:var(--cream);display:grid;place-items:center;
+    color:var(--ink);font-weight:700;font-size:14px}
+  .doc h3{margin:0 0 4px;font-size:16px}
+  .doc p{margin:0;color:var(--muted);font-size:13px}
+  .doc .ver{font-size:12px;color:var(--muted);
+    padding:3px 10px;background:var(--gray-100,#F4F4F5);border-radius:999px}
+  .placeholder{margin-top:48px;padding:32px;text-align:center;
+    background:var(--card);border:1px dashed var(--border);border-radius:var(--r-lg);
+    color:var(--muted)}
+  .placeholder p{margin:6px 0}
+  code{background:var(--code-bg);padding:1px 6px;border-radius:4px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../index.html">← 返回文档首页</a>
+  <h1>设计文档</h1>
+  <p class="lede">品牌 LOGO、视觉系统、组件规范。所有代码评审涉及颜色 / 字体 / 圆角，先查这里。</p>
+
+  <a class="doc" href="theme.html">
+    <div class="icon">色</div>
+    <div>
+      <h3>视觉系统设计规范（THEME）</h3>
+      <p>LOGO 形态、品牌三色、中性灰阶、记账语义映射、字阶、圆角间距、"格子"App 内应用 8 处、P0 落地清单</p>
+    </div>
+    <span class="ver">v1.0</span>
+  </a>
+
+  <div class="placeholder">
+    <p><strong>预留位</strong></p>
+    <p>后续设计稿位置示意：
+      <code>design/components/</code>（组件规范）·
+      <code>design/flows/</code>（关键流程走查图）·
+      <code>design/mockups/</code>（高保真稿）</p>
+  </div>
+</div>
+</body>
+</html>
