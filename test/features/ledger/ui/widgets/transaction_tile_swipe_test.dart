@@ -57,12 +57,14 @@ Widget _harness(Widget child) {
 }
 
 /// 读指定 TransactionTile 内部 tile 平移 Transform 的 x 偏移
+/// (按钮也用 Transform.translate(slide-in),通过 ValueKey('tx-tile-transform') 定位)
 double _offsetOf(WidgetTester tester, Finder tileFinder) {
-  final transformFinder = find.descendant(
-    of: tileFinder,
-    matching: find.byType(Transform),
+  final t = tester.widget<Transform>(
+    find.descendant(
+      of: tileFinder,
+      matching: find.byKey(const ValueKey('tx-tile-transform')),
+    ),
   );
-  final t = tester.widget<Transform>(transformFinder);
   return t.transform.getTranslation().x;
 }
 
@@ -93,7 +95,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // 拖动 -30px(小于阈值 40,会回弹)
-    await tester.drag(find.byType(TransactionTile), const Offset(-30, 0));
+    await tester.drag(find.byType(TransactionTile), const Offset(-60, 0));
     await tester.pumpAndSettle();
 
     expect(_offsetOf(tester, find.byType(TransactionTile)), 0);
@@ -136,7 +138,7 @@ void main() {
     //   - _offset 不会卡在 midOffset(动画没停)
     //   - 也不会越过 _kOpenOffset
     // 注意:必须用超过 kTouchSlop(~13px)的位移,否则 GestureDetector 会判为 tap → _close() → 弹回 0
-    await tester.drag(find.byType(TransactionTile), const Offset(-30, 0));
+    await tester.drag(find.byType(TransactionTile), const Offset(-60, 0));
     await tester.pumpAndSettle();
     expect(_offsetOf(tester, find.byType(TransactionTile)), -156,
         reason: 'snap 动画被中断后,后续 drag 触发的 snap 应能稳定到 -156');
@@ -214,7 +216,7 @@ void main() {
 
     // 第二次 drag 触发 _onDragStart → _ctrl.stop() 中断 snap
     // 关键证据:drag 结束后,pump 不应再让 _offset 自动变化
-    await tester.drag(find.byType(TransactionTile), const Offset(-30, 0));
+    await tester.drag(find.byType(TransactionTile), const Offset(-60, 0));
     final afterDrag = _offsetOf(tester, find.byType(TransactionTile));
 
     // 如果动画没被中断,这里 pump 会让 animation tick,_offset 继续向 -156 推进
