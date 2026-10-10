@@ -10,6 +10,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/gridly_mark.dart';
 import '../../application/transactions_providers.dart';
 
 class MonthlySummary extends ConsumerWidget {
@@ -52,14 +53,8 @@ class MonthlySummary extends ConsumerWidget {
                 children: [
                   Row(
                     children: [
-                      // LOGO 风格的小方块 marker
-                      Container(
-                        width: 10,
-                        height: 10,
-                        decoration: const BoxDecoration(
-                          color: AppBrand.gold,
-                        ),
-                      ),
+                      // LOGO 三色方块 mark(深色底上,Ink → cream)
+                      const GridlyMark(size: 22, onDark: true),
                       const SizedBox(width: AppSpacing.s2),
                       Text(
                         sheetTitle,
