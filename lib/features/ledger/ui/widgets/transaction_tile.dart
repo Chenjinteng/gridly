@@ -12,7 +12,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/utils/refresh_providers.dart';
 import '../../../../shared/constants/default_categories.dart';
-import '../../../add/ui/add_transaction_page.dart';
+import 'edit_transaction_sheet.dart';
 import '../../application/transactions_providers.dart';
 
 class TransactionTile extends ConsumerWidget {
@@ -138,13 +138,10 @@ class TransactionTile extends ConsumerWidget {
     }
   }
 
-  /// 点击编辑按钮触发:push 记一页(预填模式,保存时 update 而非 add)
+  /// 点击编辑按钮触发:在当前 tab 弹出 sheet 编辑(预填 + 保存 update),
+/// 关闭 sheet 不跳路由,保留流水列表可见 / 不丢上下文
   Future<void> _onEditRequested(BuildContext context) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => AddTransactionPage(editTransaction: transaction),
-      ),
-    );
+    await showEditTransactionSheet(context, transaction);
   }
 }
 
