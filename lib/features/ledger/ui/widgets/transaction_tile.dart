@@ -261,7 +261,9 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
           ),
         ),
         // 上层:卡片本身(随 _offset 水平平移)
-        // 直接用 widget.child —— 它自己带 margin + brLg + 边框 + surfaceContainerLow 背景
+        // 外层再套一个 Container(color: surface) 占据整个 Stack 范围,
+        // 把底层按钮的红色彻底挡住 —— widget.child 的 BoxDecoration 圆角外空白 +
+        // Padding 收缩外的 margin 区 都会被这个外层 surface 色填上,按钮不会再漏出。
         Transform.translate(
           offset: Offset(_offset, 0),
           child: GestureDetector(
@@ -269,7 +271,10 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
             onHorizontalDragUpdate: _onDragUpdate,
             onHorizontalDragEnd: _onDragEnd,
             onTap: _close,
-            child: widget.child,
+            child: Container(
+              color: Theme.of(context).colorScheme.surface,
+              child: widget.child,
+            ),
           ),
         ),
       ],
