@@ -330,7 +330,7 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 左按钮(编辑)—— Material Icons Round(纯 filled 字体,无需 FILL axis)
+                  // 左按钮(编辑)—— Material Icons Round + 白色 shadow 增加视觉重量
                   Transform.translate(
                     offset: Offset(slideInOffset, 0),
                     child: Opacity(
@@ -349,9 +349,15 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontFamily: 'MaterialIconsRound',
-                                  fontSize: 26,
+                                  fontSize: 32,
                                   color: Colors.white,
                                   height: 1.0,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.white,
+                                      blurRadius: 2,
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -381,9 +387,15 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontFamily: 'MaterialIconsRound',
-                                  fontSize: 26,
+                                  fontSize: 32,
                                   color: Colors.white,
                                   height: 1.0,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.white,
+                                      blurRadius: 2,
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
