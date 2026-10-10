@@ -215,7 +215,6 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Stack(
       children: [
         // 底层:红色按钮(跟 tile 完全同形状——同 margin + 同圆角)
@@ -248,6 +247,9 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
           ),
         ),
         // 上层:卡片本身(随 _offset 水平平移)
+        // 直接用 widget.child —— 它自己带 margin + brLg + 边框 + surfaceContainerLow 背景
+        // 不要在外面再套一个矩形 Container(color: surface),否则那个矩形会"咬掉"
+        // tile 圆角跟底层红色 Material 圆角的衔接,看起来很生硬。
         Transform.translate(
           offset: Offset(_offset, 0),
           child: GestureDetector(
@@ -255,10 +257,7 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
             onHorizontalDragUpdate: _onDragUpdate,
             onHorizontalDragEnd: _onDragEnd,
             onTap: _close,
-            child: Container(
-              color: theme.colorScheme.surface,
-              child: widget.child,
-            ),
+            child: widget.child,
           ),
         ),
       ],
