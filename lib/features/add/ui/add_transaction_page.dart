@@ -16,6 +16,7 @@ import '../../../core/database/providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/utils/formatters.dart';
 import '../../../shared/constants/default_categories.dart';
 import '../../ledger/application/transactions_providers.dart';
 import 'widgets/amount_display.dart';
@@ -40,7 +41,7 @@ class _CalcState {
 class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
   String _type = 'expense';
   int? _categoryId;
-  final DateTime _occurredAt = DateTime.now();
+  DateTime _occurredAt = DateTime.now();
   final _noteController = TextEditingController();
   final _calc = _CalcState();
 
@@ -387,6 +388,113 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     );
   }
 
+  /// 弹日期选择器 —— 默认值 = 当前 _occurredAt(支持从一周前接着改)
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _occurredAt,
+      // 不允许选未来日期(记账不会提前记未来)
+      firstDate: DateTime(now.year - 5),
+      lastDate: now,
+      helpText: '选择日期',
+    );
+    if (picked != null) {
+      setState(() {
+        _occurredAt = picked;
+      });
+    }
+  }
+
+  /// 日期行(支出/收入 tab 下方,金额上方)——
+  /// 默认"今天",改过后显示具体日期,点击整行触发 _pickDate
+  Widget _dateRow(BuildContext context) {
+    final theme = Theme.of(context);
+    final now = DateTime.now();
+    final isToday = _occurredAt.year == now.year &&
+        _occurredAt.month == now.month &&
+        _occurredAt.day == now.day;
+    final isYesterday = _occurredAt.year == now.year &&
+        _occurredAt.month == now.month &&
+        _occurredAt.day == now.day - 1;
+    final label = isToday
+        ? '今天'
+        : isYesterday
+            ? '昨天'
+            : Formatters.dayHeader(_occurredAt);
+    final color = isToday
+        ? AppBrand.gold
+        : theme.colorScheme.onSurface;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.s4,
+        AppSpacing.s1,
+        AppSpacing.s4,
+        AppSpacing.s3,
+      ),
+      child: Row(
+        children: [
+          InkWell(
+            onTap: _pickDate,
+            borderRadius: AppRadius.brSm,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.s2,
+                vertical: AppSpacing.s1,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.calendar_today_rounded,
+                    size: 16,
+                    color: color.withValues(alpha: 0.7),
+                  ),
+                  const SizedBox(width: AppSpacing.s2),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: color,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  Icon(
+                    Icons.expand_more,
+                    size: 18,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const Spacer(),
+          // "回到今天"快捷按钮 —— 仅在选了非今天时出现
+          if (!isToday)
+            InkWell(
+              onTap: () => setState(() => _occurredAt = DateTime.now()),
+              borderRadius: AppRadius.brXs,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.s2,
+                  vertical: AppSpacing.s1,
+                ),
+                child: Text(
+                  '回到今天',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -411,6 +519,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                 }),
               ),
             ),
+            _dateRow(context),
             // 表达式 + 金额
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
