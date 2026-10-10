@@ -43,7 +43,7 @@ class BudgetProgress extends ConsumerWidget {
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
               ),
               Text(
-                _statusText(state, percent),
+                _statusText(state, percent, spent, budget),
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
@@ -99,12 +99,13 @@ class BudgetProgress extends ConsumerWidget {
     };
   }
 
-  String _statusText(_BudgetState s, double percent) {
+  String _statusText(_BudgetState s, double percent, double spent, double budget) {
     final pct = (percent * 100).toStringAsFixed(0);
+    final remaining = budget - spent;
     return switch (s) {
-      _BudgetState.ok => '已用 $pct%',
-      _BudgetState.warning => '接近预算 $pct%',
-      _BudgetState.over => '已超预算 $pct%',
+      _BudgetState.ok => '还剩 ¥${Formatters.amount(remaining)} · $pct%',
+      _BudgetState.warning => '快超了 · ¥${Formatters.amount(remaining)} 剩',
+      _BudgetState.over => '已超 ¥${Formatters.amount(spent - budget)}',
     };
   }
 }

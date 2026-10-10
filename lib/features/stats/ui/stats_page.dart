@@ -7,6 +7,7 @@ import 'widgets/category_pie.dart';
 import 'widgets/monthly_trend.dart';
 import 'widgets/range_summary.dart';
 import 'widgets/range_tabs.dart';
+import 'widgets/top_expenses.dart';
 
 class StatsPage extends StatelessWidget {
   const StatsPage({super.key});
@@ -22,6 +23,8 @@ class StatsPage extends StatelessWidget {
           RangeSummary(),
           SizedBox(height: AppSpacing.s3),
           CategoryPie(),
+          SizedBox(height: AppSpacing.s3),
+          TopExpenses(),
           SizedBox(height: AppSpacing.s3),
           MonthlyTrend(),
         ],

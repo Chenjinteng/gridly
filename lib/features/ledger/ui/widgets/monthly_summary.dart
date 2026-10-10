@@ -1,8 +1,10 @@
 // lib/features/ledger/ui/widgets/monthly_summary.dart
 // 月度汇总 —— 设计成"Excel 工作表"风格,呼应"格子"主题:
-//   - 顶部 sheet title(浅色底深字):"2026年10月 · 结余"
+//   - 顶部 sheet title(深色底 + 金色 1.5px 下边 + LOGO + 月份)
 //   - 主数字区(深色底):本月结余大字
+//   - 日均支出(深色底,大数字下方一行小字)
 //   - 收入 / 支出两个 cell,中间 1px 分隔线(深色画在亮一点的颜色上)
+//   - v0.2.0 起,支出 cell 内追加"日均 ¥xxx"
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -22,6 +24,9 @@ class MonthlySummary extends ConsumerWidget {
     final now = DateTime.now();
     final sheetTitle = '${now.year}年${now.month}月';
     final theme = Theme.of(context);
+    // 日均支出 = 当月支出 / 当日已过天数(月初时 = 当日)
+    final dailyAvg =
+        now.day > 0 ? summary.expense / now.day : summary.expense;
     return Container(
       margin: const EdgeInsets.all(AppSpacing.s4),
       decoration: BoxDecoration(
@@ -113,6 +118,7 @@ class MonthlySummary extends ConsumerWidget {
                       amount: summary.expense,
                       color: AppBrand.teal,
                       showDivider: false,
+                      dailyAverage: dailyAvg,
                     ),
                   ),
                 ],
@@ -131,11 +137,13 @@ class _Cell extends StatelessWidget {
     required this.amount,
     required this.color,
     required this.showDivider,
+    this.dailyAverage,
   });
   final String label;
   final double amount;
   final Color color;
   final bool showDivider;
+  final double? dailyAverage;
 
   @override
   Widget build(BuildContext context) {
@@ -176,6 +184,16 @@ class _Cell extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
+          if (dailyAverage != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              '日均 ¥${Formatters.amount(dailyAverage!)}',
+              style: const TextStyle(
+                color: AppGray.g400,
+                fontSize: 10,
+              ),
+            ),
+          ],
         ],
       ),
     );

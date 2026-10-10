@@ -118,6 +118,19 @@ final expenseByCategoryProvider =
   return out;
 });
 
+/// Top 10 支出单笔(从大到小,按当前时间窗)
+final topExpensesProvider = FutureProvider<List<Transaction>>((ref) async {
+  final w = ref.watch(statsWindowProvider);
+  final db = ref.watch(databaseProvider);
+  return (db.select(db.transactions)
+        ..where((t) =>
+            t.occurredAt.isBetweenValues(w.start, w.end) &
+            t.type.equals('expense'))
+        ..orderBy([(t) => OrderingTerm.desc(t.amount)])
+        ..limit(10))
+      .get();
+});
+
 class MonthlyTrend {
   const MonthlyTrend({
     required this.year,
