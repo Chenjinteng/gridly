@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/ledger_grid_background.dart';
 
@@ -94,21 +93,24 @@ class MainShell extends StatelessWidget {
 }
 
 /// 中央"+":大圆角色块,呼应 LOGO
+/// - BoxShape.circle 保证真正圆(56x56 下 borderRadius=24 是圆角矩形不是圆)
+/// - dark mode 下 ink 块 → cream,和 LOGO onDark 模式一致(避免和 Ink surface 融掉)
 class _CenterFab extends StatelessWidget {
   const _CenterFab();
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: 56,
       height: 56,
       decoration: BoxDecoration(
-        color: AppBrand.ink,
-        borderRadius: AppRadius.brXl,
+        color: isDark ? AppSecondary.cream : AppBrand.ink,
+        shape: BoxShape.circle,
       ),
-      child: const Icon(
+      child: Icon(
         Icons.add_rounded,
-        color: AppBrand.gold,
+        color: isDark ? AppBrand.ink : AppBrand.gold,
         size: 32,
       ),
     );
