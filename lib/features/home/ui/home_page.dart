@@ -35,7 +35,13 @@ class HomePage extends ConsumerWidget {
             children: [
               const SizedBox(height: AppSpacing.s6), // splash 顶部呼吸区
               // LOGO + 产品名 —— 紧凑居中组成品牌标识
-              const Center(child: GridlyMark(size: 80)), // 原 96
+              // 深色模式下 ink 块自动变 cream(GridlyMark.onDark),避免和 Ink 背景融掉
+              Center(
+                child: GridlyMark(
+                  size: 80,
+                  onDark: Theme.of(context).brightness == Brightness.dark,
+                ),
+              ), // 原 96
               const SizedBox(height: AppSpacing.s2), // 原 s3=12,降到 8
               const Center(
                 child: Text(
