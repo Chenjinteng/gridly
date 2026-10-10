@@ -1,15 +1,13 @@
 // lib/features/home/ui/home_page.dart
-// 首页:本月汇总 + 最近 5 条流水 + 下拉刷新
+// 首页(极简版):LOGO 居中 + 月度汇总卡 + 预算卡 + 下拉刷新
+// 已删除"最近 5 条流水"列表(避免与流水 Tab 重复,且占首屏空间)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/database/app_database.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/gridly_mark.dart';
 import '../../ledger/application/transactions_providers.dart';
 import '../../ledger/ui/widgets/monthly_summary.dart';
-import '../../ledger/ui/widgets/transaction_tile.dart';
 import 'widgets/budget_progress.dart';
 
 class HomePage extends ConsumerWidget {
@@ -26,116 +24,42 @@ class HomePage extends ConsumerWidget {
         onRefresh: () async {
           ref.invalidate(monthTransactionsProvider);
           ref.invalidate(allTransactionsByDayProvider);
-          ref.invalidate(allCategoriesProvider);
         },
-        child: ListView(
-          children: const [
-            MonthlySummary(),
-            SizedBox(height: AppSpacing.s2),
-            BudgetProgress(),
-            _RecentHeader(),
-            _RecentList(),
-            SizedBox(height: AppSpacing.s6),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _RecentHeader extends StatelessWidget {
-  const _RecentHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.fromLTRB(
-        AppSpacing.s4,
-        AppSpacing.s3,
-        AppSpacing.s4,
-        AppSpacing.s1,
-      ),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          '最近',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-        ),
-      ),
-    );
-  }
-}
-
-class _RecentList extends ConsumerWidget {
-  const _RecentList();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final groupedAsync = ref.watch(allTransactionsByDayProvider);
-    return groupedAsync.when(
-      data: (grouped) {
-        if (grouped.isEmpty) {
-          return const _EmptyHint();
-        }
-        final days = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
-        final recent = <Transaction>[];
-        for (final d in days) {
-          recent.addAll(grouped[d]!);
-          if (recent.length >= 5) break;
-        }
-        return Column(
-          children: recent
-              .take(5)
-              .map((t) => TransactionTile(transaction: t))
-              .toList(),
-        );
-      },
-      loading: () => const Padding(
-        padding: EdgeInsets.all(AppSpacing.s6),
-        child: Center(child: CircularProgressIndicator()),
-      ),
-      error: (e, _) => Padding(
-        padding: const EdgeInsets.all(AppSpacing.s4),
-        child: Text(
-          '加载失败:$e',
-          style: const TextStyle(color: AppStatus.error),
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyHint extends StatelessWidget {
-  const _EmptyHint();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(AppSpacing.s6),
-      child: Center(
-        child: Column(
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: AppBrand.teal.withValues(alpha: 0.1),
-                borderRadius: AppRadius.brLg,
-              ),
-              child: const Icon(
-                Icons.inbox_outlined,
-                size: 32,
-                color: AppBrand.teal,
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: ConstrainedBox(
+              // 至少撑满一屏,让内容垂直居中(ConstraintLayout 模式)
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: IntrinsicHeight(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.s4,
+                    AppSpacing.s6,
+                    AppSpacing.s4,
+                    AppSpacing.s8, // 留出底部 nav bar 空间
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Spacer(),
+                      // LOGO 居中
+                      const Center(
+                        child: GridlyMark(size: 96),
+                      ),
+                      const SizedBox(height: AppSpacing.s5),
+                      // 月度汇总(本月结余 + 收入/支出 + 日均支出)
+                      const MonthlySummary(),
+                      const SizedBox(height: AppSpacing.s4),
+                      // 预算进度
+                      const BudgetProgress(),
+                      const Spacer(),
+                    ],
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: AppSpacing.s3),
-            const Text('还没有流水', style: TextStyle(fontSize: 14)),
-            const SizedBox(height: AppSpacing.s1),
-            const Text(
-              '点中央 + 记第一笔',
-              style: TextStyle(fontSize: 12, color: AppGray.g600),
-            ),
-          ],
+          ),
         ),
       ),
     );
