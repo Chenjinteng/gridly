@@ -13,6 +13,8 @@ void main() async {
   await container.read(categoryRepositoryProvider).seedDefaultsIfEmpty();
   // 把老用户的系统分类 icon 升级到 v2 语义化图标(幂等,无命中也无害)
   await container.read(categoryRepositoryProvider).syncCategoryIcons();
+  // 把老用户的系统分类 color 同步到当前代码值(默认分类颜色在 default_categories.dart 集中定义)
+  await container.read(categoryRepositoryProvider).syncCategoryColors();
   runApp(
     UncontrolledProviderScope(
       container: container,

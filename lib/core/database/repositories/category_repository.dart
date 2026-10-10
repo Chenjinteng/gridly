@@ -96,6 +96,30 @@ class CategoryRepository {
     });
   }
 
+  /// 同步系统分类的 color 到代码最新值。
+  /// 默认分类的颜色定义在代码里(DefaultCategories.expense / .income),
+  /// 旧版本种过的预置分类 color 会被固化在 db 里(全是 teal),
+  /// 这里按 name 匹配把所有系统分类 color 同步到当前代码值。
+  /// 跟 syncCategoryIcons 一样幂等 + 低代价。
+  Future<void> syncCategoryColors() async {
+    await _db.batch((batch) {
+      for (final c in DefaultCategories.expense) {
+        batch.update(
+          _db.categories,
+          CategoriesCompanion(color: Value(c.color.toARGB32())),
+          where: (cat) => cat.name.equals(c.name) & cat.isSystem.equals(true),
+        );
+      }
+      for (final c in DefaultCategories.income) {
+        batch.update(
+          _db.categories,
+          CategoriesCompanion(color: Value(c.color.toARGB32())),
+          where: (cat) => cat.name.equals(c.name) & cat.isSystem.equals(true),
+        );
+      }
+    });
+  }
+
   CategoriesCompanion _toCompanion(DefaultCategory c) {
     return CategoriesCompanion.insert(
       name: c.name,
