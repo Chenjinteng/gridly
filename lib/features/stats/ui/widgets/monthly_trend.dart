@@ -129,11 +129,7 @@ class MonthlyTrend extends ConsumerWidget {
                         ),
                       ),
                     ),
-                    gridData: const FlGridData(
-                      show: true,
-                      drawVerticalLine: false,
-                      horizontalInterval: 1000,
-                    ),
+                    gridData: const FlGridData(show: false),
                     borderData: FlBorderData(show: false),
                     lineTouchData: LineTouchData(
                       handleBuiltInTouches: true,
