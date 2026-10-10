@@ -330,7 +330,7 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 左按钮(编辑)—— Material Symbols Filled(variable font + FILL=1 via Text)
+                  // 左按钮(编辑)—— Material Icons Round(纯 filled 字体,无需 FILL axis)
                   Transform.translate(
                     offset: Offset(slideInOffset, 0),
                     child: Opacity(
@@ -345,13 +345,12 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
                             onTap: widget.onEdit,
                             child: const Center(
                               child: Text(
-                                '\uf097',  // Material Symbols "edit" primary codepoint (支持 FILL axis)
+                                '\ue3c9',  // Material Icons Round "edit"
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  fontFamily: 'MaterialSymbols',
+                                  fontFamily: 'MaterialIconsRound',
                                   fontSize: 26,
                                   color: Colors.white,
-                                  fontVariations: [FontVariation('FILL', 1)],
                                   height: 1.0,
                                 ),
                               ),
@@ -363,7 +362,7 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
                   ),
                   // 中间 4px surface 色 gap
                   const SizedBox(width: 4),
-                  // 右按钮(删除)—— 同款 Filled + 红色 destructive 语义
+                  // 右按钮(删除)—— 同款 Round + 红色 destructive 语义
                   Transform.translate(
                     offset: Offset(slideInOffset, 0),
                     child: Opacity(
@@ -378,13 +377,12 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
                             onTap: widget.onDelete,
                             child: const Center(
                               child: Text(
-                                '\ue92e',  // Material Symbols "delete"
+                                '\ue872',  // Material Icons Round "delete"
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  fontFamily: 'MaterialSymbols',
+                                  fontFamily: 'MaterialIconsRound',
                                   fontSize: 26,
                                   color: Colors.white,
-                                  fontVariations: [FontVariation('FILL', 1)],
                                   height: 1.0,
                                 ),
                               ),

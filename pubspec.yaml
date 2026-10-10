@@ -60,8 +60,8 @@ flutter:
   assets:
     - assets/images/logo/
   fonts:
-    # Material Symbols Outlined (variable font) —— 用于显式获取 filled 渲染
-    # 旧 Icons.* 在 Flutter 3.47 视觉偏 outline,改用这个字体 + fontVariations 强制 FILL=1
-    - family: MaterialSymbols
+    # Material Icons Round —— 静态纯 filled 字体,按钮图标用这个保证实心
+    # Material Symbols Outlined 的 FILL=1 axis 在某些平台不切换字形,改用这个 100% 实心
+    - family: MaterialIconsRound
       fonts:
-        - asset: assets/fonts/MaterialSymbolsOutlined.ttf
+        - asset: assets/fonts/MaterialIconsRound.otf
