@@ -38,9 +38,16 @@ class MonthlySummary extends ConsumerWidget {
       decoration: BoxDecoration(
         borderRadius: AppRadius.brLg,
         border: Border.all(
-          color: theme.colorScheme.outlineVariant, // 外框用浅灰(避免视觉过重)
-          width: 0.5,
+          color: theme.colorScheme.outlineVariant, // 浅灰外框,不和 3 条品牌金横线抢眼
+          width: 1.0, // 加粗:0.5 → 1.0,浅色背景下也能看清卡片边界
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04), // 极轻阴影,提升卡片层次
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: ClipRRect(
         borderRadius: AppRadius.brLg,
