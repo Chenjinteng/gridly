@@ -10,6 +10,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:drift/drift.dart' show Value;
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/providers.dart';
@@ -25,7 +26,11 @@ import 'widgets/numpad.dart';
 import 'widgets/type_toggle.dart';
 
 class AddTransactionPage extends ConsumerStatefulWidget {
-  const AddTransactionPage({super.key});
+  const AddTransactionPage({super.key, this.editTransaction});
+
+  /// 编辑模式:传入已有流水则预填 + 保存时 update 而非 add。
+  /// 不传则保持原"新增"行为(兼容)。
+  final Transaction? editTransaction;
 
   @override
   ConsumerState<AddTransactionPage> createState() => _AddTransactionPageState();
@@ -45,6 +50,27 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
   DateTime _occurredAt = DateTime.now();
   final _noteController = TextEditingController();
   final _calc = _CalcState();
+
+  bool get _isEdit => widget.editTransaction != null;
+
+  @override
+  void initState() {
+    super.initState();
+    // 编辑模式:预填已有数据
+    final t = widget.editTransaction;
+    if (t != null) {
+      _type = t.type;
+      _categoryId = t.categoryId;
+      _occurredAt = t.occurredAt;
+      _noteController.text = t.note ?? '';
+      // 金额显示:整数显示整数,小数保留原值
+      if (t.amount == t.amount.truncateToDouble() && t.amount.abs() < 1e15) {
+        _calc.display = t.amount.toInt().toString();
+      } else {
+        _calc.display = t.amount.toString();
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -197,13 +223,28 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
       _toast('选个分类');
       return;
     }
-    await ref.read(transactionRepositoryProvider).add(
-          amount: value,
-          type: _type,
-          categoryId: _categoryId!,
-          occurredAt: _occurredAt,
-          note: _noteController.text.isEmpty ? null : _noteController.text,
-        );
+    final note = _noteController.text.isEmpty ? null : _noteController.text;
+    final repo = ref.read(transactionRepositoryProvider);
+    if (_isEdit) {
+      // 编辑:用原 id replace(Drift 的 replace 按主键 update)
+      await repo.update(widget.editTransaction!.copyWith(
+        amount: value,
+        type: _type,
+        categoryId: _categoryId!,
+        occurredAt: _occurredAt,
+        note: Value(note),
+      ));
+      if (!mounted) return;
+      _toast('已更新');
+    } else {
+      await repo.add(
+        amount: value,
+        type: _type,
+        categoryId: _categoryId!,
+        occurredAt: _occurredAt,
+        note: note,
+      );
+    }
     // 广谱刷新 —— 流水 / 首页 / 报表 / 分类页都同步更新
     refreshAllData(ref);
     if (!mounted) return;

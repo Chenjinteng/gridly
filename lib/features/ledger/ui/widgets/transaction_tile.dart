@@ -1,6 +1,6 @@
 // lib/features/ledger/ui/widgets/transaction_tile.dart
 // 单条流水卡片:左分类色块 + 中描述 + 右金额
-// 删除交互:左滑露出红色垃圾桶按钮(不立刻删),点击按钮才真正删除
+// 滑动交互:左滑露出 [编辑][删除] 两个按钮(各 76px),分别跳转编辑页 / 触发删除
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,6 +12,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/utils/refresh_providers.dart';
 import '../../../../shared/constants/default_categories.dart';
+import '../../../add/ui/add_transaction_page.dart';
 import '../../application/transactions_providers.dart';
 
 class TransactionTile extends ConsumerWidget {
@@ -38,6 +39,7 @@ class TransactionTile extends ConsumerWidget {
         return _SwipeToDelete(
           key: ValueKey('tx-${transaction.id}'),
           onDelete: () => _onDeleteRequested(context, ref),
+          onEdit: () => _onEditRequested(context),
           child: Container(
             margin: const EdgeInsets.symmetric(
               horizontal: AppSpacing.s4,
@@ -135,23 +137,35 @@ class TransactionTile extends ConsumerWidget {
       );
     }
   }
+
+  /// 点击编辑按钮触发:push 记一页(预填模式,保存时 update 而非 add)
+  Future<void> _onEditRequested(BuildContext context) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AddTransactionPage(editTransaction: transaction),
+      ),
+    );
+  }
 }
 
 /// 手势滑动展开操作按钮 —— 类似 iOS Mail.app 的滑动效果
 ///
 /// 行为:
-///   - 左滑超过阈值 → snap 露出操作按钮(不执行)
-///   - 操作按钮可点 → 触发 onDelete
+///   - 左滑超过阈值 → snap 露出 [编辑][删除] 两个操作按钮(不执行)
+///   - 编辑按钮可点 → 触发 onEdit
+///   - 删除按钮可点 → 触发 onDelete
 ///   - 点 tile 其他位置 → 自动弹回关闭
 class _SwipeToDelete extends StatefulWidget {
   const _SwipeToDelete({
     super.key,
     required this.child,
     required this.onDelete,
+    required this.onEdit,
   });
 
   final Widget child;
   final VoidCallback onDelete;
+  final VoidCallback onEdit;
 
   @override
   State<_SwipeToDelete> createState() => _SwipeToDeleteState();
@@ -159,8 +173,8 @@ class _SwipeToDelete extends StatefulWidget {
 
 class _SwipeToDeleteState extends State<_SwipeToDelete>
     with SingleTickerProviderStateMixin {
-  /// 划开的固定宽度(px)—— 露出 76px 宽的删除按钮区域
-  static const double _kOpenOffset = 76;
+  /// 划开的固定宽度(px)—— 露出 [编辑 76 + 删除 76 = 152]px 的按钮区域
+  static const double _kOpenOffset = 152;
 
   /// snap 阈值:划到这个距离就锁住,否则弹回
   static const double _kSnapThreshold = 40;
@@ -222,15 +236,14 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Stack(
       children: [
-        // 底层:红色删除按钮(只在 tile 右侧 76px)
-        // 关键:按钮圆角必须 == tile 圆角(brLg=16)。
-        // 如果按钮圆角比 tile 小,按钮的圆角外空白 ⊂ tile 的圆角外空白,
-        // 中间会有"按钮圆角矩形内 + tile 圆角外空白"的小区域透出按钮的红色,
-        // 看起来像 tile 右边缘一直漏出红色弧线。
-        // 圆角对齐后,按钮的圆角外空白完全 == tile 的圆角外空白,
-        // 这个区域 widget.child 透明 + 按钮透明 → Stack 背景(surface)显示,不再漏红。
+        // 底层:操作按钮条 — [编辑 76px][删除 76px] 紧挨,各圆角与 tile 圆角对齐(brLg)
+        // 左按钮(编辑)用主题色 primary 标识"次要/编辑"语义,
+        // 右按钮(删除)用 error 红标识"危险"语义 —— iOS 标准 destructive 在右,gridly 跟齐。
+        // 关键:每个按钮圆角 == tile 圆角(brLg=16),避免 tile 右边缘漏色。
+        // 外层 surface Container(color: surface) 占据整个 Stack 范围挡住按钮漏色。
         Positioned.fill(
           child: Padding(
             padding: const EdgeInsets.symmetric(
@@ -239,31 +252,54 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
             ),
             child: Align(
               alignment: Alignment.centerRight,
-              child: SizedBox(
-                width: _kOpenOffset,
-                child: Material(
-                  color: AppStatus.error,
-                  borderRadius: AppRadius.brLg,
-                  child: InkWell(
-                    borderRadius: AppRadius.brLg,
-                    onTap: widget.onDelete,
-                    child: const Center(
-                      child: Icon(
-                        Icons.delete_outline_rounded,
-                        color: Colors.white,
-                        size: 26,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: _kOpenOffset / 2,
+                    child: Material(
+                      color: theme.colorScheme.primary,
+                      borderRadius: AppRadius.brLg,
+                      child: InkWell(
+                        borderRadius: AppRadius.brLg,
+                        onTap: widget.onEdit,
+                        child: const Center(
+                          child: Icon(
+                            Icons.edit_outlined,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
+                  SizedBox(
+                    width: _kOpenOffset / 2,
+                    child: Material(
+                      color: AppStatus.error,
+                      borderRadius: AppRadius.brLg,
+                      child: InkWell(
+                        borderRadius: AppRadius.brLg,
+                        onTap: widget.onDelete,
+                        child: const Center(
+                          child: Icon(
+                            Icons.delete_outline_rounded,
+                            color: Colors.white,
+                            size: 26,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
         ),
         // 上层:卡片本身(随 _offset 水平平移)
-        // 外层再套一个 Container(color: surface) 占据整个 Stack 范围,
-        // 把底层按钮的红色彻底挡住 —— widget.child 的 BoxDecoration 圆角外空白 +
-        // Padding 收缩外的 margin 区 都会被这个外层 surface 色填上,按钮不会再漏出。
+        // 外层 Container(color: surface) 占据整个 Stack 范围,把底层按钮色彻底挡住
+        // —— widget.child BoxDecoration 圆角外空白 + Padding 收缩外的 margin 区
+        // 都会被这个外层 surface 色填上,按钮不会再漏出。
         Transform.translate(
           offset: Offset(_offset, 0),
           child: GestureDetector(
@@ -272,7 +308,7 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
             onHorizontalDragEnd: _onDragEnd,
             onTap: _close,
             child: Container(
-              color: Theme.of(context).colorScheme.surface,
+              color: theme.colorScheme.surface,
               child: widget.child,
             ),
           ),
