@@ -179,7 +179,7 @@ class _TopList extends ConsumerWidget {
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
-                            color: AppBrand.teal,
+                            color: AppStatus.error,
                           ),
                         ),
                         Text(

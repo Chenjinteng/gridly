@@ -21,7 +21,7 @@ class AmountDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = type == 'income' ? AppBrand.gold : AppBrand.teal;
+    final color = type == 'income' ? AppBrand.gold : AppStatus.error;
     return Container(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.s4),
       child: Row(

@@ -115,7 +115,7 @@ class MonthlySummary extends ConsumerWidget {
                     child: _Cell(
                       label: '支出',
                       amount: summary.expense,
-                      color: AppBrand.teal,
+                      color: AppStatus.error,
                       showDivider: false,
                     ),
                   ),
@@ -144,7 +144,7 @@ class MonthlySummary extends ConsumerWidget {
                   Text(
                     '¥${Formatters.amount(dailyAvg)}',
                     style: const TextStyle(
-                      color: AppBrand.teal,
+                      color: AppStatus.error,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),

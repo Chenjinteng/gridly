@@ -134,7 +134,7 @@ class _DaySection extends StatelessWidget {
                       '-¥${Formatters.amount(dailyExpense)}',
                       style: const TextStyle(
                         fontSize: 12,
-                        color: AppBrand.teal,
+                        color: AppStatus.error,
                       ),
                     ),
                 ],

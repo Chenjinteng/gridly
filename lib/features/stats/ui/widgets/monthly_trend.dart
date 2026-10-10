@@ -76,12 +76,12 @@ class MonthlyTrend extends ConsumerWidget {
                                 FlSpot(e.key.toDouble(), e.value.expense))
                             .toList(),
                         isCurved: true,
-                        color: AppBrand.teal,
+                        color: AppStatus.error,
                         barWidth: 2,
                         dotData: const FlDotData(show: true),
                         belowBarData: BarAreaData(
                           show: true,
-                          color: AppBrand.teal.withValues(alpha: 0.08),
+                          color: AppStatus.error.withValues(alpha: 0.08),
                         ),
                       ),
                     ],
@@ -162,7 +162,7 @@ class MonthlyTrend extends ConsumerWidget {
             children: const [
               _LegendDot(color: AppBrand.gold, label: '收入'),
               SizedBox(width: AppSpacing.s3),
-              _LegendDot(color: AppBrand.teal, label: '支出'),
+              _LegendDot(color: AppStatus.error, label: '支出'),
             ],
           ),
         ],

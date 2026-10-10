@@ -29,7 +29,7 @@ class TransactionTile extends ConsumerWidget {
         }
         final color = cat == null ? AppGray.g400 : Color(cat.color);
         final amountColor =
-            transaction.type == 'income' ? AppBrand.gold : AppBrand.teal;
+            transaction.type == 'income' ? AppBrand.gold : AppStatus.error;
         final prefix = transaction.type == 'income' ? '+' : '-';
         final theme = Theme.of(context);
         return Container(

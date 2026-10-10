@@ -44,7 +44,7 @@ class AppStatus {
 class AppSemantic {
   AppSemantic._();
   static const Color income = AppBrand.gold;       // 收入 → 金
-  static const Color expense = AppBrand.teal;      // 支出 → 青
+  static const Color expense = AppStatus.error;    // 支出 → 红(警示,刺眼)
   static const Color balance = AppBrand.ink;       // 结余 → 炭黑
   static const Color overBudget = AppStatus.error; // 超支 → 红
 }

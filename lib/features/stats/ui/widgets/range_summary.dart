@@ -36,7 +36,7 @@ class RangeSummary extends ConsumerWidget {
             child: _Stat(
               label: '支出',
               amount: s.expense,
-              color: AppBrand.teal,
+              color: AppStatus.error,
             ),
           ),
           Container(width: 1, height: 32, color: AppGray.g600),
