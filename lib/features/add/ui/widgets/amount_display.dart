@@ -6,7 +6,16 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 
 class AmountDisplay extends StatelessWidget {
-  const AmountDisplay({super.key, required this.amount, required this.type});
+  const AmountDisplay({super.key, required this.amount, required this.type})
+      : assert(
+          amount.length <= 16,
+          'amount 异常长,可能被错误地传了对象而不是 display 字符串。'
+          '常见原因:在 Dart 字符串插值里写了 \$_calc.display(没加花括号),'
+          'Dart 会把 \$_calc 求值为 _calc.toString(),再把 .display 当字面量拼上,'
+          '最终得到 "Instance of \'X\' .display" 这样的脏字符串。'
+          '修复:把 \$_calc.display 改成 \${_calc.display}。',
+        );
+
   final String amount;     // 用户输入的字符串
   final String type;       // 'expense' | 'income'
 

@@ -1,5 +1,12 @@
 // lib/features/add/ui/add_transaction_page.dart
 // 记一笔 —— 类型切换 / 表达式 / 金额大字号 / 分类下拉 / 备注 / 计算器键盘 / 保存
+//
+// ⚠️ 字符串插值陷阱(已踩过):
+// Dart 里 `'$_calc.display'` 不会取 _calc.display 的值,而是把 $_calc
+// 当插值(_calc.toString() = "Instance of '_CalcState'"),再把 .display 当字面量
+// 拼在后面,最终 _calc.display 被赋值成 "Instance of '_CalcState'.display"。
+// 正确写法是 '${_calc.display}'(加花括号)。任何字符串里要用 _calc.display,
+// 都必须带花括号,否则会触发 AmountDisplay 的长度断言。
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -74,7 +81,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
         if (_calc.display.startsWith('-')) {
           _calc.display = _calc.display.substring(1);
         } else if (_calc.display != '0') {
-          _calc.display = '-$_calc.display';
+          _calc.display = '-${_calc.display}';
         }
         return;
       }
@@ -112,7 +119,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
         }
         if (_calc.display == '0') return;
         if (_calc.display.length >= 11) return;
-        _calc.display = '$_calc.display' '00';
+        _calc.display = '${_calc.display}00';
         return;
       }
       // 数字 0-9
@@ -126,7 +133,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
         _calc.display = key;
       } else {
         if (_calc.display.length >= 12) return;
-        _calc.display = '$_calc.display$key';
+        _calc.display = '${_calc.display}$key';
       }
     });
   }
