@@ -224,10 +224,13 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // 底层:红色删除按钮(只在 tile 右侧 76px,不试图铺满同 tile 形状)
-        // iOS Mail / 微信的滑动删除按钮设计 —— 胶囊/圆角矩形 + 跟 tile 圆角"面对面"对接,
-        // 比"假装是 tile 的红色版"更柔和(后者完全打开时露出的 76px 区域
-        // 是 Material 的中间矩形,没有左圆角,跟 tile 右圆角硬接)
+        // 底层:红色删除按钮(只在 tile 右侧 76px)
+        // 关键:按钮圆角必须 == tile 圆角(brLg=16)。
+        // 如果按钮圆角比 tile 小,按钮的圆角外空白 ⊂ tile 的圆角外空白,
+        // 中间会有"按钮圆角矩形内 + tile 圆角外空白"的小区域透出按钮的红色,
+        // 看起来像 tile 右边缘一直漏出红色弧线。
+        // 圆角对齐后,按钮的圆角外空白完全 == tile 的圆角外空白,
+        // 这个区域 widget.child 透明 + 按钮透明 → Stack 背景(surface)显示,不再漏红。
         Positioned.fill(
           child: Padding(
             padding: const EdgeInsets.symmetric(
@@ -240,9 +243,9 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
                 width: _kOpenOffset,
                 child: Material(
                   color: AppStatus.error,
-                  borderRadius: AppRadius.brMd,
+                  borderRadius: AppRadius.brLg,
                   child: InkWell(
-                    borderRadius: AppRadius.brMd,
+                    borderRadius: AppRadius.brLg,
                     onTap: widget.onDelete,
                     child: const Center(
                       child: Icon(
