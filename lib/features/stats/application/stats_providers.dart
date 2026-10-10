@@ -12,6 +12,12 @@ enum StatsRange { thisMonth, thisYear, all }
 final statsRangeProvider =
     StateProvider<StatsRange>((_) => StatsRange.thisMonth);
 
+/// 自定义月份(仅 StatsRange.thisMonth 时生效)
+/// null = 本月,有值 = 选中的具体某月(年-月)
+final statsCustomMonthProvider = StateProvider<({int year, int month})?>(
+  (_) => null,
+);
+
 class StatsTimeWindow {
   const StatsTimeWindow(this.start, this.end);
   final DateTime start;
@@ -23,10 +29,12 @@ final statsWindowProvider = Provider<StatsTimeWindow>((ref) {
   final now = DateTime.now();
   switch (range) {
     case StatsRange.thisMonth:
+      final m = ref.watch(statsCustomMonthProvider);
+      final year = m?.year ?? now.year;
+      final month = m?.month ?? now.month;
       return StatsTimeWindow(
-        DateTime(now.year, now.month, 1),
-        DateTime(now.year, now.month + 1, 1)
-            .subtract(const Duration(seconds: 1)),
+        DateTime(year, month, 1),
+        DateTime(year, month + 1, 1).subtract(const Duration(seconds: 1)),
       );
     case StatsRange.thisYear:
       return StatsTimeWindow(
