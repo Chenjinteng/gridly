@@ -41,8 +41,8 @@ class MonthlySummary extends ConsumerWidget {
                 horizontal: AppSpacing.s4,
                 vertical: AppSpacing.s2,
               ),
-              color: AppBrand.ink,
               decoration: const BoxDecoration(
+                color: AppBrand.ink,
                 border: Border(
                   bottom: BorderSide(color: AppBrand.gold, width: 1.5),
                 ),
