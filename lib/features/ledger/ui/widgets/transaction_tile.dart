@@ -330,7 +330,7 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 左按钮(编辑)
+                  // 左按钮(编辑)—— Material Symbols filled 风格
                   Transform.translate(
                     offset: Offset(slideInOffset, 0),
                     child: Opacity(
@@ -345,9 +345,9 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
                             onTap: widget.onEdit,
                             child: const Center(
                               child: Icon(
-                                Icons.edit_outlined,
+                                Icons.edit_rounded,
                                 color: Colors.white,
-                                size: 22,
+                                size: 24,
                               ),
                             ),
                           ),
@@ -357,7 +357,7 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
                   ),
                   // 中间 4px surface 色 gap
                   const SizedBox(width: 4),
-                  // 右按钮(删除)
+                  // 右按钮(删除)—— 同款 filled 风格 + 红色 destructive 语义
                   Transform.translate(
                     offset: Offset(slideInOffset, 0),
                     child: Opacity(
@@ -372,9 +372,9 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
                             onTap: widget.onDelete,
                             child: const Center(
                               child: Icon(
-                                Icons.delete_outline_rounded,
+                                Icons.delete_rounded,
                                 color: Colors.white,
-                                size: 26,
+                                size: 24,
                               ),
                             ),
                           ),
