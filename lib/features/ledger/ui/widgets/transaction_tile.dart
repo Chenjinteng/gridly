@@ -345,7 +345,7 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
                             onTap: widget.onEdit,
                             child: const Center(
                               child: Icon(
-                                Icons.edit_rounded,
+                                Icons.edit,
                                 color: Colors.white,
                                 size: 24,
                               ),
@@ -372,7 +372,7 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
                             onTap: widget.onDelete,
                             child: const Center(
                               child: Icon(
-                                Icons.delete_rounded,
+                                Icons.delete,
                                 color: Colors.white,
                                 size: 24,
                               ),
