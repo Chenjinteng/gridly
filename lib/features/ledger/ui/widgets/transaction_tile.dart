@@ -159,11 +159,14 @@ class _SwipeToDelete extends StatefulWidget {
 
 class _SwipeToDeleteState extends State<_SwipeToDelete>
     with SingleTickerProviderStateMixin {
-  /// 划开的固定宽度(px)—— 露出 56px 宽的删除按钮区域
+  /// 划开的固定宽度(px)—— 露出 76px 宽的删除按钮区域
   static const double _kOpenOffset = 76;
 
   /// snap 阈值:划到这个距离就锁住,否则弹回
   static const double _kSnapThreshold = 40;
+
+  /// fling 速度阈值(向左 px/s),即使没划够阈值,快速左滑也直接 snap 打开
+  static const double _kFlingVelocity = -300;
 
   late AnimationController _ctrl;
   double _offset = 0;
@@ -173,7 +176,7 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 180),
+      duration: const Duration(milliseconds: 240),  // 略延长给曲线留余地
     );
   }
 
@@ -186,10 +189,13 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
   void _animateTo(double target) {
     final start = _offset;
     final delta = target - start;
+    if (delta == 0) return;
     _ctrl
       ..reset()
       ..addListener(() {
-        setState(() => _offset = start + delta * _ctrl.value);
+        // easeOutCubic: 快入慢出,snap 时有"惯性"自然收尾,比线性 180ms 丝滑很多
+        final t = Curves.easeOutCubic.transform(_ctrl.value);
+        setState(() => _offset = start + delta * t);
       })
       ..forward();
   }
@@ -200,9 +206,10 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
     setState(() => _offset = (_offset + d.primaryDelta!).clamp(-_kOpenOffset, 0.0));
   }
 
-  void _onDragEnd(DragEndDetails _) {
-    // 划得够远 → 锁在 open 状态;否则弹回关闭
-    if (_offset.abs() > _kSnapThreshold) {
+  void _onDragEnd(DragEndDetails d) {
+    final velocity = d.primaryVelocity ?? 0;
+    // 划得够远 OR 左滑速度够快 → 锁在 open 状态;否则弹回关闭
+    if (_offset.abs() > _kSnapThreshold || velocity < _kFlingVelocity) {
       _animateTo(-_kOpenOffset);
     } else {
       _animateTo(0);
@@ -217,28 +224,32 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // 底层:红色按钮(跟 tile 完全同形状——同 margin + 同圆角)
-        // tile 滑过去后,自然露出一块"红色版本"的 tile,视觉是一体的
+        // 底层:红色删除按钮(只在 tile 右侧 76px,不试图铺满同 tile 形状)
+        // iOS Mail / 微信的滑动删除按钮设计 —— 胶囊/圆角矩形 + 跟 tile 圆角"面对面"对接,
+        // 比"假装是 tile 的红色版"更柔和(后者完全打开时露出的 76px 区域
+        // 是 Material 的中间矩形,没有左圆角,跟 tile 右圆角硬接)
         Positioned.fill(
           child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.s4,
               vertical: AppSpacing.s1,
             ),
-            child: Material(
-              color: AppStatus.error,
-              borderRadius: AppRadius.brLg,
-              child: InkWell(
-                borderRadius: AppRadius.brLg,
-                onTap: widget.onDelete,
-                child: const Align(
-                  alignment: Alignment.centerRight,
-                  child: Padding(
-                    padding: EdgeInsets.only(right: AppSpacing.s4),
-                    child: Icon(
-                      Icons.delete_outline_rounded,
-                      color: Colors.white,
-                      size: 26,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: SizedBox(
+                width: _kOpenOffset,
+                child: Material(
+                  color: AppStatus.error,
+                  borderRadius: AppRadius.brMd,
+                  child: InkWell(
+                    borderRadius: AppRadius.brMd,
+                    onTap: widget.onDelete,
+                    child: const Center(
+                      child: Icon(
+                        Icons.delete_outline_rounded,
+                        color: Colors.white,
+                        size: 26,
+                      ),
                     ),
                   ),
                 ),
@@ -248,8 +259,6 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
         ),
         // 上层:卡片本身(随 _offset 水平平移)
         // 直接用 widget.child —— 它自己带 margin + brLg + 边框 + surfaceContainerLow 背景
-        // 不要在外面再套一个矩形 Container(color: surface),否则那个矩形会"咬掉"
-        // tile 圆角跟底层红色 Material 圆角的衔接,看起来很生硬。
         Transform.translate(
           offset: Offset(_offset, 0),
           child: GestureDetector(
