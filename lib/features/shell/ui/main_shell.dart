@@ -15,10 +15,13 @@ class MainShell extends StatelessWidget {
   const MainShell({super.key, required this.child});
   final Widget child;
 
-  static const _tabs = ['/home', '/ledger', '/add', '/stats', '/settings'];
+  static const _tabs = ['/home', '/ledger', '/stats', '/settings'];
 
   int _currentIndex(BuildContext context) {
     final loc = GoRouterState.of(context).uri.path;
+    // 在 /add(root modal)时不命中任何 tab;fallback 到 1(流水)避免
+    // 底部 nav 高亮错乱。push 完成后 shell 仍可交互但 selectedIndex 是个 placeholder。
+    if (loc.startsWith('/add')) return 1;
     final i = _tabs.indexWhere((p) => loc.startsWith(p));
     return i < 0 ? 0 : i;
   }
@@ -38,7 +41,13 @@ class MainShell extends StatelessWidget {
         height: 72,
         selectedIndex: currentIndex,
         onDestinationSelected: (i) {
-          context.go(_tabs[i]);
+          // shell 内 4 个 tab 用 go 切换(清 stack 到目标)
+          if (i == 2) {
+            // 中央 "+" —— 推到 root navigator 的 modal 页面,关闭后自动回当前 tab
+            context.push('/add');
+          } else {
+            context.go(_tabs[i]);
+          }
         },
         backgroundColor: Theme.of(context).colorScheme.surface,
         indicatorColor: Colors.transparent,

@@ -42,11 +42,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) => const NoTransitionPage(child: LedgerPage()),
           ),
           GoRoute(
-            path: '/add',
-            name: 'add',
-            pageBuilder: (context, state) => const NoTransitionPage(child: AddTransactionPage()),
-          ),
-          GoRoute(
             path: '/stats',
             name: 'stats',
             pageBuilder: (context, state) => const NoTransitionPage(child: StatsPage()),
@@ -57,6 +52,15 @@ final routerProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) => const NoTransitionPage(child: SettingsPage()),
           ),
         ],
+      ),
+      // /add 放在 ShellRoute 之外 —— 作为 root navigator 上的 modal-style 页面。
+      // 关闭或保存时 context.pop() 自动回到 shell 当前 tab(在哪个 tab 点 + 就回哪个),
+      // 不再强制跳 /home。
+      GoRoute(
+        path: '/add',
+        name: 'add',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => const NoTransitionPage(child: AddTransactionPage()),
       ),
       // Tab 外的子页面(在 root navigator 栈上,不全屏被 Shell 覆盖)
       GoRoute(

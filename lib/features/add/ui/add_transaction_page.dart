@@ -25,17 +25,15 @@ class AddTransactionPage extends StatelessWidget {
         title: const Text('记一笔'),
         leading: IconButton(
           icon: const Icon(Icons.close),
-          onPressed: () => context.go('/home'),
+          // pop 回 root navigator,自动回到 shell 当前 tab —— 哪个 tab 点 +
+          // 就回哪个,不再强制跳 /home
+          onPressed: () => context.pop(),
         ),
       ),
       body: TransactionForm(
         editTransaction: editTransaction,
-        onSaved: () {
-          // 新增模式保存后跳 /home;编辑模式保存后留在原页面
-          if (editTransaction == null) {
-            context.go('/home');
-          }
-        },
+        // 保存后也 pop(新增 / 编辑统一处理)
+        onSaved: () => context.pop(),
       ),
     );
   }
