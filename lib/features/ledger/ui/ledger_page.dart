@@ -1,5 +1,6 @@
 // lib/features/ledger/ui/ledger_page.dart
-// 流水(读):月度汇总 + 按日分组 ListView + 空状态
+// 流水(读):按日分组 ListView + 空状态
+// 月度汇总卡只放在首页(避免流水顶部冗余)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,7 +10,6 @@ import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/formatters.dart';
 import '../application/transactions_providers.dart';
-import 'widgets/monthly_summary.dart';
 import 'widgets/transaction_tile.dart';
 
 class LedgerPage extends ConsumerWidget {
@@ -26,21 +26,14 @@ class LedgerPage extends ConsumerWidget {
             return const _EmptyState();
           }
           final days = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
-          return Column(
-            children: [
-              const MonthlySummary(),
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.s6),
-                  itemCount: days.length,
-                  itemBuilder: (context, i) {
-                    final day = days[i];
-                    final txs = grouped[day]!;
-                    return _DaySection(day: day, transactions: txs);
-                  },
-                ),
-              ),
-            ],
+          return ListView.builder(
+            padding: const EdgeInsets.only(top: AppSpacing.s2, bottom: AppSpacing.s6),
+            itemCount: days.length,
+            itemBuilder: (context, i) {
+              final day = days[i];
+              final txs = grouped[day]!;
+              return _DaySection(day: day, transactions: txs);
+            },
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
