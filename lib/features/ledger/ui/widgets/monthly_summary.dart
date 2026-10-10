@@ -224,12 +224,12 @@ class _Cell extends StatelessWidget {
         color: AppBrand.ink,
         border: Border(
           top: const BorderSide(
-            color: AppBrand.charcoal, // cell 顶线用浅灰(不过分抢眼)
+            color: AppBrand.gold, // cell 顶线:3 条品牌金横线之一
             width: 0.5,
           ),
           left: showDivider
               ? const BorderSide(
-                  color: AppBrand.charcoal, // cell 之间竖线用浅灰
+                  color: AppBrand.charcoal, // cell 之间竖线保持浅灰(不抢眼)
                   width: 0.5,
                 )
               : BorderSide.none,
