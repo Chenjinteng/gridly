@@ -74,8 +74,8 @@ final ledgerTypeFilterProvider = StateProvider<String>((ref) => 'all');
 /// 月份筛选:null = 全部,否则用 `year*100 + month` 做 key(如 202610 = 2026 年 10 月)
 final ledgerMonthFilterProvider = StateProvider<int?>((ref) => null);
 
-/// 分类筛选:null = 全部
-final ledgerCategoryFilterProvider = StateProvider<int?>((ref) => null);
+/// 分类筛选:空 Set = 全部,非空 = 仅命中任一 id 的分类(多选 OR 关系)
+final ledgerCategoryFilterProvider = StateProvider<Set<int>>((ref) => <int>{});
 
 /// 搜索关键字:匹配 note(备注)和分类名
 final ledgerSearchQueryProvider = StateProvider<String>((ref) => '');
@@ -107,8 +107,10 @@ final filteredTransactionsByDayProvider =
       final dt = t.occurredAt;
       if (dt.year * 100 + dt.month != monthFilter) return false;
     }
-    // 分类
-    if (categoryFilter != null && t.categoryId != categoryFilter) return false;
+    // 分类(多选 OR:命中任一选中的 id)
+    if (categoryFilter.isNotEmpty && !categoryFilter.contains(t.categoryId)) {
+      return false;
+    }
     // 搜索关键字(note 命中 或 分类名命中)
     if (query.isNotEmpty) {
       final noteHit = (t.note ?? '').toLowerCase().contains(query);
