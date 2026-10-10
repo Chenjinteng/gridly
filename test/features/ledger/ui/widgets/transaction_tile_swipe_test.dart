@@ -72,7 +72,7 @@ void main() {
     TestWidgetsFlutterBinding.ensureInitialized().platformDispatcher.views.first.devicePixelRatio = 1.0;
   });
 
-  testWidgets('左滑超过阈值后释放 → snap 打开,offset 收敛到 -152', (tester) async {
+  testWidgets('左滑超过阈值后释放 → snap 打开,offset 收敛到 -156', (tester) async {
     await tester.binding.setSurfaceSize(const Size(360, 700));
     await tester.pumpWidget(_harness(TransactionTile(transaction: _tx())));
     await tester.pumpAndSettle();
@@ -80,11 +80,11 @@ void main() {
     // 初始关闭
     expect(_offsetOf(tester, find.byType(TransactionTile)), 0);
 
-    // 拖动 -200px(大于 _kSnapThreshold=40,会触发 snap 到 -152)
+    // 拖动 -200px(大于 _kSnapThreshold=40,会触发 snap 到 -156)
     await tester.drag(find.byType(TransactionTile), const Offset(-200, 0));
     await tester.pumpAndSettle();  // 等动画结束
 
-    expect(_offsetOf(tester, find.byType(TransactionTile)), -152);
+    expect(_offsetOf(tester, find.byType(TransactionTile)), -156);
   });
 
   testWidgets('左滑未到阈值就释放 → 弹回关闭,offset 回到 0', (tester) async {
@@ -107,7 +107,7 @@ void main() {
     // 先打开
     await tester.drag(find.byType(TransactionTile), const Offset(-200, 0));
     await tester.pumpAndSettle();
-    expect(_offsetOf(tester, find.byType(TransactionTile)), -152);
+    expect(_offsetOf(tester, find.byType(TransactionTile)), -156);
 
     // 点击 tile(onTap → _close → _animateTo(0))
     await tester.tap(find.byType(TransactionTile));
@@ -121,25 +121,25 @@ void main() {
     await tester.pumpAndSettle();
 
     // 第一次拖动 -100px(> 阈值 40 但 < _kOpenOffset 152 —— 留出 snap 余量,
-    // 否则 _offset 会被 clamp 到 -152,_animateTo 因等于 target 直接返回,snap 不启动)
+    // 否则 _offset 会被 clamp 到 -156,_animateTo 因等于 target 直接返回,snap 不启动)
     await tester.drag(find.byType(TransactionTile), const Offset(-100, 0));
     // pump 100ms(动画 240ms)—— 此时 offset 还在动画中间
     await tester.pump(const Duration(milliseconds: 100));
     final midOffset = _offsetOf(tester, find.byType(TransactionTile));
     expect(midOffset, lessThan(0), reason: 'snap 动画已开始,offset 应是负值');
-    expect(midOffset, greaterThan(-152), reason: 'snap 动画还在中间,没到终点');
+    expect(midOffset, greaterThan(-156), reason: 'snap 动画还在中间,没到终点');
     expect(find.byType(TransactionTile), findsOneWidget);
 
     // 在 snap 动画进行中,发起第二次手势 —— 应立即打断动画并接管 _offset,
-    // 然后新触发的 snap 收敛到 -152。验证最终态稳定:
+    // 然后新触发的 snap 收敛到 -156。验证最终态稳定:
     //   - 没有 crash
     //   - _offset 不会卡在 midOffset(动画没停)
     //   - 也不会越过 _kOpenOffset
     // 注意:必须用超过 kTouchSlop(~13px)的位移,否则 GestureDetector 会判为 tap → _close() → 弹回 0
     await tester.drag(find.byType(TransactionTile), const Offset(-30, 0));
     await tester.pumpAndSettle();
-    expect(_offsetOf(tester, find.byType(TransactionTile)), -152,
-        reason: 'snap 动画被中断后,后续 drag 触发的 snap 应能稳定到 -152');
+    expect(_offsetOf(tester, find.byType(TransactionTile)), -156,
+        reason: 'snap 动画被中断后,后续 drag 触发的 snap 应能稳定到 -156');
   });
 
   testWidgets('快速重复打开/关闭多次,状态正常收敛', (tester) async {
@@ -150,8 +150,8 @@ void main() {
     for (var i = 0; i < 5; i++) {
       await tester.drag(find.byType(TransactionTile), const Offset(-200, 0));
       await tester.pumpAndSettle();
-      expect(_offsetOf(tester, find.byType(TransactionTile)), -152,
-          reason: '第 $i 次打开后应 snap 到 -152');
+      expect(_offsetOf(tester, find.byType(TransactionTile)), -156,
+          reason: '第 $i 次打开后应 snap 到 -156');
 
       await tester.tap(find.byType(TransactionTile));
       await tester.pumpAndSettle();
@@ -181,7 +181,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(_offsetOf(tester, allTiles.at(0)), 0, reason: '第一条不应受第二条影响');
-    expect(_offsetOf(tester, allTiles.at(1)), -152, reason: '第二条应 snap 到 -152');
+    expect(_offsetOf(tester, allTiles.at(1)), -156, reason: '第二条应 snap 到 -156');
     expect(_offsetOf(tester, allTiles.at(2)), 0, reason: '第三条不应受第二条影响');
 
     // 拖第三条
@@ -189,15 +189,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(_offsetOf(tester, allTiles.at(0)), 0);
-    expect(_offsetOf(tester, allTiles.at(1)), -152, reason: '第二条应保持打开状态');
-    expect(_offsetOf(tester, allTiles.at(2)), -152, reason: '第三条也应 snap 到 -152');
+    expect(_offsetOf(tester, allTiles.at(1)), -156, reason: '第二条应保持打开状态');
+    expect(_offsetOf(tester, allTiles.at(2)), -156, reason: '第三条也应 snap 到 -156');
 
     // 关闭第三条
     await tester.tap(allTiles.at(2));
     await tester.pumpAndSettle();
 
     expect(_offsetOf(tester, allTiles.at(0)), 0);
-    expect(_offsetOf(tester, allTiles.at(1)), -152, reason: '第二条仍应打开');
+    expect(_offsetOf(tester, allTiles.at(1)), -156, reason: '第二条仍应打开');
     expect(_offsetOf(tester, allTiles.at(2)), 0, reason: '第三条应关闭');
   });
 
@@ -217,18 +217,18 @@ void main() {
     await tester.drag(find.byType(TransactionTile), const Offset(-30, 0));
     final afterDrag = _offsetOf(tester, find.byType(TransactionTile));
 
-    // 如果动画没被中断,这里 pump 会让 animation tick,_offset 继续向 -152 推进
+    // 如果动画没被中断,这里 pump 会让 animation tick,_offset 继续向 -156 推进
     // 如果动画已中断,pump 不会改变 _offset(因 drag 已触发新的 _animateTo,
     // 但新的 _ctrl.forward(from: 0) 在 pump(100ms) 后应跑到一定进度,_offset 应变化)
-    // 为了精确判断:drag 后 _offset 已确定(由 drag 累加 + clamp);后续 pumpAndSettle 应让它收敛到 -152
+    // 为了精确判断:drag 后 _offset 已确定(由 drag 累加 + clamp);后续 pumpAndSettle 应让它收敛到 -156
     // 但单帧 pump(0) 不应改变 _offset(除非新的 animation 已经开始)
-    // 这里改用更直接的证据:pumpAndSettle 后稳定到 -152,证明新 snap 启动了
+    // 这里改用更直接的证据:pumpAndSettle 后稳定到 -156,证明新 snap 启动了
     await tester.pumpAndSettle();
-    expect(_offsetOf(tester, find.byType(TransactionTile)), -152);
+    expect(_offsetOf(tester, find.byType(TransactionTile)), -156);
     // afterDrag 应在合理范围(midOffset 附近,但可能已被 drag 进一步推)
     expect(afterDrag, lessThanOrEqualTo(midOffset),
         reason: '第二次 drag 应让 _offset 不超过 midOffset(动画已中断,drag 累加)');
-    expect(afterDrag, greaterThanOrEqualTo(-152),
+    expect(afterDrag, greaterThanOrEqualTo(-156),
         reason: '_offset 不应越过 _kOpenOffset');
   });
 }

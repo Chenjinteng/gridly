@@ -170,8 +170,9 @@ class _SwipeToDelete extends StatefulWidget {
 
 class _SwipeToDeleteState extends State<_SwipeToDelete>
     with SingleTickerProviderStateMixin {
-  /// 划开的固定宽度(px)—— 露出 [编辑 76 + 删除 76 = 152]px 的按钮区域
-  static const double _kOpenOffset = 152;
+  /// 划开的固定宽度(px)—— 露出 [编辑 76 + 4 gap + 删除 76 = 156]px 的按钮区域
+  /// (中间留 4px surface 色 gap 让两个按钮视觉独立,不粘成一条)
+  static const double _kOpenOffset = 156;
 
   /// snap 阈值:划到这个距离就锁住,否则弹回
   static const double _kSnapThreshold = 40;
@@ -275,7 +276,7 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   SizedBox(
-                    width: _kOpenOffset / 2,
+                    width: 76,
                     child: Material(
                       color: theme.colorScheme.primary,
                       borderRadius: AppRadius.brLg,
@@ -292,8 +293,11 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
                       ),
                     ),
                   ),
+                  // 中间 4px surface 色 gap —— 让两个按钮视觉独立,
+                  // 不粘成一条"工具栏"(配合 _kOpenOffset = 76 + 4 + 76 = 156)
+                  const SizedBox(width: 4),
                   SizedBox(
-                    width: _kOpenOffset / 2,
+                    width: 76,
                     child: Material(
                       color: AppStatus.error,
                       borderRadius: AppRadius.brLg,
