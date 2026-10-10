@@ -1,6 +1,7 @@
 // lib/features/settings/ui/about_page.dart
 // 关于页:品牌说明 + 隐私政策
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/providers.dart';
@@ -200,6 +201,7 @@ class _BodyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.s4,
@@ -209,16 +211,28 @@ class _BodyCard extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(AppSpacing.s4),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerLow,
+          color: theme.colorScheme.surfaceContainerLow,
           borderRadius: AppRadius.brLg,
           border: Border.all(
-            color: Theme.of(context).colorScheme.outlineVariant,
+            color: theme.colorScheme.outlineVariant,
             width: 0.5,
           ),
         ),
-        child: Text(
-          text,
-          style: const TextStyle(fontSize: 13, height: 1.6),
+        child: MarkdownBody(
+          data: text,
+          styleSheet: MarkdownStyleSheet(
+            p: const TextStyle(fontSize: 13, height: 1.6),
+            h1: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+            h2: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+            ),
+            strong: const TextStyle(fontWeight: FontWeight.w700),
+            listBullet: const TextStyle(fontSize: 13, height: 1.6),
+          ),
         ),
       ),
     );
