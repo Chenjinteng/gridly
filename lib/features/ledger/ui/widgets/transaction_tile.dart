@@ -52,8 +52,15 @@ class TransactionTile extends ConsumerWidget {
               borderRadius: AppRadius.brLg,
               border: Border.all(
                 color: theme.colorScheme.outlineVariant,
-                width: 0.5,
+                width: 1.0, // 全卡片统一:0.5 → 1.0
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Row(
               children: [
