@@ -144,7 +144,8 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
 }
 
 /// 筛选条 —— 3 个 dropdown 按钮横向均分,点击弹 modal bottom sheet 单选/多选
-class _FilterBar extends StatelessWidget {
+/// 任意筛选激活时,右侧出现"清空"快捷按钮
+class _FilterBar extends ConsumerWidget {
   const _FilterBar({
     required this.typeFilter,
     required this.monthFilter,
@@ -166,6 +167,15 @@ class _FilterBar extends StatelessWidget {
   final ValueChanged<String> onTypeChanged;
   final ValueChanged<int?> onMonthChanged;
   final ValueChanged<Set<int>> onCategoryChanged;
+
+  bool get _hasActiveFilter =>
+      typeFilter != 'all' || monthFilter != null || categoryFilter.isNotEmpty;
+
+  void _clearAll(WidgetRef ref) {
+    ref.read(ledgerTypeFilterProvider.notifier).state = 'all';
+    ref.read(ledgerMonthFilterProvider.notifier).state = null;
+    ref.read(ledgerCategoryFilterProvider.notifier).state = <int>{};
+  }
 
   String _typeLabel() {
     switch (typeFilter) {
@@ -193,7 +203,7 @@ class _FilterBar extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.fromLTRB(
@@ -238,6 +248,11 @@ class _FilterBar extends StatelessWidget {
               onTap: () => _showCategoryPicker(context),
             ),
           ),
+          // 仅当有任意筛选激活时,显示"清空"按钮,避免挤占默认 UI
+          if (_hasActiveFilter) ...[
+            const SizedBox(width: AppSpacing.s2),
+            _ClearButton(onTap: () => _clearAll(ref)),
+          ],
         ],
       ),
     );
@@ -625,6 +640,51 @@ class _DropdownField extends StatelessWidget {
                       : theme.colorScheme.onSurfaceVariant,
                 ),
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 清空按钮 —— 仅当有任意筛选激活时出现
+class _ClearButton extends StatelessWidget {
+  const _ClearButton({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      borderRadius: AppRadius.brMd,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.s2,
+          vertical: AppSpacing.s2,
+        ),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerLow,
+          borderRadius: AppRadius.brMd,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.close,
+              size: 16,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '清空',
+              style: TextStyle(
+                fontSize: 11,
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ],
         ),
