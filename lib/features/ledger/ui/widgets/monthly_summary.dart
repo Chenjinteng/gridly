@@ -2,9 +2,8 @@
 // 月度汇总 —— 设计成"Excel 工作表"风格,呼应"格子"主题:
 //   - 顶部 sheet title(深色底 + 金色 1.5px 下边 + LOGO + 月份)
 //   - 主数字区(深色底):本月结余大字
-//   - 日均支出(深色底,大数字下方一行小字)
-//   - 收入 / 支出两个 cell,中间 1px 分隔线(深色画在亮一点的颜色上)
-//   - v0.2.0 起,支出 cell 内追加"日均 ¥xxx"
+//   - 收入 / 支出两个 cell(等高,IntrinsicHeight 强制),中间 1px 分隔线
+//   - 日均支出行(底部独立小行),防止 cell 内容不对称导致底不齐
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -100,7 +99,7 @@ class MonthlySummary extends ConsumerWidget {
                 ),
               ),
             ),
-            // 收入 / 支出 两列 cell
+            // 收入 / 支出 两列 cell(等高,内容对称)
             IntrinsicHeight(
               child: Row(
                 children: [
@@ -118,7 +117,36 @@ class MonthlySummary extends ConsumerWidget {
                       amount: summary.expense,
                       color: AppBrand.teal,
                       showDivider: false,
-                      dailyAverage: dailyAvg,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // 日均支出行(独立底部,避免两 cell 内容不对齐)
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.s4,
+                vertical: AppSpacing.s2,
+              ),
+              decoration: const BoxDecoration(
+                color: AppBrand.ink,
+                border: Border(
+                  top: BorderSide(color: AppBrand.charcoal, width: 0.5),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Text(
+                    '日均支出',
+                    style: TextStyle(color: AppGray.g400, fontSize: 11),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '¥${Formatters.amount(dailyAvg)}',
+                    style: const TextStyle(
+                      color: AppBrand.teal,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
@@ -137,13 +165,11 @@ class _Cell extends StatelessWidget {
     required this.amount,
     required this.color,
     required this.showDivider,
-    this.dailyAverage,
   });
   final String label;
   final double amount;
   final Color color;
   final bool showDivider;
-  final double? dailyAverage;
 
   @override
   Widget build(BuildContext context) {
@@ -184,16 +210,6 @@ class _Cell extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
-          if (dailyAverage != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              '日均 ¥${Formatters.amount(dailyAverage!)}',
-              style: const TextStyle(
-                color: AppGray.g400,
-                fontSize: 10,
-              ),
-            ),
-          ],
         ],
       ),
     );
