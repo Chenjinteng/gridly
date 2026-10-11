@@ -134,30 +134,35 @@ class _RangeSegment extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          InkWell(
-            borderRadius: AppRadius.brSm,
-            onTap: onLabelTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.s2,
-                vertical: AppSpacing.s1,
-              ),
-              // label 可能很长(如 "2026 年 5 月",含中文+空格≈ 75px),3 段 Expanded
-              // 等分时单格 ≈ 114px,再扣 chevron / 内 padding 容易溢出 9-10px。
-              // FittedBox.scaleDown 短 label 按原字号显示,长 label 自动缩到不溢出
-              // —— 比硬编码字号/fontSize 更鲁棒,后续年份跨度变大也不用再调
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.center,
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: fg,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+          // label InkWell 包 Flexible(fit:loose) 接到 Row flex 分配:
+          // Row 主动把可用宽度(114-20=94)分给 label,Padding/FittedBox 才
+          // 正确知道剩 78px 可用,长 label 自动缩到不溢出
+          // 上次只 FittedBox 没接 Row 约束,FittedBox 收到 InkWell 内 Padding
+          // 给的 max=98,加上 chevron 后还是 124 > 114 → OVERFLOWED BY 9.1
+          Flexible(
+            fit: FlexFit.loose,
+            child: InkWell(
+              borderRadius: AppRadius.brSm,
+              onTap: onLabelTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.s2,
+                  vertical: AppSpacing.s1,
+                ),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.center,
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: fg,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.visible,
                   ),
-                  maxLines: 1,
-                  softWrap: false,
                 ),
               ),
             ),
