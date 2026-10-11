@@ -99,6 +99,16 @@ class IncomePie extends ConsumerWidget {
                         alignment: Alignment.center,
                         children: [
                           AnimatedPieChart(
+                            key: pieChartKeyForSections(shown
+                                .map(
+                                  (e) => PieChartSectionData(
+                                    value: e.amount,
+                                    color: Color(e.color),
+                                    title: '',
+                                    radius: 18,
+                                  ),
+                                )
+                                .toList()),
                             sections: shown
                                 .map(
                                   (e) => PieChartSectionData(
