@@ -42,16 +42,16 @@ class MonthlySummary extends ConsumerWidget {
           width: 1.0, // 加粗:0.5 → 1.0,浅色背景下也能看清卡片边界
         ),
         boxShadow: [
-          // 双层阴影做立体感:近 + 远,模拟自然光(Material elevated card 套路)
+          // 双层阴影,加深一档(浅色下黑底卡更明显)
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08), // 近阴影
-            blurRadius: 10,
-            offset: const Offset(0, 3),
+            color: Colors.black.withValues(alpha: 0.15), // 近阴影
+            blurRadius: 14,
+            offset: const Offset(0, 4),
           ),
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04), // 远阴影(弥散)
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: Colors.black.withValues(alpha: 0.08), // 远阴影(弥散)
+            blurRadius: 28,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
