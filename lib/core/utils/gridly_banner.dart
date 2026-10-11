@@ -87,34 +87,48 @@ class _GridlyBannerOverlayState extends State<_GridlyBannerOverlay>
     widget.onDismiss();
   }
 
-  ({Color accent, Color bg, Color fg, IconData icon}) _resolve(ThemeData theme) {
+  ({Color accent, Color bg, Color fg, IconData icon, Color border}) _resolve(
+      ThemeData theme) {
+    // 2026-10-11 UAT 反馈:之前 banner 用 AppBrand.ink 纯黑 + cream 米白,
+    // 跟 gridly 主题脱节。改成主题色:
+    //   bg     → surfaceContainerHigh(轻微抬升,跟卡片视觉一致)
+    //   fg     → onSurface(主题正文色)
+    //   border → outlineVariant(细描边,跟卡片边缘一致)
+    // accent / icon 保留 kind 颜色(teal / gold / red),作为视觉焦点。
+    final bg = theme.colorScheme.surfaceContainerHigh;
+    final fg = theme.colorScheme.onSurface;
+    final border = theme.colorScheme.outlineVariant;
     switch (widget.kind) {
       case GridlyBannerKind.info:
         return (
           accent: AppBrand.teal,
-          bg: AppBrand.ink,
-          fg: AppSecondary.cream,
+          bg: bg,
+          fg: fg,
+          border: border,
           icon: Icons.info_outline_rounded,
         );
       case GridlyBannerKind.success:
         return (
           accent: AppBrand.teal,
-          bg: AppBrand.ink,
-          fg: AppSecondary.cream,
+          bg: bg,
+          fg: fg,
+          border: border,
           icon: Icons.check_circle_outline_rounded,
         );
       case GridlyBannerKind.warning:
         return (
           accent: AppBrand.gold,
-          bg: AppBrand.ink,
-          fg: AppSecondary.cream,
+          bg: bg,
+          fg: fg,
+          border: border,
           icon: Icons.warning_amber_rounded,
         );
       case GridlyBannerKind.error:
         return (
           accent: AppStatus.error,
-          bg: AppBrand.ink,
-          fg: AppSecondary.cream,
+          bg: bg,
+          fg: fg,
+          border: border,
           icon: Icons.error_outline_rounded,
         );
     }
@@ -146,9 +160,16 @@ class _GridlyBannerOverlayState extends State<_GridlyBannerOverlay>
                   decoration: BoxDecoration(
                     color: scheme.bg,
                     borderRadius: AppRadius.brLg,
+                    border: Border.all(
+                      color: scheme.border,
+                      width: 0.5,
+                    ),
                     boxShadow: [
+                      // 2026-10-11 UAT:改成 theme 色后阴影也跟着用主题的 shadowColor,
+                      // 不再硬编码 black.withValues(...)。light mode 阴影柔和,
+                      // dark mode 阴影偏白,跟 gridly 卡片阴影策略一致。
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.18),
+                        color: theme.shadowColor.withValues(alpha: 0.10),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
