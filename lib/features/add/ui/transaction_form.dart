@@ -330,174 +330,245 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     );
   }
 
-  /// 键盘上方的保存栏 —— 左侧"选分类"入口 + 已选分类显示,
-  /// 右侧保存按钮。点左侧任意位置都弹分类选择器,既是显示又是入口。
-  /// 位置贴近键盘,输完金额可一步保存,不必抬拇指到 AppBar 右上角。
-  Widget _saveBar(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final catsAsync = ref.watch(categoriesByTypeProvider(_type));
-    Category? current;
-    catsAsync.whenData((cats) {
-      for (final c in cats) {
-        if (c.id == _categoryId) {
-          current = c;
-          break;
-        }
-      }
-    });
-    final canSave = _categoryId != null;
-    // 捕获成本地 final,Dart 能在 else 分支自动提升非空
-    final sel = current;
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.s4,
-        vertical: AppSpacing.s2,
-      ),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        border: Border(
-          top: BorderSide(
-            color: theme.colorScheme.outlineVariant,
-            width: 0.5,
+  // ============================================================
+  // 2026-10-11 UAT 重构后的 5 个 form 子部件:
+  //   _metaRow / _categoryChip / _amountBlock / _noteField / _saveButton
+  //   每个负责 form 一行,垂直堆叠构成 ①type+date ②category ③amount ④note ⑤save
+  //   旧的 _saveBar(category + save 横着)跟 _dateRow(独立一行)删除
+  // ============================================================
+
+  /// ①顶部:type 切换 + 日期选择(并排)
+  /// type 占左边弹性空间,date 占右边的固定紧凑 pill(圆角矩形 + icon + 月日)
+  Widget _metaRow(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: TypeToggle(
+            value: _type,
+            onChanged: (v) => setState(() {
+              _type = v;
+              _categoryId = null; // 类型切换时清掉旧分类(分类按 type 过滤)
+            }),
           ),
         ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: InkWell(
-              borderRadius: AppRadius.brMd,
-              onTap: _openCategoryPicker,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.s2),
-                child: sel == null
-                    ? Row(
-                        children: [
-                          Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surfaceContainerHigh,
-                              borderRadius: AppRadius.brXs,
-                              border: Border.all(
-                                color: theme.colorScheme.outlineVariant,
-                                width: 0.5,
-                              ),
-                            ),
-                            child: Icon(
-                              Icons.category_outlined,
-                              size: 16,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.s2),
-                          const Text(
-                            '选个分类',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: AppGray.g600,
-                            ),
-                          ),
-                          const Spacer(),
-                          Icon(
-                            Icons.expand_more,
-                            size: 20,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ],
-                      )
-                    : Row(
-                        children: [
-                          Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              color: Color(sel.color).withValues(alpha: 0.12),
-                              borderRadius: AppRadius.brXs,
-                              border: Border.all(
-                                color: Color(sel.color).withValues(alpha: 0.3),
-                                width: 0.5,
-                              ),
-                            ),
-                            child: Icon(
-                              CategoryIcons.map[sel.icon] ??
-                                  Icons.category_rounded,
-                              color: Color(sel.color),
-                              size: 16,
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.s2),
-                          Expanded(
-                            child: Text(
-                              sel.name,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Icon(
-                            Icons.expand_more,
-                            size: 20,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ],
-                      ),
-              ),
-            ),
+        const SizedBox(width: AppSpacing.s2),
+        _datePill(context),
+      ],
+    );
+  }
+
+  /// 日期 pill —— 紧凑型,只显示「M 月 D 日」(不带年份)
+  /// 年份冗余(用户大概率是今年记账),让 pill 窄一点跟 type toggle 同高
+  Widget _datePill(BuildContext context) {
+    final theme = Theme.of(context);
+    final isToday = _occurredAt.year == DateTime.now().year &&
+        _occurredAt.month == DateTime.now().month &&
+        _occurredAt.day == DateTime.now().day;
+    return InkWell(
+      borderRadius: AppRadius.brPill,
+      onTap: _pickDate,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.s3,
+          vertical: AppSpacing.s2,
+        ),
+        decoration: BoxDecoration(
+          color: isToday
+              ? AppBrand.teal.withValues(alpha: 0.10)
+              : theme.colorScheme.surfaceContainerLow,
+          borderRadius: AppRadius.brPill,
+          border: Border.all(
+            color: isToday
+                ? AppBrand.teal.withValues(alpha: 0.4)
+                : theme.colorScheme.outlineVariant,
+            width: 1,
           ),
-          const SizedBox(width: AppSpacing.s2),
-          FilledButton(
-            onPressed: canSave ? _save : null,
-            style: FilledButton.styleFrom(
-              backgroundColor: canSave
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.surfaceContainerHigh,
-              foregroundColor: canSave
-                  ? theme.colorScheme.onPrimary
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.calendar_today_rounded,
+              size: 14,
+              color: isToday
+                  ? AppBrand.teal
                   : theme.colorScheme.onSurfaceVariant,
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.s4,
-                vertical: AppSpacing.s2,
-              ),
-              shape: RoundedRectangleBorder(borderRadius: AppRadius.brMd),
             ),
-            child: const Text('保存', style: TextStyle(fontWeight: FontWeight.w600)),
-          ),
-        ],
+            const SizedBox(width: 6),
+            Text(
+              isToday
+                  ? '今天'
+                  : '${_occurredAt.month}月${_occurredAt.day}日',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: isToday
+                    ? AppBrand.teal
+                    : theme.colorScheme.onSurface,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _dateRow(BuildContext context) {
+  /// ②分类 chip —— 全宽 pill,显示已选分类(图标 + 名字)或"选个分类"占位
+  /// tap 打开 picker(沿用 _openCategoryPicker,从 SaveBar 时代就在用)
+  Widget _categoryChip(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.s4,
-        vertical: AppSpacing.s1,
-      ),
-      child: InkWell(
-        borderRadius: AppRadius.brMd,
-        onTap: _pickDate,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.s2),
-          child: Row(
-            children: [
-              Icon(
-                Icons.calendar_today_rounded,
-                size: 16,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: AppSpacing.s2),
-              Text(
-                '${_occurredAt.year}-${_occurredAt.month.toString().padLeft(2, '0')}-${_occurredAt.day.toString().padLeft(2, '0')}',
-                style: const TextStyle(fontSize: 14),
-              ),
-            ],
+    final catsAsync = ref.watch(categoriesByTypeProvider(_type));
+    Category? sel;
+    catsAsync.whenData((cats) {
+      for (final c in cats) {
+        if (c.id == _categoryId) {
+          sel = c;
+          break;
+        }
+      }
+    });
+    final hasCat = sel != null;
+    return InkWell(
+      borderRadius: AppRadius.brLg,
+      onTap: _openCategoryPicker,
+      child: Container(
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s3),
+        decoration: BoxDecoration(
+          color: hasCat
+              ? Color(sel!.color).withValues(alpha: 0.08)
+              : theme.colorScheme.surfaceContainerLow,
+          borderRadius: AppRadius.brLg,
+          border: Border.all(
+            color: hasCat
+                ? Color(sel!.color).withValues(alpha: 0.5)
+                : theme.colorScheme.outlineVariant,
+            width: 1,
           ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: hasCat
+                    ? Color(sel!.color).withValues(alpha: 0.18)
+                    : theme.colorScheme.surface,
+                borderRadius: AppRadius.brSm,
+                border: Border.all(
+                  color: hasCat
+                      ? Color(sel!.color).withValues(alpha: 0.5)
+                      : theme.colorScheme.outlineVariant,
+                  width: 0.5,
+                ),
+              ),
+              child: Icon(
+                hasCat
+                    ? (CategoryIcons.map[sel!.icon] ??
+                        Icons.category_rounded)
+                    : Icons.category_outlined,
+                color: hasCat ? Color(sel!.color) : AppGray.g600,
+                size: 16,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.s2),
+            Expanded(
+              child: Text(
+                hasCat ? sel!.name : '选个分类',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: hasCat
+                      ? theme.colorScheme.onSurface
+                      : AppGray.g600,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Icon(
+              Icons.expand_more_rounded,
+              size: 20,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// ③金额块 —— 表达式(若有)+ 大金额(默认右对齐,跟数字键盘 Numpad 方向一致)
+  Widget _amountBlock(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        if (_calc.expression.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              _calc.expression,
+              style: TextStyle(
+                fontSize: 13,
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w400,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        AmountDisplay(amount: _calc.display, type: _type),
+      ],
+    );
+  }
+
+  /// ④备注 —— 极简 InputDecoration.none 横线
+  Widget _noteField(BuildContext context) {
+    final theme = Theme.of(context);
+    return TextField(
+      controller: _noteController,
+      maxLength: 30,
+      decoration: InputDecoration(
+        hintText: '备注(可选)',
+        hintStyle: TextStyle(color: AppGray.g400),
+        prefixIcon: Icon(
+          Icons.edit_note_rounded,
+          size: 20,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+        border: InputBorder.none,
+        isDense: true,
+        counterText: '',
+      ),
+      style: const TextStyle(fontSize: 14),
+    );
+  }
+
+  /// ⑤保存按钮 —— 右对齐 pill,未选分类时置灰禁用
+  Widget _saveButton(BuildContext context) {
+    final theme = Theme.of(context);
+    final canSave = _categoryId != null;
+    return Align(
+      alignment: Alignment.centerRight,
+      child: FilledButton(
+        onPressed: canSave ? _save : null,
+        style: FilledButton.styleFrom(
+          backgroundColor: canSave
+              ? theme.colorScheme.primary
+              : theme.colorScheme.surfaceContainerHigh,
+          foregroundColor: canSave
+              ? theme.colorScheme.onPrimary
+              : theme.colorScheme.onSurfaceVariant,
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.s5,
+            vertical: AppSpacing.s3,
+          ),
+          shape: RoundedRectangleBorder(borderRadius: AppRadius.brPill),
+        ),
+        child: const Text(
+          '保存',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
         ),
       ),
     );
@@ -522,66 +593,30 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       bottom: false,
       child: Column(
         children: [
-          // 表单上半部始终可访问,键盘弹起时 Numpad 整段被覆盖但上半部不被挤压
+          // 2026-10-11 UAT 重构:form 动线改成自上而下的线性流:
+          //   ① type + date(顶部并排,占小行)→ ② category chip → ③ 金额
+          //   → ④ 备注 → ⑤ 保存按钮
+          // 之前 type / date 顶部、category / save 在底部,中间被金额和备注切断,
+          // 眼睛要在屏幕上下往返,而且旧 SaveBar(category + save)横着很宽,
+          // 跟 Numpad 之间挤压。新布局每行一个角色,垂直连贯。
           Expanded(
             child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.s4,
+                vertical: AppSpacing.s3,
+              ),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.all(AppSpacing.s4),
-                    child: TypeToggle(
-                      value: _type,
-                      onChanged: (v) => setState(() {
-                        _type = v;
-                        _categoryId = null;
-                      }),
-                    ),
-                  ),
-                  _dateRow(context),
-                  // 表达式 + 金额
-                  Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        if (_calc.expression.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 4),
-                            child: Text(
-                              _calc.expression,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
-                                fontWeight: FontWeight.w400,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        AmountDisplay(amount: _calc.display, type: _type),
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
-                    child: TextField(
-                      controller: _noteController,
-                      maxLength: 30,
-                      decoration: const InputDecoration(
-                        hintText: '备注(可选)',
-                        border: InputBorder.none,
-                        isDense: true,
-                        counterText: '',
-                      ),
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                  ),
-                  const Divider(height: 1),
-                  _saveBar(context, ref),
+                  _metaRow(context), // ① type + date(并排)
+                  const SizedBox(height: AppSpacing.s3),
+                  _categoryChip(context, ref), // ② category chip
+                  const SizedBox(height: AppSpacing.s3),
+                  _amountBlock(context), // ③ 表达式 + 金额
+                  const SizedBox(height: AppSpacing.s2),
+                  _noteField(context), // ④ 备注
+                  const SizedBox(height: AppSpacing.s3),
+                  _saveButton(context), // ⑤ 保存按钮(右对齐)
                 ],
               ),
             ),
