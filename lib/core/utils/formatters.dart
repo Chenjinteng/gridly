@@ -31,14 +31,21 @@ class Formatters {
   ///   - false: 用于 label 已经带 (元)/(万元) 的 cell/cells,数字只显示数值,
   ///            避免跟 label 重复(如 `收入(万元) ¥999.99`)
   ///
+  /// `forceWan` (默认 false): 强制走万元 mode,无视 _wanThreshold。
+  ///   - 默认 false: 跟金额本身的绝对值联动(<1万 元,≥1万 万)
+  ///   - true: 一律按万元输出,用于"单图 Y 轴统一单位"等需要避免
+  ///           小 ticks 走元大 ticks 走万的视觉割裂场景
+  ///   - 例:5000 走 forceWan → "0.50万" 而非 "5,000.00"
+  ///         0    走 forceWan → "0.00万" 或 "0.00",跟其他 tick 同模式
+  ///
   /// 万 mode 用 truncate 而非 round,避免 9999999/10000=999.9999 舍入到
   /// 1000.00(用户给的目标就是 "9999999 → 999.99万元")。
-  static String amount(double v, {bool withUnit = true}) {
+  static String amount(double v, {bool withUnit = true, bool forceWan = false}) {
     final absV = v.abs();
     if (absV >= maxAmount) {
       return withUnit ? '999.99万+' : '999.99+';
     }
-    if (absV >= _wanThreshold) {
+    if (forceWan || absV >= _wanThreshold) {
       // truncate 到 2 位小数 (向 0 截断)
       // 9999999/10000 = 999.9999 → 999.99
       // -99999/10000 = -9.9999 → -9.99 (truncateTowardZero)
