@@ -624,6 +624,7 @@ class _ActionPill extends StatelessWidget {
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(icon, size: 14, color: iconColor),
             const SizedBox(width: 4),
