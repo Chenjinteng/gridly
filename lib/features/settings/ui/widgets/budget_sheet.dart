@@ -132,7 +132,7 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
                           color: AppBrand.gold,
                         ),
                       )
-                    : Text(_controller.text.isEmpty ? '保存' : '保存 · ¥${_controller.text}'),
+                    : const Text('保存预算'),
               ),
             ),
             const SizedBox(height: AppSpacing.s2),
