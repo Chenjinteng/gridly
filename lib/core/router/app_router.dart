@@ -9,6 +9,7 @@ import '../../features/shell/ui/main_shell.dart';
 import '../../features/home/ui/home_page.dart';
 import '../../features/ledger/ui/ledger_page.dart';
 import '../../features/add/ui/add_transaction_page.dart';
+import '../../features/add/ui/edit_transaction_page.dart';
 import '../../features/stats/ui/stats_page.dart';
 import '../../features/settings/ui/settings_page.dart';
 import '../../features/settings/ui/category_management_page.dart';
@@ -63,6 +64,32 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'add',
         parentNavigatorKey: _rootNavigatorKey,
         pageBuilder: (context, state) => const NoTransitionPage(child: AddTransactionPage()),
+      ),
+      // /edit/:id 跟 /add 同架构(全屏 + resizeToAvoidBottomInset:false),
+      // 流水编辑场景的全屏路由版 —— 2026-10-11 改,替换之前的 modal sheet 路线
+      // (sheet 内 AnimatedPadding 推 Numpad 上移,跟全屏记一笔页不一致)
+      GoRoute(
+        path: '/edit/:id',
+        name: 'edit',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) {
+          final id = int.tryParse(state.pathParameters['id'] ?? '');
+          if (id == null) {
+            // 路由参数错误,退回上一页
+            return NoTransitionPage(
+              child: Builder(
+                builder: (ctx) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!ctx.mounted) return;
+                    ctx.pop();
+                  });
+                  return const Scaffold();
+                },
+              ),
+            );
+          }
+          return NoTransitionPage(child: EditTransactionPage(transactionId: id));
+        },
       ),
       // Tab 外的子页面(在 root navigator 栈上,不全屏被 Shell 覆盖)
       GoRoute(

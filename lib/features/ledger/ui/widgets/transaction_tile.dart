@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/providers.dart';
@@ -14,7 +15,6 @@ import '../../../../core/theme/card_shadows.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/utils/refresh_providers.dart';
 import '../../../../shared/constants/default_categories.dart';
-import 'edit_transaction_sheet.dart';
 import '../../application/transactions_providers.dart';
 
 class TransactionTile extends ConsumerWidget {
@@ -143,8 +143,13 @@ class TransactionTile extends ConsumerWidget {
 
   /// 点击编辑按钮触发:在当前 tab 弹出 sheet 编辑(预填 + 保存 update),
 /// 关闭 sheet 不跳路由,保留流水列表可见 / 不丢上下文
-  Future<void> _onEditRequested(BuildContext context) async {
-    await showEditTransactionSheet(context, transaction);
+  /// 点击编辑按钮触发:push 全屏编辑路由(/edit/:id)。
+  /// 2026-10-11 改:之前用 showEditTransactionSheet(modal sheet),
+  /// sheet 内部 AnimatedPadding 把 Numpad 推上去不被键盘覆盖。
+  /// 改成全屏跟 AddTransactionPage 一致,Numpad 真被键盘盖住。
+  /// 代价:流水列表暂时被盖掉(失去"在当前 tab 编辑"上下文)。
+  void _onEditRequested(BuildContext context) {
+    context.push('/edit/${transaction.id}');
   }
 }
 

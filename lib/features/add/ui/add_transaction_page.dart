@@ -2,10 +2,10 @@
 // 记一笔页面 —— 全屏 Scaffold + AppBar + TransactionForm。
 //
 // 表单逻辑全部在 transaction_form.dart,本页只负责"全屏路由 + 顶部关闭按钮"
-// 这个壳子;新增模式保存后 go('/home'),编辑模式保存后留在原页面。
+// 这个壳子;保存后 context.pop() 回到路由栈上一级(根 tab)。
 //
-// 流水编辑场景不再用本页(用 lib/features/ledger/ui/widgets/edit_transaction_sheet.dart
-// 的 showEditTransactionSheet 在当前 tab 弹出 sheet)—— 体验更连贯,保留流水上下文。
+// 流水编辑场景同样用全屏路由(/edit/:id,见 lib/features/add/ui/edit_transaction_page.dart),
+// 跟本页同架构 —— 2026-10-11 改:之前用 modal sheet 路线因 Numpad 行为不一致被换掉。
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 

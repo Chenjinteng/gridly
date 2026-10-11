@@ -33,6 +33,13 @@ class TransactionRepository {
         .get();
   }
 
+  /// 按 id 取单笔(2026-10-11 新增:EditTransactionPage 全屏编辑用)
+  /// 不存在返回 null(理论上不应该,UI 层有"找不到就退回"处理)
+  Future<Transaction?> byId(int id) async {
+    return (_db.select(_db.transactions)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+  }
+
   /// 按日分组(返回 `Map<日期, List<Transaction>>`)
   Future<Map<DateTime, List<Transaction>>> groupedByDay() async {
     final all = await this.all();

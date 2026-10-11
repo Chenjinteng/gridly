@@ -1,10 +1,15 @@
 // lib/features/add/ui/transaction_form.dart
 // 流水编辑 / 新增表单(纯 body,无 Scaffold/AppBar)——
 //   - AddTransactionPage:包成 Scaffold 做"全屏记一笔"页面
-//   - showEditTransactionSheet:包成 Modal Bottom Sheet 做"在当前 tab 弹出编辑"
+//   - EditTransactionPage:包成 Scaffold 做"全屏编辑"页面(/edit/:id 路由)
 //
 // 两处共用同一份表单逻辑(type toggle / 表达式计算器 / 分类 / 日期 / 备注 / 保存),
-// 调用方通过 onSaved 回调决定保存后行为(context.go('/home') vs Navigator.pop())。
+// 调用方通过 onSaved 回调决定保存后行为(都 context.pop(),返回路由栈上一级)。
+//
+// ⚠️ 2026-10-11 改:之前流水编辑用 showEditTransactionSheet(modal sheet),sheet 内
+// AnimatedPadding 会按 viewInsets 推 Numpad 上移,跟全屏不一致。改成全屏路由后,
+// 两处都用 Scaffold(resizeToAvoidBottomInset:false)+ SafeArea(bottom:false) 的
+// 同一套物理布局:键盘弹起时 Numpad 真正被键盘盖住。
 //
 // ⚠️ 字符串插值陷阱(沿用历史踩坑注释):
 // Dart 里 `'$_calc.display'` 不会取 _calc.display 的值,而是把 $_calc

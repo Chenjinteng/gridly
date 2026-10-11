@@ -64,6 +64,13 @@ final allTransactionsByDayProvider =
   return ref.watch(transactionRepositoryProvider).groupedByDay();
 });
 
+/// 按 id 取单笔流水(2026-10-11 新增:EditTransactionPage 全屏编辑路由用)
+/// 找不到返回 null(被删除 / id 错误 / DB 异常),UI 层处理 fallback
+final transactionByIdProvider =
+    FutureProvider.family<Transaction?, int>((ref, id) async {
+  return ref.watch(transactionRepositoryProvider).byId(id);
+});
+
 // ============================================================
 // 流水筛选(流水页用)—— 类型 / 月份 / 分类 / 搜索关键字
 // ============================================================
