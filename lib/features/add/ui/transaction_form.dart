@@ -304,18 +304,19 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   }
 
   void _openCategoryPicker() {
-    final catsAsync = ref.read(categoriesByTypeProvider(_type));
-    final cats = catsAsync.valueOrNull ?? const [];
-    if (cats.isEmpty) {
-      _toast('该类型下暂无分类');
-      return;
-    }
+    // 2026-10-11 UAT 反馈:分类管理页加了新分类后,在记一笔的分类选择
+    // 器里看不到。原因:之前这里 ref.read(provider) 拿到 picker 打开
+    // 那一瞬间的快照(Snapshot),即使父级 _saveBar watch 的 invalidate
+    // 已经触发,read 不会重新计算、也不会随新数据重建。
+    // 修复:把 _CategoryPickerSheet 改成 ConsumerWidget,内部 watch 这个
+    // provider。打开后 invalidate 完成的最新分类会自动出现在 grid 里。
+    // 调用方只负责传 type + selected + onSelect,不再读 categories。
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (_) => _CategoryPickerSheet(
-        categories: cats,
+        type: _type,
         selected: _categoryId,
         onSelect: (id) {
           setState(() => _categoryId = id);
@@ -594,19 +595,27 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
 }
 
 /// 分类选择底部 sheet —— 在 TransactionForm SaveBar 左侧点击时弹出。
-class _CategoryPickerSheet extends StatelessWidget {
+///
+/// 2026-10-11 UAT:从 StatelessWidget + 静态分类列表改成
+/// ConsumerWidget + ref.watch(categoriesByTypeProvider(type))。原因:
+/// 调用方 (TransactionForm._openCategoryPicker) 用 ref.read 拿一次性快照,
+/// 即使父级 _saveBar watch 触发了 invalidate,read 不会重新计算 —— picker
+/// 仍显示旧列表,在分类管理加新分类后这里看不到。改成 watch 后 invalidate
+/// 完成时 picker 自动 rebuild 拿到最新分类。
+class _CategoryPickerSheet extends ConsumerWidget {
   const _CategoryPickerSheet({
-    required this.categories,
+    required this.type,
     required this.selected,
     required this.onSelect,
   });
-  final List<Category> categories;
+  final String type;
   final int? selected;
   final ValueChanged<int> onSelect;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final catsAsync = ref.watch(categoriesByTypeProvider(type));
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
       minChildSize: 0.3,
@@ -615,105 +624,119 @@ class _CategoryPickerSheet extends StatelessWidget {
       builder: (context, scrollController) {
         return Container(
           color: theme.colorScheme.surface,
-          child: Column(
-          children: [
-            // 把手
-            Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.only(top: 8, bottom: 12),
-              decoration: BoxDecoration(
-                color: AppGray.g400,
-                borderRadius: BorderRadius.circular(2),
+          child: catsAsync.when(
+            loading: () => const Center(
+              child: Padding(
+                padding: EdgeInsets.all(AppSpacing.s4),
+                child: CircularProgressIndicator(),
               ),
             ),
-            // 标题 + 计数
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.s4,
-                0,
-                AppSpacing.s4,
-                AppSpacing.s2,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    '选分类',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Text(
-                    '${categories.length} 个',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
+            error: (e, _) => Padding(
+              padding: const EdgeInsets.all(AppSpacing.s4),
+              child: Center(child: Text('加载失败:$e')),
             ),
-            Expanded(
-              child: GridView.builder(
-                controller: scrollController,
-                padding: const EdgeInsets.all(AppSpacing.s4),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 4,
-                  mainAxisSpacing: AppSpacing.s2,
-                  crossAxisSpacing: AppSpacing.s2,
-                  childAspectRatio: 0.85,
+            data: (cats) => Column(
+              children: [
+                // 把手
+                Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(top: 8, bottom: 12),
+                  decoration: BoxDecoration(
+                    color: AppGray.g400,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-                itemCount: categories.length,
-                itemBuilder: (context, i) {
-                  final c = categories[i];
-                  final isSelected = c.id == selected;
-                  return InkWell(
-                    borderRadius: AppRadius.brLg,
-                    onTap: () => onSelect(c.id),
-                    child: Container(
-                      padding: const EdgeInsets.all(AppSpacing.s2),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? Color(c.color).withValues(alpha: 0.12)
-                            : Theme.of(context).colorScheme.surfaceContainerLow,
-                        borderRadius: AppRadius.brLg,
-                        border: Border.all(
-                          color: isSelected
-                              ? Color(c.color)
-                              : Theme.of(context).colorScheme.outlineVariant,
-                          width: isSelected ? 1.5 : 0.5,
+                // 标题 + 计数
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.s4,
+                    0,
+                    AppSpacing.s4,
+                    AppSpacing.s2,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        '选分类',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            CategoryIcons.map[c.icon] ?? Icons.category_rounded,
-                            color: Color(c.color),
-                            size: 26,
-                          ),
-                          const SizedBox(height: AppSpacing.s1),
-                          Text(
-                            c.name,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
+                      Text(
+                        '${cats.length} 个',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: GridView.builder(
+                    controller: scrollController,
+                    padding: const EdgeInsets.all(AppSpacing.s4),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 4,
+                      mainAxisSpacing: AppSpacing.s2,
+                      crossAxisSpacing: AppSpacing.s2,
+                      childAspectRatio: 0.85,
                     ),
-                  );
-                },
-              ),
+                    itemCount: cats.length,
+                    itemBuilder: (context, i) {
+                      final c = cats[i];
+                      final isSelected = c.id == selected;
+                      return InkWell(
+                        borderRadius: AppRadius.brLg,
+                        onTap: () => onSelect(c.id),
+                        child: Container(
+                          padding: const EdgeInsets.all(AppSpacing.s2),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? Color(c.color).withValues(alpha: 0.12)
+                                : theme.colorScheme.surfaceContainerLow,
+                            borderRadius: AppRadius.brLg,
+                            border: Border.all(
+                              color: isSelected
+                                  ? Color(c.color)
+                                  : theme.colorScheme.outlineVariant,
+                              width: isSelected ? 1.5 : 0.5,
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                CategoryIcons.map[c.icon] ??
+                                    Icons.category_rounded,
+                                color: Color(c.color),
+                                size: 26,
+                              ),
+                              const SizedBox(height: AppSpacing.s1),
+                              Text(
+                                c.name,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
         );
       },
     );
