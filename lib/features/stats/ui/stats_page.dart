@@ -14,6 +14,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/motion/app_motion.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -56,8 +57,33 @@ class StatsPage extends ConsumerWidget {
             // 汇总(收入/支出/结余)— 三个视角共享(它是"窗口内总览")
             const RangeSummary(),
             const SizedBox(height: AppSpacing.s3),
-            // 视角特定内容
-            ..._viewContent(view),
+            // 视角特定内容 — 包 AnimatedSwitcher,切视角(支出/收入/资产)时
+            // fade + 微微上推 4px,680ms aquaIn。Column 包一层是为给
+            // AnimatedSwitcher 一个固定 widget 类型做 key 区分。
+            AnimatedSwitcher(
+              duration: AppMotion.slow,
+              switchInCurve: AppMotion.aquaIn,
+              switchOutCurve: AppMotion.aquaOut,
+              transitionBuilder: (child, animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, 0.04),
+                      end: Offset.zero,
+                    ).animate(animation),
+                    child: child,
+                  ),
+                );
+              },
+              child: KeyedSubtree(
+                key: ValueKey('view-${view.name}'),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: _viewContent(view),
+                ),
+              ),
+            ),
           ],
         ),
       ),
