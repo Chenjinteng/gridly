@@ -18,6 +18,7 @@ class AboutPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final pkgInfo = ref.watch(packageInfoProvider).valueOrNull;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final versionTagline = pkgInfo == null
         ? '一格一账 · ...'
         : '一格一账 · v${pkgInfo.version}+${pkgInfo.buildNumber}';
@@ -39,6 +40,12 @@ class AboutPage extends ConsumerWidget {
               decoration: BoxDecoration(
                 color: AppBrand.ink,
                 borderRadius: AppRadius.brLg,
+                // rim light border + 阴影,与其他黑底卡保持一致
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: isDark ? 0.08 : 0.15),
+                  width: 1.0,
+                ),
+                boxShadow: CardShadows.dark(context),
               ),
               child: Column(
                 children: [

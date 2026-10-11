@@ -34,6 +34,7 @@ class SettingsPage extends ConsumerWidget {
         ? '...'
         : '${pkgInfo.version}+${pkgInfo.buildNumber}';
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Scaffold(
       appBar: AppBar(title: const Text('我的')),
       body: ListView(
@@ -52,6 +53,12 @@ class SettingsPage extends ConsumerWidget {
               decoration: BoxDecoration(
                 color: AppBrand.ink,
                 borderRadius: AppRadius.brLg,
+                // rim light border + 阴影,与其他黑底卡(月度汇总/range summary)保持一致
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: isDark ? 0.08 : 0.15),
+                  width: 1.0,
+                ),
+                boxShadow: CardShadows.dark(context),
               ),
               child: Row(
                 children: [
