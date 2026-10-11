@@ -5,10 +5,17 @@ import 'package:intl/intl.dart';
 class Formatters {
   Formatters._();
 
+  /// 单笔金额硬上限(个人记账合理天花板):999 万
+  /// 超出此值的数据(极端/脏数据)显示截断值 + "+" 后缀提示被 cap
+  static const double maxAmount = 9999999.99;
+
   // 金额:千分位逗号 + 始终 2 位小数
   // 例:10000 → "10,000.00", 10000.5 → "10,000.50"
   static final NumberFormat _amountFmt = NumberFormat('#,##0.00');
-  static String amount(double v) => _amountFmt.format(v);
+  static String amount(double v) {
+    if (v.abs() > maxAmount) return '9,999,999.99+';
+    return _amountFmt.format(v);
+  }
 
   /// 流水按日分组的标题:"12月3日 周二"
   static String dayHeader(DateTime d) {

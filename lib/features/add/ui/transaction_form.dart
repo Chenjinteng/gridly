@@ -88,9 +88,9 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   }
 
   void _onKey(String key) {
-    // 最大可输入金额:9,999,999,999.99(约 10 万亿)+ 负号 = 15 字符
-    // 上限 14 位数字字符串,溢出后键盘数字键不再生效,避免溢出布局
-    const maxDisplayLength = 14;
+    // 个人记账上限:9,999,999.99(约 10 百万)
+    // 上限 10 位字符("9999999.99"),含负号 11 位
+    const maxDisplayLength = 10;
     setState(() {
       if (key == 'C') {
         _calc.display = '0';
@@ -186,6 +186,15 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
         break;
       default:
         return;
+    }
+    // 计算结果超出 9999999.99 → 显示"超出范围"
+    if (result.abs() > 9999999.99 || result.isNaN || result.isInfinite) {
+      _curr.expression = '';
+      _curr.display = '超出范围';
+      _curr.previousValue = null;
+      _curr.pendingOp = null;
+      _curr.justEvaluated = true;
+      return;
     }
     _curr.expression = '${_formatNumber(_curr.previousValue!)} ${_curr.pendingOp} ${_formatNumber(cur)} =';
     _curr.display = _formatNumber(result);
