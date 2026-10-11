@@ -171,9 +171,11 @@ class _RangeSegment extends StatelessWidget {
             InkWell(
               borderRadius: AppRadius.brSm,
               onTap: onChevronTap,
+              // tap area: 16(icon)+ 12(padding s2*2 → 6 each)= 28px,
+              // 比之前的 2*2 + 16 = 20px 大 ~40%,手指粗点也好点
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 2,
+                  horizontal: 6, // was 2; tap area 20 → 28px
                   vertical: AppSpacing.s1,
                 ),
                 child: Icon(
