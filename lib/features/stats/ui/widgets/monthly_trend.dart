@@ -98,13 +98,22 @@ class MonthlyTrend extends ConsumerWidget {
                       leftTitles: AxisTitles(
                         sideTitles: SideTitles(
                           showTitles: true,
-                          reservedSize: 36,
+                          // Y 轴预留宽度:5-7 位数字(如 99999、9999999)放得下不再竖切。
+                          // 36 不够,实测 "99999" 在 fontSize 10 会被竖切成 "9999" + "9"
+                          // (截图中 80000 / 60000 / 40000 / 20000 全是 5 位都被切)
+                          reservedSize: 48,
                           getTitlesWidget: (v, meta) => Text(
                             v.toStringAsFixed(0),
                             style: const TextStyle(
-                              fontSize: 10,
+                              fontSize: 9, // 9 字配 48 宽,5-7 位都放得开
                               color: AppGray.g600,
                             ),
+                            // 防御性关闭 wrap:即使未来真出现 8+ 位数字也不会竖切,
+                            // 溢出部分借 overflow.visible 延伸到绘图区边缘(sideTitles 会裁掉,
+                            // 但总比换行成两行好看)
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.visible,
                           ),
                         ),
                       ),
