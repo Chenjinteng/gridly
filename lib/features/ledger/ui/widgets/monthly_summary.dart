@@ -281,9 +281,12 @@ class _Cell extends StatelessWidget {
           // 之前写在 LEFT 边时,分隔线落在卡片最左内边缘,跟 rim light border
           // (0.08 alpha 白边)紧挨成两条平行线,中间 收入/支出 之间反而没线
           // —— 截图里红框高亮的就是这条错位的竖线
+          //
+          // 2026-10-11 UAT:改成跟卡片内 3 条品牌金横线同色 + 同宽,
+          // 整张卡 4 条分隔线 = 同一种语言,不再"横金竖灰"混杂。
           right: showDivider
               ? const BorderSide(
-                  color: AppBrand.charcoal, // cell 之间竖线保持浅灰(不抢眼)
+                  color: AppBrand.gold, // 跟 card 顶/cell 顶/cell 底 3 条金横线一致
                   width: 0.5,
                 )
               : BorderSide.none,
