@@ -6,7 +6,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/app_database.dart';
-import '../../../core/motion/app_motion.dart';
+import '../../../core/widgets/staggered_fade_in.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -903,94 +903,13 @@ class _DaySection extends StatelessWidget {
         // 2026-10-12 错峰 fade-in:section 内 tile 按 index 30ms 递增。
         // animateStagger=false 时退化为普通 TransactionTile,无额外开销
         ...transactions.asMap().entries.map(
-              (e) => _StaggeredTile(
+              (e) => StaggeredFadeIn(
                 index: e.key,
                 enabled: animateStagger,
                 child: TransactionTile(transaction: e.value),
               ),
             ),
       ],
-    );
-  }
-}
-
-/// 错峰 fade-in 包裹层 —— 首次进入页面时,tile 按 index 30ms 错峰 fade + 上推
-/// 8px,360ms aquaIn 完成。后续滚动新 item / filter 切换不重放
-///
-/// 实现方式
-///   - enabled=false 时直接返回 child,零开销
-///   - enabled=true 时用 AnimationController + Future.delayed(index * 30ms) 实现
-///     真 stagger(不是 TweenAnimationBuilder 同步动画)。单 tile 单 controller,
-///     一次性动画完成后 dispose,不会持续占资源
-///   - performance:visible tile 数 ~10-15 个,每个一次性 360ms 动画,内存压力小
-class _StaggeredTile extends StatefulWidget {
-  const _StaggeredTile({
-    required this.index,
-    required this.enabled,
-    required this.child,
-  });
-
-  final int index;
-  final bool enabled;
-  final Widget child;
-
-  @override
-  State<_StaggeredTile> createState() => _StaggeredTileState();
-}
-
-class _StaggeredTileState extends State<_StaggeredTile>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _t;
-
-  @override
-  void initState() {
-    super.initState();
-    // Controller 用 fast 档(240ms)?实际 tile fade 单项用 normal(360ms),
-    // 因为是从下轻推 + fade,慢一点更"轻柔"。ColorOS Luminous Rendering
-    // 强调"渐入"而非"一闪而过"。
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 360),
-      value: 0,
-    );
-    _t = CurvedAnimation(parent: _ctrl, curve: AppMotion.aquaIn);
-
-    if (widget.enabled) {
-      // 真 stagger:index * 30ms 延迟后再 forward
-      Future.delayed(Duration(milliseconds: widget.index * 30), () {
-        if (mounted) _ctrl.forward();
-      });
-    } else {
-      // 已 appeared:立刻跳到 1(完全显示),不再动画
-      _ctrl.value = 1.0;
-    }
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (!widget.enabled && _ctrl.value == 1.0) {
-      // 已 displayed:跳过 AnimatedBuilder,零开销
-      return widget.child;
-    }
-    return AnimatedBuilder(
-      animation: _t,
-      builder: (context, child) {
-        return Opacity(
-          opacity: _t.value,
-          child: Transform.translate(
-            offset: Offset(0, (1 - _t.value) * 8),
-            child: child,
-          ),
-        );
-      },
-      child: widget.child,
     );
   }
 }
