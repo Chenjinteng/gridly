@@ -21,6 +21,7 @@ import 'package:flutter/physics.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/motion/app_motion.dart';
+import '../../../../core/haptics/app_haptics.dart';
 
 class Numpad extends StatelessWidget {
   const Numpad({super.key, required this.onKey});
@@ -122,6 +123,18 @@ class _NumpadKeyState extends State<_NumpadKey>
       duration: const Duration(milliseconds: 80),
       curve: Curves.easeOut,
     );
+    // 2026-10-12 ColorOS Tactile Haptics:按下立刻给触觉反馈
+    //   - C:warning(清空是个"破坏性"操作,需要重一点)
+    //   - =:success(等号是"计算完成"的肯定)
+    //   - 其他:lightImpact(数字键 / 运算符标准触感)
+    final label = widget.label;
+    if (label == 'C') {
+      AppHaptics.warning();
+    } else if (label == '=') {
+      AppHaptics.success();
+    } else {
+      AppHaptics.tap();
+    }
   }
 
   void _handleTapUp(TapUpDetails _) {
