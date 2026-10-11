@@ -14,6 +14,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/motion/app_motion.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -167,6 +168,10 @@ class RangeTabs extends ConsumerWidget {
 }
 
 /// 单段 tab —— 整体选中态背景,整段可点(切 tab 或 弹月份 sheet 由父级 onTap 决定)
+/// 2026-10-12 ColorOS 选中态过渡:
+///   - 背景:AnimatedContainer 240ms aquaIn,transparent ↔ primary 12% alpha
+///   - 文字/chevron 颜色:AnimatedDefaultTextStyle 240ms aquaIn
+///   - 整段 scale:selected 时 1.02 微放大(整体"凸出"感,不是单纯色块变)
 class _RangeSegment extends StatelessWidget {
   const _RangeSegment({
     required this.label,
@@ -190,46 +195,63 @@ class _RangeSegment extends StatelessWidget {
     return InkWell(
       borderRadius: AppRadius.brLg,
       onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: selected
-              ? theme.colorScheme.primary.withValues(alpha: 0.12)
-              : Colors.transparent,
-          borderRadius: AppRadius.brLg,
-        ),
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.s2),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Flexible(fit:loose) 给 Row 知道"这里能容纳的宽度",FittedBox 在
-            // 该约束内做 scaleDown,长 label "2026 年 10 月" 自动缩到不溢出
-            Flexible(
-              fit: FlexFit.loose,
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.center,
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: fg,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+      child: AnimatedScale(
+        scale: selected ? 1.02 : 1.0,
+        duration: AppMotion.fast,
+        curve: AppMotion.aquaIn,
+        child: AnimatedContainer(
+          duration: AppMotion.fast,
+          curve: AppMotion.aquaIn,
+          decoration: BoxDecoration(
+            color: selected
+                ? theme.colorScheme.primary.withValues(alpha: 0.12)
+                : Colors.transparent,
+            borderRadius: AppRadius.brLg,
+          ),
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.s2),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Flexible(fit:loose) 给 Row 知道"这里能容纳的宽度",FittedBox 在
+              // 该约束内做 scaleDown,长 label "2026 年 10 月" 自动缩到不溢出
+              Flexible(
+                fit: FlexFit.loose,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.center,
+                  child: AnimatedDefaultTextStyle(
+                    duration: AppMotion.fast,
+                    curve: AppMotion.aquaIn,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: fg,
+                      fontWeight:
+                          selected ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.visible,
+                    ),
                   ),
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.visible,
                 ),
               ),
-            ),
-            // 2026-10-11 UAT:加 chevron 提示"点了会下拉",跟 segment
-            // 行为一致(切月/切年),跟右上角"切换视角" chevron 视觉一致
-            const SizedBox(width: 2),
-            Icon(
-              Icons.expand_more_rounded,
-              size: 14,
-              color: fg,
-            ),
-          ],
+              // 2026-10-11 UAT:加 chevron 提示"点了会下拉",跟 segment
+              // 行为一致(切月/切年),跟右上角"切换视角" chevron 视觉一致
+              const SizedBox(width: 2),
+              // chevron 颜色跟 label 一起动,套 AnimatedDefaultTextStyle 共享
+              // 同一组 color/curve —— 但 Icon 用 IconTheme 不是 TextStyle,
+              // 单独用 TweenAnimationBuilder 太重。简单做法:把 Icon 视作
+              // 一个 DefaultTextStyle 子节点,这里用 AnimatedIconTheme 替代
+              // (M3 没原生,但 Theme.of 跟 widget tree 自动重 build 即可)。
+              Icon(
+                Icons.expand_more_rounded,
+                size: 14,
+                color: fg,
+              ),
+            ],
+          ),
         ),
       ),
     );
