@@ -341,12 +341,11 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
 //   单一 _actionRow 替代
 // ============================================================
 
-  /// ③单行操作栏:[今天 pill] [分类 chip] [备注 TextField] [保存按钮]
-  /// 一行内放完,贴近 Numpad,单手拇指覆盖全部。
-  /// - 今天 pill:固定宽,~60px,日期是今天时变 teal 高亮
-  /// - 分类 chip:中等宽,显示分类图标+名字;未选时"选个分类"+chevron
-  /// - 备注:borderless TextField,占剩余空间,允许直接打字
-  /// - 保存:固定宽 pill,未选分类时置灰
+  /// ③两行操作栏(贴近 Numpad,单手拇指可达):
+  ///   上行:备注 TextField(占满整行,不再跟其它挤)
+  ///   下行:[日期 pill][分类 chip][保存按钮] — 3 items
+  /// 之前 4 items 一行挤不下,分类 chip 名字被 flex 吃掉变成只有 icon,
+  /// 备注输入框又被挤压。改成两行后,每个 item 都有自己的舒适宽度。
   Widget _actionRow(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final catsAsync = ref.watch(categoriesByTypeProvider(_type));
@@ -372,7 +371,6 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
         AppSpacing.s2,
       ),
       decoration: BoxDecoration(
-        // 操作行跟 form 上半部用 surface 分隔,保留页面整体感
         color: theme.colorScheme.surface,
         border: Border(
           top: BorderSide(
@@ -381,87 +379,89 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
           ),
         ),
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // 1) 今天 pill
-          _ActionPill(
-            icon: Icons.calendar_today_rounded,
-            label: isToday ? '今天' : '${_occurredAt.month}月${_occurredAt.day}日',
-            highlighted: isToday,
-            highlightColor: AppBrand.teal,
-            onTap: _pickDate,
-          ),
-          const SizedBox(width: AppSpacing.s2),
-          // 2) 分类 chip(中等宽,显示已选分类)
-          Expanded(
-            flex: 3,
-            child: _ActionPill(
-              icon: hasCat
-                  ? (CategoryIcons.map[sel!.icon] ?? Icons.category_rounded)
-                  : Icons.category_outlined,
-              label: hasCat ? sel!.name : '分类',
-              highlighted: hasCat,
-              highlightColor: hasCat ? Color(sel!.color) : null,
-              iconColorOverride: hasCat ? Color(sel!.color) : null,
-              onTap: _openCategoryPicker,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.s2),
-          // 3) 备注 —— borderless TextField,占剩余空间
-          Expanded(
-            flex: 4,
-            child: TextField(
-              controller: _noteController,
-              maxLength: 30,
-              textAlignVertical: TextAlignVertical.center,
-              decoration: InputDecoration(
-                hintText: '备注',
-                hintStyle: TextStyle(
-                  color: AppGray.g400,
-                  fontSize: 13,
-                ),
-                prefixIcon: Icon(
-                  Icons.edit_note_rounded,
-                  size: 16,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                prefixIconConstraints: const BoxConstraints(
-                  minWidth: 28,
-                  minHeight: 28,
-                ),
-                border: InputBorder.none,
-                isDense: true,
-                counterText: '',
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.s1,
-                  vertical: AppSpacing.s2,
-                ),
+          // 上行:备注 —— 占满整行,舒适的输入空间
+          TextField(
+            controller: _noteController,
+            maxLength: 30,
+            textAlignVertical: TextAlignVertical.center,
+            decoration: InputDecoration(
+              hintText: '备注',
+              hintStyle: TextStyle(color: AppGray.g400, fontSize: 13),
+              prefixIcon: Icon(
+                Icons.edit_note_rounded,
+                size: 16,
+                color: theme.colorScheme.onSurfaceVariant,
               ),
-              style: const TextStyle(fontSize: 13),
-            ),
-          ),
-          const SizedBox(width: AppSpacing.s2),
-          // 4) 保存按钮
-          FilledButton(
-            onPressed: canSave ? _save : null,
-            style: FilledButton.styleFrom(
-              backgroundColor: canSave
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.surfaceContainerHigh,
-              foregroundColor: canSave
-                  ? theme.colorScheme.onPrimary
-                  : theme.colorScheme.onSurfaceVariant,
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.s4,
+              prefixIconConstraints: const BoxConstraints(
+                minWidth: 28,
+                minHeight: 28,
+              ),
+              border: InputBorder.none,
+              isDense: true,
+              counterText: '',
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.s1,
                 vertical: AppSpacing.s2,
               ),
-              minimumSize: const Size(64, 36),
-              shape: RoundedRectangleBorder(borderRadius: AppRadius.brPill),
             ),
-            child: const Text(
-              '保存',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-            ),
+            style: const TextStyle(fontSize: 13),
+          ),
+          const SizedBox(height: AppSpacing.s2),
+          // 下行:[日期][分类][保存] —— 3 items,各占合理宽度
+          Row(
+            children: [
+              // 1) 日期 pill(固定宽,内容靠左)
+              _ActionPill(
+                icon: Icons.calendar_today_rounded,
+                label: isToday ? '今天' : '${_occurredAt.month}月${_occurredAt.day}日',
+                highlighted: isToday,
+                highlightColor: AppBrand.teal,
+                onTap: _pickDate,
+              ),
+              const SizedBox(width: AppSpacing.s2),
+              // 2) 分类 chip(弹性占主要宽度,显示完整名字)
+              Expanded(
+                child: _ActionPill(
+                  icon: hasCat
+                      ? (CategoryIcons.map[sel!.icon] ??
+                          Icons.category_rounded)
+                      : Icons.category_outlined,
+                  label: hasCat ? sel!.name : '选分类',
+                  highlighted: hasCat,
+                  highlightColor: hasCat ? Color(sel!.color) : null,
+                  iconColorOverride: hasCat ? Color(sel!.color) : null,
+                  onTap: _openCategoryPicker,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.s2),
+              // 3) 保存按钮
+              FilledButton(
+                onPressed: canSave ? _save : null,
+                style: FilledButton.styleFrom(
+                  backgroundColor: canSave
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.surfaceContainerHigh,
+                  foregroundColor: canSave
+                      ? theme.colorScheme.onPrimary
+                      : theme.colorScheme.onSurfaceVariant,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.s4,
+                    vertical: AppSpacing.s2,
+                  ),
+                  minimumSize: const Size(64, 36),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: AppRadius.brPill,
+                  ),
+                ),
+                child: const Text(
+                  '保存',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                ),
+              ),
+            ],
           ),
         ],
       ),
