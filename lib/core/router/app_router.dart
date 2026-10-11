@@ -15,7 +15,9 @@ import '../../features/settings/ui/category_management_page.dart';
 import '../../features/settings/ui/about_page.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
-final _shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
+// 2026-10-11 暴露:MainShell.onDestinationSelected 用它显式 popUntil 切 tab 时
+// 关闭挂着的 modal sheet(navigatorOf(context) 找的 Navigator 不一定就是这个)
+final shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -28,7 +30,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const SplashPage(),
       ),
       ShellRoute(
-        navigatorKey: _shellNavigatorKey,
+        navigatorKey: shellNavigatorKey,
         builder: (context, state, child) => MainShell(child: child),
         routes: [
           GoRoute(
