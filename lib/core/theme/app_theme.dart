@@ -132,6 +132,26 @@ class AppTheme {
       ),
       fontFamily: fontFamilyZh,
       popupMenuTheme: _buildPopupMenuTheme(scheme),
+      // 2026-10-11 UAT:浅色模式选中 tab 用品牌金 #F5BC1F (AppBrand.gold),
+      // 不用默认的 onSurface (charcoal),跟品牌"金+青+炭"主色对齐。
+      // 暗色模式保持默认 onSurface (cream) 不动 —— 那里配色已经够清晰。
+      navigationBarTheme: NavigationBarThemeData(
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return IconThemeData(
+            color: selected ? AppBrand.gold : scheme.onSurfaceVariant,
+            size: 24,
+          );
+        }),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return TextStyle(
+            fontSize: 12,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+            color: selected ? AppBrand.gold : scheme.onSurfaceVariant,
+          );
+        }),
+      ),
     );
   }
 
