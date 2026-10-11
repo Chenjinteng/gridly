@@ -180,9 +180,9 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
     with SingleTickerProviderStateMixin {
   /// 划开的固定宽度(px)—— 露出 [编辑 76 + 4 gap + 删除 76 = 156]px 的按钮区域
   /// (中间留 4px surface 色 gap 让两个按钮视觉独立,不粘成一条)
-  // 2026-10-11:从 180 → 156(按钮变窄 76→64,按钮总宽 132 + 16 padding + 8 视觉间隙 = 156)
-  // 之前 180 = 156 + 16 padding 错位 + 8 视觉间隙,现在按钮变窄后 Padding 错位部分已并入按钮本身宽度里。
-  static const double _kOpenOffset = 156;
+  // 2026-10-11:b80a636 删 outer Container 后,从 156 → 140(去掉 16 outer Container 错位):
+  //   widget.child margin s4 在 buttons 区域往左推 16,加上 8px 视觉间隙 = 132 + 8 = 140
+  static const double _kOpenOffset = 140;
 
   /// snap 阈值:划到这个距离就锁住,否则弹回
   static const double _kSnapThreshold = 40;
@@ -425,9 +425,9 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
           ),
         ),
         // 上层:tile(随 _offset 水平平移)—— drag 1:1 跟随,松手才 snap
-        // 2026-10-11 UAT:e037011 试过 tile 填满 Stack(无外间距),用户觉得太拥挤
-        // (border/shadow 贴屏幕边),撤回 → 恢复外层 Container + inner tile margin。
-        // 外层 Container 跟 inner tile 都用 brLg + 同色系,左滑时露出的右边也是圆角。
+        // 2026-10-11 UAT:b80a636 试过保留 outer Container(用户觉得拥挤),
+        // 现在删掉 outer Container,接受 tile 圆角处可能漏一点点按钮色。
+        // _kOpenOffset 从 156 → 140(去掉 outer Container 多算的 16)。
         // 用 key 标识,便于 widget 测试定位(其他 Transform 是按钮的 slide-in 偏移)
         Transform.translate(
           key: const ValueKey('tx-tile-transform'),
@@ -438,13 +438,7 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
             onHorizontalDragUpdate: _onDragUpdate,
             onHorizontalDragEnd: _onDragEnd,
             onTap: _close,
-            child: Container(
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                borderRadius: AppRadius.brLg,
-              ),
-              child: widget.child,
-            ),
+            child: widget.child,
           ),
         ),
       ],
