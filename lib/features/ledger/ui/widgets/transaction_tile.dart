@@ -180,12 +180,9 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
     with SingleTickerProviderStateMixin {
   /// 划开的固定宽度(px)—— 露出 [编辑 76 + 4 gap + 删除 76 = 156]px 的按钮区域
   /// (中间留 4px surface 色 gap 让两个按钮视觉独立,不粘成一条)
-  // 2026-10-11:从 156 提到 180。
-  // 原因:按钮 row 的 Padding(horizontal: AppSpacing.s4=16)让 row 左边多 16,
-  // 滑动距离只算了 156(76+4+76),差 16 → 全开时 tile 右边盖住编辑按钮左 16px,
-  // 看起来"编辑按钮被挡住一边,跟删除按钮不一致"。
-  // 180 = 156 + 16(补齐 Padding) + 8(视觉间隙,防 card shadow 渗入按钮区)
-  static const double _kOpenOffset = 180;
+  // 2026-10-11:从 180 → 156(按钮变窄 76→64,按钮总宽 132 + 16 padding + 8 视觉间隙 = 156)
+  // 之前 180 = 156 + 16 padding 错位 + 8 视觉间隙,现在按钮变窄后 Padding 错位部分已并入按钮本身宽度里。
+  static const double _kOpenOffset = 156;
 
   /// snap 阈值:划到这个距离就锁住,否则弹回
   static const double _kSnapThreshold = 40;
@@ -343,24 +340,18 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 左按钮(编辑)—— Material Icons Round + 白色 shadow 增加视觉重量
+                  // 左按钮(编辑)—— teal 太鲜艳,加 elevation=4 + shadowColor=black38 让它"压下去"一点
                   Transform.translate(
                     offset: Offset(slideInOffset, 0),
                     child: Opacity(
                       opacity: reveal,
                       child: SizedBox(
-                        width: 76,
+                        width: 64,
                         child: Material(
-                          // 2026-10-11 UAT:编辑按钮从 theme.colorScheme.primary(teal 品牌青)
-                          // 改用 AppBrand.charcoal(#1F2329,中性深灰)。
-                          // 原因:teal 在本 app 是"支出/流动"色,用作编辑动作的语义不对;
-                          // iOS Mail.app 标准是 edit=中性深 + delete=destructive 红,两个对比清晰。
-                          color: AppBrand.charcoal,
-                          // 2026-10-11 UAT:从 brPill(胶囊)退回 brLg(圆角矩形),
-                          // 用户反馈胶囊"丑且太大",圆角矩形更克制;加 elevation 给按钮落影
+                          color: theme.colorScheme.primary,
                           borderRadius: AppRadius.brLg,
-                          elevation: 2,
-                          shadowColor: Colors.black26,
+                          elevation: 4,
+                          shadowColor: Colors.black38,
                           child: InkWell(
                             borderRadius: AppRadius.brLg,
                             onTap: widget.onEdit,
@@ -389,19 +380,19 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
                   ),
                   // 中间 4px surface 色 gap
                   const SizedBox(width: 4),
-                  // 右按钮(删除)—— 同款 Round + 红色 destructive 语义
+                  // 右按钮(删除)—— 同款 Round + 红色 destructive 语义,跟编辑按钮同款 elevation
                   Transform.translate(
                     offset: Offset(slideInOffset, 0),
                     child: Opacity(
                       opacity: reveal,
                       child: SizedBox(
-                        width: 76,
+                        width: 64,
                         child: Material(
                           color: AppStatus.error,
-                          // 跟编辑按钮一致:brLg 圆角矩形 + elevation 落影
+                          // 跟编辑按钮一致:brLg 圆角矩形 + elevation=4 落影
                           borderRadius: AppRadius.brLg,
-                          elevation: 2,
-                          shadowColor: Colors.black26,
+                          elevation: 4,
+                          shadowColor: Colors.black38,
                           child: InkWell(
                             borderRadius: AppRadius.brLg,
                             onTap: widget.onDelete,
