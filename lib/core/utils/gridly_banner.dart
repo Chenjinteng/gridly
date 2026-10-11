@@ -20,6 +20,7 @@
 import 'package:flutter/material.dart';
 
 import '../motion/app_motion.dart';
+import '../haptics/app_haptics.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
@@ -56,6 +57,22 @@ Future<void> showGridlyBanner(
       },
     ),
   );
+  // 2026-10-12 ColorOS Tactile Haptics:按 banner kind 自动给触觉反馈。
+  // banner 是"信息反馈",kind 决定了触觉强度:
+  //   info     → tap(轻"嗯"一下,提示用户)
+  //   success  → success(中量振,操作完成的肯定)
+  //   warning  → warning(重量振,需要引起注意)
+  //   error    → warning(重量振,失败)
+  // 调用方不再需要单独 trigger,banner 自带。
+  switch (kind) {
+    case GridlyBannerKind.info:
+      AppHaptics.tap();
+    case GridlyBannerKind.success:
+      AppHaptics.success();
+    case GridlyBannerKind.warning:
+    case GridlyBannerKind.error:
+      AppHaptics.warning();
+  }
   overlayState.insert(entry);
 }
 
