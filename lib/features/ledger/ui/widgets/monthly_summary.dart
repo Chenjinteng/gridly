@@ -138,8 +138,10 @@ class MonthlySummary extends ConsumerWidget {
                 alignment: Alignment.centerLeft,
                 // 余额同样可能接近 9999999.99(7 位整数 + 2 位小数),
                 // 用 FittedBox.scaleDown 兜底防止极端情况下换行成两行
-                // 万 mode 下主体右侧追加小号灰色"万"作为单位标记
-                // (fontSize 30 vs 16 = 53% 比例,视觉上是附属标记而非主数字)
+                // 万 mode 下主体右侧追加小号灰色"(万元)"作为单位标记,
+                // 跟 cells 的 `收入(万元)` label 风格一致 —— 视觉系统里
+                // 单位统一是带 parens 的 `(万元)` 形式,只是大小不同
+                // (cells fontSize 11 vs main 30;大数字旁用 14 折中)
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
@@ -147,13 +149,13 @@ class MonthlySummary extends ConsumerWidget {
                     TextSpan(
                       children: [
                         TextSpan(text: amountText(summary.balance)),
-                        // 万元 mode + 可见时:小号灰"万"作单位标记
+                        // 万元 mode + 可见时:小号灰"(万元)"作单位标记
                         if (!hidden &&
                             Formatters.unit(summary.balance) == '万元')
                           TextSpan(
-                            text: '万',
+                            text: '(万元)',
                             style: TextStyle(
-                              fontSize: 16,
+                              fontSize: 14,
                               color: AppGray.g400,
                               fontWeight: FontWeight.w500,
                             ),
