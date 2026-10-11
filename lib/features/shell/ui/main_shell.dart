@@ -44,17 +44,24 @@ class MainShell extends StatelessWidget {
         selectedIndex: currentIndex,
         onDestinationSelected: (i) {
           // 切 tab 之前先收掉挂着的 modal sheet / dialog:
-          //   showModalBottomSheet 走的是 Navigator.push,在 Navigator 栈上;
-          //   context.go() 只换底层 go_router route,不动 Navigator 栈,
-          //   所以 sheet 会\"跨 tab 不消失\"(2026-10-11 UAT bug):
-          //     打开月度预算 sheet → 输一点 → 点报表 tab → 报表页下方还挂着预算 sheet
-          // popUntil(isFirst) 把所有 push 上来的 modal 一起 pop 回 first route,
+          //   showModalBottomSheet 默认 useRootNavigator: false,push 到**就近** Navigator;
+          //   这个 app 里就近 Navigator 是 ShellRoute 自带的 _shellNavigatorKey
+          //   (见 app_router.dart line 18,ShellRoute navigatorKey)。
+          //   context.go() 只换 go_router 配置的底层 route,不动 Navigator 栈;
+          //   所以切 tab 时 sheet 留着(2026-10-11 UAT bug):
+          //     打开月度预算 sheet → 输一点 → 点流水 tab → 流水页下方挂着预算 sheet
+          //
+          // 上一版(79d8bab)误用 Navigator.of(context, rootNavigator: true),
+          // rootNavigator 是 MaterialApp 那层 Navigator,跟 shellNavigator
+          // 不是同一个,所以 popUntil 没起作用(sheet 留在 shellNavigator 上,
+          // user 视图依然可见)。改回默认 Navigator.of(context) 取就近 Navigator
+          // = shellNavigator,push 上的 sheet 都能被 pop。
+          //
+          // popUntil(isFirst) 把所有 push 上的 modal 一起 pop 回 first route,
           // 用户视角 = \"任何切 tab 都会清掉当前挂的弹层\",跟原生体验一致。
-          // 注意:用 rootNavigator 拿到顶层 Navigator,因为 sheet 是 push 到
-          // MainShell 的 Navigator 上的,但不走 go_router 配置栈。
-          final rootNav = Navigator.of(context, rootNavigator: true);
-          if (rootNav.canPop()) {
-            rootNav.popUntil((r) => r.isFirst);
+          final nav = Navigator.of(context); // 近邻 = shell Navigator
+          if (nav.canPop()) {
+            nav.popUntil((route) => route.isFirst);
           }
           // 5 个 destination:0=首页 / 1=流水 / 2=中央 "+" / 3=报表 / 4=我的
           // i==2 推到 root modal,其它用 go 清栈切换
