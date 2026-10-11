@@ -95,43 +95,25 @@ class _GridlyBannerOverlayState extends State<_GridlyBannerOverlay>
     //   fg     → onSurface(主题正文色)
     //   border → outlineVariant(细描边,跟卡片边缘一致)
     // accent / icon 保留 kind 颜色(teal / gold / red),作为视觉焦点。
-    final bg = theme.colorScheme.surfaceContainerHigh;
-    final fg = theme.colorScheme.onSurface;
-    final border = theme.colorScheme.outlineVariant;
-    switch (widget.kind) {
-      case GridlyBannerKind.info:
-        return (
-          accent: AppBrand.teal,
-          bg: bg,
-          fg: fg,
-          border: border,
-          icon: Icons.info_outline_rounded,
-        );
-      case GridlyBannerKind.success:
-        return (
-          accent: AppBrand.teal,
-          bg: bg,
-          fg: fg,
-          border: border,
-          icon: Icons.check_circle_outline_rounded,
-        );
-      case GridlyBannerKind.warning:
-        return (
-          accent: AppBrand.gold,
-          bg: bg,
-          fg: fg,
-          border: border,
-          icon: Icons.warning_amber_rounded,
-        );
-      case GridlyBannerKind.error:
-        return (
-          accent: AppStatus.error,
-          bg: bg,
-          fg: fg,
-          border: border,
-          icon: Icons.error_outline_rounded,
-        );
-    }
+    final kindColor = switch (widget.kind) {
+      GridlyBannerKind.info => AppBrand.teal,
+      GridlyBannerKind.success => AppBrand.teal,
+      GridlyBannerKind.warning => AppBrand.gold,
+      GridlyBannerKind.error => AppStatus.error,
+    };
+    final iconData = switch (widget.kind) {
+      GridlyBannerKind.info => Icons.info_outline_rounded,
+      GridlyBannerKind.success => Icons.check_circle_outline_rounded,
+      GridlyBannerKind.warning => Icons.warning_amber_rounded,
+      GridlyBannerKind.error => Icons.error_outline_rounded,
+    };
+    return (
+      accent: kindColor,
+      bg: kindColor.withValues(alpha: 0.12),
+      fg: Color.lerp(kindColor, Colors.black, 0.35)!,
+      border: kindColor.withValues(alpha: 0.30),
+      icon: iconData,
+    );
   }
 
   @override
