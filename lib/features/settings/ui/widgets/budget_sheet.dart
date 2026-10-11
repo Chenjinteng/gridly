@@ -60,6 +60,7 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.fromLTRB(
@@ -113,7 +114,9 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
               child: FilledButton(
                 onPressed: _saving ? null : _save,
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppBrand.ink,
+                  // dark mode 仿 onDark:ink → cream
+                  backgroundColor: isDark ? AppSecondary.cream : AppBrand.ink,
+                  foregroundColor: isDark ? AppBrand.ink : null,
                   padding: const EdgeInsets.symmetric(vertical: AppSpacing.s3),
                   shape: RoundedRectangleBorder(
                     borderRadius: AppRadius.brLg,

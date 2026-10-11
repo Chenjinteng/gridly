@@ -48,6 +48,7 @@ class _CsvExportSheetState extends ConsumerState<CsvExportSheet> {
   @override
   Widget build(BuildContext context) {
     final range = _ranges[_selectedIndex];
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
@@ -103,19 +104,23 @@ class _CsvExportSheetState extends ConsumerState<CsvExportSheet> {
               child: FilledButton(
                 onPressed: _exporting ? null : _export,
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppBrand.ink,
+                  // dark mode 仿 onDark 模式:ink → cream,避免和 sheet surface 融掉
+                  backgroundColor:
+                      isDark ? AppSecondary.cream : AppBrand.ink,
+                  foregroundColor: isDark ? AppBrand.ink : null,
                   padding: const EdgeInsets.symmetric(vertical: AppSpacing.s3),
                   shape: RoundedRectangleBorder(
                     borderRadius: AppRadius.brLg,
                   ),
                 ),
                 child: _exporting
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: AppBrand.gold,
+                          // loading 圈颜色和按钮底色对调(深→浅)
+                          color: isDark ? AppBrand.ink : AppBrand.gold,
                         ),
                       )
                     : Text('导出 · ${range.label}'),

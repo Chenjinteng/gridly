@@ -180,6 +180,7 @@ static const _colorOptions = <int>[
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.fromLTRB(
@@ -319,7 +320,9 @@ static const _colorOptions = <int>[
                 child: FilledButton(
                   onPressed: _saving ? null : _save,
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppBrand.ink,
+                    // dark mode 仿 onDark:ink → cream
+                    backgroundColor: isDark ? AppSecondary.cream : AppBrand.ink,
+                    foregroundColor: isDark ? AppBrand.ink : null,
                     padding: const EdgeInsets.symmetric(vertical: AppSpacing.s3),
                     shape: RoundedRectangleBorder(
                       borderRadius: AppRadius.brLg,

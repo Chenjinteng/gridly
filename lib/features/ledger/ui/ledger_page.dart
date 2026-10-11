@@ -486,6 +486,7 @@ class _MultiSelectCategorySheetState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return DraggableScrollableSheet(
       initialChildSize: 0.7,
       minChildSize: 0.4,
@@ -598,7 +599,9 @@ class _MultiSelectCategorySheetState
                 child: FilledButton(
                   onPressed: () => Navigator.pop(ctx, _selected),
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppBrand.ink,
+                    // dark mode 仿 onDark:ink → cream
+                    backgroundColor: isDark ? AppSecondary.cream : AppBrand.ink,
+                    foregroundColor: isDark ? AppBrand.ink : null,
                     padding: const EdgeInsets.symmetric(
                       vertical: AppSpacing.s3,
                     ),
