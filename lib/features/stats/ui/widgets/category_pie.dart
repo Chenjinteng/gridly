@@ -2,11 +2,16 @@
 // 支出分类圆环图 + 右侧图例。
 // 圆环中心显示"总支出"金额,右侧前 8 个分类按金额排序列出来。
 // 容器套外框 + 标题栏,延续"格子"Excel 主题风格。
+//
+// 2026-10-12 ColorOS 扇区入场:PieChartData 加 swapAnimationDuration
+// 800ms + swapAnimationCurve aquaIn。fl_chart 内置动画让扇区从 0 角度
+// 展开到目标角度,首次进入 + 切换视角 / 月份时都自然过渡。
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/animated_pie_chart.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/card_shadows.dart';
@@ -93,22 +98,17 @@ class CategoryPie extends ConsumerWidget {
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
-                          PieChart(
-                            PieChartData(
-                              sectionsSpace: 2,
-                              centerSpaceRadius: 46,
-                              startDegreeOffset: -90,
-                              sections: shown
-                                  .map(
-                                    (e) => PieChartSectionData(
-                                      value: e.amount,
-                                      color: Color(e.color),
-                                      title: '',
-                                      radius: 18,
-                                    ),
-                                  )
-                                  .toList(),
-                            ),
+                          AnimatedPieChart(
+                            sections: shown
+                                .map(
+                                  (e) => PieChartSectionData(
+                                    value: e.amount,
+                                    color: Color(e.color),
+                                    title: '',
+                                    radius: 18,
+                                  ),
+                                )
+                                .toList(),
                           ),
                           // 中心"总支出"文字
                           Column(

@@ -4,11 +4,14 @@
 //   - title: "收入分类" / 共 ¥X  / 中心"总收入"
 //   - 数据源 incomeByCategoryProvider (type='income')
 //   - 空态文案改 "该时段无收入"
+//
+// 2026-10-12 ColorOS 扇区入场:同 category_pie 的 swapAnimation 策略
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/widgets/animated_pie_chart.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/card_shadows.dart';
@@ -95,22 +98,17 @@ class IncomePie extends ConsumerWidget {
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
-                          PieChart(
-                            PieChartData(
-                              sectionsSpace: 2,
-                              centerSpaceRadius: 46,
-                              startDegreeOffset: -90,
-                              sections: shown
-                                  .map(
-                                    (e) => PieChartSectionData(
-                                      value: e.amount,
-                                      color: Color(e.color),
-                                      title: '',
-                                      radius: 18,
-                                    ),
-                                  )
-                                  .toList(),
-                            ),
+                          AnimatedPieChart(
+                            sections: shown
+                                .map(
+                                  (e) => PieChartSectionData(
+                                    value: e.amount,
+                                    color: Color(e.color),
+                                    title: '',
+                                    radius: 18,
+                                  ),
+                                )
+                                .toList(),
                           ),
                           Column(
                             mainAxisSize: MainAxisSize.min,
