@@ -434,7 +434,9 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
           ),
         ),
         // 上层:tile(随 _offset 水平平移)—— drag 1:1 跟随,松手才 snap
-        // 外层 surface Container 占据整个 Stack 范围,挡住按钮漏色。
+        // 外层 surface Container 占整个 Stack 范围挡住按钮漏色。
+        // 2026-10-11 UAT:加 borderRadius: AppRadius.brLg(跟 inner tile 一致),
+        // 否则左滑时外层右边是直角,跟下面 tile 的 brLg 圆角不一致 → "看着是圆角实际是直角"。
         // 用 key 标识,便于 widget 测试定位(其他 Transform 是按钮的 slide-in 偏移)
         Transform.translate(
           key: const ValueKey('tx-tile-transform'),
@@ -446,7 +448,10 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
             onHorizontalDragEnd: _onDragEnd,
             onTap: _close,
             child: Container(
-              color: theme.colorScheme.surface,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: AppRadius.brLg,
+              ),
               child: widget.child,
             ),
           ),
