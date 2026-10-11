@@ -624,20 +624,23 @@ class _ActionPill extends StatelessWidget {
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            // Icon 保持原位置(贴左),不动
             Icon(icon, size: 14, color: iconColor),
             const SizedBox(width: 4),
-            Flexible(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: fg,
+            // 文本居中:Expanded 占满剩余空间,Center 把 Text 推到剩余区中心
+            Expanded(
+              child: Center(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: fg,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
