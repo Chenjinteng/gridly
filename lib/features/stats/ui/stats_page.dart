@@ -386,6 +386,8 @@ class _AssetsPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 2026-10-12 修:资产 placeholder 的「即将上线」文字 dark mode 下也看不见
+    // (AppGray.g600 在黑背景上融掉)。改用 onSurfaceVariant。
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.s4,
@@ -418,9 +420,12 @@ class _AssetsPlaceholder extends StatelessWidget {
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: AppSpacing.s2),
-            const Text(
+            Text(
               '即将上线',
-              style: TextStyle(fontSize: 13, color: AppGray.g600),
+              style: TextStyle(
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),

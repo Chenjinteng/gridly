@@ -55,16 +55,19 @@ class _AnimatedPieChartState extends State<AnimatedPieChart>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
 
-  /// ColorOS 圆环 spring 物理参数:
+  /// ColorOS 圆环 spring 物理参数(2026-10-12 调):
   /// - mass 1.0(标准)
-  /// - stiffness 80(适中,不要太快)
-  /// - damping 18(临界欠阻尼 ~10% overshoot,有"重量感")
-  /// 跟 Numpad 按压 (380/18) 不同 — 那里 stiffness 高,因为是"快速回弹";
-  /// 这里是"画弧",需要慢一些,所以 stiffness 80。
+  /// - stiffness 120(快+有惯性,~500ms 完成)
+  /// - damping 20(略过临界 ~5% overshoot)
+  ///
+  /// 之前用 stiffness 80 + damping 18,临界阻尼 ≈ 17.9,damping 18 几乎无
+  /// overshoot 但耗时 ~800ms,跟 AnimatedSwitcher 680ms 叠加导致"顿挫"。
+  /// 改 stiffness 120 + damping 20 后:~500ms 完成 + 轻微 overshoot,
+  /// 跟 AnimatedSwitcher fade in 节奏对齐,切换时不再"卡"。
   static const SpringDescription _kSpring = SpringDescription(
     mass: 1.0,
-    stiffness: 80.0,
-    damping: 18.0,
+    stiffness: 120.0,
+    damping: 20.0,
   );
 
   @override
