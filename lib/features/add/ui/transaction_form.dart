@@ -583,9 +583,20 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
             ),
           ),
           // 始终显示 —— 键盘弹起时由外层 Scaffold(resizeToAvoidBottomInset=false)
-          // 让键盘自然覆盖此处
+          // 让键盘自然覆盖此处。
+          // 2026-10-11 UAT:外层 SafeArea(bottom:false) 把底部 padding 关了,
+          // 键盘弹起时不会被顶上去,但代价是 Numpad 贴到屏幕底边、跟 iOS
+          // 小白条(home indicator)叠在一起,最后一行数字(0 / . / 00 / =)
+          // 几乎点不到。这里手动加 MediaQuery.padding.bottom,留出小白条
+          // 高度的留白 —— 不影响键盘覆盖(键盘是 viewInsets.bottom,跟
+          // padding.bottom 是两个独立维度,这里只读 padding 不读 viewInsets)。
           Padding(
-            padding: const EdgeInsets.all(AppSpacing.s1),
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.s1,
+              AppSpacing.s1,
+              AppSpacing.s1,
+              AppSpacing.s1 + MediaQuery.of(context).padding.bottom,
+            ),
             child: Numpad(onKey: _onKey),
           ),
         ],
