@@ -47,12 +47,15 @@ class MonthlyTrendChart extends ConsumerWidget {
           trendAsync.when(
             data: (data) {
               if (data.every((d) => d.income == 0 && d.expense == 0)) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: AppSpacing.s6),
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.s6),
                   child: Center(
                     child: Text(
                       '近 12 月暂无数据',
-                      style: TextStyle(color: AppGray.g600, fontSize: 13),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                 );
@@ -158,7 +161,11 @@ class _LegendDot extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           label,
-          style: const TextStyle(fontSize: 11, color: AppGray.g600),
+          // dark mode 适配:用 onSurfaceVariant 替代 AppGray.g600
+          style: TextStyle(
+            fontSize: 11,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
     );
@@ -268,22 +275,28 @@ class _AnimatedLineChartState extends State<_AnimatedLineChart>
                 leftTitles: AxisTitles(
                   sideTitles: SideTitles(
                     showTitles: true,
-                    reservedSize: 44,
+                    reservedSize: 52,
                     interval: widget.niceInterval,
-                    getTitlesWidget: (v, meta) => Text(
-                      Formatters.amount(
-                        v,
-                        forceWan: widget.chartNeedsWan,
-                        trimTrailingZeros: true,
-                      ),
-                      style: const TextStyle(
-                        fontSize: 9,
-                        color: AppGray.g600,
-                      ),
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.visible,
-                    ),
+                    getTitlesWidget: (v, meta) {
+                      // 2026-10-12 修:dark mode 下 AppGray.g600(深灰
+                      // #52525B)跟黑背景几乎融为一体,看不见。改用主题色
+                      // onSurfaceVariant,light/dark 自动适配
+                      final scheme = Theme.of(context).colorScheme;
+                      return Text(
+                        Formatters.amount(
+                          v,
+                          forceWan: widget.chartNeedsWan,
+                          trimTrailingZeros: true,
+                        ),
+                        style: TextStyle(
+                          fontSize: 9,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.visible,
+                      );
+                    },
                   ),
                 ),
                 bottomTitles: AxisTitles(
@@ -296,13 +309,15 @@ class _AnimatedLineChartState extends State<_AnimatedLineChart>
                       if (i < 0 || i >= widget.data.length) {
                         return const SizedBox.shrink();
                       }
+                      // dark mode 适配:用 onSurfaceVariant 替代 AppGray.g600
+                      final scheme = Theme.of(context).colorScheme;
                       return Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
                           '${widget.data[i].month}月',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 10,
-                            color: AppGray.g600,
+                            color: scheme.onSurfaceVariant,
                           ),
                         ),
                       );
