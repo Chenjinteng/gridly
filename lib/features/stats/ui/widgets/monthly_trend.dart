@@ -63,6 +63,10 @@ class MonthlyTrend extends ConsumerWidget {
                   .map((d) =>
                       d.income > d.expense ? d.income : d.expense)
                   .fold<double>(0, (a, b) => a > b ? a : b);
+              // 2026-10-11 UAT:之前没设 maxY,fl_chart auto 把 maxVal 当成
+              // 顶上,数据点刚好叠在最顶 Y 轴 label 上(看起来像"300,000 后面
+              // 多了一个 4")。显式 +15% 留白,让最高点跟 top label 之间有空隙。
+              final maxY = maxVal * 1.15;
               final chartNeedsWan = maxVal >= Formatters.wanThreshold;
               return SizedBox(
                 height: 200,
@@ -109,6 +113,7 @@ class MonthlyTrend extends ConsumerWidget {
                     // minY 显式 0:收入/支出都是绝对值 >= 0,纵轴不允许负向,
                     // 防止 fl_chart 自适应时把曲线起点拉到负值区域
                     minY: 0,
+                    maxY: maxY,
                     titlesData: FlTitlesData(
                       topTitles: const AxisTitles(
                         sideTitles: SideTitles(showTitles: false),
