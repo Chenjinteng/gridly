@@ -8,8 +8,8 @@
 // 下拉刷新:广谱 invalidate 所有依赖 provider(流水 / 月度汇总 / 分类)
 //
 // 视角路由:
-//   expense → CategoryPie + TopExpenses + MonthlyTrend
-//   income  → IncomePie + MonthlyTrend
+//   expense → CategoryPie + TopExpenses + MonthlyTrendChart
+//   income  → IncomePie + MonthlyTrendChart
 //   assets  → 占位(2026-10-11 资产功能预留)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,7 +26,7 @@ import 'widgets/monthly_trend.dart';
 import 'widgets/range_summary.dart';
 import 'widgets/range_tabs.dart';
 import 'widgets/top_expenses.dart';
-import '../application/stats_providers.dart' hide MonthlyTrend;
+import '../application/stats_providers.dart';
 
 class StatsPage extends ConsumerWidget {
   const StatsPage({super.key});
@@ -99,13 +99,13 @@ class StatsPage extends ConsumerWidget {
           SizedBox(height: AppSpacing.s3),
           TopExpenses(),
           SizedBox(height: AppSpacing.s3),
-          MonthlyTrend(),
+          MonthlyTrendChart(),
         ];
       case StatsView.income:
         return const [
           IncomePie(),
           SizedBox(height: AppSpacing.s3),
-          MonthlyTrend(),
+          MonthlyTrendChart(),
         ];
       case StatsView.assets:
         return const [_AssetsPlaceholder()];

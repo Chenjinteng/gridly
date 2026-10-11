@@ -1,5 +1,9 @@
 // lib/features/stats/ui/widgets/monthly_trend.dart
 // 过去 12 个月 收入/支出 折线图
+//
+// 2026-10-12 ColorOS 曲线入场:折线首次出现时从左往右"画"出来,800ms aquaIn。
+// 实现:把 LineChart 包在 _AnimatedLineChart 里,内部 ClipRect 按 _ctrl.value
+// 推进 reveal(0 → full width)。视觉上是"线在生长",而不是"全部出现"。
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,8 +15,8 @@ import '../../../../core/theme/card_shadows.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../application/stats_providers.dart';
 
-class MonthlyTrend extends ConsumerWidget {
-  const MonthlyTrend({super.key});
+class MonthlyTrendChart extends ConsumerWidget {
+  const MonthlyTrendChart({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -73,139 +77,11 @@ class MonthlyTrend extends ConsumerWidget {
               final chartNeedsWan = maxVal >= Formatters.wanThreshold;
               return SizedBox(
                 height: 200,
-                child: LineChart(
-                  LineChartData(
-                    lineBarsData: [
-                      LineChartBarData(
-                        spots: data
-                            .asMap()
-                            .entries
-                            .map((e) =>
-                                FlSpot(e.key.toDouble(), e.value.income))
-                            .toList(),
-                        // 折线:Bezier 关掉。原因:用户的收入/支出都是绝对值,
-                        // 数据从 0(或低)→ spike 时 Bezier 控制点会 overshoot,
-                        // 在数据点之间出现"下凹"的伪下垂,跟语义不符。
-                        // 改直折线,数据点之间走直线,无伪下垂
-                        isCurved: false,
-                        color: AppBrand.gold,
-                        barWidth: 2,
-                        dotData: const FlDotData(show: true),
-                        belowBarData: BarAreaData(
-                          show: true,
-                          color: AppBrand.gold.withValues(alpha: 0.08),
-                        ),
-                      ),
-                      LineChartBarData(
-                        spots: data
-                            .asMap()
-                            .entries
-                            .map((e) =>
-                                FlSpot(e.key.toDouble(), e.value.expense))
-                            .toList(),
-                        isCurved: false,
-                        color: AppStatus.error,
-                        barWidth: 2,
-                        dotData: const FlDotData(show: true),
-                        belowBarData: BarAreaData(
-                          show: true,
-                          color: AppStatus.error.withValues(alpha: 0.08),
-                        ),
-                      ),
-                    ],
-                    // minY 显式 0:收入/支出都是绝对值 >= 0,纵轴不允许负向,
-                    // 防止 fl_chart 自适应时把曲线起点拉到负值区域
-                    minY: 0,
-                    maxY: maxY,
-                    titlesData: FlTitlesData(
-                      topTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      rightTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          // Y 轴预留宽度:数字经 Formatters.amount 走万元 mode,
-                          // "999.99万" ≈ 7 字符 + 千分位逗号,28 像素够装。
-                          // 之前 48 是给 raw "9999999" 这种 7 位整数留的,现在不需要
-                          reservedSize: 44,
-                          // 显式 interval(由 maxVal 推算的"1/2/5 × 10^n"档):
-                          // 强制 tick 落在整数档位(0/100k/200k/300k/400k),
-                          // 不会再出现 "345,004.60" 这种 maxY 实际值。
-                          // 2026-10-11 UAT 反馈"只显示居间就行"。
-                          interval: niceInterval,
-                          getTitlesWidget: (v, meta) => Text(
-                            // 单图单位一致性:
-                            //   - chartNeedsWan=true → 一律按万元输出(含 0 → "0万"),
-                            //     避免 maxY 跨 100万阈值时 "150万 / 50,000 / 0"
-                            //     混排
-                            //   - chartNeedsWan=false → 走标准 Formatters 行为
-                            // cap 时仍返回 "999.99万+",chart 上看到 + 提示截断
-                            // trimTrailingZeros:true → 整数值的 ".00" 后缀去掉
-                            //   (2026-10-11 UAT:"300,000.00" 太冗,改 "300,000")
-                            Formatters.amount(v, forceWan: chartNeedsWan, trimTrailingZeros: true),
-                            style: const TextStyle(
-                              fontSize: 9,
-                              color: AppGray.g600,
-                            ),
-                            // 防御性关闭 wrap:即使未来真出现 8+ 位数字也不会竖切,
-                            // 溢出部分借 overflow.visible 延伸到绘图区边缘(sideTitles 会裁掉,
-                            // 但总比换行成两行好看)
-                            maxLines: 1,
-                            softWrap: false,
-                            overflow: TextOverflow.visible,
-                          ),
-                        ),
-                      ),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 24,
-                          interval: 2,
-                          getTitlesWidget: (v, meta) {
-                            final i = v.toInt();
-                            if (i < 0 || i >= data.length) {
-                              return const SizedBox.shrink();
-                            }
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Text(
-                                '${data[i].month}月',
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  color: AppGray.g600,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                    gridData: const FlGridData(show: false),
-                    borderData: FlBorderData(show: false),
-                    lineTouchData: LineTouchData(
-                      handleBuiltInTouches: true,
-                      touchTooltipData: LineTouchTooltipData(
-                        getTooltipColor: (_) => AppBrand.ink,
-                        // 自定义 tooltip 内容,避免 fl_chart 默认
-                        // double.toString() 暴露浮点尾数(如 25420.7600000002)
-                        getTooltipItems: (touchedSpots) => touchedSpots
-                            .map(
-                              (s) => LineTooltipItem(
-                                '¥${Formatters.amount(s.y)}',
-                                TextStyle(
-                                  color: s.bar.color,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                    ),
-                  ),
+                child: _AnimatedLineChart(
+                  data: data,
+                  maxY: maxY,
+                  niceInterval: niceInterval,
+                  chartNeedsWan: chartNeedsWan,
                 ),
               );
             },
@@ -286,5 +162,194 @@ class _LegendDot extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+/// 2026-10-12 ColorOS 曲线入场:折线图从左往右"画"出来。
+///
+/// 实现
+///   - 内部 AnimationController 800ms aquaIn,从 0 走到 1
+///   - ClipRect 用 _LeftRevealClipper 按 _ctrl.value 控制 reveal 宽度
+///   - 视觉:折线 + dot + 阴影 area 一起 reveal,不是"全部出现"
+///   - 切月份 / 视角时 monthlyTrendProvider 重建 → _AnimatedLineChart 重建
+///     → 重新 forward 入场(数据变化时曲线再"画"一次)
+class _AnimatedLineChart extends StatefulWidget {
+  const _AnimatedLineChart({
+    required this.data,
+    required this.maxY,
+    required this.niceInterval,
+    required this.chartNeedsWan,
+  });
+
+  final List<MonthlyTrend> data;
+  final double maxY;
+  final double niceInterval;
+  final bool chartNeedsWan;
+
+  @override
+  State<_AnimatedLineChart> createState() => _AnimatedLineChartState();
+}
+
+class _AnimatedLineChartState extends State<_AnimatedLineChart>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    // 首次入场:从左往右 reveal
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _ctrl.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (context, _) {
+        return ClipRect(
+          clipper: _LeftRevealClipper(_ctrl.value),
+          child: LineChart(
+            LineChartData(
+              lineBarsData: [
+                LineChartBarData(
+                  spots: widget.data
+                      .asMap()
+                      .entries
+                      .map((e) =>
+                          FlSpot(e.key.toDouble(), e.value.income))
+                      .toList(),
+                  isCurved: false,
+                  color: AppBrand.gold,
+                  barWidth: 2,
+                  dotData: const FlDotData(show: true),
+                  belowBarData: BarAreaData(
+                    show: true,
+                    color: AppBrand.gold.withValues(alpha: 0.08),
+                  ),
+                ),
+                LineChartBarData(
+                  spots: widget.data
+                      .asMap()
+                      .entries
+                      .map((e) =>
+                          FlSpot(e.key.toDouble(), e.value.expense))
+                      .toList(),
+                  isCurved: false,
+                  color: AppStatus.error,
+                  barWidth: 2,
+                  dotData: const FlDotData(show: true),
+                  belowBarData: BarAreaData(
+                    show: true,
+                    color: AppStatus.error.withValues(alpha: 0.08),
+                  ),
+                ),
+              ],
+              minY: 0,
+              maxY: widget.maxY,
+              titlesData: FlTitlesData(
+                topTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                rightTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 44,
+                    interval: widget.niceInterval,
+                    getTitlesWidget: (v, meta) => Text(
+                      Formatters.amount(
+                        v,
+                        forceWan: widget.chartNeedsWan,
+                        trimTrailingZeros: true,
+                      ),
+                      style: const TextStyle(
+                        fontSize: 9,
+                        color: AppGray.g600,
+                      ),
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.visible,
+                    ),
+                  ),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 24,
+                    interval: 2,
+                    getTitlesWidget: (v, meta) {
+                      final i = v.toInt();
+                      if (i < 0 || i >= widget.data.length) {
+                        return const SizedBox.shrink();
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          '${widget.data[i].month}月',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: AppGray.g600,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              gridData: const FlGridData(show: false),
+              borderData: FlBorderData(show: false),
+              lineTouchData: LineTouchData(
+                handleBuiltInTouches: true,
+                touchTooltipData: LineTouchTooltipData(
+                  getTooltipColor: (_) => AppBrand.ink,
+                  getTooltipItems: (touchedSpots) => touchedSpots
+                      .map(
+                        (s) => LineTooltipItem(
+                          '¥${Formatters.amount(s.y)}',
+                          TextStyle(
+                            color: s.bar.color,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// ClipRect 用:按 progress(0→1)推进 reveal 宽度,从左往右"画"出折线
+class _LeftRevealClipper extends CustomClipper<Rect> {
+  _LeftRevealClipper(this.progress);
+  final double progress;
+
+  @override
+  Rect getClip(Size size) {
+    return Rect.fromLTWH(0, 0, size.width * progress, size.height);
+  }
+
+  @override
+  bool shouldReclip(_LeftRevealClipper oldClipper) {
+    return oldClipper.progress != progress;
   }
 }
