@@ -54,7 +54,12 @@ class RangeSummary extends ConsumerWidget {
             child: _Stat(
               label: Formatters.labelledUnit('结余', s.balance),
               amount: s.balance,
-              color: AppSecondary.cream,
+              // 结余按值动态选色(正 teal / 负 error / 零 cream)
+              // 2026-10-11 UAT:之前的常量 cream 让 -3726 这种重要数字"白底白字"
+              // 不直观。颜色主题与设计稿保持一致:
+              //   绿/正 → AppBrand.teal #14B8A6
+              //   红/负 → AppStatus.error #EF4444
+              color: AppSemantic.balanceFor(s.balance),
             ),
           ),
         ],

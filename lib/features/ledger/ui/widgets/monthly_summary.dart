@@ -152,6 +152,8 @@ class MonthlySummary extends ConsumerWidget {
                       children: [
                         TextSpan(text: amountText(summary.balance)),
                         // 万元 mode + 可见时:小号灰"(万元)"作单位标记
+                        // 灰色固定,因为单位标记是"信息"非"信号";
+                        // 信号(正/负)在主数字颜色上
                         if (!hidden &&
                             Formatters.unit(summary.balance) == '万元')
                           TextSpan(
@@ -165,7 +167,11 @@ class MonthlySummary extends ConsumerWidget {
                       ],
                     ),
                     style: TextStyle(
-                      color: hidden ? AppGray.g400 : AppSecondary.cream,
+                      // 结余按值动态选色(正 teal / 负 error / 零 cream)
+                      // 隐藏金额时降到 AppGray.g400,不在视觉上喧宾夺主
+                      color: hidden
+                          ? AppGray.g400
+                          : AppSemantic.balanceFor(summary.balance),
                       fontSize: 30,
                       fontWeight: FontWeight.w700,
                       letterSpacing: -0.5,

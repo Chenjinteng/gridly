@@ -48,8 +48,21 @@ class AppSemantic {
   AppSemantic._();
   static const Color income = AppBrand.gold;       // 收入 → 金
   static const Color expense = AppStatus.error;    // 支出 → 红(警示,刺眼)
-  static const Color balance = AppBrand.ink;       // 结余 → 炭黑
   static const Color overBudget = AppStatus.error; // 超支 → 红
+
+  /// 结余按值动态选色(2026-10-11 UAT 要求"正数绿、负数红"):
+  ///   v > 0   → teal #14B8A6   (品牌青 = 设计稿"绿",hue 174° 偏 green)
+  ///   v < 0   → error #EF4444  (与支出红同系,警示一致性)
+  ///   v == 0  → cream #F5F1E8  (中性,在 ink 背景上仍可读,无正/负信号)
+  ///
+  /// 不用 const const Color —— 值由 runtime 决定;业务层直接调
+  /// `AppSemantic.balanceFor(value)`,不要硬编码 AppBrand.teal/AppStatus.error
+  /// 否则未来色板微调时还得改多处。
+  static Color balanceFor(double v) {
+    if (v > 0) return AppBrand.teal;
+    if (v < 0) return AppStatus.error;
+    return AppSecondary.cream;
+  }
 }
 
 /// 分类语义色 —— 用于报表圆环 / 图例 / 流水列表图标背景的"分类"维度区分
