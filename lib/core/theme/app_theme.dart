@@ -3,7 +3,33 @@
 // 严格按 design/THEME.md §6.1 M3 ColorScheme 映射表
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
+import 'app_radius.dart';
 import 'app_typography.dart';
+
+/// 2026-10-11 UAT:PopupMenu 默认浅灰白底 + 圆角极小,跟 ink 黑主题 +
+/// range_tabs 的 teal 选中态对比突兀。定制 popupMenuTheme:
+///   - 背景:surfaceContainerHigh(M3 卡片层),暗主题下为 #1A2029
+///   - 圆角:brMd(12px),跟卡片系列一致
+///   - 选中项:primary 12% alpha bg + primary text(跟 range_tabs 同语义)
+///   - 边框:outlineVariant 0.5px,增加深色主题下的可见性
+PopupMenuThemeData _buildPopupMenuTheme(ColorScheme scheme) {
+  return PopupMenuThemeData(
+    color: scheme.surfaceContainerHigh,
+    surfaceTintColor: Colors.transparent,
+    shape: RoundedRectangleBorder(
+      borderRadius: AppRadius.brMd,
+      side: BorderSide(color: scheme.outlineVariant, width: 0.5),
+    ),
+    elevation: 4,
+    shadowColor: Colors.black.withValues(alpha: 0.4),
+    textStyle: TextStyle(
+      color: scheme.onSurface,
+      fontSize: 14,
+      fontWeight: FontWeight.w500,
+    ),
+    position: PopupMenuPosition.under,
+  );
+}
 
 class AppTheme {
   AppTheme._();
@@ -105,6 +131,7 @@ class AppTheme {
         labelSmall: AppTypography.caption,
       ),
       fontFamily: fontFamilyZh,
+      popupMenuTheme: _buildPopupMenuTheme(scheme),
     );
   }
 
@@ -126,6 +153,7 @@ class AppTheme {
         labelSmall: AppTypography.caption,
       ),
       fontFamily: fontFamilyZh,
+      popupMenuTheme: _buildPopupMenuTheme(scheme),
     );
   }
 }
