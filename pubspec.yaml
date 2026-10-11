@@ -38,6 +38,7 @@ dependencies:
   shared_preferences: ^2.3.2
   share_plus: ^10.0.0
   flutter_markdown: ^0.7.5
+  package_info_plus: ^8.0.0   # 读 pubspec.yaml version + 平台 build number,版本号显示
 
   # ===== i18n =====
   # flutter_localizations 已在顶部声明

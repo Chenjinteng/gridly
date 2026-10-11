@@ -5,6 +5,7 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/providers.dart';
+import '../../../core/settings/app_info_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -15,6 +16,10 @@ class AboutPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final pkgInfo = ref.watch(packageInfoProvider).valueOrNull;
+    final versionTagline = pkgInfo == null
+        ? '一格一账 · ...'
+        : '一格一账 · v${pkgInfo.version}+${pkgInfo.buildNumber}';
     return Scaffold(
       appBar: AppBar(title: const Text('关于格子记账')),
       body: ListView(
@@ -35,10 +40,10 @@ class AboutPage extends ConsumerWidget {
                 borderRadius: AppRadius.brLg,
               ),
               child: Column(
-                children: const [
-  GridlyMark(size: 64, onDark: true),
-                  SizedBox(height: AppSpacing.s3),
-                  Text(
+                children: [
+                  const GridlyMark(size: 64, onDark: true),
+                  const SizedBox(height: AppSpacing.s3),
+                  const Text(
                     '格子记账',
                     style: TextStyle(
                       color: AppSecondary.cream,
@@ -46,10 +51,10 @@ class AboutPage extends ConsumerWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Text(
-                    '一格一账 · v0.1.0+1',
-                    style: TextStyle(color: AppGray.g400, fontSize: 12),
+                    versionTagline,
+                    style: const TextStyle(color: AppGray.g400, fontSize: 12),
                   ),
                 ],
               ),

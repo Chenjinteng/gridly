@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/settings/amount_visibility_provider.dart';
+import '../../../core/settings/app_info_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -23,6 +24,14 @@ class SettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(themeModeProvider);
     final amountVisible = ref.watch(amountVisibilityProvider);
+    final pkgInfo = ref.watch(packageInfoProvider).valueOrNull;
+    // 版本号:加载中显示占位符;正常显示 'v0.1.0+1' / 完整时 'v0.1.0+1'
+    final versionTagline = pkgInfo == null
+        ? '一格一账 · ...'
+        : '一格一账 · v${pkgInfo.version}+${pkgInfo.buildNumber}';
+    final versionTrailing = pkgInfo == null
+        ? '...'
+        : '${pkgInfo.version}+${pkgInfo.buildNumber}';
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('我的')),
@@ -58,11 +67,11 @@ Container(
                     ),
                   ),
                   const SizedBox(width: AppSpacing.s3),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        const Text(
                           '格子记账',
                           style: TextStyle(
                             color: AppSecondary.cream,
@@ -70,10 +79,10 @@ Container(
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                        SizedBox(height: 2),
+                        const SizedBox(height: 2),
                         Text(
-                          '一格一账 · v0.1.0+1',
-                          style: TextStyle(
+                          versionTagline,
+                          style: const TextStyle(
                             color: AppGray.g400,
                             fontSize: 12,
                           ),
@@ -219,7 +228,7 @@ Container(
           _InfoTile(
             icon: Icons.tag,
             title: '版本',
-            trailing: const Text('0.1.0+1'),
+            trailing: Text(versionTrailing),
           ),
           _InfoTile(
             icon: Icons.code_rounded,
