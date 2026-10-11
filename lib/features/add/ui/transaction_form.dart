@@ -495,12 +495,17 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
 
   @override
   Widget build(BuildContext context) {
+    // 系统键盘 popup = 正在编辑笔记 Numpad,这场景下 Numpad 不再被用到,
+    // 直接整段隐藏,把屏幕让给备注 + 分类 + 保存按钮。
+    //(2026-10-11 UAT 二次反馈:之前版本强行保留 Numpad,虽然不被挤压,
+    // 但用户写备注时 Numpad 占半屏是浪费 —— 接备注的时候不需要看计算器)
+    final keyboardUp = MediaQuery.viewInsetsOf(context).bottom > 0;
     return SafeArea(
       child: Column(
         children: [
-          // 上半部表单(type / 日期 / 金额 / 备注 / 保存)— 键盘弹出时滚动给用户看到全部字段
-          // Expanded 占满减去下方 Numpad 本征高(5 × 56 = 280)后的空间,无键盘时自然大,
-          // 有键盘时变小且可滚动 —— 跟 iOS 原生表单 + 自定义键盘的交互一致
+          // 表单上半部 — 全字段始终可访问:
+          //   键盘未弹出 → Expanded 占满,Numpad 280px 贴底,中间空余给表单
+          //   键盘弹出 → Numpad 隐藏,Expanded 拿全部空间,所有表单字段直接看到
           Expanded(
             child: SingleChildScrollView(
               child: Column(
@@ -564,15 +569,14 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
               ),
             ),
           ),
-          // 下方计算器 —— 固定本征高(5 行 × 56),不被键盘推挤
-          // 改前用 Expanded(Numpad):键盘弹出时 Numpad 跟剩余空间一起被压,
-          // 5 行压到 1 行可见、其余被键盘覆盖;
-          // 改后 Numpad 自带 MainAxisSize.min + SizedBox 行,撑满时是 280px,
-          // 不被压,弹出键盘时上方表单滚动给用户看备注
-          Padding(
-            padding: const EdgeInsets.all(AppSpacing.s1),
-            child: Numpad(onKey: _onKey),
-          ),
+          // 键盘未弹出才显示 Numpad。键盘 + Numpad 互斥:
+          //   记金额时:用户跟 Numpad 交互,系统键盘不需要 → 这里 !keyboardUp → Numpad 在
+          //   写备注时:系统键盘需要,Numpad 隐藏 → !keyboardUp = false → Numpad 隐藏
+          if (!keyboardUp)
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.s1),
+              child: Numpad(onKey: _onKey),
+            ),
         ],
       ),
     );
