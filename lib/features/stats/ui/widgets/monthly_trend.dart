@@ -125,12 +125,14 @@ class MonthlyTrend extends ConsumerWidget {
                           reservedSize: 44,
                           getTitlesWidget: (v, meta) => Text(
                             // 单图单位一致性:
-                            //   - chartNeedsWan=true → 一律按万元输出(含 0 → "0.00万"),
-                            //     避免 maxY 跨 100万阈值时 "150.00万 / 50,000.00 / 0.00"
+                            //   - chartNeedsWan=true → 一律按万元输出(含 0 → "0万"),
+                            //     避免 maxY 跨 100万阈值时 "150万 / 50,000 / 0"
                             //     混排
                             //   - chartNeedsWan=false → 走标准 Formatters 行为
                             // cap 时仍返回 "999.99万+",chart 上看到 + 提示截断
-                            Formatters.amount(v, forceWan: chartNeedsWan),
+                            // trimTrailingZeros:true → 整数值的 ".00" 后缀去掉
+                            //   (2026-10-11 UAT:"300,000.00" 太冗,改 "300,000")
+                            Formatters.amount(v, forceWan: chartNeedsWan, trimTrailingZeros: true),
                             style: const TextStyle(
                               fontSize: 9,
                               color: AppGray.g600,

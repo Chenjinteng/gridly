@@ -49,11 +49,23 @@ class Formatters {
   ///
   /// 万 mode 用 truncate 而非 round,避免 9999999/10000=999.9999 舍入到
   /// 1000.00(用户给的目标就是 "9999999 → 999.99万元")。
-  static String amount(double v, {bool withUnit = true, bool forceWan = false}) {
+  ///
+  /// `trimTrailingZeros` (2026-10-11 UAT 加,默认 false):
+  ///   - true → 把整数值的 ".00" 后缀去掉,用于 chart Y 轴 / 紧凑列表等
+  ///     "刻度感"场景。"300,000.00" → "300,000", "100.00万" → "100万",
+  ///     "0.00" → "0", "0.00万" → "0万"; 非整数值("99,999.50"、"100.50万")保留 ".50"。
+  ///   - false → 保留 ".00"(默认,流水 cell / 月度汇总等"金额"场景要明确精度)。
+  static String amount(
+    double v, {
+    bool withUnit = true,
+    bool forceWan = false,
+    bool trimTrailingZeros = false,
+  }) {
     final absV = v.abs();
     if (absV >= maxAmount) {
       return withUnit ? '999.99万+' : '999.99+';
     }
+    String result;
     if (forceWan || absV >= wanThreshold) {
       // truncate 到 2 位小数 (向 0 截断)
       // 9999999/10000 = 999.9999 → 999.99
@@ -61,9 +73,14 @@ class Formatters {
       final wan = v / 10000;
       final truncated = (wan * 100).truncateToDouble() / 100;
       final num = truncated.toStringAsFixed(2);
-      return withUnit ? '$num万' : num;
+      result = withUnit ? '$num万' : num;
+    } else {
+      result = _amountFmt.format(v);
     }
-    return _amountFmt.format(v);
+    if (trimTrailingZeros && result.endsWith('.00')) {
+      result = result.substring(0, result.length - 3);
+    }
+    return result;
   }
 
   /// 配合 `amount` 用:返回当前 amount 对应单位,用于 label 拼 "(元)/(万元)"
