@@ -10,8 +10,17 @@ import '../../ledger/application/transactions_providers.dart';
 /// 2026-10-11 redesign:去 "全部" 段(默认行为 = 本月,无需"全部"显式选择)
 enum StatsRange { thisMonth, thisYear }
 
+/// 报表的"视角"——按内容维度切,跟时间维度 (StatsRange) 正交
+///   expense → 支出视角(现有 CategoryPie + TopExpenses + MonthlyTrend)
+///   income  → 收入视角(用户 2026-10-11 UAT:要看收入分布;镜像 CategoryPie)
+///   assets  → 资产视角(2026-10-11 预留;页面内容先留空等后续)
+enum StatsView { expense, income, assets }
+
 final statsRangeProvider =
     StateProvider<StatsRange>((_) => StatsRange.thisMonth);
+
+/// 当前报表视角(支出 / 收入 / 资产)
+final statsViewProvider = StateProvider<StatsView>((_) => StatsView.expense);
 
 /// 自定义月份(仅 StatsRange.thisMonth 时生效)
 /// null = 本月,有值 = 选中的具体某月(年-月);等于当前年+月时也归一为"本月"
@@ -103,6 +112,40 @@ final expenseByCategoryProvider =
   final byCat = <int, double>{};
   for (final t in txs) {
     if (t.type == 'expense') {
+      byCat[t.categoryId] = (byCat[t.categoryId] ?? 0) + t.amount;
+    }
+  }
+  final out = <CategoryExpense>[];
+  for (final e in byCat.entries) {
+    Category? c;
+    for (final cc in cats) {
+      if (cc.id == e.key) {
+        c = cc;
+        break;
+      }
+    }
+    out.add(CategoryExpense(
+      categoryId: e.key,
+      name: c?.name ?? '未分类',
+      color: c?.color ?? 0xFFA1A1AA,
+      amount: e.value,
+    ));
+  }
+  out.sort((a, b) => b.amount.compareTo(a.amount));
+  return out;
+});
+
+/// 收入按分类汇总(从大到小)—— IncomePie 用
+/// 跟 expenseByCategoryProvider 同形,只把 type 过滤从 expense 换 income,
+/// 复用 CategoryExpense(类名历史遗留,但 amount/name/color 维度对两者一致)
+final incomeByCategoryProvider =
+    FutureProvider<List<CategoryExpense>>((ref) async {
+  final txs = await ref.watch(statsTransactionsProvider.future);
+  final cats = await ref.watch(allCategoriesProvider.future);
+  if (cats.isEmpty) return const [];
+  final byCat = <int, double>{};
+  for (final t in txs) {
+    if (t.type == 'income') {
       byCat[t.categoryId] = (byCat[t.categoryId] ?? 0) + t.amount;
     }
   }
