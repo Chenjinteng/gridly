@@ -65,11 +65,16 @@ class MainShell extends StatelessWidget {
             icon: Icon(Icons.dashboard_outlined, size: 24),
             selectedIcon: Icon(Icons.dashboard_rounded, size: 24),
             label: '首页',
+            // NavigationBar 默认把 label 当 tooltip 用,长按/悬停就弹一个
+            // 跟 label 文字完全一样的浮窗(底部 nav 上是冗余噪声)。
+            // tooltip 显式置空字符串关闭。
+            tooltip: '',
           ),
           NavigationDestination(
             icon: Icon(Icons.list_alt_outlined, size: 24),
             selectedIcon: Icon(Icons.list_alt_rounded, size: 24),
             label: '流水',
+            tooltip: '',
           ),
           // 中央"+" 走大色块,THEME.md §6.2
           NavigationDestination(
@@ -78,16 +83,19 @@ class MainShell extends StatelessWidget {
               child: _CenterFab(),
             ),
             label: '',
+            tooltip: '',
           ),
           NavigationDestination(
             icon: Icon(Icons.pie_chart_outline, size: 24),
             selectedIcon: Icon(Icons.pie_chart_rounded, size: 24),
             label: '报表',
+            tooltip: '',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline, size: 24),
             selectedIcon: Icon(Icons.person_rounded, size: 24),
             label: '我的',
+            tooltip: '',
           ),
         ],
       ),
