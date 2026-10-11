@@ -58,6 +58,13 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   int? _categoryId;
   DateTime _occurredAt = DateTime.now();
   final _noteController = TextEditingController();
+  // 备注 TextField 的 FocusNode —— 用来推断"系统键盘是否弹起":
+  //   hasFocus=true → 键盘弹起
+  //   hasFocus=false → 键盘收起
+  // 不能用 MediaQuery.viewInsets:此 build 在 Scaffold body 内,
+  // Scaffold 默认 resizeToAvoidBottomInset=true 会把 viewInsets 吃掉变 0,
+  // 所以无论 MediaQuery.of 还是 viewInsetsOf 都读到 0。
+  final _noteFocus = FocusNode();
   final _calc = _CalcState();
 
   bool get _isEdit => widget.editTransaction != null;
@@ -65,6 +72,8 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   @override
   void initState() {
     super.initState();
+    // FocusNode 变化触发 rebuild,让 build() 重新读 _noteFocus.hasFocus
+    _noteFocus.addListener(_onNoteFocusChange);
     // 编辑模式:预填已有数据
     final t = widget.editTransaction;
     if (t != null) {
@@ -81,8 +90,15 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     }
   }
 
+  void _onNoteFocusChange() {
+    // hasFocus 翻转时触发 rebuild,build() 里读 _noteFocus.hasFocus → 切 Numpad 显隐
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    _noteFocus.removeListener(_onNoteFocusChange);
+    _noteFocus.dispose();
     _noteController.dispose();
     super.dispose();
   }
@@ -497,13 +513,11 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   Widget build(BuildContext context) {
     // 系统键盘 popup = 正在编辑笔记 Numpad,这场景下 Numpad 不再被用到,
     // 直接整段隐藏,把屏幕让给备注 + 分类 + 保存按钮。
-    //(2026-10-11 UAT 二次反馈:之前版本强行保留 Numpad,虽然不被挤压,
-    // 但用户写备注时 Numpad 占半屏是浪费 —— 接备注的时候不需要看计算器)
-    // 用 MediaQuery.of(context) **而不是** viewInsetsOf:后者是 maybeOf 快捷,
-    // 只读 viewInsets 但不订阅 MediaQuery changes,keyboard 弹出时不会
-    // 触发 widget rebuild。MediaQuery.of() 注册依赖到 InheritedWidget,
-    // viewInsets 一变就 rebuild。
-    final keyboardUp = MediaQuery.of(context).viewInsets.bottom > 0;
+    //(2026-10-11 UAT 三次 MediaQuery 路线均失败:无论 MediaQuery.of 还是
+    // viewInsetsOf 都读到 0,根因是 Scaffold 默认 resizeToAvoidBottomInset=true
+    // 把 body 内的 viewInsets 吃掉。改走 FocusNode 路线:
+    // TextField focus = 键盘弹起 → hasFocus=true → Numpad 隐藏)
+    final keyboardUp = _noteFocus.hasFocus;
     return SafeArea(
       child: Column(
         children: [
@@ -557,6 +571,7 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                         const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
                     child: TextField(
                       controller: _noteController,
+                      focusNode: _noteFocus,
                       maxLength: 30,
                       decoration: const InputDecoration(
                         hintText: '备注(可选)',
