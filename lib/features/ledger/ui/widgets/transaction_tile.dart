@@ -462,7 +462,20 @@ class _SwipeToDeleteState extends ConsumerState<_SwipeToDelete>
             onHorizontalDragStart: _onDragStart,
             onHorizontalDragUpdate: _onDragUpdate,
             onHorizontalDragEnd: _onDragEnd,
-            onTap: _close,
+            onTap: () {
+              // 2026-10-11 UAT:tile 收回不能只靠 LedgerPage body 的全局
+              // GestureDetector(translucent),因为子 tile 自己的 opaque
+              // GestureDetector 会"吃掉"点击事件,body.onTap 根本收不到。
+              // 改成 tile 自身 onTap 时主动清 openSwipeTileIdProvider:
+              //   - 点开着的 tile 自己 → provider 清成 null,ref.listen 触发
+              //     二次 _springTo(0)(无害二次 snap)
+              //   - 点另一个 closed tile → provider 清成 null,开着的 tile
+              //     通过 ref.listen(next=null != myId && _offset<0)自己收回
+              //   - 点编辑/删除按钮 → InkWell 消耗 tap,tile.onTap 不触发,
+              //     provider 不动(预期:点按钮不动 tile 状态)
+              ref.read(openSwipeTileIdProvider.notifier).state = null;
+              _close();
+            },
             child: widget.child,
           ),
         ),
