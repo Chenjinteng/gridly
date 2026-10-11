@@ -436,6 +436,12 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                   highlighted: hasCat,
                   highlightColor: hasCat ? Color(sel!.color) : null,
                   iconColorOverride: hasCat ? Color(sel!.color) : null,
+                  // 2026-10-12 Hero flight 承接:编辑模式下,tile 端的分类色块
+                  // (Hero tag 'tx-cat-${id}')飞到这里 chip 的 icon。add 模式
+                  // 不传 heroTag,不报错(没 source 不参与飞行即可)。
+                  heroTag: _isEdit
+                      ? 'tx-cat-${widget.editTransaction!.id}'
+                      : null,
                   onTap: _openCategoryPicker,
                 ),
               ),
@@ -576,6 +582,14 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
 
 /// _actionRow 用的紧凑 pill 按钮 —— icon + label 单行展示
 /// 配合不同 highlighted 状态(highlight color: teal/gold/分类色)区分语义
+///
+/// 2026-10-12 ColorOS Hero flight 承接:
+///   - 编辑模式下分类 chip(从 tile 点编辑进入)的 icon 会用 Hero(tag: 'tx-cat-$id')
+///     跟 tile 左侧分类色块配对飞行。
+///   - flight 期间:tile 端 36x36 块按几何缩放飞到 chip 的 14px icon 位置,
+///     落点 fade 替换成 chip 的 icon(因为形态不一致,Hero 默认几何缩放 +
+///     终点 fade)。
+///   - add 模式下 heroTag=null,不参与 Hero(没有 source 配对)。
 class _ActionPill extends StatelessWidget {
   const _ActionPill({
     required this.icon,
@@ -584,6 +598,7 @@ class _ActionPill extends StatelessWidget {
     this.highlighted = false,
     this.highlightColor,
     this.iconColorOverride,
+    this.heroTag,
   });
 
   final IconData icon;
@@ -592,6 +607,7 @@ class _ActionPill extends StatelessWidget {
   final bool highlighted;
   final Color? highlightColor;
   final Color? iconColorOverride;
+  final String? heroTag;
 
   @override
   Widget build(BuildContext context) {
@@ -621,7 +637,16 @@ class _ActionPill extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 14, color: iconColor),
+            // Hero 包裹 icon:编辑模式下 tag 非空,跟 tile 端分类色块配对飞行。
+            // 形态差异:tile 端 36x36 + icon 18,chip 端纯 icon 14。Hero 默认
+            // 用几何缩放 + 终点 fade 替换,所以视觉是"大方块缩小 + 落点变 chip icon"。
+            if (heroTag != null)
+              Hero(
+                tag: heroTag!,
+                child: Icon(icon, size: 14, color: iconColor),
+              )
+            else
+              Icon(icon, size: 14, color: iconColor),
             const SizedBox(width: 4),
             // 2026-10-11 UAT 撤回居中:长分类名(如"吃吃喝喝必选")被
             // 居中后溢出 + ellipsis 切位,看起来"文字没居中"。改回左对齐,
