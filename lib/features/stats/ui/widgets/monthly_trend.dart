@@ -21,7 +21,10 @@ class MonthlyTrend extends ConsumerWidget {
       margin: const EdgeInsets.all(AppSpacing.s4),
       padding: const EdgeInsets.all(AppSpacing.s4),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        // 跟 Top 10 / CategoryPie / IncomePie 同色 = theme.colorScheme.surface
+        // 之前用了 surfaceContainerLow,在卡片堆叠里显得"凹"进去一层;
+        // 2026-10-11 UAT:"底色跟上面 Top 10 不一样"
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: AppRadius.brLg,
         border: Border.all(
           color: Theme.of(context).colorScheme.outlineVariant,
@@ -73,7 +76,11 @@ class MonthlyTrend extends ConsumerWidget {
                             .map((e) =>
                                 FlSpot(e.key.toDouble(), e.value.income))
                             .toList(),
-                        isCurved: true,
+                        // 折线:Bezier 关掉。原因:用户的收入/支出都是绝对值,
+                        // 数据从 0(或低)→ spike 时 Bezier 控制点会 overshoot,
+                        // 在数据点之间出现"下凹"的伪下垂,跟语义不符。
+                        // 改直折线,数据点之间走直线,无伪下垂
+                        isCurved: false,
                         color: AppBrand.gold,
                         barWidth: 2,
                         dotData: const FlDotData(show: true),
@@ -89,7 +96,7 @@ class MonthlyTrend extends ConsumerWidget {
                             .map((e) =>
                                 FlSpot(e.key.toDouble(), e.value.expense))
                             .toList(),
-                        isCurved: true,
+                        isCurved: false,
                         color: AppStatus.error,
                         barWidth: 2,
                         dotData: const FlDotData(show: true),
@@ -99,6 +106,9 @@ class MonthlyTrend extends ConsumerWidget {
                         ),
                       ),
                     ],
+                    // minY 显式 0:收入/支出都是绝对值 >= 0,纵轴不允许负向,
+                    // 防止 fl_chart 自适应时把曲线起点拉到负值区域
+                    minY: 0,
                     titlesData: FlTitlesData(
                       topTitles: const AxisTitles(
                         sideTitles: SideTitles(showTitles: false),
