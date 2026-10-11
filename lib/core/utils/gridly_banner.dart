@@ -107,16 +107,19 @@ class _GridlyBannerOverlayState extends State<_GridlyBannerOverlay>
       GridlyBannerKind.warning => Icons.warning_amber_rounded,
       GridlyBannerKind.error => Icons.error_outline_rounded,
     };
+    // fg / accent:按 kind 选"对比色"
+// 浅色 bg(只 gold) → 深字;深色 bg(teal/red) → 白字
+    final fg = switch (widget.kind) {
+      GridlyBannerKind.warning => const Color(0xFF1A1A1A),
+      _ => Colors.white,
+    };
     return (
-      accent: kindColor,
-      // 2026-10-11 UAT 第四轮:30% alpha 在浅色 bg(尤其 cream)上
-      // 仍能看到 AppBar "X" / "记一笔" 标题从 banner 后面透出来。
-      // 提到 85% 让 banner 接近纯色块,完全盖住后面的内容。
-      // bg 接近 kindColor 原色,fg 同步加深到 0.60 让文本在饱和底上
-      // 仍有足够对比度。
-      bg: kindColor.withValues(alpha: 0.85),
-      fg: Color.lerp(kindColor, Colors.black, 0.60)!,
-      border: kindColor.withValues(alpha: 0.55),
+      accent: fg, // 跟 fg 同色,strip / icon 一致
+      bg: kindColor, // 100% 纯色,无 alpha
+      fg: fg,
+      // border 用 kindColor lerp(black, 0.20),纯色块边上一圈
+      // 略深边线让 banner 有边界,而不是浮在上面的纯色块
+      border: Color.lerp(kindColor, Colors.black, 0.20)!,
       icon: iconData,
     );
   }
