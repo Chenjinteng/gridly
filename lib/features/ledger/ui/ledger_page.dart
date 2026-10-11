@@ -2,9 +2,11 @@
 // 流水(读):3 个下拉筛选(类型 / 月份 / 分类)+ 搜索 + 按日分组 ListView + 空状态
 // 分类支持多选(OR 关系),弹 modal bottom sheet
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/app_database.dart';
+import '../../../core/motion/app_motion.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -37,6 +39,23 @@ class LedgerPage extends ConsumerStatefulWidget {
 class _LedgerPageState extends ConsumerState<LedgerPage> {
   final _searchController = TextEditingController();
   bool _searching = false;
+
+  /// 2026-10-12 ColorOS 列表错峰 fade-in:
+  ///   - false:首次 build 阶段,所有 tile 走 _StaggeredTile 动画分支,
+  ///     按 section 内 index 30ms 递增 fade + 上推 8px,360ms aquaIn
+  ///   - true:首次 build 后下一帧翻为 true,filter 切换 / 滚动新 item 不重放
+  ///     避免每次 filter 切换都全表 fade(性能 + 视觉都不会)
+  bool _appeared = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 第一帧渲染后立即翻 true,触发一次额外 rebuild,这次 rebuild 走
+    // no-animation 分支。新出现的滚动 item 也走 no-animation 分支。
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _appeared = true);
+    });
+  }
 
   @override
   void dispose() {
@@ -171,7 +190,13 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
                       itemBuilder: (context, i) {
                         final day = days[i];
                         final txs = grouped[day]!;
-                        return _DaySection(day: day, transactions: txs);
+                        return _DaySection(
+                          day: day,
+                          transactions: txs,
+                          // 首次进入页面时为所有 tile 触发错峰 fade-in,
+                          // _appeared 翻转后(filter 切换 / 滚动)不再重放
+                          animateStagger: !_appeared,
+                        );
                       },
                     );
                   },
@@ -811,9 +836,17 @@ class _EmptyState extends StatelessWidget {
 }
 
 class _DaySection extends StatelessWidget {
-  const _DaySection({required this.day, required this.transactions});
+  const _DaySection({
+    required this.day,
+    required this.transactions,
+    required this.animateStagger,
+  });
   final DateTime day;
   final List<Transaction> transactions;
+
+  /// true:section 内 tile 按 index 错峰 30ms fade-in(只首次进入页面触发)
+  /// false:直接显示(filter 切换 / 滚动新 item 不重放)
+  final bool animateStagger;
 
   @override
   Widget build(BuildContext context) {
@@ -867,8 +900,97 @@ class _DaySection extends StatelessWidget {
             ],
           ),
         ),
-        ...transactions.map((t) => TransactionTile(transaction: t)),
+        // 2026-10-12 错峰 fade-in:section 内 tile 按 index 30ms 递增。
+        // animateStagger=false 时退化为普通 TransactionTile,无额外开销
+        ...transactions.asMap().entries.map(
+              (e) => _StaggeredTile(
+                index: e.key,
+                enabled: animateStagger,
+                child: TransactionTile(transaction: e.value),
+              ),
+            ),
       ],
+    );
+  }
+}
+
+/// 错峰 fade-in 包裹层 —— 首次进入页面时,tile 按 index 30ms 错峰 fade + 上推
+/// 8px,360ms aquaIn 完成。后续滚动新 item / filter 切换不重放
+///
+/// 实现方式
+///   - enabled=false 时直接返回 child,零开销
+///   - enabled=true 时用 AnimationController + Future.delayed(index * 30ms) 实现
+///     真 stagger(不是 TweenAnimationBuilder 同步动画)。单 tile 单 controller,
+///     一次性动画完成后 dispose,不会持续占资源
+///   - performance:visible tile 数 ~10-15 个,每个一次性 360ms 动画,内存压力小
+class _StaggeredTile extends StatefulWidget {
+  const _StaggeredTile({
+    required this.index,
+    required this.enabled,
+    required this.child,
+  });
+
+  final int index;
+  final bool enabled;
+  final Widget child;
+
+  @override
+  State<_StaggeredTile> createState() => _StaggeredTileState();
+}
+
+class _StaggeredTileState extends State<_StaggeredTile>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _t;
+
+  @override
+  void initState() {
+    super.initState();
+    // Controller 用 fast 档(240ms)?实际 tile fade 单项用 normal(360ms),
+    // 因为是从下轻推 + fade,慢一点更"轻柔"。ColorOS Luminous Rendering
+    // 强调"渐入"而非"一闪而过"。
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 360),
+      value: 0,
+    );
+    _t = CurvedAnimation(parent: _ctrl, curve: AppMotion.aquaIn);
+
+    if (widget.enabled) {
+      // 真 stagger:index * 30ms 延迟后再 forward
+      Future.delayed(Duration(milliseconds: widget.index * 30), () {
+        if (mounted) _ctrl.forward();
+      });
+    } else {
+      // 已 appeared:立刻跳到 1(完全显示),不再动画
+      _ctrl.value = 1.0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.enabled && _ctrl.value == 1.0) {
+      // 已 displayed:跳过 AnimatedBuilder,零开销
+      return widget.child;
+    }
+    return AnimatedBuilder(
+      animation: _t,
+      builder: (context, child) {
+        return Opacity(
+          opacity: _t.value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - _t.value) * 8),
+            child: child,
+          ),
+        );
+      },
+      child: widget.child,
     );
   }
 }
