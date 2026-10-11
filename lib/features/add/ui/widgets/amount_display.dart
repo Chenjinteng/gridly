@@ -40,13 +40,19 @@ class AmountDisplay extends StatelessWidget {
               ),
             ),
           ),
-          Text(
-            amount.isEmpty ? '0' : amount,
-            style: TextStyle(
-              color: color,
-              fontSize: 56,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -1,
+          // FittedBox 兜底:即使长度限制意外失效,文本也会缩字号不溢出
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                amount.isEmpty ? '0' : amount,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 56,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -1,
+                ),
+              ),
             ),
           ),
         ],

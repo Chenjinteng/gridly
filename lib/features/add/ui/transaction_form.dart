@@ -88,6 +88,9 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   }
 
   void _onKey(String key) {
+    // 最大可输入金额:9,999,999,999.99(约 10 万亿)+ 负号 = 15 字符
+    // 上限 14 位数字字符串,溢出后键盘数字键不再生效,避免溢出布局
+    const maxDisplayLength = 14;
     setState(() {
       if (key == 'C') {
         _calc.display = '0';
@@ -146,6 +149,9 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
         _calc.justEvaluated = false;
       }
       if (key == '.' && _calc.display.contains('.')) return;
+      // 长度上限(允许负号占 1 位)
+      final limit = _calc.display.startsWith('-') ? maxDisplayLength + 1 : maxDisplayLength;
+      if (_calc.display.length >= limit) return;
       if (_calc.display == '0' && key != '.') {
         _calc.display = key;
       } else {
