@@ -23,14 +23,14 @@ class CardShadows {
     final color = isDark ? AppBrand.gold : Colors.black;
     return [
       BoxShadow(
-        color: color.withValues(alpha: isDark ? 0.10 : 0.12),
-        blurRadius: 10,
+        color: color.withValues(alpha: isDark ? 0.06 : 0.12),
+        blurRadius: 8,
         // 右下投影:模拟光从左上打来,卡浮起来的浮雕感
         offset: const Offset(3, 5),
       ),
       BoxShadow(
-        color: color.withValues(alpha: isDark ? 0.05 : 0.06),
-        blurRadius: 14,
+        color: color.withValues(alpha: isDark ? 0.03 : 0.06),
+        blurRadius: 10,
         offset: const Offset(8, 12),
       ),
     ];
@@ -42,12 +42,12 @@ class CardShadows {
     final color = isDark ? AppBrand.gold : Colors.black;
     return [
       BoxShadow(
-        color: color.withValues(alpha: isDark ? 0.07 : 0.05),
+        color: color.withValues(alpha: isDark ? 0.06 : 0.05),
         blurRadius: 6,
         offset: const Offset(2, 3),
       ),
       BoxShadow(
-        color: color.withValues(alpha: isDark ? 0.035 : 0.025),
+        color: color.withValues(alpha: isDark ? 0.03 : 0.025),
         blurRadius: 8,
         offset: const Offset(4, 7),
       ),
