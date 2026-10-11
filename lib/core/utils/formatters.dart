@@ -9,30 +9,39 @@ class Formatters {
   /// 超出此值的数据(极端/脏数据)显示截断值 + "+" 后缀提示被 cap
   static const double maxAmount = 9999999.99;
 
-  /// 单位切换阈值:绝对值 ≥ 1 万元(10000)时切到"万"显示
-  /// 选 10000 而不是 1000000 的原因:
-  ///   - 越大越省长度(50000 直接 5.00万 不需要 50,000.00 占位)
-  ///   - "万"是中文自然单位,1万起跳更符合中文记账习惯
-  static const double _wanThreshold = 10000.0;
+  /// 单位切换阈值:绝对值 ≥ 100 万元(1000000)时切到"万"显示
+  ///
+  /// 阈值选 100 万(百万级)而不是更小的原因:
+  ///   - 个人记账年收通常 6 位数(几十万),999999 这种长度 cell 用
+  ///     `FittedBox(scaleDown)` 能正常展示,不需要万元切单位
+  ///   - 真正到百万级(月入 ≥ 100 万、年收 ≥ 1200 万)才"万元起跳",
+  ///     这时"¥1,500,000"已是 11+ 字符,cell 会被缩得难看,切"150.00万"
+  ///     才换回可读性
+  ///   - "万"是中文自然单位,但触发阈值要高,避免普通人月收入 2~3 万
+  ///     满屏"2.50万 / 3.65万"那种"中英文混排"感
+  ///   - 注:不要自作主张改成 10000 / 1万,2026-10-11 UAT 确认"万元太过了"
+  ///
+  /// 公开展出给 chart 类(报表 Y 轴)复用,避免再硬编码阈值。
+  static const double wanThreshold = 1000000.0;
 
   static final NumberFormat _amountFmt = NumberFormat('#,##0.00');
 
   /// 金额格式化,智能单位切换:
-  ///   - abs(v) < 10000        → 元 mode (千分位逗号 + 2 位小数)
-  ///     例:123.45 → "123.45"; 9,999.50 → "9,999.50"
-  ///   - 10000 ≤ abs(v) < cap  → 万 mode (千分位 + 2 位小数 + 可选 "万")
-  ///     例:10,000 → "1.00万" (withUnit) 或 "1.00" (无 unit)
-  ///         999,999 → "99.99万" 或 "99.99"
+  ///   - abs(v) < 100万         → 元 mode (千分位逗号 + 2 位小数)
+  ///     例:123.45 → "123.45"; 99,999.50 → "99,999.50"; 999,999 → "999,999.00"
+  ///   - 100万 ≤ abs(v) < cap   → 万 mode (2 位小数 + 可选 "万")
+  ///     例:1,000,000 → "100.00万" (withUnit) 或 "100.00" (无 unit)
+  ///         5,500,000 → "550.00万" 或 "550.00"
   ///         9,999,999 → "999.99万" 或 "999.99"
-  ///   - abs(v) ≥ cap          → cap display "999.99万+" 或 "999.99+"
+  ///   - abs(v) ≥ cap           → cap display "999.99万+" 或 "999.99+"
   ///
   /// `withUnit` (默认 true): 是否在数值后拼 "万" 单位。
   ///   - true: 用于没有 (元)/(万元) label 的展示位置(同心环"共"、大数字)
   ///   - false: 用于 label 已经带 (元)/(万元) 的 cell/cells,数字只显示数值,
   ///            避免跟 label 重复(如 `收入(万元) ¥999.99`)
   ///
-  /// `forceWan` (默认 false): 强制走万元 mode,无视 _wanThreshold。
-  ///   - 默认 false: 跟金额本身的绝对值联动(<1万 元,≥1万 万)
+  /// `forceWan` (默认 false): 强制走万元 mode,无视 wanThreshold。
+  ///   - 默认 false: 跟金额本身的绝对值联动(<100万 元,≥100万 万)
   ///   - true: 一律按万元输出,用于"单图 Y 轴统一单位"等需要避免
   ///           小 ticks 走元大 ticks 走万的视觉割裂场景
   ///   - 例:5000 走 forceWan → "0.50万" 而非 "5,000.00"
@@ -45,7 +54,7 @@ class Formatters {
     if (absV >= maxAmount) {
       return withUnit ? '999.99万+' : '999.99+';
     }
-    if (forceWan || absV >= _wanThreshold) {
+    if (forceWan || absV >= wanThreshold) {
       // truncate 到 2 位小数 (向 0 截断)
       // 9999999/10000 = 999.9999 → 999.99
       // -99999/10000 = -9.9999 → -9.99 (truncateTowardZero)
@@ -59,9 +68,9 @@ class Formatters {
 
   /// 配合 `amount` 用:返回当前 amount 对应单位,用于 label 拼 "(元)/(万元)"
   /// 例:`Formatters.labelledUnit('收入', 9999)` → "收入(元)"
-  ///    `Formatters.labelledUnit('支出', 99999)` → "支出(万元)"
+  ///    `Formatters.labelledUnit('年收入', 1500000)` → "年收入(万元)"
   static String unit(double v) =>
-      v.abs() >= _wanThreshold ? '万元' : '元';
+      v.abs() >= wanThreshold ? '万元' : '元';
 
   /// 快捷 label + unit 拼接。"收入(元)" / "支出(万元)"
   static String labelledUnit(String label, double v) =>

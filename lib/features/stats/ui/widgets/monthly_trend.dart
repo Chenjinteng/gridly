@@ -51,8 +51,8 @@ class MonthlyTrend extends ConsumerWidget {
                 );
               }
               // 单图 Y 轴单位策略:整图要么全走"元"、要么全走"万",不混排。
-              //   maxVal < 1万 → 整轴走元(保留精度,"5,000.00" 跟 cell label 一致)
-              //   maxVal ≥ 1万 → 整轴强制走万 mode(否则会出 "2.00万 / 5,000.00 / 0.00"
+              //   maxVal < wanThreshold → 整轴走元(保留精度,"50,000.00" 跟 cell 一致)
+              //   maxVal ≥ wanThreshold → 整轴强制走万 mode(否则会出 "150.00万 / 50,000.00 / 0.00"
               //                  这种跨阈值混排,视觉割裂)
               // 0 baseline 在大图里显示成 "0.00万" 是为了跟其他 tick 同单位模式,
               // "看起来怪但一致" 比"自然切但割裂"优先。
@@ -60,7 +60,7 @@ class MonthlyTrend extends ConsumerWidget {
                   .map((d) =>
                       d.income > d.expense ? d.income : d.expense)
                   .fold<double>(0, (a, b) => a > b ? a : b);
-              final chartNeedsWan = maxVal >= 10000;
+              final chartNeedsWan = maxVal >= Formatters.wanThreshold;
               return SizedBox(
                 height: 200,
                 child: LineChart(
@@ -116,7 +116,8 @@ class MonthlyTrend extends ConsumerWidget {
                           getTitlesWidget: (v, meta) => Text(
                             // 单图单位一致性:
                             //   - chartNeedsWan=true → 一律按万元输出(含 0 → "0.00万"),
-                            //     避免 maxY 跨 1万 时 "2.00万 / 5,000.00 / 0.00" 混排
+                            //     避免 maxY 跨 100万阈值时 "150.00万 / 50,000.00 / 0.00"
+                            //     混排
                             //   - chartNeedsWan=false → 走标准 Formatters 行为
                             // cap 时仍返回 "999.99万+",chart 上看到 + 提示截断
                             Formatters.amount(v, forceWan: chartNeedsWan),
