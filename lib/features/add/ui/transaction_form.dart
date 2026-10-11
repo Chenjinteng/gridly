@@ -88,9 +88,11 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   }
 
   void _onKey(String key) {
-    // 个人记账上限:9,999,999.99(约 10 百万)
-    // 上限 10 位字符("9999999.99"),含负号 11 位
-    const maxDisplayLength = 10;
+    // 个人记账上限:9,999,999.99(≈ 10 百万)
+    // 上限由"语义"决定(7 位整数 + 小数点 + 2 位小数),而不是字符数:
+    //   - 长度限制会被"9999999999"(10 位整数=99 亿)等绕开,远超业务上限
+    //   - 真正的上限是数学意义上的绝对值,所以按整/小数位分别判断
+    // 负号由 ± 单独处理,不影响整/小数位判断
     setState(() {
       if (key == 'C') {
         _calc.display = '0';
@@ -149,9 +151,23 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
         _calc.justEvaluated = false;
       }
       if (key == '.' && _calc.display.contains('.')) return;
-      // 长度上限(允许负号占 1 位)
-      final limit = _calc.display.startsWith('-') ? maxDisplayLength + 1 : maxDisplayLength;
-      if (_calc.display.length >= limit) return;
+      // 语义上限:7 位整数 + 2 位小数 = 9999999.99
+      // 负号前缀不影响位数(由 ± 单独维护),只剥离后判断数字部分
+      const maxIntegerDigits = 7;
+      const maxFractionDigits = 2;
+      // 数字键按当前是否已含小数点判断是限制整数位还是小数位
+      if (RegExp(r'^[0-9]$').hasMatch(key)) {
+        final s = _calc.display.startsWith('-')
+            ? _calc.display.substring(1)
+            : _calc.display;
+        final dotIdx = s.indexOf('.');
+        if (dotIdx == -1) {
+          if (s.length >= maxIntegerDigits) return; // 整数位已满
+        } else {
+          final fracLen = s.length - dotIdx - 1;
+          if (fracLen >= maxFractionDigits) return; // 小数位已满
+        }
+      }
       if (_calc.display == '0' && key != '.') {
         _calc.display = key;
       } else {
