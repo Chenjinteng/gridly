@@ -246,7 +246,7 @@ class _ClearFilterButton extends StatelessWidget {
       child: SizedBox(
         width: 36,
         child: IconButton(
-          tooltip: '清除筛选',
+          // 2026-10-11 UAT:手机上没鼠标,tooltip 长按误触反而碍事,删掉。
           onPressed: onPressed,
           // visualDensity compact 缩掉默认 48x48 给 padding 让图标贴近 segment 圆角
           visualDensity: VisualDensity.compact,

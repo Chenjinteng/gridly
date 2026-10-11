@@ -106,7 +106,7 @@ class _ViewMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return PopupMenuButton<StatsView>(
-      tooltip: '切换视角',
+      // 2026-10-11 UAT:手机上没鼠标,tooltip 长按误触反而碍事,删掉。
       initialValue: current,
       onSelected: onChange,
       itemBuilder: (_) => const [

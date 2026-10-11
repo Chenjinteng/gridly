@@ -182,7 +182,7 @@ class _CustomDatePickerSheetState extends State<CustomDatePickerSheet> {
         IconButton(
           icon: const Icon(Icons.chevron_left_rounded),
           onPressed: () => _shiftMonth(-1),
-          tooltip: '上个月',
+          // 2026-10-11 UAT:手机上没鼠标,tooltip 长按误触反而碍事,删掉。
         ),
         Expanded(
           child: Center(
@@ -198,7 +198,7 @@ class _CustomDatePickerSheetState extends State<CustomDatePickerSheet> {
         IconButton(
           icon: const Icon(Icons.chevron_right_rounded),
           onPressed: () => _shiftMonth(1),
-          tooltip: '下个月',
+          // 2026-10-11 UAT:手机上没鼠标,tooltip 长按误触反而碍事,删掉。
         ),
       ],
     );
