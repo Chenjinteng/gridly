@@ -16,12 +16,18 @@ class RangeSummary extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(statsSummaryProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
       padding: const EdgeInsets.all(AppSpacing.s4),
       decoration: BoxDecoration(
         color: AppBrand.ink,
         borderRadius: AppRadius.brLg,
+        // rim light border,与月度汇总卡保持一致
+        border: Border.all(
+          color: Colors.white.withValues(alpha: isDark ? 0.08 : 0.15),
+          width: 1.0,
+        ),
         // 黑底卡:重阴影,与月度汇总卡保持一致(dark mode 自动切白阴影)
         boxShadow: CardShadows.dark(context),
       ),

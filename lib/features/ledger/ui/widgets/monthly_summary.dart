@@ -27,6 +27,7 @@ class MonthlySummary extends ConsumerWidget {
     final now = DateTime.now();
     final sheetTitle = '${now.year}年${now.month}月';
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     // 日均支出 = 当月支出 / 当日已过天数(月初时 = 当日)
     final dailyAvg =
         now.day > 0 ? summary.expense / now.day : summary.expense;
@@ -38,9 +39,11 @@ class MonthlySummary extends ConsumerWidget {
       margin: const EdgeInsets.all(AppSpacing.s4),
       decoration: BoxDecoration(
         borderRadius: AppRadius.brLg,
+        // rim light border:深色卡需要亮边才能"立体"
+        // 浅色下用白色 15%(rim light 效果),深色下白色 8%(减轻避免过载)
         border: Border.all(
-          color: theme.colorScheme.outlineVariant, // 浅灰外框,不和 3 条品牌金横线抢眼
-          width: 1.0, // 加粗:0.5 → 1.0,浅色背景下也能看清卡片边界
+          color: Colors.white.withValues(alpha: isDark ? 0.08 : 0.15),
+          width: 1.0,
         ),
         boxShadow: CardShadows.dark(context),
       ),
