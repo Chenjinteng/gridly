@@ -142,12 +142,22 @@ class _RangeSegment extends StatelessWidget {
                 horizontal: AppSpacing.s2,
                 vertical: AppSpacing.s1,
               ),
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: fg,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              // label 可能很长(如 "2026 年 5 月",含中文+空格≈ 75px),3 段 Expanded
+              // 等分时单格 ≈ 114px,再扣 chevron / 内 padding 容易溢出 9-10px。
+              // FittedBox.scaleDown 短 label 按原字号显示,长 label 自动缩到不溢出
+              // —— 比硬编码字号/fontSize 更鲁棒,后续年份跨度变大也不用再调
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.center,
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: fg,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  softWrap: false,
                 ),
               ),
             ),
