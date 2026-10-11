@@ -71,6 +71,15 @@ final transactionByIdProvider =
   return ref.watch(transactionRepositoryProvider).byId(id);
 });
 
+/// 当前左滑开着的 tile id(2026-10-11 UAT 加):
+/// null = 没有 tile 开着,任何 tile 都关着
+/// 非 null = 只有 id 对应的那个 tile 是开的,其它都得收回
+///
+/// LedgerPage 的全局 tap handler 会把它清成 null,
+/// 实现"点屏幕任何地方,正在开的 tile 自动收回"。
+/// 保证同时只有一个 tile 开着(避免视觉混乱)。
+final openSwipeTileIdProvider = StateProvider<int?>((ref) => null);
+
 // ============================================================
 // 流水筛选(流水页用)—— 类型 / 月份 / 分类 / 搜索关键字
 // ============================================================

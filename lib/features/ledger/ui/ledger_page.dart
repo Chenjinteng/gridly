@@ -116,13 +116,20 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
         // 点 body 空白处收起键盘(2026-10-11 UAT 反馈):
         //   - 搜备注/分类的 TextField 在 AppBar,聚焦后想退出只能按"完成",
         //     用户希望点 body 任意非输入处也能 unfocus
+        // + 同时清掉 openSwipeTileIdProvider(2026-10-11 UAT 反馈):
+        //   - 左滑开的 tile 在外面任何地方点击都得收回(避免"卡着")
+        //   - 流水 tile 自己有 GestureDetector.onTap 也调 _close,这里再清一次
+        //     是冗余但无害;真正的"外部点击关闭"靠 tile 里的 ref.listen 触发
         // - HitTestBehavior.translucent:不拦截子 widget 的点击(下拉 / 流水 tile
         //   自己有 InkWell / GestureDetector 处理 tap),只在没有 child 消费的
         //   位置才落到 onTap
         // - 用 FocusScope 而非 FocusManager:跟 Material / Scaffold 默认
         //   焦点范围对齐,不会误清掉 dialog / sheet 里的 focus
         behavior: HitTestBehavior.translucent,
-        onTap: () => FocusScope.of(context).unfocus(),
+        onTap: () {
+          FocusScope.of(context).unfocus();
+          ref.read(openSwipeTileIdProvider.notifier).state = null;
+        },
         child: Column(
           children: [
             _FilterBar(

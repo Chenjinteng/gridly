@@ -45,6 +45,7 @@ class TransactionTile extends ConsumerWidget {
         final theme = Theme.of(context);
         return _SwipeToDelete(
           key: ValueKey('tx-${transaction.id}'),
+          transactionId: transaction.id,
           onDelete: () => _onDeleteRequested(context, ref),
           onEdit: () => _onEditRequested(context),
           child: Container(
@@ -165,23 +166,27 @@ class TransactionTile extends ConsumerWidget {
 ///   - 编辑按钮可点 → 触发 onEdit
 ///   - 删除按钮可点 → 触发 onDelete
 ///   - 点 tile 其他位置 → 自动弹回关闭
-class _SwipeToDelete extends StatefulWidget {
+class _SwipeToDelete extends ConsumerStatefulWidget {
   const _SwipeToDelete({
     super.key,
+    required this.transactionId,
     required this.child,
     required this.onDelete,
     required this.onEdit,
   });
 
+  /// 流水 id,2026-10-11 UAT:加进来是为了注册到 openSwipeTileIdProvider,
+  /// 让 LedgerPage 的全局 tap handler 能找到要收回的 tile。
+  final int transactionId;
   final Widget child;
   final VoidCallback onDelete;
   final VoidCallback onEdit;
 
   @override
-  State<_SwipeToDelete> createState() => _SwipeToDeleteState();
+  ConsumerState<_SwipeToDelete> createState() => _SwipeToDeleteState();
 }
 
-class _SwipeToDeleteState extends State<_SwipeToDelete>
+class _SwipeToDeleteState extends ConsumerState<_SwipeToDelete>
     with SingleTickerProviderStateMixin {
   /// 划开的固定宽度(px)—— 露出 [编辑 76 + 4 gap + 删除 76 = 156]px 的按钮区域
   /// (中间留 4px surface 色 gap 让两个按钮视觉独立,不粘成一条)
@@ -302,6 +307,13 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
     final shouldOpen = _offset.abs() > _kSnapThreshold ||
         velocity < _kFlingVelocity;
 
+    if (shouldOpen) {
+      // 2026-10-11 UAT:注册自己到 openSwipeTileIdProvider,
+      // 让 LedgerPage 的全局 tap handler 能找到要关掉的 tile,
+      // 实现"点屏幕任何地方,正在开的 tile 自动收回"。
+      ref.read(openSwipeTileIdProvider.notifier).state = widget.transactionId;
+    }
+
     if (velocity.abs() > _kFastFlingThreshold) {
       // 快速 fling:friction continuation + 完成后 spring snap 到最近端点
       _flingWith(velocity);
@@ -321,6 +333,14 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // 2026-10-11 UAT:监听 openSwipeTileIdProvider。
+    //   - 如果 provider 变成 null 或别人的 id(说明外面被点了),而且我自己正开着,
+    //     就 spring 回 0 收回。
+    ref.listen<int?>(openSwipeTileIdProvider, (prev, next) {
+      if (next != widget.transactionId && _offset < 0) {
+        _springTo(0);
+      }
+    });
     // 按钮"显现进度":_offset.abs() / 156。tile 滑得越多,按钮越显现,
     // 用 opacity 0→1 + Transform.translate(+12px → 0)双重过渡让按钮
     // "从 tile 背后挤出来"的感觉,而不是突然显示。
