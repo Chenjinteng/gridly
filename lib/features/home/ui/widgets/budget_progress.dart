@@ -39,16 +39,16 @@ class BudgetProgress extends ConsumerWidget {
           width: 1.0, // 加粗:0.5 → 1.0,和月度汇总卡保持一致
         ),
         boxShadow: [
-          // 双层阴影,和月度汇总卡保持一致
+          // 白底卡:轻阴影(本身已经浅色,重阴影会视觉过载)
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.15),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.08),
-            blurRadius: 28,
-            offset: const Offset(0, 10),
+            color: Colors.black.withValues(alpha: 0.025),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
       ),

@@ -29,10 +29,16 @@ class CategoryPie extends ConsumerWidget {
           width: 1.0, // 全卡片统一:0.5 → 1.0
         ),
         boxShadow: [
+          // 白底卡:轻阴影
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 6,
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 8,
             offset: const Offset(0, 2),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.025),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
       ),

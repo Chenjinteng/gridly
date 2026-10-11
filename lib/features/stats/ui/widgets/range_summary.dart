@@ -21,6 +21,19 @@ class RangeSummary extends ConsumerWidget {
       decoration: BoxDecoration(
         color: AppBrand.ink,
         borderRadius: AppRadius.brLg,
+        // 黑底卡:重阴影,与月度汇总卡保持一致
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.20),
+            blurRadius: 16,
+            offset: const Offset(0, 5),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 32,
+            offset: const Offset(0, 12),
+          ),
+        ],
       ),
       child: Row(
         children: [
