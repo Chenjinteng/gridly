@@ -133,13 +133,20 @@ class MonthlySummary extends ConsumerWidget {
               color: AppBrand.ink,
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: Text(
-                  amountText(summary.balance),
-                  style: TextStyle(
-                    color: hidden ? AppGray.g400 : AppSecondary.cream,
-                    fontSize: 30,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.5,
+                // 余额同样可能接近 9999999.99(7 位整数 + 2 位小数),
+                // 用 FittedBox.scaleDown 兜底防止极端情况下换行成两行
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    amountText(summary.balance),
+                    style: TextStyle(
+                      color: hidden ? AppGray.g400 : AppSecondary.cream,
+                      fontSize: 30,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.5,
+                    ),
+                    maxLines: 1,
                   ),
                 ),
               ),
@@ -241,7 +248,9 @@ class _Cell extends StatelessWidget {
         ),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        // stretch 让金额 FittedBox 拿到 cell 的真实可用宽度,
+        // 否则 FittedBox 会按字面 intrinsic 撑开,失去限宽意义
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
@@ -249,12 +258,20 @@ class _Cell extends StatelessWidget {
             style: const TextStyle(color: AppGray.g400, fontSize: 11),
           ),
           const SizedBox(height: 2),
-          Text(
-            amount == null ? '••••••' : '¥${Formatters.amount(amount!)}',
-            style: TextStyle(
-              color: amount == null ? AppGray.g400 : color,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
+          // 数字 length 受"7 位整数 + 2 位小数"语义上限保护(走 transaction_form),
+          // 极端值 ¥9,999,999.99 在窄屏会撑爆 cell —— scaleDown 自动按比例缩,
+          // 小金额(如 ¥123.45)按原字号渲染,大金额等比缩小,不换行成两行
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              amount == null ? '••••••' : '¥${Formatters.amount(amount!)}',
+              style: TextStyle(
+                color: amount == null ? AppGray.g400 : color,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 1,
             ),
           ),
         ],
