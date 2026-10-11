@@ -351,7 +351,11 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
                       child: SizedBox(
                         width: 76,
                         child: Material(
-                          color: theme.colorScheme.primary,
+                          // 2026-10-11 UAT:编辑按钮从 theme.colorScheme.primary(teal 品牌青)
+                          // 改用 AppBrand.charcoal(#1F2329,中性深灰)。
+                          // 原因:teal 在本 app 是"支出/流动"色,用作编辑动作的语义不对;
+                          // iOS Mail.app 标准是 edit=中性深 + delete=destructive 红,两个对比清晰。
+                          color: AppBrand.charcoal,
                           // 2026-10-11 UAT:从 brPill(胶囊)退回 brLg(圆角矩形),
                           // 用户反馈胶囊"丑且太大",圆角矩形更克制;加 elevation 给按钮落影
                           borderRadius: AppRadius.brLg,
