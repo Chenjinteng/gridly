@@ -21,6 +21,14 @@ class AddTransactionPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // resizeToAvoidBottomInset: false → 系统键盘弹起时不重排 body,
+      // 底部的 Numpad 整段留在原位,**被键盘盖住**(这是用户期望行为:
+      //   写备注时,记金额用的 Numpad 不需要看 → 让键盘盖住,UI 简洁
+      //   写完 / 收键盘,Numpad 自然回来 → 不需要 FocusNode/MediaQuery 检测)
+      // 之前三次"键盘弹起时动态隐藏 Numpad"路线(492a068 / f29ca49 / c693df4)
+      // 以及 FocusNode 路线(12efb5f)都被推翻:检测逻辑不可靠,
+      // 简化成"始终显示 + 键盘自然覆盖"是 2026-10-11 UAT 最终方案。
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: const Text('记一笔'),
         leading: IconButton(

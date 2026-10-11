@@ -58,13 +58,6 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   int? _categoryId;
   DateTime _occurredAt = DateTime.now();
   final _noteController = TextEditingController();
-  // 备注 TextField 的 FocusNode —— 用来推断"系统键盘是否弹起":
-  //   hasFocus=true → 键盘弹起
-  //   hasFocus=false → 键盘收起
-  // 不能用 MediaQuery.viewInsets:此 build 在 Scaffold body 内,
-  // Scaffold 默认 resizeToAvoidBottomInset=true 会把 viewInsets 吃掉变 0,
-  // 所以无论 MediaQuery.of 还是 viewInsetsOf 都读到 0。
-  final _noteFocus = FocusNode();
   final _calc = _CalcState();
 
   bool get _isEdit => widget.editTransaction != null;
@@ -72,8 +65,6 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   @override
   void initState() {
     super.initState();
-    // FocusNode 变化触发 rebuild,让 build() 重新读 _noteFocus.hasFocus
-    _noteFocus.addListener(_onNoteFocusChange);
     // 编辑模式:预填已有数据
     final t = widget.editTransaction;
     if (t != null) {
@@ -90,15 +81,8 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     }
   }
 
-  void _onNoteFocusChange() {
-    // hasFocus 翻转时触发 rebuild,build() 里读 _noteFocus.hasFocus → 切 Numpad 显隐
-    if (mounted) setState(() {});
-  }
-
   @override
   void dispose() {
-    _noteFocus.removeListener(_onNoteFocusChange);
-    _noteFocus.dispose();
     _noteController.dispose();
     super.dispose();
   }
@@ -511,19 +495,17 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
 
   @override
   Widget build(BuildContext context) {
-    // 系统键盘 popup = 正在编辑笔记 Numpad,这场景下 Numpad 不再被用到,
-    // 直接整段隐藏,把屏幕让给备注 + 分类 + 保存按钮。
-    //(2026-10-11 UAT 三次 MediaQuery 路线均失败:无论 MediaQuery.of 还是
-    // viewInsetsOf 都读到 0,根因是 Scaffold 默认 resizeToAvoidBottomInset=true
-    // 把 body 内的 viewInsets 吃掉。改走 FocusNode 路线:
-    // TextField focus = 键盘弹起 → hasFocus=true → Numpad 隐藏)
-    final keyboardUp = _noteFocus.hasFocus;
+    // Numpad 始终固定在底部 —— 键盘弹起时被系统键盘覆盖(由 AddTransactionPage
+    // 的 Scaffold.resizeToAvoidBottomInset=false 实现),不需要任何运行时检测。
+    // 2026-10-11 UAT 最终方案:前 5 次尝试(保留 Numpad 高度 / MediaQuery 隐藏 /
+    // FocusNode 隐藏 / Scaffold popUntil)都被推翻 —— 路线太复杂,改回最简单的:
+    //   记金额 → Numpad 在,键盘不用
+    //   写备注 → 键盘在,Numpad 被盖住(无所谓,写备注时用不到计算器)
+    //   收键盘 → Numpad 回来
     return SafeArea(
       child: Column(
         children: [
-          // 表单上半部 — 全字段始终可访问:
-          //   键盘未弹出 → Expanded 占满,Numpad 280px 贴底,中间空余给表单
-          //   键盘弹出 → Numpad 隐藏,Expanded 拿全部空间,所有表单字段直接看到
+          // 表单上半部始终可访问,键盘弹起时 Numpad 整段被覆盖但上半部不被挤压
           Expanded(
             child: SingleChildScrollView(
               child: Column(
@@ -571,7 +553,6 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                         const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
                     child: TextField(
                       controller: _noteController,
-                      focusNode: _noteFocus,
                       maxLength: 30,
                       decoration: const InputDecoration(
                         hintText: '备注(可选)',
@@ -588,14 +569,12 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
               ),
             ),
           ),
-          // 键盘未弹出才显示 Numpad。键盘 + Numpad 互斥:
-          //   记金额时:用户跟 Numpad 交互,系统键盘不需要 → 这里 !keyboardUp → Numpad 在
-          //   写备注时:系统键盘需要,Numpad 隐藏 → !keyboardUp = false → Numpad 隐藏
-          if (!keyboardUp)
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.s1),
-              child: Numpad(onKey: _onKey),
-            ),
+          // 始终显示 —— 键盘弹起时由外层 Scaffold(resizeToAvoidBottomInset=false)
+          // 让键盘自然覆盖此处
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.s1),
+            child: Numpad(onKey: _onKey),
+          ),
         ],
       ),
     );
