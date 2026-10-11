@@ -166,51 +166,33 @@ class _GridlyBannerOverlayState extends State<_GridlyBannerOverlay>
                     ],
                   ),
                   child: IntrinsicHeight(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // 左侧色条(kind accent)
-                        Container(
-                          width: 4,
-                          decoration: BoxDecoration(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.s3,
+                        vertical: AppSpacing.s3,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            scheme.icon,
+                            size: 18,
                             color: scheme.accent,
-                            borderRadius: const BorderRadius.only(
-                              topLeft: Radius.circular(AppRadius.lg),
-                              bottomLeft: Radius.circular(AppRadius.lg),
+                          ),
+                          const SizedBox(width: AppSpacing.s2),
+                          Expanded(
+                            child: Text(
+                              widget.message,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: scheme.fg,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                        ),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.s3,
-                              vertical: AppSpacing.s3,
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  scheme.icon,
-                                  size: 18,
-                                  color: scheme.accent,
-                                ),
-                                const SizedBox(width: AppSpacing.s2),
-                                Expanded(
-                                  child: Text(
-                                    widget.message,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: scheme.fg,
-                                    ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
