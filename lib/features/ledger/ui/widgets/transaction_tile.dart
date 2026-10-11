@@ -322,7 +322,7 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
 
     return Stack(
       children: [
-        // 底层:操作按钮条 — [编辑 76px][4px gap][删除 76px],圆角 brLg 跟 tile 对齐
+        // 底层:操作按钮条 — [编辑 76px][4px gap][删除 76px],圆角 pill(2026-10-11 UAT 反馈统一)
         // 按钮跟随 _offset 渐显(opacity + translate),不再"突然出现"。
         // 左按钮(编辑)用主题色 primary,右按钮(删除)用 error 红 —— iOS 标准。
         // 外层 surface Container(color: surface) 占据整个 Stack 范围挡住按钮漏色。
@@ -346,9 +346,9 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
                         width: 76,
                         child: Material(
                           color: theme.colorScheme.primary,
-                          borderRadius: AppRadius.brLg,
+                          borderRadius: AppRadius.brPill,
                           child: InkWell(
-                            borderRadius: AppRadius.brLg,
+                            borderRadius: AppRadius.brPill,
                             onTap: widget.onEdit,
                             child: const Center(
                               child: Text(
@@ -384,9 +384,9 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
                         width: 76,
                         child: Material(
                           color: AppStatus.error,
-                          borderRadius: AppRadius.brLg,
+                          borderRadius: AppRadius.brPill,
                           child: InkWell(
-                            borderRadius: AppRadius.brLg,
+                            borderRadius: AppRadius.brPill,
                             onTap: widget.onDelete,
                             child: const Center(
                               child: Text(

@@ -19,4 +19,7 @@ class AppRadius {
   static const BorderRadius brMd = BorderRadius.all(Radius.circular(md));
   static const BorderRadius brLg = BorderRadius.all(Radius.circular(lg));
   static const BorderRadius brXl = BorderRadius.all(Radius.circular(xl));
+  // pill 胶囊形:用超大值(Flutter 自动 clamp 到边长一半)= 任意长方形都成胶囊
+  // (2026-10-11 加:流水 tile 左滑 edit/delete 按钮统一成 pill)
+  static const BorderRadius brPill = BorderRadius.all(Radius.circular(full));
 }
