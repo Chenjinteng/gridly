@@ -7,16 +7,21 @@ import '../../../core/database/app_database.dart';
 import '../../../core/database/providers.dart';
 import '../../ledger/application/transactions_providers.dart';
 
-enum StatsRange { thisMonth, thisYear, all }
+/// 2026-10-11 redesign:去 "全部" 段(默认行为 = 本月,无需"全部"显式选择)
+enum StatsRange { thisMonth, thisYear }
 
 final statsRangeProvider =
     StateProvider<StatsRange>((_) => StatsRange.thisMonth);
 
 /// 自定义月份(仅 StatsRange.thisMonth 时生效)
-/// null = 本月,有值 = 选中的具体某月(年-月)
+/// null = 本月,有值 = 选中的具体某月(年-月);等于当前年+月时也归一为"本月"
 final statsCustomMonthProvider = StateProvider<({int year, int month})?>(
   (_) => null,
 );
+
+/// 自定义年份(仅 StatsRange.thisYear 时生效)
+/// null = 本年,有值 = 选中的某年;等于当前年时归一为"本年"
+final statsCustomYearProvider = StateProvider<int?>((_) => null);
 
 class StatsTimeWindow {
   const StatsTimeWindow(this.start, this.end);
@@ -37,15 +42,10 @@ final statsWindowProvider = Provider<StatsTimeWindow>((ref) {
         DateTime(year, month + 1, 1).subtract(const Duration(seconds: 1)),
       );
     case StatsRange.thisYear:
+      final y = ref.watch(statsCustomYearProvider) ?? now.year;
       return StatsTimeWindow(
-        DateTime(now.year, 1, 1),
-        DateTime(now.year + 1, 1, 1)
-            .subtract(const Duration(seconds: 1)),
-      );
-    case StatsRange.all:
-      return StatsTimeWindow(
-        DateTime(2000),
-        DateTime(now.year + 1, 1, 1),
+        DateTime(y, 1, 1),
+        DateTime(y + 1, 1, 1).subtract(const Duration(seconds: 1)),
       );
   }
 });

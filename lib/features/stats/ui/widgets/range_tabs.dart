@@ -1,12 +1,16 @@
 // lib/features/stats/ui/widgets/range_tabs.dart
-// 时间范围选择 —— 3 段自定义 tab(本月 / 本年 / 全部)
-// 整段 = tap target:"本月" 段点哪都弹月份 sheet,选过的具体月份直接显示在 label 上
-// 不在 SegmentedButton 之外额外加 dropdown,保持 3 段紧凑
+// 时间范围选择 —— 2 段自定义 tab(本月 / 本年)+ 末尾清除按钮
+// 整段 = tap target:每段点哪都弹对应 sheet,选过的具体月份/年份直接显示在 label 上
 //
-// 之前 "本月" 段内嵌 chevron,把 "切 tab" 和 "开 sheet" 两个语义挤在 28px 里,
-// 手指粗/匆忙时按错。改成整段就是 picker 入口:
-//   - 已在本月段 → 弹 sheet(改月份 / 回本月)
-//   - 在其他段 → 先切到本月视图,不弹 sheet(避免 "我只是想看本月" 却被强塞 picker)
+// 2026-10-11 redesign:去 "全部" 段。理由:
+//   - "全部" 是个隐式默认状态(没筛选条件时就是全部),显式放在 tab 里冗余
+//   - 删了之后 2 个 Expanded 自然变宽,长 label 不再触发 scaleDown
+//   - 复位行为用末尾的"清除"图标按钮表达:custom 不为空且不等于当前时启用,
+//     点击同时清 month/year 筛选并把 range 拉回 thisMonth
+//
+// 整段 tap 行为(本月/本年 mirror):
+//   - 已在该段 → 弹对应 picker sheet(改月/年 / 回本月/本年)
+//   - 在另一段 → 只切到该段视图,不弹 picker(避免"我只是想看本年"被强塞 picker)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -22,20 +26,38 @@ class RangeTabs extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final range = ref.watch(statsRangeProvider);
     final custom = ref.watch(statsCustomMonthProvider);
+    final customYear = ref.watch(statsCustomYearProvider);
     final isThisMonth = range == StatsRange.thisMonth;
+    final isThisYear = range == StatsRange.thisYear;
+    final now = DateTime.now();
 
     // 本月段 label:
     //   custom == null                          → "本月"
     //   custom 跟当前月(年/月)一致                → "本月"(避免"回到本月" 后还
     //                                              显示成 "2026 年 10 月"的诡异感)
     //   custom 是其他月                          → "X 年 X 月"
-    final now = DateTime.now();
     final monthLabel = isThisMonth
         ? (custom == null ||
                 (custom.year == now.year && custom.month == now.month)
             ? '本月'
             : '${custom.year} 年 ${custom.month} 月')
         : '本月';
+
+    // 本年段 label:同 monthLabel 对称归一化
+    //   customYear == null         → "本年"
+    //   customYear == 当前年        → "本年"
+    //   customYear 是其他年         → "X 年"
+    final yearLabel = isThisYear
+        ? (customYear == null || customYear == now.year
+            ? '本年'
+            : '$customYear 年')
+        : '本年';
+
+    // 清除按钮启用条件:custom 存在且 ≠ 当前(月份或年份维度任一为非当前都算)
+    final hasMonthFilter = custom != null &&
+        (custom.year != now.year || custom.month != now.month);
+    final hasYearFilter = customYear != null && customYear != now.year;
+    final filterActive = hasMonthFilter || hasYearFilter;
 
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.s4),
@@ -50,9 +72,6 @@ class RangeTabs extends ConsumerWidget {
               child: _RangeSegment(
                 label: monthLabel,
                 selected: isThisMonth,
-                // 整段 tap:已在本月段就弹 picker 改月份;在"本年/全部"时
-                // 点击只是"切到本月视图",不直接弹 picker(避免把"我想看本月"
-                // 误判成"我一定要改月",还要先关一次)
                 onTap: () {
                   if (range == StatsRange.thisMonth) {
                     _pickMonth(context, ref, custom);
@@ -65,24 +84,34 @@ class RangeTabs extends ConsumerWidget {
             ),
             Expanded(
               child: _RangeSegment(
-                label: '本年',
-                selected: range == StatsRange.thisYear,
+                label: yearLabel,
+                selected: isThisYear,
                 onTap: () {
-                  ref.read(statsRangeProvider.notifier).state =
-                      StatsRange.thisYear;
-                  ref.read(statsCustomMonthProvider.notifier).state = null;
+                  if (range == StatsRange.thisYear) {
+                    _pickYear(context, ref, customYear);
+                  } else {
+                    ref.read(statsRangeProvider.notifier).state =
+                        StatsRange.thisYear;
+                  }
                 },
               ),
             ),
-            Expanded(
-              child: _RangeSegment(
-                label: '全部',
-                selected: range == StatsRange.all,
-                onTap: () {
-                  ref.read(statsRangeProvider.notifier).state = StatsRange.all;
-                  ref.read(statsCustomMonthProvider.notifier).state = null;
-                },
-              ),
+            // 清除按钮:filterActive 时启用,清 month + 清 year + 回到 thisMonth
+            // 跟 2 个 segment 在同一 Row 同一 Container 内,视觉一体
+            _ClearFilterButton(
+              active: filterActive,
+              onPressed: filterActive
+                  ? () {
+                      ref
+                          .read(statsCustomMonthProvider.notifier)
+                          .state = null;
+                      ref
+                          .read(statsCustomYearProvider.notifier)
+                          .state = null;
+                      ref.read(statsRangeProvider.notifier).state =
+                          StatsRange.thisMonth;
+                    }
+                  : null,
             ),
           ],
         ),
@@ -111,6 +140,28 @@ class RangeTabs extends ConsumerWidget {
     );
     if (picked != null) {
       ref.read(statsCustomMonthProvider.notifier).state = picked;
+    }
+  }
+
+  Future<void> _pickYear(
+    BuildContext context,
+    WidgetRef ref,
+    int? currentYear,
+  ) async {
+    final now = DateTime.now();
+    final picked = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      builder: (ctx) => _YearPickerSheet(
+        currentYear: currentYear ?? now.year,
+        anchorYear: now.year,
+      ),
+    );
+    if (picked != null) {
+      ref.read(statsCustomYearProvider.notifier).state = picked;
     }
   }
 }
@@ -171,6 +222,41 @@ class _RangeSegment extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 末尾"清除筛选"图标按钮
+///   - filterActive=true 时 onPressed 非 null,点击 reset month + year + range
+///   - filterActive=false 时 disabled(灰色),存在但不响应
+///   - always visible:不参与 Row 的 flex 分配,固定宽度,不随状态切换造成跳动
+class _ClearFilterButton extends StatelessWidget {
+  const _ClearFilterButton({required this.active, this.onPressed});
+
+  final bool active;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(right: AppSpacing.s1),
+      child: SizedBox(
+        width: 36,
+        child: IconButton(
+          tooltip: '清除筛选',
+          onPressed: onPressed,
+          // visualDensity compact 缩掉默认 48x48 给 padding 让图标贴近 segment 圆角
+          visualDensity: VisualDensity.compact,
+          icon: Icon(
+            Icons.close_rounded,
+            size: 18,
+            color: active
+                ? theme.colorScheme.onSurfaceVariant
+                : theme.colorScheme.outlineVariant,
+          ),
         ),
       ),
     );
@@ -348,6 +434,136 @@ class _MonthPickerSheetState extends State<_MonthPickerSheet> {
                               : (isSelected
                                   ? theme.colorScheme.primary
                                   : theme.colorScheme.onSurface),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: AppSpacing.s4),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 年份选择 sheet —— 锚年 -5 到锚年的 6 年 grid + "回到本年"按钮
+/// 比月份 picker 简单:没有"年 + 月"双维度,只显示 6 年(够普通人覆盖),
+/// cellAspectRatio 比月份更宽(2.4 vs 1.6),因为年份只是 4 位数文字,占空更少
+class _YearPickerSheet extends StatefulWidget {
+  const _YearPickerSheet({
+    required this.currentYear,
+    required this.anchorYear,
+  });
+  final int currentYear;
+  final int anchorYear;
+
+  @override
+  State<_YearPickerSheet> createState() => _YearPickerSheetState();
+}
+
+class _YearPickerSheetState extends State<_YearPickerSheet> {
+  // 显示最近 6 年:anchorYear-5 ~ anchorYear
+  late List<int> _years;
+
+  @override
+  void initState() {
+    super.initState();
+    _years = List.generate(6, (i) => widget.anchorYear - 5 + i);
+  }
+
+  bool get _isOnAnchorYear => widget.currentYear == widget.anchorYear;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.s4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 把手
+            Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(top: 8, bottom: 12),
+              decoration: BoxDecoration(
+                color: AppGray.g400,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.s4,
+                vertical: AppSpacing.s2,
+              ),
+              child: Row(
+                children: [
+                  const Text(
+                    '选择年份',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                  ),
+                  const Spacer(),
+                  // 选过具体非本年时才显示"回到本年",按钮直观
+                  if (!_isOnAnchorYear)
+                    TextButton.icon(
+                      icon: const Icon(Icons.today_rounded, size: 16),
+                      label: const Text('回到本年'),
+                      onPressed: () => Navigator.pop(context, widget.anchorYear),
+                    ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('关闭'),
+                  ),
+                ],
+              ),
+            ),
+            // 6 年 grid:横 3 列(anchorYear - 5 / -4 / -3 一行,anchorYear - 2 / -1 / anchorYear 一行)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
+              child: GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                  childAspectRatio: 2.4,
+                ),
+                itemCount: _years.length,
+                itemBuilder: (_, i) {
+                  final y = _years[i];
+                  final isSelected = y == widget.currentYear;
+                  return InkWell(
+                    borderRadius: AppRadius.brMd,
+                    onTap: () => Navigator.pop(context, y),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? theme.colorScheme.primary.withValues(alpha: 0.15)
+                            : theme.colorScheme.surfaceContainerLow,
+                        borderRadius: AppRadius.brMd,
+                        border: Border.all(
+                          color: isSelected
+                              ? theme.colorScheme.primary
+                              : Colors.transparent,
+                          width: 1.5,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        '$y 年',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: isSelected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: isSelected
+                              ? theme.colorScheme.primary
+                              : theme.colorScheme.onSurface,
                         ),
                       ),
                     ),
