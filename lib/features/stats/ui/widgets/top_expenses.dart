@@ -107,15 +107,16 @@ class _TopList extends ConsumerWidget {
         }
         return Column(
           children: [
-            for (final t in txs.take(_slotCount))
+            for (int i = 0; i < txs.length && i < _slotCount; i++)
               _DataRow(
+                rank: i + 1,
                 height: _rowHeight,
-                color: _colorForCategory(t.categoryId, cats),
-                iconKey: _iconKeyForCategory(t.categoryId, cats),
-                primary: _categoryNameForCategory(t.categoryId, cats),
-                secondary: t.note,
-                trailing: '¥${Formatters.amount(t.amount)}',
-                trailingSub: DateFormat('M月d日').format(t.occurredAt),
+                color: _colorForCategory(txs[i].categoryId, cats),
+                iconKey: _iconKeyForCategory(txs[i].categoryId, cats),
+                primary: _categoryNameForCategory(txs[i].categoryId, cats),
+                secondary: txs[i].note,
+                trailing: '¥${Formatters.amount(txs[i].amount)}',
+                trailingSub: DateFormat('M月d日').format(txs[i].occurredAt),
                 trailingColor: AppStatus.error,
               ),
             // 不足 10 条,补空行 —— 浅灰显示 "#N" 占位序号
@@ -154,15 +155,16 @@ class _TopByCategory extends ConsumerWidget {
         }
         return Column(
           children: [
-            for (final e in top)
+            for (int i = 0; i < top.length && i < _slotCount; i++)
               _DataRow(
+                rank: i + 1,
                 height: _rowHeight,
-                color: Color(e.color),
-                iconKey: _iconKeyForCategory(e.categoryId, cats),
-                primary: e.name,
-                secondary: '${(e.amount / total * 100).toStringAsFixed(0)}%',
-                trailing: '¥${Formatters.amount(e.amount)}',
-                trailingColor: Color(e.color),
+                color: Color(top[i].color),
+                iconKey: _iconKeyForCategory(top[i].categoryId, cats),
+                primary: top[i].name,
+                secondary: '${(top[i].amount / total * 100).toStringAsFixed(0)}%',
+                trailing: '¥${Formatters.amount(top[i].amount)}',
+                trailingColor: Color(top[i].color),
               ),
             // 不足 10 条,补空行 —— 浅灰显示 "#N" 占位序号
             for (int i = top.length; i < _slotCount; i++)
@@ -178,6 +180,7 @@ class _TopByCategory extends ConsumerWidget {
 // 固定高度的数据行(单笔 / 分类共用)
 class _DataRow extends StatelessWidget {
   const _DataRow({
+    required this.rank,
     required this.height,
     required this.color,
     required this.iconKey,
@@ -187,6 +190,10 @@ class _DataRow extends StatelessWidget {
     this.trailingSub,
     required this.trailingColor,
   });
+  // 1-based slot 序号(#1 #2 ... #10)
+  // 跟 _EmptyRow 渲染同样的 "#N" 文案,数据行 + 占位空行视觉上前后行
+  // 序号竖列对齐,UI 一致性
+  final int rank;
   final double height;
   final Color color;
   final String iconKey;
@@ -212,6 +219,19 @@ class _DataRow extends StatelessWidget {
         ),
         child: Row(
           children: [
+            // 序号列:跟 _EmptyRow 的 slot 同字面+同色,数据/占位过渡时列对齐
+            SizedBox(
+              width: 26,
+              child: Text(
+                '#$rank',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: AppGray.g400,
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.s2),
             Container(
               width: 28,
               height: 28,
