@@ -103,6 +103,11 @@ features/<name>/
 - 设计稿源文件在 [`docs/design/theme.html`](docs/design/theme.html),**改 UI 前先读它**,别看图脑补
 - **D16**:支出文字色 = `AppStatus.error`(红),违反 THEME.md 反红绿色盲原则,用户坚持警示感
 - **D17**:金额"万元"单位阈值 = `Formatters.wanThreshold`(100 万)。原因写在 `formatters.dart` 顶部,2026-10-11 UAT 反复确认"普通人年收几十万,1 万就切万太过了"。**禁止** 觉得"阈值太高,改成 1 万更省长度"这种自作主张的优化
+- **D18**:结余数字按值动态选色,通过 `AppSemantic.balanceFor(double)` 取色(2026-10-11 UAT:"-3,726" 这种负结余显示成 cream 与 ink 卡几乎不可读)
+  - `v > 0` → `AppBrand.teal` `#14B8A6`(正向信号)
+  - `v < 0` → `AppStatus.error` `#EF4444`(负向信号,与支出红同系)
+  - `v == 0` → `AppSecondary.cream` `#F5F1E8`(中性,在 ink 卡上仍可读)
+  - 业务层只调 `AppSemantic.balanceFor(value)`,不要硬编 `AppBrand.teal`/`AppStatus.error`,未来色板微调只改一处
 
 ### 状态管理(Riverpod)
 
