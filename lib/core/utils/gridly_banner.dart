@@ -7,9 +7,19 @@
 //   - 卡片样式:ink/cream 背景 + 左侧色条(brand teal / gold / 状态色)
 //   - 圆角:AppRadius.brLg,跟 gridly 卡片视觉对齐
 //   - 自动消失:1.5s(可配)
-//   - 入场:从顶部滑下;退场:滑回顶部
+//   - 入场:从顶部滑下,AppMotion.fast 240ms + aquaIn
+//   - 持续:widget.duration(默认 1500ms)
+//   - 出场:从顶部收回,AppMotion.fast 240ms + aquaOut(2026-10-12 加)
+//
+// 2026-10-12 ColorOS Aquamorphic 改造:
+//   - 入场曲线:easeOutCubic → AppMotion.aquaIn(Cubic(0.16, 1, 0.3, 1),
+//     非线性阻尼,前快后慢)
+//   - 出场曲线:用 aquaOut(对称反向),不沿用入场的镜像(曲线不对称,镜像视觉不对)
+//   - 实现:用 TweenSequence 串联"入场 + 持续 + 出场"三段,一个 controller
+//     自动播完全程,不需要外部 Future.delayed 触发 reverse
 import 'package:flutter/material.dart';
 
+import '../motion/app_motion.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_spacing.dart';
@@ -20,20 +30,27 @@ enum GridlyBannerKind { info, success, warning, error }
 ///
 /// [message]: 必填,显示文字(单行省略号)
 /// [kind]: 决定左侧色条 + icon;默认 info
-/// [duration]: 自动消失时间;默认 1.5s
+/// [duration]: 自动消失时间;默认 1.5s。**最小 100ms**,传 0 会被当作 100ms
+///   避免 TweenSequence weight=0 报错。
 Future<void> showGridlyBanner(
   BuildContext context,
   String message, {
   GridlyBannerKind kind = GridlyBannerKind.info,
   Duration duration = const Duration(milliseconds: 1500),
 }) async {
+  // 兜底:duration 太短会被 TweenSequence 当 0 weight 报 RangeError,
+  // 实际使用方不会传 0,但写在这里保险
+  final safeDuration = duration < const Duration(milliseconds: 100)
+      ? const Duration(milliseconds: 100)
+      : duration;
+
   final overlayState = Overlay.of(context, rootOverlay: true);
   late OverlayEntry entry;
   entry = OverlayEntry(
     builder: (_) => _GridlyBannerOverlay(
       message: message,
       kind: kind,
-      duration: duration,
+      duration: safeDuration,
       onDismiss: () {
         if (entry.mounted) entry.remove();
       },
@@ -62,29 +79,67 @@ class _GridlyBannerOverlay extends StatefulWidget {
 class _GridlyBannerOverlayState extends State<_GridlyBannerOverlay>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
-  late final Animation<Offset> _slideAnim;
-  late final Animation<double> _fadeAnim;
+  late final Animation<double> _fade;
+  late final Animation<Offset> _slide;
 
   @override
   void initState() {
     super.initState();
+    // 总时长 = 入场(240ms) + 持续(widget.duration) + 出场(240ms)
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 220),
+      duration: AppMotion.fast + widget.duration + AppMotion.fast,
     );
-    _slideAnim = Tween<Offset>(
-      begin: const Offset(0, -1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
-    _fadeAnim = Tween<double>(begin: 0, end: 1).animate(_ctrl);
+    final entryMs = AppMotion.fast.inMilliseconds.toDouble();
+    final holdMs = widget.duration.inMilliseconds.toDouble();
+    final exitMs = AppMotion.fast.inMilliseconds.toDouble();
+
+    _fade = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0, end: 1)
+            .chain(CurveTween(curve: AppMotion.aquaIn)),
+        weight: entryMs,
+      ),
+      TweenSequenceItem(
+        tween: ConstantTween<double>(1),
+        weight: holdMs,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1, end: 0)
+            .chain(CurveTween(curve: AppMotion.aquaOut)),
+        weight: exitMs,
+      ),
+    ]).animate(_ctrl);
+
+    _slide = TweenSequence<Offset>([
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: const Offset(0, -1),
+          end: Offset.zero,
+        ).chain(CurveTween(curve: AppMotion.aquaIn)),
+        weight: entryMs,
+      ),
+      TweenSequenceItem(
+        tween: ConstantTween<Offset>(Offset.zero),
+        weight: holdMs,
+      ),
+      TweenSequenceItem(
+        tween: Tween<Offset>(
+          begin: Offset.zero,
+          end: const Offset(0, -1),
+        ).chain(CurveTween(curve: AppMotion.aquaOut)),
+        weight: exitMs,
+      ),
+    ]).animate(_ctrl);
+
+    _ctrl.addStatusListener(_onStatus);
     _ctrl.forward();
-    Future.delayed(widget.duration, _dismiss);
   }
 
-  Future<void> _dismiss() async {
-    if (!mounted) return;
-    await _ctrl.reverse();
-    widget.onDismiss();
+  void _onStatus(AnimationStatus status) {
+    if (status == AnimationStatus.completed) {
+      widget.onDismiss();
+    }
   }
 
   ({Color accent, Color bg, Color fg, IconData icon, Color border}) _resolve(
@@ -108,7 +163,7 @@ class _GridlyBannerOverlayState extends State<_GridlyBannerOverlay>
       GridlyBannerKind.error => Icons.error_outline_rounded,
     };
     // fg / accent:按 kind 选"对比色"
-// 浅色 bg(只 gold) → 深字;深色 bg(teal/red) → 白字
+    // 浅色 bg(只 gold) → 深字;深色 bg(teal/red) → 白字
     final fg = switch (widget.kind) {
       GridlyBannerKind.warning => const Color(0xFF1A1A1A),
       _ => Colors.white,
@@ -137,9 +192,9 @@ class _GridlyBannerOverlayState extends State<_GridlyBannerOverlay>
       child: Padding(
         padding: EdgeInsets.only(top: topInset + AppSpacing.s2),
         child: SlideTransition(
-          position: _slideAnim,
+          position: _slide,
           child: FadeTransition(
-            opacity: _fadeAnim,
+            opacity: _fade,
             child: Material(
               color: Colors.transparent,
               child: Padding(
@@ -206,6 +261,7 @@ class _GridlyBannerOverlayState extends State<_GridlyBannerOverlay>
 
   @override
   void dispose() {
+    _ctrl.removeStatusListener(_onStatus);
     _ctrl.dispose();
     super.dispose();
   }
