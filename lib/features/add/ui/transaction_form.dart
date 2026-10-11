@@ -359,7 +359,6 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       }
     });
     final hasCat = sel != null;
-    final canSave = _categoryId != null;
     final isToday = _occurredAt.year == DateTime.now().year &&
         _occurredAt.month == DateTime.now().month &&
         _occurredAt.day == DateTime.now().day;
@@ -441,18 +440,15 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                 ),
               ),
               const SizedBox(width: AppSpacing.s2),
-              // 3) 保存按钮(固定窄宽,pill 形)
+              // 3) 保存按钮(永远可点,validation 由 _save() 里的 banner 提示
+              //   处理:空分类 → "选个分类";空金额 → "金额要大于 0")
               SizedBox(
                 height: 36,
                 child: FilledButton(
-                  onPressed: canSave ? _save : null,
+                  onPressed: _save,
                   style: FilledButton.styleFrom(
-                    backgroundColor: canSave
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.surfaceContainerHigh,
-                    foregroundColor: canSave
-                        ? theme.colorScheme.onPrimary
-                        : theme.colorScheme.onSurfaceVariant,
+                    backgroundColor: theme.colorScheme.primary,
+                    foregroundColor: theme.colorScheme.onPrimary,
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppSpacing.s4,
                     ),
