@@ -1,5 +1,9 @@
 // lib/features/stats/ui/widgets/range_summary.dart
 // 当前时间窗的汇总(收入/支出/结余 三色块)
+//
+// 2026-10-12 ColorOS 风数字入场:三个 _Stat 内 Text 改 AnimatedCounter,
+// 首次进入页面 / 切换时间范围时,数字从 0(或旧值)滚动到新值,360ms aquaIn
+// 颜色色 / 进制(万元 mode) 仍由 Formatters 处理。
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,6 +12,7 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/card_shadows.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/animated_counter.dart';
 import '../../application/stats_providers.dart';
 
 class RangeSummary extends ConsumerWidget {
@@ -95,15 +100,24 @@ class _Stat extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           FittedBox(
-            child: Text(
-              // label `收入(万元)` 已经声明单位,数字不重复带"万"
-              '¥${Formatters.amount(amount, withUnit: false)}',
+            child: AnimatedCounter(
+              // 2026-10-12 count-up:首次从 0 滚到当前 amount;值变化时
+              // 从旧值滚到新值(切月份 / 视角时数据更新自然滚动到位)。
+              // Formatters.amount 接 double 输出 "¥16,540" 这种格式,
+              // withUnit:false 是因为 label `收入(万元)` 已经声明单位,
+              // 数字部分只输出纯数字。
+              prefix: '¥',
+              value: amount,
+              formatter: (v) => Formatters.amount(v, withUnit: false),
+              duration: const Duration(milliseconds: 480),
               style: TextStyle(
                 color: color,
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
               ),
               maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.visible,
             ),
           ),
         ],
