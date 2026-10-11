@@ -63,10 +63,13 @@ class MonthlyTrend extends ConsumerWidget {
                   .map((d) =>
                       d.income > d.expense ? d.income : d.expense)
                   .fold<double>(0, (a, b) => a > b ? a : b);
-              // 2026-10-11 UAT:之前没设 maxY,fl_chart auto 把 maxVal 当成
-              // 顶上,数据点刚好叠在最顶 Y 轴 label 上(看起来像"300,000 后面
-              // 多了一个 4")。显式 +15% 留白,让最高点跟 top label 之间有空隙。
-              final maxY = maxVal * 1.15;
+              // 2026-10-11 UAT 反馈:之前 maxY = maxVal * 1.15 时,fl_chart
+              // 把 345,004.60 当成一个 tick 显示在纵坐标,看起来很丑。改成
+              // "1/2/5 × 10^n" 模式挑一个整档 interval,maxY 圆整到下一档,
+              // 这样 tick 是 0/100k/200k/300k/400k 这种整数,数据点 300k
+              // 跟 top tick 400k 之间自然留一档空隙。
+              final niceInterval = _pickNiceInterval(maxVal);
+              final maxY = maxVal == 0 ? 1.0 : (maxVal / niceInterval).ceil() * niceInterval;
               final chartNeedsWan = maxVal >= Formatters.wanThreshold;
               return SizedBox(
                 height: 200,
@@ -128,6 +131,11 @@ class MonthlyTrend extends ConsumerWidget {
                           // "999.99万" ≈ 7 字符 + 千分位逗号,28 像素够装。
                           // 之前 48 是给 raw "9999999" 这种 7 位整数留的,现在不需要
                           reservedSize: 44,
+                          // 显式 interval(由 maxVal 推算的"1/2/5 × 10^n"档):
+                          // 强制 tick 落在整数档位(0/100k/200k/300k/400k),
+                          // 不会再出现 "345,004.60" 这种 maxY 实际值。
+                          // 2026-10-11 UAT 反馈"只显示居间就行"。
+                          interval: niceInterval,
                           getTitlesWidget: (v, meta) => Text(
                             // 单图单位一致性:
                             //   - chartNeedsWan=true → 一律按万元输出(含 0 → "0万"),
@@ -225,6 +233,32 @@ class MonthlyTrend extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// 2026-10-01 加:按"1/2/5 × 10^n"模式挑一个整档 interval。
+/// 让 Y 轴 tick 落在整数档位(0/100k/200k...),不会出现 "345,004.60"
+/// 这种 maxY 实际值;同时 maxY 圆整到下一档,顶部自然留一档空隙,
+/// 数据点不再叠 top label。
+double _pickNiceInterval(double maxVal) {
+  if (maxVal <= 0) return 1;
+  // 数量级(10^n):maxVal 的整数位数 - 1
+  final magnitude = _pow10((maxVal.abs().toString().split('.').first.length) - 1);
+  // 候选:1×、2×、5× 乘以 magnitude
+  final candidates = <double>[magnitude, 2 * magnitude, 5 * magnitude];
+  // 选能让 [0..maxVal] 区间内刚好有 3-4 个 tick 的最小档(留 1 档顶部空隙)
+  for (final c in candidates) {
+    final tickCount = maxVal / c;
+    if (tickCount <= 4) return c;
+  }
+  return candidates.last;
+}
+
+double _pow10(int n) {
+  double r = 1;
+  for (var i = 0; i < n; i++) {
+    r *= 10;
+  }
+  return r;
 }
 
 class _LegendDot extends StatelessWidget {
