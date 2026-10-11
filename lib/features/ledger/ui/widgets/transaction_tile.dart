@@ -66,30 +66,22 @@ class TransactionTile extends ConsumerWidget {
             ),
             child: Row(
               children: [
-                // 2026-10-12 ColorOS Hero flight:分类色块(36x36 icon)做 Hero,
-                // tag = 'tx-cat-${id}'。点 tile 进 /edit/:id 时,这个 icon 块
-                // 会飞到编辑页分类 chip 内的 icon 块(target 在 Commit 8)。
-                // flight 期间:scale 0.96 → heroFlightScale(1.04),曲线 aquaIn,
-                // 落点颜色不变(因为 target widget 视觉参数完全对齐)。
-                Hero(
-                  tag: 'tx-cat-${transaction.id}',
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.12),
-                      borderRadius: AppRadius.brXs,
-                      border: Border.all(
-                        color: color.withValues(alpha: 0.3),
-                        width: 0.5,
-                      ),
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: AppRadius.brXs,
+                    border: Border.all(
+                      color: color.withValues(alpha: 0.3),
+                      width: 0.5,
                     ),
-                    child: Icon(
-                      CategoryIcons.map[cat?.icon ?? 'category'] ??
-                          Icons.category_rounded,
-                      color: color,
-                      size: 18,
-                    ),
+                  ),
+                  child: Icon(
+                    CategoryIcons.map[cat?.icon ?? 'category'] ??
+                        Icons.category_rounded,
+                    color: color,
+                    size: 18,
                   ),
                 ),
                 const SizedBox(width: AppSpacing.s3),
