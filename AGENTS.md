@@ -102,6 +102,7 @@ features/<name>/
 - 间距统一走 `AppSpacing.s1/s2/s3/s4`
 - 设计稿源文件在 [`docs/design/theme.html`](docs/design/theme.html),**改 UI 前先读它**,别看图脑补
 - **D16**:支出文字色 = `AppStatus.error`(红),违反 THEME.md 反红绿色盲原则,用户坚持警示感
+- **D17**:金额"万元"单位阈值 = `Formatters.wanThreshold`(100 万)。原因写在 `formatters.dart` 顶部,2026-10-11 UAT 反复确认"普通人年收几十万,1 万就切万太过了"。**禁止** 觉得"阈值太高,改成 1 万更省长度"这种自作主张的优化
 
 ### 状态管理(Riverpod)
 
