@@ -24,9 +24,15 @@ class RangeTabs extends ConsumerWidget {
     final custom = ref.watch(statsCustomMonthProvider);
     final isThisMonth = range == StatsRange.thisMonth;
 
-    // 本月段 label:选了具体月就显示"X 年 X 月",否则显示"本月"
+    // 本月段 label:
+    //   custom == null                          → "本月"
+    //   custom 跟当前月(年/月)一致                → "本月"(避免"回到本月" 后还
+    //                                              显示成 "2026 年 10 月"的诡异感)
+    //   custom 是其他月                          → "X 年 X 月"
+    final now = DateTime.now();
     final monthLabel = isThisMonth
-        ? (custom == null
+        ? (custom == null ||
+                (custom.year == now.year && custom.month == now.month)
             ? '本月'
             : '${custom.year} 年 ${custom.month} 月')
         : '本月';
