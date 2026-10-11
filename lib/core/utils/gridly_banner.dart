@@ -109,14 +109,14 @@ class _GridlyBannerOverlayState extends State<_GridlyBannerOverlay>
     };
     return (
       accent: kindColor,
-      // 2026-10-11 UAT 第三轮:之前 bg alpha 12% 太透,AppBar / 状态栏
-      // 文字会从 banner 后面透出来(尤其 gold/红浅底更明显)。提到 30%
-      // alpha 让 banner 真正"不透明",能完全盖住后面的内容。
-      bg: kindColor.withValues(alpha: 0.30),
-      // fg 同时加深:之前 lerp(black, 0.35),在 30% 底上对比够,
-      // 提到 0.45 保证文本继续突出。
-      fg: Color.lerp(kindColor, Colors.black, 0.45)!,
-      border: kindColor.withValues(alpha: 0.40),
+      // 2026-10-11 UAT 第四轮:30% alpha 在浅色 bg(尤其 cream)上
+      // 仍能看到 AppBar "X" / "记一笔" 标题从 banner 后面透出来。
+      // 提到 85% 让 banner 接近纯色块,完全盖住后面的内容。
+      // bg 接近 kindColor 原色,fg 同步加深到 0.60 让文本在饱和底上
+      // 仍有足够对比度。
+      bg: kindColor.withValues(alpha: 0.85),
+      fg: Color.lerp(kindColor, Colors.black, 0.60)!,
+      border: kindColor.withValues(alpha: 0.55),
       icon: iconData,
     );
   }
