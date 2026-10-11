@@ -10,22 +10,26 @@
 // dark mode 自动用白色阴影(否则黑阴影在黑底上不可见)。
 import 'package:flutter/material.dart';
 
+import 'app_colors.dart';
+
 class CardShadows {
   CardShadows._();
 
   /// 黑底卡(月度汇总卡 / range summary)
   static List<BoxShadow> dark(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final color = isDark ? Colors.white : Colors.black;
+    // 深色模式用品牌金(AppBrand.gold)做暖色光感,呼应 Ink/Gold/Teal 三色;
+    // 浅色模式保持黑(传统投影)
+    final color = isDark ? AppBrand.gold : Colors.black;
     return [
       BoxShadow(
-        color: color.withValues(alpha: isDark ? 0.10 : 0.12),
+        color: color.withValues(alpha: isDark ? 0.15 : 0.12),
         blurRadius: 16,
         // 右下投影:模拟光从左上打来,卡浮起来的浮雕感
         offset: const Offset(3, 5),
       ),
       BoxShadow(
-        color: color.withValues(alpha: isDark ? 0.05 : 0.06),
+        color: color.withValues(alpha: isDark ? 0.08 : 0.06),
         blurRadius: 32,
         offset: const Offset(8, 12),
       ),
@@ -35,15 +39,15 @@ class CardShadows {
   /// 白底卡(预算 / 设置主题 / Top10 / 流水 / 分类 / 月度趋势 / 饼图 / 隐私)
   static List<BoxShadow> light(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final color = isDark ? Colors.white : Colors.black;
+    final color = isDark ? AppBrand.gold : Colors.black;
     return [
       BoxShadow(
-        color: color.withValues(alpha: isDark ? 0.06 : 0.05),
+        color: color.withValues(alpha: isDark ? 0.10 : 0.05),
         blurRadius: 8,
         offset: const Offset(2, 3),
       ),
       BoxShadow(
-        color: color.withValues(alpha: isDark ? 0.03 : 0.025),
+        color: color.withValues(alpha: isDark ? 0.05 : 0.025),
         blurRadius: 16,
         offset: const Offset(4, 7),
       ),
