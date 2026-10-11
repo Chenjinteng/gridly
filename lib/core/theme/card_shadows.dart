@@ -24,13 +24,13 @@ class CardShadows {
     return [
       BoxShadow(
         color: color.withValues(alpha: isDark ? 0.15 : 0.12),
-        blurRadius: 16,
+        blurRadius: 14,
         // 右下投影:模拟光从左上打来,卡浮起来的浮雕感
         offset: const Offset(3, 5),
       ),
       BoxShadow(
         color: color.withValues(alpha: isDark ? 0.08 : 0.06),
-        blurRadius: 32,
+        blurRadius: 18, // 收一档:32→18,减少扩散
         offset: const Offset(8, 12),
       ),
     ];
@@ -48,7 +48,7 @@ class CardShadows {
       ),
       BoxShadow(
         color: color.withValues(alpha: isDark ? 0.05 : 0.025),
-        blurRadius: 16,
+        blurRadius: 12, // 收一档:16→12
         offset: const Offset(4, 7),
       ),
     ];
