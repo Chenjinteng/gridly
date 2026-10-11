@@ -499,7 +499,11 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     // 直接整段隐藏,把屏幕让给备注 + 分类 + 保存按钮。
     //(2026-10-11 UAT 二次反馈:之前版本强行保留 Numpad,虽然不被挤压,
     // 但用户写备注时 Numpad 占半屏是浪费 —— 接备注的时候不需要看计算器)
-    final keyboardUp = MediaQuery.viewInsetsOf(context).bottom > 0;
+    // 用 MediaQuery.of(context) **而不是** viewInsetsOf:后者是 maybeOf 快捷,
+    // 只读 viewInsets 但不订阅 MediaQuery changes,keyboard 弹出时不会
+    // 触发 widget rebuild。MediaQuery.of() 注册依赖到 InheritedWidget,
+    // viewInsets 一变就 rebuild。
+    final keyboardUp = MediaQuery.of(context).viewInsets.bottom > 0;
     return SafeArea(
       child: Column(
         children: [
