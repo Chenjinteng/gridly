@@ -1,7 +1,12 @@
 // lib/features/stats/ui/widgets/range_tabs.dart
 // 时间范围选择 —— 3 段自定义 tab(本月 / 本年 / 全部)
-// "本月" 段内嵌 chevron 弹月份 sheet,选过的具体月份直接显示在 label 上
+// 整段 = tap target:"本月" 段点哪都弹月份 sheet,选过的具体月份直接显示在 label 上
 // 不在 SegmentedButton 之外额外加 dropdown,保持 3 段紧凑
+//
+// 之前 "本月" 段内嵌 chevron,把 "切 tab" 和 "开 sheet" 两个语义挤在 28px 里,
+// 手指粗/匆忙时按错。改成整段就是 picker 入口:
+//   - 已在本月段 → 弹 sheet(改月份 / 回本月)
+//   - 在其他段 → 先切到本月视图,不弹 sheet(避免 "我只是想看本月" 却被强塞 picker)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -39,20 +44,24 @@ class RangeTabs extends ConsumerWidget {
               child: _RangeSegment(
                 label: monthLabel,
                 selected: isThisMonth,
-                showChevron: true,
-                onLabelTap: () {
-                  ref.read(statsRangeProvider.notifier).state =
-                      StatsRange.thisMonth;
+                // 整段 tap:已在本月段就弹 picker 改月份;在"本年/全部"时
+                // 点击只是"切到本月视图",不直接弹 picker(避免把"我想看本月"
+                // 误判成"我一定要改月",还要先关一次)
+                onTap: () {
+                  if (range == StatsRange.thisMonth) {
+                    _pickMonth(context, ref, custom);
+                  } else {
+                    ref.read(statsRangeProvider.notifier).state =
+                        StatsRange.thisMonth;
+                  }
                 },
-                onChevronTap: () => _pickMonth(context, ref, custom),
               ),
             ),
             Expanded(
               child: _RangeSegment(
                 label: '本年',
                 selected: range == StatsRange.thisYear,
-                showChevron: false,
-                onLabelTap: () {
+                onTap: () {
                   ref.read(statsRangeProvider.notifier).state =
                       StatsRange.thisYear;
                   ref.read(statsCustomMonthProvider.notifier).state = null;
@@ -63,8 +72,7 @@ class RangeTabs extends ConsumerWidget {
               child: _RangeSegment(
                 label: '全部',
                 selected: range == StatsRange.all,
-                showChevron: false,
-                onLabelTap: () {
+                onTap: () {
                   ref.read(statsRangeProvider.notifier).state = StatsRange.all;
                   ref.read(statsCustomMonthProvider.notifier).state = null;
                 },
@@ -101,21 +109,17 @@ class RangeTabs extends ConsumerWidget {
   }
 }
 
-/// 单段 tab —— 整体选中态背景,label 可点切到该段,chevron 可点弹月份 sheet
+/// 单段 tab —— 整体选中态背景,整段可点(切 tab 或 弹月份 sheet 由父级 onTap 决定)
 class _RangeSegment extends StatelessWidget {
   const _RangeSegment({
     required this.label,
     required this.selected,
-    required this.showChevron,
-    required this.onLabelTap,
-    this.onChevronTap,
+    required this.onTap,
   });
 
   final String label;
   final bool selected;
-  final bool showChevron;
-  final VoidCallback onLabelTap;
-  final VoidCallback? onChevronTap;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -123,69 +127,45 @@ class _RangeSegment extends StatelessWidget {
     final fg = selected
         ? theme.colorScheme.primary
         : theme.colorScheme.onSurfaceVariant;
-    return Container(
-      decoration: BoxDecoration(
-        color: selected
-            ? theme.colorScheme.primary.withValues(alpha: 0.12)
-            : Colors.transparent,
-        borderRadius: AppRadius.brLg,
-      ),
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.s2),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // label InkWell 包 Flexible(fit:loose) 接到 Row flex 分配:
-          // Row 主动把可用宽度(114-20=94)分给 label,Padding/FittedBox 才
-          // 正确知道剩 78px 可用,长 label 自动缩到不溢出
-          // 上次只 FittedBox 没接 Row 约束,FittedBox 收到 InkWell 内 Padding
-          // 给的 max=98,加上 chevron 后还是 124 > 114 → OVERFLOWED BY 9.1
-          Flexible(
-            fit: FlexFit.loose,
-            child: InkWell(
-              borderRadius: AppRadius.brSm,
-              onTap: onLabelTap,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.s2,
-                  vertical: AppSpacing.s1,
-                ),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.center,
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: fg,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    ),
-                    maxLines: 1,
-                    softWrap: false,
-                    overflow: TextOverflow.visible,
+    // 整段 = tap target:InkWell 在最外层包 Container,把 Container padding
+    // 这块"死区"也变成可点;Container.borderRadius 跟 InkWell.borderRadius
+    // 同步,保证 ripple 圆角跟选中态背景对齐。
+    return InkWell(
+      borderRadius: AppRadius.brLg,
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: selected
+              ? theme.colorScheme.primary.withValues(alpha: 0.12)
+              : Colors.transparent,
+          borderRadius: AppRadius.brLg,
+        ),
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.s2),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Flexible(fit:loose) 给 Row 知道"这里能容纳的宽度",FittedBox 在
+            // 该约束内做 scaleDown,长 label "2026 年 10 月" 自动缩到不溢出
+            Flexible(
+              fit: FlexFit.loose,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.center,
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: fg,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                   ),
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.visible,
                 ),
               ),
             ),
-          ),
-          if (showChevron)
-            InkWell(
-              borderRadius: AppRadius.brSm,
-              onTap: onChevronTap,
-              // tap area: 16(icon)+ 12(padding s2*2 → 6 each)= 28px,
-              // 比之前的 2*2 + 16 = 20px 大 ~40%,手指粗点也好点
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 6, // was 2; tap area 20 → 28px
-                  vertical: AppSpacing.s1,
-                ),
-                child: Icon(
-                  Icons.expand_more,
-                  size: 16,
-                  color: fg,
-                ),
-              ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
