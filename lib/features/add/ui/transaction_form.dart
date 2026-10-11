@@ -410,12 +410,12 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
             style: const TextStyle(fontSize: 13),
           ),
           const SizedBox(height: AppSpacing.s2),
-          // 下行:[日期][分类][保存] —— 3 items 等宽(2026-10-11 UAT 反馈
-            // 日期 pill 固定宽 / 分类 chip 弹性大,两者宽度差大,均分后
-            // 视觉上"日期太短,分类太长"。3 个 Expanded 同 flex,1/3 等分。)
+          // 下行:[日期][分类][保存] —— 2026-10-11 UAT 第四轮反馈:
+//   日期 + 分类 1:1 均分(两个弹性 Expanded 同 flex),
+//   保存按钮固定窄宽(跟之前一致),不强拉成 1/3。
           Row(
             children: [
-              // 1) 日期 pill(均分 1/3 宽)
+              // 1) 日期 pill(均分 1/2)
               Expanded(
                 child: _ActionPill(
                   icon: Icons.calendar_today_rounded,
@@ -426,7 +426,7 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                 ),
               ),
               const SizedBox(width: AppSpacing.s2),
-              // 2) 分类 chip(均分 1/3 宽)
+              // 2) 分类 chip(均分 1/2)
               Expanded(
                 child: _ActionPill(
                   icon: hasCat
@@ -441,32 +441,31 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                 ),
               ),
               const SizedBox(width: AppSpacing.s2),
-              // 3) 保存按钮(均分 1/3 宽,pill 形填充整个宽度)
-              Expanded(
-                child: SizedBox(
-                  height: 36,
-                  child: FilledButton(
-                    onPressed: canSave ? _save : null,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: canSave
-                          ? theme.colorScheme.primary
-                          : theme.colorScheme.surfaceContainerHigh,
-                      foregroundColor: canSave
-                          ? theme.colorScheme.onPrimary
-                          : theme.colorScheme.onSurfaceVariant,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.s2,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: AppRadius.brPill,
-                      ),
+              // 3) 保存按钮(固定窄宽,pill 形)
+              SizedBox(
+                height: 36,
+                child: FilledButton(
+                  onPressed: canSave ? _save : null,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: canSave
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.surfaceContainerHigh,
+                    foregroundColor: canSave
+                        ? theme.colorScheme.onPrimary
+                        : theme.colorScheme.onSurfaceVariant,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.s4,
                     ),
-                    child: const Text(
-                      '保存',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
+                    minimumSize: const Size(64, 36),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: AppRadius.brPill,
+                    ),
+                  ),
+                  child: const Text(
+                    '保存',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
                     ),
                   ),
                 ),
