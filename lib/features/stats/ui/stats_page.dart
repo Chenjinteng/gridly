@@ -11,7 +11,13 @@
 //   expense → CategoryPie + TopExpenses + MonthlyTrendChart
 //   income  → IncomePie + MonthlyTrendChart
 //   assets  → 占位(2026-10-11 资产功能预留)
+//
+// 2026-10-12 报表 widget 错峰入场(用户反馈"想有类似流水的那种往上抬"):
+// _viewContent 内每个非 SizedBox widget 包 StaggeredFadeIn,首次 mount 时按
+// index 30ms 错峰 fade + 上推 8px,360ms aquaIn。view 切换 / 月份切换不重放
+// (_appeared 保持 true),只在 ConsumerStatefulWidget 首次 mount 触发。
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/motion/app_motion.dart';
@@ -20,6 +26,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/refresh_providers.dart';
+import '../../../core/widgets/staggered_fade_in.dart';
 import 'widgets/category_pie.dart';
 import 'widgets/income_pie.dart';
 import 'widgets/monthly_trend.dart';
@@ -28,11 +35,31 @@ import 'widgets/range_tabs.dart';
 import 'widgets/top_expenses.dart';
 import '../application/stats_providers.dart';
 
-class StatsPage extends ConsumerWidget {
+class StatsPage extends ConsumerStatefulWidget {
   const StatsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<StatsPage> createState() => _StatsPageState();
+}
+
+class _StatsPageState extends ConsumerState<StatsPage> {
+  /// 2026-10-12 报表入场错峰:
+  ///   - false:首次 build 阶段,_viewContent 内 widget 走 StaggeredFadeIn,
+  ///     30ms*i 错峰 fade + 上推 8px,360ms aquaIn
+  ///   - true:首 build 后下一帧翻 true,后续 rebuild(视角切换 / 月份切换 /
+  ///     AnimatedSwitcher 重新 mount)不重放 stagger,各 widget 直接显示
+  bool _appeared = false;
+
+  @override
+  void initState() {
+    super.initState();
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _appeared = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final view = ref.watch(statsViewProvider);
     return Scaffold(
       appBar: AppBar(
@@ -81,7 +108,7 @@ class StatsPage extends ConsumerWidget {
                 key: ValueKey('view-${view.name}'),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: _viewContent(view),
+                  children: _viewContent(view, animateStagger: !_appeared),
                 ),
               ),
             ),
@@ -91,25 +118,37 @@ class StatsPage extends ConsumerWidget {
     );
   }
 
-  List<Widget> _viewContent(StatsView view) {
+  /// 视角特定内容。
+  ///
+  /// animateStagger=true 时,非 SizedBox 元素按 index 30ms 错峰 fade + 上推,
+  /// 首次 mount 触发一次(由 _appeared flag 控制)。后续 view / 月份切换走
+  /// AnimatedSwitcher 的 fade,StaggeredFadeIn 全部 enabled=false 直接显示。
+  List<Widget> _viewContent(StatsView view, {required bool animateStagger}) {
+    final widgets = <Widget>[];
+    var staggerIndex = 0;
+    void add(Widget w) {
+      widgets.add(StaggeredFadeIn(
+        index: staggerIndex++,
+        enabled: animateStagger,
+        child: w,
+      ));
+    }
+
     switch (view) {
       case StatsView.expense:
-        return const [
-          CategoryPie(),
-          SizedBox(height: AppSpacing.s3),
-          TopExpenses(),
-          SizedBox(height: AppSpacing.s3),
-          MonthlyTrendChart(),
-        ];
+        add(const CategoryPie());
+        widgets.add(const SizedBox(height: AppSpacing.s3));
+        add(const TopExpenses());
+        widgets.add(const SizedBox(height: AppSpacing.s3));
+        add(const MonthlyTrendChart());
       case StatsView.income:
-        return const [
-          IncomePie(),
-          SizedBox(height: AppSpacing.s3),
-          MonthlyTrendChart(),
-        ];
+        add(const IncomePie());
+        widgets.add(const SizedBox(height: AppSpacing.s3));
+        add(const MonthlyTrendChart());
       case StatsView.assets:
-        return const [_AssetsPlaceholder()];
+        add(const _AssetsPlaceholder());
     }
+    return widgets;
   }
 }
 
