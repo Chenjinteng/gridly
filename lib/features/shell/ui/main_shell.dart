@@ -43,6 +43,19 @@ class MainShell extends StatelessWidget {
         height: 72,
         selectedIndex: currentIndex,
         onDestinationSelected: (i) {
+          // 切 tab 之前先收掉挂着的 modal sheet / dialog:
+          //   showModalBottomSheet 走的是 Navigator.push,在 Navigator 栈上;
+          //   context.go() 只换底层 go_router route,不动 Navigator 栈,
+          //   所以 sheet 会\"跨 tab 不消失\"(2026-10-11 UAT bug):
+          //     打开月度预算 sheet → 输一点 → 点报表 tab → 报表页下方还挂着预算 sheet
+          // popUntil(isFirst) 把所有 push 上来的 modal 一起 pop 回 first route,
+          // 用户视角 = \"任何切 tab 都会清掉当前挂的弹层\",跟原生体验一致。
+          // 注意:用 rootNavigator 拿到顶层 Navigator,因为 sheet 是 push 到
+          // MainShell 的 Navigator 上的,但不走 go_router 配置栈。
+          final rootNav = Navigator.of(context, rootNavigator: true);
+          if (rootNav.canPop()) {
+            rootNav.popUntil((r) => r.isFirst);
+          }
           // 5 个 destination:0=首页 / 1=流水 / 2=中央 "+" / 3=报表 / 4=我的
           // i==2 推到 root modal,其它用 go 清栈切换
           switch (i) {
