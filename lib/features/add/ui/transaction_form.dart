@@ -625,22 +625,21 @@ class _ActionPill extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Icon 保持原位置(贴左),不动
             Icon(icon, size: 14, color: iconColor),
             const SizedBox(width: 4),
-            // 文本居中:Expanded 占满剩余空间,Center 把 Text 推到剩余区中心
-            Expanded(
-              child: Center(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: fg,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+            // 2026-10-11 UAT 撤回居中:长分类名(如"吃吃喝喝必选")被
+            // 居中后溢出 + ellipsis 切位,看起来"文字没居中"。改回左对齐,
+            // icon + 文字紧贴左边,文字过长时自然尾部省略。
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: fg,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
