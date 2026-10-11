@@ -14,15 +14,18 @@ class MainShell extends StatelessWidget {
   const MainShell({super.key, required this.child});
   final Widget child;
 
-  static const _tabs = ['/home', '/ledger', '/stats', '/settings'];
-
   int _currentIndex(BuildContext context) {
     final loc = GoRouterState.of(context).uri.path;
+    // 中央"+" 占 destination index 2(空 label),所以 /stats / /settings
+    // 在 destinations 里要 +1(跳开 index 2)
     // 在 /add(root modal)时不命中任何 tab;fallback 到 1(流水)避免
-    // 底部 nav 高亮错乱。push 完成后 shell 仍可交互但 selectedIndex 是个 placeholder。
+    // 底部 nav 高亮错乱。
     if (loc.startsWith('/add')) return 1;
-    final i = _tabs.indexWhere((p) => loc.startsWith(p));
-    return i < 0 ? 0 : i;
+    if (loc.startsWith('/home')) return 0;
+    if (loc.startsWith('/ledger')) return 1;
+    if (loc.startsWith('/stats')) return 3;
+    if (loc.startsWith('/settings')) return 4;
+    return 0;
   }
 
   @override
