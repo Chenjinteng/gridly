@@ -11,6 +11,7 @@ import '../../../../core/settings/amount_visibility_provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/card_shadows.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/gridly_mark.dart';
 import '../../application/transactions_providers.dart';
@@ -41,19 +42,7 @@ class MonthlySummary extends ConsumerWidget {
           color: theme.colorScheme.outlineVariant, // 浅灰外框,不和 3 条品牌金横线抢眼
           width: 1.0, // 加粗:0.5 → 1.0,浅色背景下也能看清卡片边界
         ),
-        boxShadow: [
-          // 黑底卡:重阴影(浅色模式下白底反差大,需要强阴影才能"浮起来")
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.20),
-            blurRadius: 16,
-            offset: const Offset(0, 5),
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.12),
-            blurRadius: 32,
-            offset: const Offset(0, 12),
-          ),
-        ],
+        boxShadow: CardShadows.dark(context),
       ),
       child: ClipRRect(
         borderRadius: AppRadius.brLg,

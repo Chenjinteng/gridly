@@ -8,6 +8,7 @@ import '../../../../core/settings/amount_visibility_provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/card_shadows.dart';
 import '../../../../core/utils/budget_provider.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../ledger/application/transactions_providers.dart';
@@ -38,19 +39,7 @@ class BudgetProgress extends ConsumerWidget {
           color: Theme.of(context).colorScheme.outlineVariant,
           width: 1.0, // 加粗:0.5 → 1.0,和月度汇总卡保持一致
         ),
-        boxShadow: [
-          // 白底卡:轻阴影(本身已经浅色,重阴影会视觉过载)
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.025),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        boxShadow: CardShadows.light(context),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

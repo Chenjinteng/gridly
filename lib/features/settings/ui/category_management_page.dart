@@ -10,6 +10,7 @@ import '../../../core/database/providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/card_shadows.dart';
 import '../../../shared/constants/default_categories.dart';
 import '../../ledger/application/transactions_providers.dart';
 import 'widgets/category_form_sheet.dart';
@@ -191,19 +192,7 @@ class _CategoryTile extends StatelessWidget {
           color: Theme.of(context).colorScheme.outlineVariant,
           width: 1.0, // 全卡片统一:0.5 → 1.0
         ),
-        boxShadow: [
-          // 白底卡:轻阴影
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.025),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        boxShadow: CardShadows.light(context),
       ),
       child: ListTile(
         leading: Container(
