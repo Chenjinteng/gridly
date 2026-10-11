@@ -17,6 +17,11 @@ import '../../../../core/utils/refresh_providers.dart';
 import '../../../../shared/constants/default_categories.dart';
 import '../../application/transactions_providers.dart';
 
+/// 2026-10-11 UAT:tile 的外边距跟按钮层的内边距必须严格一致(都是 16/4),
+/// 否则视觉上"tile 跟按钮不在同一条对齐线上"。改任一处只改这两个常量,不会飘。
+const double _kRowHorizontalInset = AppSpacing.s4;  // 16
+const double _kRowVerticalInset = AppSpacing.s1;    // 4
+
 class TransactionTile extends ConsumerWidget {
   const TransactionTile({super.key, required this.transaction});
   final Transaction transaction;
@@ -44,8 +49,8 @@ class TransactionTile extends ConsumerWidget {
           onEdit: () => _onEditRequested(context),
           child: Container(
             margin: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.s4,
-              vertical: AppSpacing.s1,
+              horizontal: _kRowHorizontalInset,
+              vertical: _kRowVerticalInset,
             ),
             padding: const EdgeInsets.all(AppSpacing.s3),
             decoration: BoxDecoration(
@@ -332,8 +337,8 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
         Positioned.fill(
           child: Padding(
             padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.s4,
-              vertical: AppSpacing.s1,
+              horizontal: _kRowHorizontalInset,
+              vertical: _kRowVerticalInset,
             ),
             child: Align(
               alignment: Alignment.centerRight,
