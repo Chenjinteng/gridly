@@ -502,7 +502,14 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     //   记金额 → Numpad 在,键盘不用
     //   写备注 → 键盘在,Numpad 被盖住(无所谓,写备注时用不到计算器)
     //   收键盘 → Numpad 回来
+    // SafeArea(bottom: false) —— 关掉底部的 viewInsets/padding padding。
+    // 原因:Scaffold.resizeToAvoidBottomInset=false 只挡 Scaffold 重排,
+    // 但 SafeArea 默认会按 viewInsets.bottom 加底部 padding,
+    // 结果键盘弹起时 Numpad 被顶起来(SafeArea 推上去),不被键盘覆盖。
+    // 改 bottom: false 后 SafeArea 只挡 home indicator(由 padding.bottom 给),
+    // 不挡键盘(由 viewInsets.bottom 给,但我们不要这个 padding)
     return SafeArea(
+      bottom: false,
       child: Column(
         children: [
           // 表单上半部始终可访问,键盘弹起时 Numpad 整段被覆盖但上半部不被挤压

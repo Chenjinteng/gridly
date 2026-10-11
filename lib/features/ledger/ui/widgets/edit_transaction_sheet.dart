@@ -17,7 +17,11 @@ Future<void> showEditTransactionSheet(
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    useSafeArea: true,
+    // useSafeArea: false —— modal sheet 默认会再套一层 SafeArea,
+    // 这层 SafeArea 又会按 viewInsets.bottom 加底部 padding,导致键盘弹起时
+    // sheet 内容被顶起来。改成 false 让 TransactionForm 自己用 SafeArea(bottom: false) 管
+    //(2026-10-11 UAT:跟 add 页面同步,改回"不做检测,Numpad 固定 + 键盘覆盖"路线)
+    useSafeArea: false,
     backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
