@@ -86,8 +86,12 @@ class _StatsPageState extends ConsumerState<StatsPage> {
             const RangeSummary(),
             const SizedBox(height: AppSpacing.s3),
             // 视角特定内容 — 包 AnimatedSwitcher,切视角(支出/收入/资产)时
-            // fade + 微微上推 4px,680ms aquaIn。Column 包一层是为给
-            // AnimatedSwitcher 一个固定 widget 类型做 key 区分。
+            // 纯 fade(680ms aquaIn),不再上推。
+            //
+            // 2026-10-12 修:之前是 fade + 上推 4px,导致切到新视角时圆环
+            // spring 扫角过程被上推模糊,圆环"瞬间切上来"。改纯 fade 后,
+            // spring 扫角视觉集中(配合 spring 启动延迟 + spring 节奏
+            // 调整),圆环从起点顺时针画出来。
             AnimatedSwitcher(
               duration: AppMotion.slow,
               switchInCurve: AppMotion.aquaIn,
@@ -95,13 +99,7 @@ class _StatsPageState extends ConsumerState<StatsPage> {
               transitionBuilder: (child, animation) {
                 return FadeTransition(
                   opacity: animation,
-                  child: SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0, 0.04),
-                      end: Offset.zero,
-                    ).animate(animation),
-                    child: child,
-                  ),
+                  child: child,
                 );
               },
               child: KeyedSubtree(

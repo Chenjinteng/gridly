@@ -56,18 +56,27 @@ class _AnimatedPieChartState extends State<AnimatedPieChart>
   late final AnimationController _ctrl;
 
   /// ColorOS 圆环 spring 物理参数(2026-10-12 调):
-  /// - mass 1.0(标准)
-  /// - stiffness 120(快+有惯性,~500ms 完成)
-  /// - damping 20(略过临界 ~5% overshoot)
+  /// - mass 1.0
+  /// - stiffness 100(慢+有惯性,~800ms 完成)
+  /// - damping 18(临界欠阻尼 ~5-8% overshoot)
   ///
-  /// 之前用 stiffness 80 + damping 18,临界阻尼 ≈ 17.9,damping 18 几乎无
-  /// overshoot 但耗时 ~800ms,跟 AnimatedSwitcher 680ms 叠加导致"顿挫"。
-  /// 改 stiffness 120 + damping 20 后:~500ms 完成 + 轻微 overshoot,
-  /// 跟 AnimatedSwitcher fade in 节奏对齐,切换时不再"卡"。
+  /// 2026-10-12 改(关键):用户反馈切视角时圆环"卡一下直接切上来"。
+  /// 之前 stiffness 120 ~500ms 完成,但 AnimatedSwitcher fade 680ms
+  /// 期间 spring 已经走完,圆环 spring 扫角过程被 fade 模糊掉,
+  /// 视觉上圆环"瞬间出现"。
+  ///
+  /// 修法:
+  ///   1. spring stiffness 100,~800ms 完成,跟 AnimatedSwitcher fade 680ms
+  ///      节奏对齐(spring 完成时间 ≈ fade in 时间)
+  ///   2. spring 启动延迟 180ms,等 fade in 走到中段才开始扫角,避免
+  ///      fade 起步阶段(opacity 接近 0)被 spring 浪费掉
+  /// 综合效果:fade in 中段 ~180ms 起,圆环开始扫角;fade in 完成 ~680ms
+  /// 时,圆环 progress ≈ (680-180)/(800-180) ≈ 80%;fade 完成后圆环
+  /// 再画 120ms 收尾。用户视觉:fade in 期间清楚看到圆环扫角过程。
   static const SpringDescription _kSpring = SpringDescription(
     mass: 1.0,
-    stiffness: 120.0,
-    damping: 20.0,
+    stiffness: 100.0,
+    damping: 18.0,
   );
 
   @override
@@ -75,15 +84,21 @@ class _AnimatedPieChartState extends State<AnimatedPieChart>
     super.initState();
     // unbounded:true 终点可以超过 1(spring overshoot),不会 clamp
     _ctrl = AnimationController.unbounded(vsync: this, value: 0);
-    // 首次 mount:spring 从 0 到 1 + 自然 overshoot
+    // 首次 mount:等 180ms 后启动 spring,让 AnimatedSwitcher fade in
+    // 走到中段(opacity ~0.27)再开始画弧。这样 fade 期间扫角视觉集中,
+    // 不会"瞬间切上来"。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _ctrl.animateWith(SpringSimulation(
-          _kSpring,
-          0.0,   // start
-          1.0,   // end
-          0.0,   // 初始 velocity = 0
-        ));
+        Future.delayed(const Duration(milliseconds: 180), () {
+          if (mounted) {
+            _ctrl.animateWith(SpringSimulation(
+              _kSpring,
+              0.0,   // start
+              1.0,   // end
+              0.0,   // 初始 velocity = 0
+            ));
+          }
+        });
       }
     });
   }
