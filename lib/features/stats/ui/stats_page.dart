@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/motion/app_motion.dart';
+import '../../../core/haptics/app_haptics.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -178,6 +179,8 @@ class _ViewMenu extends StatelessWidget {
       }),
     );
     if (picked != null && picked != current) {
+      // 视角切换:selectionClick(ColorOS 标志性"咔哒")
+      AppHaptics.select();
       onChange(picked);
     }
   }

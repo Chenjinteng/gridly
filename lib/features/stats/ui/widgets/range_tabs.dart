@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/motion/app_motion.dart';
+import '../../../../core/haptics/app_haptics.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -75,8 +76,12 @@ class RangeTabs extends ConsumerWidget {
                 selected: isThisMonth,
                 onTap: () {
                   if (range == StatsRange.thisMonth) {
+                    // 已在该段 → 弹月份 picker,tap 反馈(打开 picker 不算 toggle)
+                    AppHaptics.tap();
                     _pickMonth(context, ref, custom);
                   } else {
+                    // 切到该段 → select 反馈(ColorOS O-Haptic 标志性"咔哒")
+                    AppHaptics.select();
                     ref.read(statsRangeProvider.notifier).state =
                         StatsRange.thisMonth;
                   }
@@ -89,8 +94,10 @@ class RangeTabs extends ConsumerWidget {
                 selected: isThisYear,
                 onTap: () {
                   if (range == StatsRange.thisYear) {
+                    AppHaptics.tap();
                     _pickYear(context, ref, customYear);
                   } else {
+                    AppHaptics.select();
                     ref.read(statsRangeProvider.notifier).state =
                         StatsRange.thisYear;
                   }
@@ -103,6 +110,8 @@ class RangeTabs extends ConsumerWidget {
               active: filterActive,
               onPressed: filterActive
                   ? () {
+                      // 清筛选是个"重置"动作,success(中量)反馈
+                      AppHaptics.success();
                       ref
                           .read(statsCustomMonthProvider.notifier)
                           .state = null;
