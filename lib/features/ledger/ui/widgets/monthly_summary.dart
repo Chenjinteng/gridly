@@ -142,6 +142,8 @@ class MonthlySummary extends ConsumerWidget {
                 // 跟 cells 的 `收入(万元)` label 风格一致 —— 视觉系统里
                 // 单位统一是带 parens 的 `(万元)` 形式,只是大小不同
                 // (cells fontSize 11 vs main 30;大数字旁用 14 折中)
+                // text 前导一个空格(继承 fontSize 14 ≈ 4px),给数字和单位
+                // 标记之间一点呼吸空间,避免 `999.99(万元)` 这种贴脸感
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
@@ -153,7 +155,7 @@ class MonthlySummary extends ConsumerWidget {
                         if (!hidden &&
                             Formatters.unit(summary.balance) == '万元')
                           TextSpan(
-                            text: '(万元)',
+                            text: ' (万元)', // 前导空格 ≈ 4px 呼吸
                             style: TextStyle(
                               fontSize: 14,
                               color: AppGray.g400,
