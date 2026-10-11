@@ -327,7 +327,8 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
 
     return Stack(
       children: [
-        // 底层:操作按钮条 — [编辑 76px][4px gap][删除 76px],圆角 pill(2026-10-11 UAT 反馈统一)
+        // 底层:操作按钮条 — [编辑 76px][4px gap][删除 76px],brLg 圆角矩形 + elevation 2
+        // 2026-10-11 UAT 反馈:胶囊"丑且太大",退回圆角矩形,加 elevation 落影
         // 按钮跟随 _offset 渐显(opacity + translate),不再"突然出现"。
         // 左按钮(编辑)用主题色 primary,右按钮(删除)用 error 红 —— iOS 标准。
         // 外层 surface Container(color: surface) 占据整个 Stack 范围挡住按钮漏色。
@@ -351,9 +352,13 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
                         width: 76,
                         child: Material(
                           color: theme.colorScheme.primary,
-                          borderRadius: AppRadius.brPill,
+                          // 2026-10-11 UAT:从 brPill(胶囊)退回 brLg(圆角矩形),
+                          // 用户反馈胶囊"丑且太大",圆角矩形更克制;加 elevation 给按钮落影
+                          borderRadius: AppRadius.brLg,
+                          elevation: 2,
+                          shadowColor: Colors.black26,
                           child: InkWell(
-                            borderRadius: AppRadius.brPill,
+                            borderRadius: AppRadius.brLg,
                             onTap: widget.onEdit,
                             child: const Center(
                               child: Text(
@@ -389,9 +394,12 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
                         width: 76,
                         child: Material(
                           color: AppStatus.error,
-                          borderRadius: AppRadius.brPill,
+                          // 跟编辑按钮一致:brLg 圆角矩形 + elevation 落影
+                          borderRadius: AppRadius.brLg,
+                          elevation: 2,
+                          shadowColor: Colors.black26,
                           child: InkWell(
-                            borderRadius: AppRadius.brPill,
+                            borderRadius: AppRadius.brLg,
                             onTap: widget.onDelete,
                             child: const Center(
                               child: Text(
