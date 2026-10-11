@@ -43,17 +43,11 @@ class TransactionTile extends ConsumerWidget {
           onDelete: () => _onDeleteRequested(context, ref),
           onEdit: () => _onEditRequested(context),
           child: Container(
-            // 2026-10-11 UAT:tile 填满 Stack,不再用 outer Container 盖按钮。
-            // 旧设计:margin s4 + outer Container(后者用 surface 色 + brLg 盖按钮
-            // 在 tile 圆角处的漏色)。新设计:tile 自己填满 Stack,圆角在屏幕边
-            // (那里没有按钮),自然不漏。
-            // padding 从 (margin + padding) 合并到内部 padding:
-            //   原:margin s4 horizontal + padding s3 = 28px 屏边到内容
-            //   现:padding 28 horizontal(屏边到内容一样)
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.s4 + AppSpacing.s3,  // 28 = s4 + s3
-              vertical: AppSpacing.s1 + AppSpacing.s3,    // 16 = s1 + s3
+            margin: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.s4,
+              vertical: AppSpacing.s1,
             ),
+            padding: const EdgeInsets.all(AppSpacing.s3),
             decoration: BoxDecoration(
               color: theme.colorScheme.surfaceContainerLow,
               borderRadius: AppRadius.brLg,
@@ -431,8 +425,9 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
           ),
         ),
         // 上层:tile(随 _offset 水平平移)—— drag 1:1 跟随,松手才 snap
-        // 2026-10-11 UAT:tile 填满 Stack(无外间距),不再用 outer Container 盖按钮。
-        // tile 自己填满 Stack → 圆角在屏幕边(那里没按钮) → 不漏色。
+        // 2026-10-11 UAT:e037011 试过 tile 填满 Stack(无外间距),用户觉得太拥挤
+        // (border/shadow 贴屏幕边),撤回 → 恢复外层 Container + inner tile margin。
+        // 外层 Container 跟 inner tile 都用 brLg + 同色系,左滑时露出的右边也是圆角。
         // 用 key 标识,便于 widget 测试定位(其他 Transform 是按钮的 slide-in 偏移)
         Transform.translate(
           key: const ValueKey('tx-tile-transform'),
@@ -443,7 +438,13 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
             onHorizontalDragUpdate: _onDragUpdate,
             onHorizontalDragEnd: _onDragEnd,
             onTap: _close,
-            child: widget.child,
+            child: Container(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: AppRadius.brLg,
+              ),
+              child: widget.child,
+            ),
           ),
         ),
       ],
