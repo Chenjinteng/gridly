@@ -11,9 +11,12 @@ class Formatters {
 
   // 金额:千分位逗号 + 始终 2 位小数
   // 例:10000 → "10,000.00", 10000.5 → "10,000.50"
+  // 超过 maxAmount 时压缩成 "9,999,999+" —— .XX 已隐含在 cap 里所以去掉,
+  // "+" 单一符号够说明"被截断"。避免在报表黑底汇总 / 同心环中心这种
+  // 紧凑位置把字体强行缩到失衡("9,999,999.99+" 比 "9,999,999+" 长 4 字符)。
   static final NumberFormat _amountFmt = NumberFormat('#,##0.00');
   static String amount(double v) {
-    if (v.abs() > maxAmount) return '9,999,999.99+';
+    if (v.abs() > maxAmount) return '9,999,999+';
     return _amountFmt.format(v);
   }
 
