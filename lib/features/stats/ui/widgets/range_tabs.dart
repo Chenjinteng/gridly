@@ -221,6 +221,14 @@ class _RangeSegment extends StatelessWidget {
                 ),
               ),
             ),
+            // 2026-10-11 UAT:加 chevron 提示"点了会下拉",跟 segment
+            // 行为一致(切月/切年),跟右上角"切换视角" chevron 视觉一致
+            const SizedBox(width: 2),
+            Icon(
+              Icons.expand_more_rounded,
+              size: 14,
+              color: fg,
+            ),
           ],
         ),
       ),
