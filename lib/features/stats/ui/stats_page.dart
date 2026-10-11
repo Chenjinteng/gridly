@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/refresh_providers.dart';
 import 'widgets/category_pie.dart';
@@ -105,16 +106,8 @@ class _ViewMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return PopupMenuButton<StatsView>(
-      // 2026-10-11 UAT:手机上没鼠标,tooltip 长按误触反而碍事,删掉。
-      initialValue: current,
-      onSelected: onChange,
-      itemBuilder: (_) => const [
-        PopupMenuItem(value: StatsView.expense, child: Text('支出')),
-        PopupMenuItem(value: StatsView.income, child: Text('收入')),
-        PopupMenuItem(value: StatsView.assets, child: Text('资产')),
-      ],
-      // 用 child 自定义触发器:text + chevron,看起来像"标签下拉"
+    return InkWell(
+      onTap: () => _openPicker(context),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s2),
         child: Row(
@@ -134,6 +127,185 @@ class _ViewMenu extends StatelessWidget {
               size: 18,
               color: theme.colorScheme.onSurfaceVariant,
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 2026-10-11 UAT:之前用系统 PopupMenuButton,Material 默认深色 item + 阴影,
+  /// 跟 gridly UI 风格脱节。换成自定义 bottom sheet:
+  ///   - 顶部 drag handle(跟日期 picker / 月份 picker 一致)
+  ///   - 标题"选择视角"
+  ///   - 3 行 item:选中行 brand 色背景 + check icon;未选中行主题色
+  ///   - 圆角 AppRadius.brXl 顶部,跟其它 sheet 视觉一致
+  Future<void> _openPicker(BuildContext context) async {
+    final picked = await showModalBottomSheet<StatsView>(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      builder: (_) => _ViewPickerSheet(current: current, onPick: (v) {
+        Navigator.pop(context, v);
+      }),
+    );
+    if (picked != null && picked != current) {
+      onChange(picked);
+    }
+  }
+}
+
+/// 视角选择底部 sheet
+class _ViewPickerSheet extends StatelessWidget {
+  const _ViewPickerSheet({required this.current, required this.onPick});
+
+  final StatsView current;
+  final ValueChanged<StatsView> onPick;
+
+  // 视角 icon 跟 kind 颜色,跟 gridly 卡片视觉对齐
+  static const _options = <(StatsView, String, IconData, Color)>[
+    (StatsView.expense, '支出', Icons.arrow_outward_rounded, AppStatus.error),
+    (StatsView.income, '收入', Icons.south_west_rounded, AppBrand.gold),
+    (StatsView.assets, '资产', Icons.account_balance_wallet_rounded, AppBrand.teal),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: AppSpacing.s4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 把手
+            Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(top: 8, bottom: 12),
+              decoration: BoxDecoration(
+                color: AppGray.g400,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.s4,
+                vertical: AppSpacing.s2,
+              ),
+              child: Row(
+                children: [
+                  const Text(
+                    '选择视角',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('关闭'),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
+              child: Column(
+                children: [
+                  for (final (view, label, icon, color) in _options)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.s2),
+                      child: _ViewOption(
+                        label: label,
+                        icon: icon,
+                        color: color,
+                        selected: view == current,
+                        onTap: () => onPick(view),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 视角选择行:icon + label + check(选中时)
+class _ViewOption extends StatelessWidget {
+  const _ViewOption({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      borderRadius: AppRadius.brLg,
+      onTap: onTap,
+      child: Container(
+        height: 56,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s3),
+        decoration: BoxDecoration(
+          color: selected
+              ? theme.colorScheme.primary.withValues(alpha: 0.12)
+              : theme.colorScheme.surfaceContainerLow,
+          borderRadius: AppRadius.brLg,
+          border: Border.all(
+            color: selected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.outlineVariant,
+            width: 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            // icon 块:kind 颜色 18% alpha 背景 + 全 icon
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.18),
+                borderRadius: AppRadius.brMd,
+              ),
+              alignment: Alignment.center,
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: AppSpacing.s3),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight:
+                      selected ? FontWeight.w700 : FontWeight.w600,
+                  color: selected
+                      ? theme.colorScheme.primary
+                      : theme.colorScheme.onSurface,
+                ),
+              ),
+            ),
+            if (selected)
+              Icon(
+                Icons.check_rounded,
+                color: theme.colorScheme.primary,
+                size: 22,
+              ),
           ],
         ),
       ),
