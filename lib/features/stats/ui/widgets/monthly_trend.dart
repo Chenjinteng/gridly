@@ -98,14 +98,17 @@ class MonthlyTrend extends ConsumerWidget {
                       leftTitles: AxisTitles(
                         sideTitles: SideTitles(
                           showTitles: true,
-                          // Y 轴预留宽度:5-7 位数字(如 99999、9999999)放得下不再竖切。
-                          // 36 不够,实测 "99999" 在 fontSize 10 会被竖切成 "9999" + "9"
-                          // (截图中 80000 / 60000 / 40000 / 20000 全是 5 位都被切)
-                          reservedSize: 48,
+                          // Y 轴预留宽度:数字经 Formatters.amount 走万元 mode,
+                          // "999.99万" ≈ 7 字符 + 千分位逗号,28 像素够装。
+                          // 之前 48 是给 raw "9999999" 这种 7 位整数留的,现在不需要
+                          reservedSize: 44,
                           getTitlesWidget: (v, meta) => Text(
-                            v.toStringAsFixed(0),
+                            // 跟全局单位逻辑保持一致:>= 1万 切万元 mode,2 位小数
+                            // 例:5,000,000 → "500.00万"; 9999999 → "999.99万"
+                            // cap 时仍返回 "999.99万+",chart 上看到 + 提示截断
+                            Formatters.amount(v),
                             style: const TextStyle(
-                              fontSize: 9, // 9 字配 48 宽,5-7 位都放得开
+                              fontSize: 9,
                               color: AppGray.g600,
                             ),
                             // 防御性关闭 wrap:即使未来真出现 8+ 位数字也不会竖切,
