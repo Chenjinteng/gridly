@@ -13,6 +13,7 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/card_shadows.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/utils/gridly_banner.dart';
 import '../../../../core/utils/refresh_providers.dart';
 import '../../../../shared/constants/default_categories.dart';
 import '../../application/transactions_providers.dart';
@@ -138,11 +139,10 @@ class TransactionTile extends ConsumerWidget {
     await ref.read(transactionRepositoryProvider).delete(transaction.id);
     refreshAllData(ref);
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('已删除'),
-          duration: Duration(seconds: 1),
-        ),
+      showGridlyBanner(
+        context,
+        '已删除',
+        kind: GridlyBannerKind.success,
       );
     }
   }

@@ -25,6 +25,7 @@ import '../../../core/database/providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/utils/gridly_banner.dart';
 import '../../../core/utils/refresh_providers.dart';
 import '../../../shared/constants/default_categories.dart';
 import '../../ledger/application/transactions_providers.dart';
@@ -278,9 +279,7 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   }
 
   void _toast(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), duration: const Duration(seconds: 1)),
-    );
+    showGridlyBanner(context, msg, kind: GridlyBannerKind.warning);
   }
 
   Future<void> _pickDate() async {

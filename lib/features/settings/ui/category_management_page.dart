@@ -11,6 +11,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/card_shadows.dart';
+import '../../../core/utils/gridly_banner.dart';
 import '../../../shared/constants/default_categories.dart';
 import '../../ledger/application/transactions_providers.dart';
 import 'widgets/category_form_sheet.dart';
@@ -117,8 +118,10 @@ class CategoryManagementPage extends ConsumerWidget {
       ref.invalidate(allTransactionsByDayProvider);
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('删除失败:$e')),
+        showGridlyBanner(
+          context,
+          '删除失败:$e',
+          kind: GridlyBannerKind.error,
         );
       }
     }

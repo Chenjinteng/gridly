@@ -10,6 +10,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/card_shadows.dart';
+import '../../../core/utils/gridly_banner.dart';
 import '../../../core/widgets/gridly_mark.dart';
 
 class AboutPage extends ConsumerWidget {
@@ -172,14 +173,18 @@ class AboutPage extends ConsumerWidget {
     try {
       await ref.read(databaseProvider).clearAllData();
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('已清空所有流水')),
+        showGridlyBanner(
+          context,
+          '已清空所有流水',
+          kind: GridlyBannerKind.success,
         );
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('清空失败:$e')),
+        showGridlyBanner(
+          context,
+          '清空失败:$e',
+          kind: GridlyBannerKind.error,
         );
       }
     }

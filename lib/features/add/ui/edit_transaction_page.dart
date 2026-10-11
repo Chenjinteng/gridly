@@ -14,6 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/utils/gridly_banner.dart';
 import '../../ledger/application/transactions_providers.dart';
 import 'transaction_form.dart';
 
@@ -50,8 +51,10 @@ class EditTransactionPage extends ConsumerWidget {
             // 延迟 pop,等用户看到提示再退(用 addPostFrameCallback 避免 build 中 setState)
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('找不到这笔流水,可能已被删除')),
+              showGridlyBanner(
+                context,
+                '找不到这笔流水,可能已被删除',
+                kind: GridlyBannerKind.warning,
               );
               context.pop();
             });

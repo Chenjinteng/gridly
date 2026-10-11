@@ -7,6 +7,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/utils/gridly_banner.dart';
 import '../../application/csv_export_controller.dart';
 
 class CsvExportSheet extends ConsumerStatefulWidget {
@@ -36,8 +37,10 @@ class _CsvExportSheetState extends ConsumerState<CsvExportSheet> {
       } catch (_) {}
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('导出失败:$e')),
+        showGridlyBanner(
+          context,
+          '导出失败:$e',
+          kind: GridlyBannerKind.error,
         );
       }
     } finally {
