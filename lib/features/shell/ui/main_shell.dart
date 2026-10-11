@@ -17,6 +17,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/router/app_router.dart' show shellNavigatorKey;
 import '../../../core/theme/app_colors.dart';
 import '../../../../core/motion/app_motion.dart';
+import '../../../../core/haptics/app_haptics.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/ledger_grid_background.dart';
 
@@ -130,6 +131,14 @@ class _MainShellState extends ConsumerState<MainShell> {
           final shellNav = shellNavigatorKey.currentState;
           if (shellNav != null && shellNav.canPop()) {
             shellNav.popUntil((route) => route.isFirst);
+          }
+          // 2026-10-12 ColorOS Tactile Haptics:tab 切换的标志性"咔哒"。
+          // 用 selectionClick 比 lightImpact 更"轻",符合 ColorOS O-Haptic
+          // 设计。中央"+" 按下用 tap(数字键同款,因为是触发操作)。
+          if (i == 2) {
+            AppHaptics.tap();
+          } else {
+            AppHaptics.select();
           }
           // 5 个 destination:0=首页 / 1=流水 / 2=中央 "+" / 3=报表 / 4=我的
           // i==2 推到 root modal,其它用 go 清栈切换
