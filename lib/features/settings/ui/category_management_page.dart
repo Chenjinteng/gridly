@@ -113,6 +113,7 @@ class CategoryManagementPage extends ConsumerWidget {
     try {
       await ref.read(categoryRepositoryProvider).delete(c.id);
       ref.invalidate(allCategoriesProvider);
+      ref.invalidate(categoriesByTypeProvider);
       ref.invalidate(allTransactionsByDayProvider);
     } catch (e) {
       if (context.mounted) {

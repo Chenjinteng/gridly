@@ -26,4 +26,8 @@ void refreshAllData(WidgetRef ref) {
   ref.invalidate(topExpensesProvider);
   ref.invalidate(monthlyTrendProvider);
   ref.invalidate(allCategoriesProvider);
+  // 2026-10-11 UAT bug fix:分类管理里 add/update/delete 后,记一笔页的分类
+  // 选择器必须同步刷新;之前只 invalidate allCategoriesProvider,family 的
+  // categoriesByTypeProvider 还是缓存,新分类选不到。
+  ref.invalidate(categoriesByTypeProvider);
 }

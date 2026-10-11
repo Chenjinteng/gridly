@@ -163,6 +163,7 @@ static const _colorOptions = <int>[
         ));
       }
       ref.invalidate(allCategoriesProvider);
+      ref.invalidate(categoriesByTypeProvider);
       ref.invalidate(allTransactionsByDayProvider);
       if (mounted) Navigator.pop(context);
     } catch (e) {
