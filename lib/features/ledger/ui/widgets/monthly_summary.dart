@@ -239,7 +239,11 @@ class _Cell extends StatelessWidget {
             color: AppBrand.gold, // cell 顶线:3 条品牌金横线之一
             width: 0.5,
           ),
-          left: showDivider
+          // 收入 cell 才有分隔线 —— 画在 RIGHT 边,自然落在两 cell 中间。
+          // 之前写在 LEFT 边时,分隔线落在卡片最左内边缘,跟 rim light border
+          // (0.08 alpha 白边)紧挨成两条平行线,中间 收入/支出 之间反而没线
+          // —— 截图里红框高亮的就是这条错位的竖线
+          right: showDivider
               ? const BorderSide(
                   color: AppBrand.charcoal, // cell 之间竖线保持浅灰(不抢眼)
                   width: 0.5,
