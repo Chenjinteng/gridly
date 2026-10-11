@@ -157,7 +157,10 @@ class MonthlySummary extends ConsumerWidget {
                 children: [
                   Expanded(
                     child: _Cell(
-                      label: '收入',
+                      // 隐藏金额时不加单位后缀(避免误导);可见时按值动态加 (元)/(万元)
+                      label: hidden
+                          ? '收入'
+                          : Formatters.labelledUnit('收入', summary.income),
                       amount: hidden ? null : summary.income,
                       color: AppBrand.gold,
                       showDivider: true,
@@ -165,7 +168,9 @@ class MonthlySummary extends ConsumerWidget {
                   ),
                   Expanded(
                     child: _Cell(
-                      label: '支出',
+                      label: hidden
+                          ? '支出'
+                          : Formatters.labelledUnit('支出', summary.expense),
                       amount: hidden ? null : summary.expense,
                       color: AppStatus.error,
                       showDivider: false,
@@ -188,9 +193,12 @@ class MonthlySummary extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  const Text(
-                    '日均支出',
-                    style: TextStyle(color: AppGray.g400, fontSize: 11),
+                  Text(
+                    // 动态单位后缀
+                    hidden
+                        ? '日均支出'
+                        : Formatters.labelledUnit('日均支出', dailyAvg),
+                    style: const TextStyle(color: AppGray.g400, fontSize: 11),
                   ),
                   const Spacer(),
                   Text(

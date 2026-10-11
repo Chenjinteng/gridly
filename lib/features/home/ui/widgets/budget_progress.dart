@@ -47,9 +47,15 @@ class BudgetProgress extends ConsumerWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                '本月预算',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+              // 动态单位:amountVisibility 控制时去掉 parens(避免误导显示)
+              Text(
+                hidden
+                    ? '本月预算'
+                    : Formatters.labelledUnit('本月预算', budget),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
               Text(
                 _statusText(state, percent, spent, budget, hidden),
@@ -75,12 +81,17 @@ class BudgetProgress extends ConsumerWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              // 标签 + 单位后缀按值动态切;隐藏金额时退化为不带 parens 的标签
               Text(
-                '已花 ${money(spent)}',
+                hidden
+                    ? '已花'
+                    : '${Formatters.labelledUnit('已花', spent)}${money(spent)}',
                 style: const TextStyle(fontSize: 12),
               ),
               Text(
-                '预算 ${money(budget)}',
+                hidden
+                    ? '预算'
+                    : '${Formatters.labelledUnit('预算', budget)}${money(budget)}',
                 style: const TextStyle(
                   fontSize: 12,
                   color: AppGray.g600,

@@ -35,7 +35,8 @@ class RangeSummary extends ConsumerWidget {
         children: [
           Expanded(
             child: _Stat(
-              label: '收入',
+              // 单位标签按值动态切 (元)/(万元) —— Formatters.amount 同步切万
+              label: Formatters.labelledUnit('收入', s.income),
               amount: s.income,
               color: AppBrand.gold,
             ),
@@ -43,7 +44,7 @@ class RangeSummary extends ConsumerWidget {
           Container(width: 1, height: 32, color: AppGray.g600),
           Expanded(
             child: _Stat(
-              label: '支出',
+              label: Formatters.labelledUnit('支出', s.expense),
               amount: s.expense,
               color: AppStatus.error,
             ),
@@ -51,7 +52,7 @@ class RangeSummary extends ConsumerWidget {
           Container(width: 1, height: 32, color: AppGray.g600),
           Expanded(
             child: _Stat(
-              label: '结余',
+              label: Formatters.labelledUnit('结余', s.balance),
               amount: s.balance,
               color: AppSecondary.cream,
             ),
