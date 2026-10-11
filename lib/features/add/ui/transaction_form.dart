@@ -29,6 +29,7 @@ import '../../../core/utils/refresh_providers.dart';
 import '../../../shared/constants/default_categories.dart';
 import '../../ledger/application/transactions_providers.dart';
 import 'widgets/amount_display.dart';
+import 'widgets/custom_date_picker.dart';
 import 'widgets/numpad.dart';
 import 'widgets/type_toggle.dart';
 
@@ -283,12 +284,16 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   }
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
+    // 2026-10-11 UAT:系统 showDatePicker 满屏英文("Sun, Oct 11" / "Cancel")
+    // + 卡片样式跟 gridly 不搭。换成自定义 CustomDatePickerSheet:
+    //   - 全中文:年月日 / 快捷按钮 / 取消确定 / 周日一二三四五六
+    //   - 卡片样式对齐 gridly(AppRadius.brXl + brand teal)
+    //   - 顶部"今天/昨天/前天"快捷(覆盖记账 80% 场景)
+    final picked = await showCustomDatePicker(
       context: context,
       initialDate: _occurredAt,
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(const Duration(days: 365)),
-      helpText: '选日期',
     );
     if (picked != null) {
       setState(() {
