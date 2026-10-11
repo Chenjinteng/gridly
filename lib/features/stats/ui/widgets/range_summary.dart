@@ -80,25 +80,34 @@ class _Stat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          label,
-          style: const TextStyle(color: AppGray.g400, fontSize: 11),
-        ),
-        const SizedBox(height: 4),
-        FittedBox(
-          child: Text(
-            // label `收入(万元)` 已经声明单位,数字不重复带"万"
-            '¥${Formatters.amount(amount, withUnit: false)}',
-            style: TextStyle(
-              color: color,
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
+    // 2026-10-11 UAT:数字长(¥16,540.32 / ¥13,085.08)时,"¥" 字符贴着
+    // card 左边线,"32" 几乎碰到分隔线,看着像没居中。Column 加 4px
+    // 水平内边距,数字跟分隔线 / 卡片边之间留出视觉呼吸位。
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s1),
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: const TextStyle(color: AppGray.g400, fontSize: 11),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          FittedBox(
+            child: Text(
+              // label `收入(万元)` 已经声明单位,数字不重复带"万"
+              '¥${Formatters.amount(amount, withUnit: false)}',
+              style: TextStyle(
+                color: color,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 1,
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
