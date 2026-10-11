@@ -19,12 +19,12 @@ class CardShadows {
     final color = isDark ? Colors.white : Colors.black;
     return [
       BoxShadow(
-        color: color.withValues(alpha: isDark ? 0.08 : 0.20),
+        color: color.withValues(alpha: isDark ? 0.05 : 0.20),
         blurRadius: 16,
         offset: const Offset(0, 5),
       ),
       BoxShadow(
-        color: color.withValues(alpha: isDark ? 0.04 : 0.12),
+        color: color.withValues(alpha: isDark ? 0.025 : 0.12),
         blurRadius: 32,
         offset: const Offset(0, 12),
       ),
@@ -37,12 +37,12 @@ class CardShadows {
     final color = isDark ? Colors.white : Colors.black;
     return [
       BoxShadow(
-        color: color.withValues(alpha: isDark ? 0.05 : 0.05),
+        color: color.withValues(alpha: isDark ? 0.03 : 0.05),
         blurRadius: 8,
         offset: const Offset(0, 2),
       ),
       BoxShadow(
-        color: color.withValues(alpha: isDark ? 0.025 : 0.025),
+        color: color.withValues(alpha: isDark ? 0.015 : 0.025),
         blurRadius: 16,
         offset: const Offset(0, 6),
       ),
