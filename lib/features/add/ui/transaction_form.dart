@@ -498,62 +498,80 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     return SafeArea(
       child: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(AppSpacing.s4),
-            child: TypeToggle(
-              value: _type,
-              onChanged: (v) => setState(() {
-                _type = v;
-                _categoryId = null;
-              }),
-            ),
-          ),
-          _dateRow(context),
-          // 表达式 + 金额
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (_calc.expression.isNotEmpty)
+          // 上半部表单(type / 日期 / 金额 / 备注 / 保存)— 键盘弹出时滚动给用户看到全部字段
+          // Expanded 占满减去下方 Numpad 本征高(5 × 56 = 280)后的空间,无键盘时自然大,
+          // 有键盘时变小且可滚动 —— 跟 iOS 原生表单 + 自定义键盘的交互一致
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text(
-                      _calc.expression,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w400,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    padding: const EdgeInsets.all(AppSpacing.s4),
+                    child: TypeToggle(
+                      value: _type,
+                      onChanged: (v) => setState(() {
+                        _type = v;
+                        _categoryId = null;
+                      }),
                     ),
                   ),
-                AmountDisplay(amount: _calc.display, type: _type),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
-            child: TextField(
-              controller: _noteController,
-              maxLength: 30,
-              decoration: const InputDecoration(
-                hintText: '备注(可选)',
-                border: InputBorder.none,
-                isDense: true,
-                counterText: '',
+                  _dateRow(context),
+                  // 表达式 + 金额
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        if (_calc.expression.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Text(
+                              _calc.expression,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                                fontWeight: FontWeight.w400,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        AmountDisplay(amount: _calc.display, type: _type),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
+                    child: TextField(
+                      controller: _noteController,
+                      maxLength: 30,
+                      decoration: const InputDecoration(
+                        hintText: '备注(可选)',
+                        border: InputBorder.none,
+                        isDense: true,
+                        counterText: '',
+                      ),
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  _saveBar(context, ref),
+                ],
               ),
-              style: const TextStyle(fontSize: 14),
             ),
           ),
-          const Divider(height: 1),
-          _saveBar(context, ref),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.s1),
-              child: Numpad(onKey: _onKey),
-            ),
+          // 下方计算器 —— 固定本征高(5 行 × 56),不被键盘推挤
+          // 改前用 Expanded(Numpad):键盘弹出时 Numpad 跟剩余空间一起被压,
+          // 5 行压到 1 行可见、其余被键盘覆盖;
+          // 改后 Numpad 自带 MainAxisSize.min + SizedBox 行,撑满时是 280px,
+          // 不被压,弹出键盘时上方表单滚动给用户看备注
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.s1),
+            child: Numpad(onKey: _onKey),
           ),
         ],
       ),
