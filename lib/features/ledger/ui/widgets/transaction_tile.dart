@@ -180,7 +180,12 @@ class _SwipeToDeleteState extends State<_SwipeToDelete>
     with SingleTickerProviderStateMixin {
   /// 划开的固定宽度(px)—— 露出 [编辑 76 + 4 gap + 删除 76 = 156]px 的按钮区域
   /// (中间留 4px surface 色 gap 让两个按钮视觉独立,不粘成一条)
-  static const double _kOpenOffset = 156;
+  // 2026-10-11:从 156 提到 180。
+  // 原因:按钮 row 的 Padding(horizontal: AppSpacing.s4=16)让 row 左边多 16,
+  // 滑动距离只算了 156(76+4+76),差 16 → 全开时 tile 右边盖住编辑按钮左 16px,
+  // 看起来"编辑按钮被挡住一边,跟删除按钮不一致"。
+  // 180 = 156 + 16(补齐 Padding) + 8(视觉间隙,防 card shadow 渗入按钮区)
+  static const double _kOpenOffset = 180;
 
   /// snap 阈值:划到这个距离就锁住,否则弹回
   static const double _kSnapThreshold = 40;
