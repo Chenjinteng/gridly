@@ -84,7 +84,8 @@ class _Stat extends StatelessWidget {
         const SizedBox(height: 4),
         FittedBox(
           child: Text(
-            '¥${Formatters.amount(amount)}',
+            // label `收入(万元)` 已经声明单位,数字不重复带"万"
+            '¥${Formatters.amount(amount, withUnit: false)}',
             style: TextStyle(
               color: color,
               fontSize: 15,

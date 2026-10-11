@@ -33,7 +33,10 @@ class MonthlySummary extends ConsumerWidget {
         now.day > 0 ? summary.expense / now.day : summary.expense;
 
     // 金额文本:隐藏时显示「¥ •••••」占位(位数感保留),不暴露具体数字
-    String amountText(double v) => hidden ? '••••••' : '¥${Formatters.amount(v)}';
+    // withUnit=false → 数字不带"万",由"万"作为单独 TextSpan 在大数字右侧补上
+    // (cells 由本小 label `收入(万元)` 已声明单位,不需要再带)
+    String amountText(double v) =>
+        hidden ? '••••••' : '¥${Formatters.amount(v, withUnit: false)}';
 
     return Container(
       margin: const EdgeInsets.all(AppSpacing.s4),
@@ -135,11 +138,28 @@ class MonthlySummary extends ConsumerWidget {
                 alignment: Alignment.centerLeft,
                 // 余额同样可能接近 9999999.99(7 位整数 + 2 位小数),
                 // 用 FittedBox.scaleDown 兜底防止极端情况下换行成两行
+                // 万 mode 下主体右侧追加小号灰色"万"作为单位标记
+                // (fontSize 30 vs 16 = 53% 比例,视觉上是附属标记而非主数字)
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
-                  child: Text(
-                    amountText(summary.balance),
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(text: amountText(summary.balance)),
+                        // 万元 mode + 可见时:小号灰"万"作单位标记
+                        if (!hidden &&
+                            Formatters.unit(summary.balance) == '万元')
+                          TextSpan(
+                            text: '万',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: AppGray.g400,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                      ],
+                    ),
                     style: TextStyle(
                       color: hidden ? AppGray.g400 : AppSecondary.cream,
                       fontSize: 30,
@@ -202,7 +222,7 @@ class MonthlySummary extends ConsumerWidget {
                   ),
                   const Spacer(),
                   Text(
-                    hidden ? '••••••' : '¥${Formatters.amount(dailyAvg)}',
+                    hidden ? '••••••' : '¥${Formatters.amount(dailyAvg, withUnit: false)}',
                     style: TextStyle(
                       color: hidden ? AppGray.g400 : AppStatus.error,
                       fontSize: 12,
@@ -277,7 +297,7 @@ class _Cell extends StatelessWidget {
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
             child: Text(
-              amount == null ? '••••••' : '¥${Formatters.amount(amount!)}',
+              amount == null ? '••••••' : '¥${Formatters.amount(amount!, withUnit: false)}',
               style: TextStyle(
                 color: amount == null ? AppGray.g400 : color,
                 fontSize: 15,

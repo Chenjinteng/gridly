@@ -27,7 +27,9 @@ class BudgetProgress extends ConsumerWidget {
     final hidden = !ref.watch(amountVisibilityProvider);
 
     // 隐藏时金额占位(数字与单位都用 •••••• 替代,保留长度感)
-    String money(double v) => hidden ? '••••••' : '¥${Formatters.amount(v)}';
+    // withUnit=false → 整卡顶层 `本月预算(万元)` 已声明单位,数字不重复
+    String money(double v) =>
+        hidden ? '••••••' : '¥${Formatters.amount(v, withUnit: false)}';
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
@@ -137,10 +139,14 @@ class BudgetProgress extends ConsumerWidget {
     }
     final pct = (percent * 100).toStringAsFixed(0);
     final remaining = budget - spent;
+    // 状态文字金额也走 withUnit=false (顶层 `本月预算(万元)` 提供单位上下文)
     return switch (s) {
-      _BudgetState.ok => '还剩 ¥${Formatters.amount(remaining)} · $pct%',
-      _BudgetState.warning => '快超了 · ¥${Formatters.amount(remaining)} 剩',
-      _BudgetState.over => '已超 ¥${Formatters.amount(spent - budget)}',
+      _BudgetState.ok =>
+        '还剩 ¥${Formatters.amount(remaining, withUnit: false)} · $pct%',
+      _BudgetState.warning =>
+        '快超了 · ¥${Formatters.amount(remaining, withUnit: false)} 剩',
+      _BudgetState.over =>
+        '已超 ¥${Formatters.amount(spent - budget, withUnit: false)}',
     };
   }
 }

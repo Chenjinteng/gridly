@@ -20,29 +20,32 @@ class Formatters {
   /// 金额格式化,智能单位切换:
   ///   - abs(v) < 10000        → 元 mode (千分位逗号 + 2 位小数)
   ///     例:123.45 → "123.45"; 9,999.50 → "9,999.50"
-  ///   - 10000 ≤ abs(v) < cap  → 万 mode (千分位 + 2 位小数 + "万")
-  ///     例:10,000 → "1.00万"; 999,999 → "99.99万"; 9,999,999 → "999.99万"
-  ///   - abs(v) ≥ cap          → cap display "999.99万+"
+  ///   - 10000 ≤ abs(v) < cap  → 万 mode (千分位 + 2 位小数 + 可选 "万")
+  ///     例:10,000 → "1.00万" (withUnit) 或 "1.00" (无 unit)
+  ///         999,999 → "99.99万" 或 "99.99"
+  ///         9,999,999 → "999.99万" 或 "999.99"
+  ///   - abs(v) ≥ cap          → cap display "999.99万+" 或 "999.99+"
+  ///
+  /// `withUnit` (默认 true): 是否在数值后拼 "万" 单位。
+  ///   - true: 用于没有 (元)/(万元) label 的展示位置(同心环"共"、大数字)
+  ///   - false: 用于 label 已经带 (元)/(万元) 的 cell/cells,数字只显示数值,
+  ///            避免跟 label 重复(如 `收入(万元) ¥999.99`)
   ///
   /// 万 mode 用 truncate 而非 round,避免 9999999/10000=999.9999 舍入到
   /// 1000.00(用户给的目标就是 "9999999 → 999.99万元")。
-  ///
-  /// 长度收益(对比老 "9,999,999.99"):
-  ///   - 7 位整数 → 3 位 + "万" 单位,字符数 -50%
-  ///   - 月度汇总 cells / 报表 RangeSummary / 同心环中心等紧凑位置
-  ///     再不需要 FittedBox 把字体强行缩到失衡
-  ///
-  /// 配合 `unit(v)` 给 label 加 (元)/(万元) 后缀,语义清晰不歧义。
-  static String amount(double v) {
+  static String amount(double v, {bool withUnit = true}) {
     final absV = v.abs();
-    if (absV >= maxAmount) return '999.99万+';
+    if (absV >= maxAmount) {
+      return withUnit ? '999.99万+' : '999.99+';
+    }
     if (absV >= _wanThreshold) {
       // truncate 到 2 位小数 (向 0 截断)
       // 9999999/10000 = 999.9999 → 999.99
       // -99999/10000 = -9.9999 → -9.99 (truncateTowardZero)
       final wan = v / 10000;
       final truncated = (wan * 100).truncateToDouble() / 100;
-      return '${truncated.toStringAsFixed(2)}万';
+      final num = truncated.toStringAsFixed(2);
+      return withUnit ? '$num万' : num;
     }
     return _amountFmt.format(v);
   }
