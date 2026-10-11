@@ -112,69 +112,81 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          _FilterBar(
-            typeFilter: typeFilter,
-            monthFilter: monthFilter,
-            categoryFilter: categoryFilter,
-            catsForType: catsForType,
-            monthKeys: _recentMonthKeys(),
-            formatMonthKey: _formatMonthKey,
-            onTypeChanged: (v) =>
-                ref.read(ledgerTypeFilterProvider.notifier).state = v,
-            onMonthChanged: (v) =>
-                ref.read(ledgerMonthFilterProvider.notifier).state = v,
-            onCategoryChanged: (v) =>
-                ref.read(ledgerCategoryFilterProvider.notifier).state = v,
-          ),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: () async => refreshAllData(ref),
-              // AlwaysScrollableScrollPhysics:即使空态/内容不满一屏也能下拉触发刷新
-              child: filteredAsync.when(
-                data: (grouped) {
-                  if (grouped.isEmpty) {
-                    return ListView(
+      body: GestureDetector(
+        // 点 body 空白处收起键盘(2026-10-11 UAT 反馈):
+        //   - 搜备注/分类的 TextField 在 AppBar,聚焦后想退出只能按"完成",
+        //     用户希望点 body 任意非输入处也能 unfocus
+        // - HitTestBehavior.translucent:不拦截子 widget 的点击(下拉 / 流水 tile
+        //   自己有 InkWell / GestureDetector 处理 tap),只在没有 child 消费的
+        //   位置才落到 onTap
+        // - 用 FocusScope 而非 FocusManager:跟 Material / Scaffold 默认
+        //   焦点范围对齐,不会误清掉 dialog / sheet 里的 focus
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Column(
+          children: [
+            _FilterBar(
+              typeFilter: typeFilter,
+              monthFilter: monthFilter,
+              categoryFilter: categoryFilter,
+              catsForType: catsForType,
+              monthKeys: _recentMonthKeys(),
+              formatMonthKey: _formatMonthKey,
+              onTypeChanged: (v) =>
+                  ref.read(ledgerTypeFilterProvider.notifier).state = v,
+              onMonthChanged: (v) =>
+                  ref.read(ledgerMonthFilterProvider.notifier).state = v,
+              onCategoryChanged: (v) =>
+                  ref.read(ledgerCategoryFilterProvider.notifier).state = v,
+            ),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () async => refreshAllData(ref),
+                // AlwaysScrollableScrollPhysics:即使空态/内容不满一屏也能下拉触发刷新
+                child: filteredAsync.when(
+                  data: (grouped) {
+                    if (grouped.isEmpty) {
+                      return ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          const SizedBox(height: 120),
+                          _EmptyState(searching: _searching),
+                        ],
+                      );
+                    }
+                    final days = grouped.keys.toList()
+                      ..sort((a, b) => b.compareTo(a));
+                    return ListView.builder(
                       physics: const AlwaysScrollableScrollPhysics(),
-                      children: [
-                        const SizedBox(height: 120),
-                        _EmptyState(searching: _searching),
-                      ],
+                      padding: const EdgeInsets.only(
+                          top: AppSpacing.s2, bottom: AppSpacing.s6),
+                      itemCount: days.length,
+                      itemBuilder: (context, i) {
+                        final day = days[i];
+                        final txs = grouped[day]!;
+                        return _DaySection(day: day, transactions: txs);
+                      },
                     );
-                  }
-                  final days = grouped.keys.toList()
-                    ..sort((a, b) => b.compareTo(a));
-                  return ListView.builder(
+                  },
+                  loading: () => ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.only(
-                        top: AppSpacing.s2, bottom: AppSpacing.s6),
-                    itemCount: days.length,
-                    itemBuilder: (context, i) {
-                      final day = days[i];
-                      final txs = grouped[day]!;
-                      return _DaySection(day: day, transactions: txs);
-                    },
-                  );
-                },
-                loading: () => ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: const [
-                    SizedBox(height: 120),
-                    Center(child: CircularProgressIndicator()),
-                  ],
-                ),
-                error: (e, _) => ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: [
-                    const SizedBox(height: 120),
-                    Center(child: Text('加载失败:$e')),
-                  ],
+                    children: const [
+                      SizedBox(height: 120),
+                      Center(child: CircularProgressIndicator()),
+                    ],
+                  ),
+                  error: (e, _) => ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      const SizedBox(height: 120),
+                      Center(child: Text('加载失败:$e')),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
