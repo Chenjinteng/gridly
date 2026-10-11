@@ -9,7 +9,10 @@ class AppBrand {
   static const Color ink = Color(0xFF0F1419);       // 炭黑 · 主背景(Dark)
   static const Color charcoal = Color(0xFF1F2329);  // 炭灰 · 主文字
   static const Color gold = Color(0xFFF5BC1F);      // 金黄 · 收入 / CTA
-  static const Color teal = Color(0xFF14B8A6);      // 明亮青 · 支出 / 流动
+  static const Color teal = Color(0xFF06B6D4);      // 明亮青 · 支出 / 流动
+  // 原 #14B8A6 (Tailwind teal-500, hue 174°) 在屏幕上偏绿色、容易被误读为"绿色"而非"青色";
+  // 切到 #06B6D4 (Tailwind cyan-500, hue 188°) 明显偏 cyan,符合中文"青色"字面、
+  // 视觉上也跟 gold/ink 形成清晰的 RGB 三色对比。暗/亮背景下亮度也合适。
 }
 
 /// 辅助色

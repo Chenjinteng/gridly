@@ -68,11 +68,14 @@ class _SplashPageState extends ConsumerState<SplashPage> {
             ),
             const Spacer(),
             // 三色横条(经典 gridly 标志)
+            // 第一条原本 hardcode AppBrand.ink —— 在深炭黑 splash 背景上等于隐形,
+            // 跟 LOGO 在 onDark 模式下 ink→cream 呈现的三色不一致。
+            // 这里跟 LOGO 行为对齐:深底上 ink 块用 cream,保证三色都可见
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: AppSpacing.s8),
               child: Row(
                 children: [
-                  Expanded(child: _Bar(color: AppBrand.ink, height: 4)),
+                  Expanded(child: _Bar(color: AppSecondary.cream, height: 4)),
                   SizedBox(width: 2),
                   Expanded(child: _Bar(color: AppBrand.gold, height: 4)),
                   SizedBox(width: 2),
