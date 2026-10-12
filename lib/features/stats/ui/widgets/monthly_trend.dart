@@ -427,13 +427,28 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
               // group index + extraLinesData.verticalLines,但 BarChart 不画
               // verticalLines(issue #1149),所以虚线根本没渲染。
               touchCallback: _onTouch,
-              // commit 85 改:touchTooltipData 移除(空)
-              //   之前用 fl_chart 内置 BarTouchTooltipData 画金额 tooltip,
-              //   但内置 tooltip 画在 BarChart canvas 内(BarChartPainter
-              //   内部),跟 Stack overlay 的 dashed line 重叠时 tooltip 被
-              //   dashed line 盖住。user 反馈"跨线时金额要在虚线上方盖住虚线"。
-              //   → 把 tooltip 搬到 overlay 自己画(Stack children 顺序
-              //     最后,z-order 最顶层,盖住 dashed line)
+              // commit 87 改:
+              //   - touchTooltipData 显式禁用 fl_chart 内置 tooltip
+              //     (getTooltipItem 返回 null 触发不渲染)
+              //     之前 commit 85 直接移除整个 touchTooltipData,导致
+              //     BarChart 仍用默认 BarTouchTooltipData(空 getTooltipItem)
+              //     渲染了一个灰色空 tooltip,跟 overlay tooltip 同时显示
+              //     → user 截图出现两个金额(灰色 fl_chart 内置 tooltip +
+              //     黑色 overlay tooltip)
+              //   - touchExtraThreshold 加大到 horizontal: 8
+              //     30 根 5px 柱子在窄屏上每柱中心间距 ≈ 9.5px,
+              //     默认 threshold all 4 让柱间空白处 pan 移动不会切换柱
+              //     → user 反馈"靠点击选取不友好,想滑动跟随"
+              //     加大到 horizontal: 8 后任何 x 位置都能命中最近柱,
+              //     FlPanUpdateEvent 触发 _onTouch 更新虚线/label/tooltip
+              //     → 横滑手指虚线跟着移动到最近柱
+              touchTooltipData: BarTouchTooltipData(
+                getTooltipItem: (_, _, _, _) => null,
+              ),
+              touchExtraThreshold: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 4,
+              ),
             ),
             titlesData: FlTitlesData(
               show: true,
