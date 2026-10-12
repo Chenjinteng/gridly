@@ -1,21 +1,19 @@
 // lib/core/widgets/animated_pie_chart.dart
-// fl_chart PieChart 扇区入场包装 —— 圆环从 0° 到 360° 扫描展开,带 spring。
+// fl_chart PieChart 扇区入场包装 —— 每个扇区从 0 长度"长"到目标长度。
 //
-// 2026-10-12 重写为 ColorOS 风格:
-//   之前用 `AnimationController.forward()` + 曲线 aquaIn 推进,1200ms,
-//   用户反馈"动画太生硬了"。ColorOS 17 圆环入场的视觉语言是:
-//     - spring 物理(stiffness 80 / damping 18,临界欠阻尼)
-//     - 终点 progress 轻微 overshoot(到达 ~1.04)再回弹到 1.0
-//     - 总时长 ~700ms(比 M3 的 300ms 长,有"重量感")
-//   改 SpringSimulation 替代 Tween,让圆环从起点"画"到完整圆时有
-//   惯性,符合 ColorOS Tactile Spring 语言。
+// 2026-10-12 重写语义(第 4 版):
+//   - v1: value * progress(每个扇区按比例同时增长)→ 用户反馈"生硬"
+//   - v2: TweenAnimationBuilder 12s 扫描角 → 用户说"切换时卡一下直接切"
+//   - v3: SpringSimulation 扫描角 + 启动延迟 → 用户反馈"不是扫角,
+//        想要色条从无到有的展开"(本版)
 //
-// 算法(同 commit 27 但 spring 驱动)
-//   progress 0→1(实际可到 ~1.04 再回弹)映射到 scannedDegrees = progress * 360
-//   每个扇区按自己累计起角 / 终角决定:
-//     - 扫描角未到 → value=0(fl_chart skip)
-//     - 扫描角扫过 → value * partialProgress(部分显示)
-//     - 扫描角扫完 → value = 原值
+// ColorOS 17 控制中心 wifi / 蓝牙圆环风格:
+//   - 每个扇区独立从 0 角度"长"到目标角度(value * sectorProgress)
+//   - 多个扇区按 stagger 依次开始(扇区 i 比 i-1 晚 60ms 启动)
+//   - 总时长 ~900ms(aquaIn 阻尼曲线,前快后慢)
+//
+// 视觉效果:8 个分类色块依次"长"出来,前一个刚长到一半,下一个开始,
+// 类似 ColorOS 17 控制中心圆环 morph 语言。
 //
 // 用法
 //   AnimatedPieChart(
@@ -24,12 +22,13 @@
 //     ],
 //   )
 //
-// 实现:SpringSimulation + key 变化触发重新 mount
-//   - 首次 mount:initState → addPostFrameCallback start spring
+// 实现:AnimationController + key 变化触发重新 mount
+//   - 首次 mount:initState → addPostFrameCallback forward
 //   - 切月份 / 视角:父级传 key 变化 → widget 重新 mount → 重画
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/physics.dart';
+
+import '../motion/app_motion.dart';
 
 class AnimatedPieChart extends StatefulWidget {
   const AnimatedPieChart({
@@ -40,8 +39,7 @@ class AnimatedPieChart extends StatefulWidget {
     this.startDegreeOffset = -90,
   });
 
-  /// 原始 sections(全部为最终目标 value)。运行时根据 progress 计算每个扇区
-  /// 当前该显示的部分 value
+  /// 原始 sections(全部为最终目标 value)
   final List<PieChartSectionData> sections;
   final double sectionsSpace;
   final double centerSpaceRadius;
@@ -54,52 +52,27 @@ class AnimatedPieChart extends StatefulWidget {
 class _AnimatedPieChartState extends State<AnimatedPieChart>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
+  late final Animation<double> _t;
 
-  /// ColorOS 圆环 spring 物理参数(2026-10-12 调):
-  /// - mass 1.0
-  /// - stiffness 100(慢+有惯性,~800ms 完成)
-  /// - damping 18(临界欠阻尼 ~5-8% overshoot)
-  ///
-  /// 2026-10-12 改(关键):用户反馈切视角时圆环"卡一下直接切上来"。
-  /// 之前 stiffness 120 ~500ms 完成,但 AnimatedSwitcher fade 680ms
-  /// 期间 spring 已经走完,圆环 spring 扫角过程被 fade 模糊掉,
-  /// 视觉上圆环"瞬间出现"。
-  ///
-  /// 修法:
-  ///   1. spring stiffness 100,~800ms 完成,跟 AnimatedSwitcher fade 680ms
-  ///      节奏对齐(spring 完成时间 ≈ fade in 时间)
-  ///   2. spring 启动延迟 180ms,等 fade in 走到中段才开始扫角,避免
-  ///      fade 起步阶段(opacity 接近 0)被 spring 浪费掉
-  /// 综合效果:fade in 中段 ~180ms 起,圆环开始扫角;fade in 完成 ~680ms
-  /// 时,圆环 progress ≈ (680-180)/(800-180) ≈ 80%;fade 完成后圆环
-  /// 再画 120ms 收尾。用户视觉:fade in 期间清楚看到圆环扫角过程。
-  static const SpringDescription _kSpring = SpringDescription(
-    mass: 1.0,
-    stiffness: 100.0,
-    damping: 18.0,
-  );
+  /// 总动画时长。stagger(60ms*i) + 单扇区长完(500ms) ≈ 900ms。
+  static const Duration _kDuration = Duration(milliseconds: 900);
+
+  /// 扇区之间错峰延迟(归一化 0~1,基于 _kDuration)
+  /// 8 扇区总错峰 = 7 * 0.067 ≈ 470ms
+  static const double _kStaggerStep = 0.067;
+
+  /// 单个扇区从 0 长到目标 value 用的归一化时长
+  static const double _kSectorDuration = 0.5;
 
   @override
   void initState() {
     super.initState();
-    // unbounded:true 终点可以超过 1(spring overshoot),不会 clamp
-    _ctrl = AnimationController.unbounded(vsync: this, value: 0);
-    // 首次 mount:等 180ms 后启动 spring,让 AnimatedSwitcher fade in
-    // 走到中段(opacity ~0.27)再开始画弧。这样 fade 期间扫角视觉集中,
-    // 不会"瞬间切上来"。
+    _ctrl = AnimationController(vsync: this, duration: _kDuration);
+    _t = CurvedAnimation(parent: _ctrl, curve: AppMotion.aquaIn);
+    // 首次 mount:启动动画。postFrameCallback 让父级先 build 完成,
+    // 避免在 switch transition 中断动画。
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        Future.delayed(const Duration(milliseconds: 180), () {
-          if (mounted) {
-            _ctrl.animateWith(SpringSimulation(
-              _kSpring,
-              0.0,   // start
-              1.0,   // end
-              0.0,   // 初始 velocity = 0
-            ));
-          }
-        });
-      }
+      if (mounted) _ctrl.forward();
     });
   }
 
@@ -112,56 +85,27 @@ class _AnimatedPieChartState extends State<AnimatedPieChart>
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: _ctrl,
+      animation: _t,
       builder: (context, _) {
-        // 2026-10-12:用 raw _ctrl.value(0→1 + overshoot → 1),不用 Tween。
-        // spring 真实曲线由 SpringSimulation 决定,build 时直接拿 _ctrl.value。
-        final progress = _ctrl.value.clamp(0.0, 1.0);
-        // scannedDegrees 0 → 360 度。spring overshoot 期间 progress 临时 > 1,
-        // 但我们 clamp 到 [0, 1] 防止扇区越过 360 度导致"重叠"绘制。
-        final scannedDegrees = progress * 360.0;
+        final t = _t.value;
 
-        // 计算每个扇区的累计起角 / 终角(基于最终 value 比例)
-        final sumValues = widget.sections
-            .fold<double>(0.0, (s, x) => s + x.value);
-        if (sumValues <= 0) {
-          // 全部 0,直接画空圆环
-          return PieChart(
-            PieChartData(
-              sectionsSpace: widget.sectionsSpace,
-              centerSpaceRadius: widget.centerSpaceRadius,
-              startDegreeOffset: widget.startDegreeOffset,
-              sections: const [],
-            ),
-          );
-        }
-
+        // 2026-10-12 改(色条从无到有展开):
+        // 每个扇区独立 stagger grow,扇区 i 比 i-1 晚 _kStaggerStep 启动。
+        // 每个扇区在 [startDelay, startDelay + _kSectorDuration] 区间内
+        // sectorProgress 从 0 涨到 1,value = s.value * sectorProgress。
+        // 总时长:_kStaggerStep * (n-1) + _kSectorDuration,8 扇区 ~1.0。
         final animated = <PieChartSectionData>[];
-        var cumulativeDegrees = 0.0;
-        for (final s in widget.sections) {
-          final sectorDegrees = (s.value / sumValues) * 360.0;
-          final startDegrees = cumulativeDegrees;
-          final endDegrees = cumulativeDegrees + sectorDegrees;
-          double displayValue;
-          if (scannedDegrees <= startDegrees) {
-            // 扫描角未到此扇区,不显示
-            displayValue = 0;
-          } else if (scannedDegrees >= endDegrees) {
-            // 扫描角已过,完全显示
-            displayValue = s.value;
-          } else {
-            // 正在扫,按部分显示
-            final partialProgress =
-                (scannedDegrees - startDegrees) / sectorDegrees;
-            displayValue = s.value * partialProgress;
-          }
+        for (var i = 0; i < widget.sections.length; i++) {
+          final s = widget.sections[i];
+          final startDelay = i * _kStaggerStep;
+          final sectorProgress =
+              ((t - startDelay) / _kSectorDuration).clamp(0.0, 1.0);
           animated.add(PieChartSectionData(
-            value: displayValue,
+            value: s.value * sectorProgress,
             color: s.color,
             title: s.title,
             radius: s.radius,
           ));
-          cumulativeDegrees = endDegrees;
         }
 
         return PieChart(
