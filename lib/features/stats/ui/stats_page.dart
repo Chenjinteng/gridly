@@ -52,7 +52,23 @@ class _StatsPageState extends ConsumerState<StatsPage> {
   void initState() {
     super.initState();
     SchedulerBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _appeared = true);
+      if (mounted) {
+        // 2026-10-12 commit 84 加:打开报表那一刻主动 refresh,user 反馈
+        //   "edit 了 7 月历史支出,12 月趋势没变"
+        //   "打开报表那一刻都要动态获取最新的数据"
+        // 原因:
+        //   - Riverpod FutureProvider 只要被 watch 过就缓存,即使 db 已经变化
+        //     也不会自动重新 fetch(除非显式 invalidate)
+        //   - user 在记一笔 / 流水 / 分类管理页修改了数据,如果不主动
+        //     refreshAllData,stats tab 切回来时显示的还是修改前的缓存
+        //   - BottomNavigationBar 切 tab 不会触发 StatsPage.initState 重跑
+        //     (State 持久化),所以在 initState 里加 postFrameCallback 调一次
+        //     refreshAllData,保证"首次进入 stats tab"一定是最新
+        //   - 后续 add / update / delete 也走 refreshAllData(commit 81/67 已
+        //     接上),但 initState 这层是兜底,防止上游链路漏接 provider
+        refreshAllData(ref);
+        setState(() => _appeared = true);
+      }
     });
   }
 
