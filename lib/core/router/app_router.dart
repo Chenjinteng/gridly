@@ -43,7 +43,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       ShellRoute(
         navigatorKey: shellNavigatorKey,
-        builder: (context, state, child) => MainShell(child: child),
+        builder: (context, state, child) => MainShell(),
         routes: [
           GoRoute(
             path: '/home',

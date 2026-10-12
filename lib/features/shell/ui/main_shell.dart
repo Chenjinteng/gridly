@@ -5,11 +5,17 @@
 // Stack 底层铺 LedgerGridBackground(16×16 格子纸背景),强化"格子"主题。
 //
 // 2026-10-12 ColorOS Aquamorphic 改造:
-//   - StatelessWidget → ConsumerStatefulWidget(为了持 _prevIndex)
-//   - body child 包 AnimatedSwitcher,根据 _prevIndex → currentIndex 方向
-//     计算 slide offset(±1 = 左右滑入/滑出)
-//   - 切到 /add 时 currentIndex fallback 到 1(流水),不触发 slide ——
-//     因为 /add 是 root modal 路由,自身已经带从底上推动画,叠加会抖
+//   - body child 包 PageView(BouncingScrollPhysics),支持左滑右滑手势切 tab
+//   - PageView 4 children:首页 / 流水 / 报表 / 我的(中央 + 是 push 路由,
+//     不在 PageView 内)
+//   - PageController 控制位置;切 nav (0/1/3/4) → animateToPage 对应 pageIndex;
+//       swipe PageView → onPageChanged → context.go 同步路由
+//   - PageView vs AnimatedSwitcher:PageView 的 swipe gesture 是用户主动手势,
+//     navigation 手感更"原生";BouncingScrollPhysics 给 swipe 到边界回弹
+//     (ColorOS Tactile)。
+//
+//   之前 commit 3 用 AnimatedSwitcher + 左右 slide,提供程序化切 tab 的过场;
+//   这次 commit 36 加 PageView,左滑右滑手势支持。仍保留 nav 点击切 tab。
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -20,24 +26,47 @@ import '../../../../core/motion/app_motion.dart';
 import '../../../../core/haptics/app_haptics.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/ledger_grid_background.dart';
+import '../../home/ui/home_page.dart';
+import '../../ledger/ui/ledger_page.dart';
+import '../../stats/ui/stats_page.dart';
+import '../../settings/ui/settings_page.dart';
 
 class MainShell extends ConsumerStatefulWidget {
-  const MainShell({super.key, required this.child});
-  final Widget child;
+  const MainShell({super.key});
 
   @override
   ConsumerState<MainShell> createState() => _MainShellState();
 }
 
 class _MainShellState extends ConsumerState<MainShell> {
-  /// 上一次 build 的 tab index —— 用于 AnimatedSwitcher 计算 slide 方向。
-  /// 初始 0(首页),切到 /add 时仍 fall back 到 1(流水)但不更新 prev,
-  /// 因为 /add 是 root modal 不触发 tab 动画。
-  int _prevIndex = 0;
+  /// PageController 控制 PageView 当前页。
+  /// 初始 0(首页)。
+  late final PageController _pageCtrl;
 
-  /// 之前是否在 modal 路由(/add 或 /edit)。modal 不计入 tab slide。
-  bool _wasOnModal = false;
+  /// 上一次 tab 切换的目的地 index —— 防止 onPageChanged 跟 nav 点击
+  /// 之间出现重复 context.go() 循环。
+  int? _lastDestIndex;
 
+  @override
+  void initState() {
+    super.initState();
+    _pageCtrl = PageController();
+  }
+
+  @override
+  void dispose() {
+    _pageCtrl.dispose();
+    super.dispose();
+  }
+
+  /// nav destination index (0/1/3/4) → PageView pageIndex (0/1/2/3)
+  /// 中央 + (dest 2) 不映射,走 push 路由。
+  int _pageFromDest(int dest) => dest < 2 ? dest : dest - 1;
+
+  /// PageView pageIndex (0/1/2/3) → nav destination index (0/1/3/4)
+  int _destFromPage(int page) => page < 2 ? page : page + 1;
+
+  /// 从当前路径算 nav destination index,跟 _currentIndex 等价
   int _currentIndex(BuildContext context) {
     final loc = GoRouterState.of(context).uri.path;
     // 中央"+" 占 destination index 2(空 label),所以 /stats / /settings
@@ -53,69 +82,62 @@ class _MainShellState extends ConsumerState<MainShell> {
     return 0;
   }
 
-  bool _isModal(BuildContext context) {
-    final loc = GoRouterState.of(context).uri.path;
-    return loc.startsWith('/add') || loc.startsWith('/edit');
-  }
-
   @override
   Widget build(BuildContext context) {
     final currentIndex = _currentIndex(context);
-    final onModal = _isModal(context);
 
-    // slide 方向:只在 tab 间切换时算(从 modal 进/出不算 tab slide)
-    int dir = 0;
-    if (!_wasOnModal && !onModal) {
-      dir = currentIndex > _prevIndex ? 1 : (currentIndex < _prevIndex ? -1 : 0);
+    // URL 路径变化(切路由、deeplink)时,PageView 同步过去
+    //   守卫 _lastDestIndex 防 context.go 触发的 controller.animateToPage
+    //   → onPageChanged → context.go 循环。
+    final expectedPage = _pageFromDest(currentIndex);
+    if (_pageCtrl.hasClients &&
+        _pageCtrl.page?.round() != expectedPage) {
+      // 路由先动,PageView 跟过去(用 jumpToPage 避免再触发 onPageChanged)
+      _pageCtrl.jumpToPage(expectedPage);
     }
-    _prevIndex = currentIndex;
-    _wasOnModal = onModal;
 
     return Scaffold(
       body: Stack(
         children: [
           const Positioned.fill(child: LedgerGridBackground()),
-          // AnimatedSwitcher 包 child:tab 切换时左右 slide + fade(有方向感),
-          // /add modal 时 fallback 到 1 不触发 slide(模态自己带从底上推)。
-          //
-          // 2026-10-12 修:duration 480ms → 720ms,让 tab 切换过场更明显
-          // (中间有 ~360ms 两 view 都半透明重叠),跟 stats_page cross-fade
-          // 节奏对齐。layoutBuilder Stack 让 previousChildren 跟 currentChild
-          // 同时渲染,避免 sequential fade 的"空白瞬间"。
+          // PageView:4 children,左滑右滑切换。PageView 自身动画已经够"丝滑",
+          // 720ms 的曲线跟之前 AnimatedSwitcher 等价,无需额外 transition。
+          // BouncingScrollPhysics:swipe 到边界 overscroll + 回弹(ColorOS 风)。
           Positioned.fill(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 720),
-              reverseDuration: const Duration(milliseconds: 720),
-              switchInCurve: AppMotion.aquaIn,
-              switchOutCurve: AppMotion.aquaOut,
-              // 用 pageStorageBucket-style key 维持各 tab 的滚动位置;
-              // PageStorageKey 用 path 区分每个 tab。
-              layoutBuilder: (currentChild, previousChildren) {
-                return Stack(
-                  alignment: Alignment.topLeft,
-                  children: <Widget>[
-                    ...previousChildren,
-                    ?currentChild,
-                  ],
-                );
-              },
-              transitionBuilder: (child, animation) {
-                // 进:从 -dir*0.06 滑入 + fade;出:滑到 +dir*0.06 + fade
-                final enterOffset = Tween<Offset>(
-                  begin: Offset(-dir * 0.06, 0),
-                  end: Offset.zero,
-                ).animate(animation);
-                return SlideTransition(
-                  position: enterOffset,
-                  child: FadeTransition(opacity: animation, child: child),
-                );
-              },
-              // key 用 currentIndex + 是否 modal —— modal 时 key 跟当前 tab
-              // 一样,不会触发新的 switcher 切换(叠加路由层动画)
-              child: KeyedSubtree(
-                key: ValueKey('tab-$currentIndex-${onModal ? 'modal' : 'page'}'),
-                child: widget.child,
+            child: PageView(
+              controller: _pageCtrl,
+              physics: const BouncingScrollPhysics(),
+              // 不显示 PageView 默认的左右滚动条
+              scrollBehavior: const MaterialScrollBehavior().copyWith(
+                scrollbars: false,
               ),
+              onPageChanged: (page) {
+                final dest = _destFromPage(page);
+                // /add 或 /edit 期间(PageView user input 不会触发,因为 nav 2
+                // 不在 PageView children 里),忽略
+                if (dest == _lastDestIndex) return;
+                _lastDestIndex = dest;
+                // 触觉:swipe 切 tab 跟点 nav 一致,都用 selectionClick
+                AppHaptics.select();
+                // 路由同步
+                switch (dest) {
+                  case 0:
+                    context.go('/home');
+                  case 1:
+                    context.go('/ledger');
+                  case 3:
+                    context.go('/stats');
+                  case 4:
+                    context.go('/settings');
+                }
+              },
+              // 4 children 顺序对应 dest 0/1/3/4
+              children: const [
+                HomePage(),
+                LedgerPage(),
+                StatsPage(),
+                SettingsPage(),
+              ],
             ),
           ),
         ],
@@ -146,17 +168,43 @@ class _MainShellState extends ConsumerState<MainShell> {
             AppHaptics.select();
           }
           // 5 个 destination:0=首页 / 1=流水 / 2=中央 "+" / 3=报表 / 4=我的
-          // i==2 推到 root modal,其它用 go 清栈切换
+          // i==2 推到 root modal;其它先同步 _lastDestIndex(避免 swipe 后
+          // 反向 onPageChanged 触发重复 context.go),再用 PageController
+          // 平滑滚到对应页。
           switch (i) {
             case 0:
+              _lastDestIndex = 0;
+              _pageCtrl.animateToPage(
+                _pageFromDest(0),
+                duration: const Duration(milliseconds: 720),
+                curve: AppMotion.aquaIn,
+              );
               context.go('/home');
             case 1:
+              _lastDestIndex = 1;
+              _pageCtrl.animateToPage(
+                _pageFromDest(1),
+                duration: const Duration(milliseconds: 720),
+                curve: AppMotion.aquaIn,
+              );
               context.go('/ledger');
             case 2:
               context.push('/add');
             case 3:
+              _lastDestIndex = 3;
+              _pageCtrl.animateToPage(
+                _pageFromDest(3),
+                duration: const Duration(milliseconds: 720),
+                curve: AppMotion.aquaIn,
+              );
               context.go('/stats');
             case 4:
+              _lastDestIndex = 4;
+              _pageCtrl.animateToPage(
+                _pageFromDest(4),
+                duration: const Duration(milliseconds: 720),
+                curve: AppMotion.aquaIn,
+              );
               context.go('/settings');
           }
         },
