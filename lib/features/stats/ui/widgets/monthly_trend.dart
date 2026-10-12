@@ -177,6 +177,20 @@ class _MonthlyBarChart extends ConsumerWidget {
 /// Bar label 类型:日期(本月每日柱状图用)还是月份(近 12 月柱状图用)
 enum BarLabelKind { day, month }
 
+/// 2026-10-12 commit 82 加:overlay 虚线/label x 偏移常量
+///
+/// 跟 BarChart.leftTitles.reservedSize(下面 line ~347)强绑定:
+///   - AxisChartScaffoldWidget 把 chart 包在
+///     `Container(margin: data.titlesData.allSidesPadding)` 里
+///   - `allSidesPadding.left = leftTitles.totalReservedSize = 56`
+///   - 所以 BarChartLeaf renderObject 的 (0,0) 在 BarChart widget 内是
+///     (56, _) 起点
+///   - BarTouchedSpot.offset.dx 是 BarChartLeaf 内坐标,要 +56 才是
+///     BarChart widget 内坐标(给 Stack Positioned 用)
+///
+/// ⚠️ 改 leftTitles.reservedSize 时要同步改这个常量,否则 overlay 错位
+const double _leftReservedSize = 56;
+
 /// 入场柱子 —— 从底部往上"长"起来,nice tween 480ms aquaIn。
 ///
 /// 实现:
@@ -415,11 +429,21 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
         // commit 79 加:touch 选柱时,顶部画虚线 + "X日/X月" label
         //   - 虚线:_DashedLinePainter 自定义 painter,[4,3] dashArray,贯穿 chart 高度
         //   - label:Surface 背景卡片,边框 + 居中文字
-        //   - 位置:用 BarTouchedSpot.offset.dx(BarChart 内局部像素 x)
+        //   - 位置:用 BarTouchedSpot.offset.dx + _leftReservedSize 偏移
+        // commit 82 修:user 截图显示虚线偏左 56px(≈ 6 个 day)
+        //   - 根因:BarTouchedSpot.offset.dx 是 BarChartLeaf renderObject
+        //     内坐标(从 leaf (0,0) 开始),不是 BarChart widget (AxisChartScaffoldWidget
+        //     包装的) 的 (0,0)。AxisChartScaffoldWidget 把 chart 包在
+        //     Container(margin: allSidesPadding) 里,allSidesPadding.left =
+        //     leftTitles.totalReservedSize = 56 → BarChartLeaf (0,0) 在 BarChart
+        //     widget 内是 (56, _) 起点。
+        //   - 修法:Positioned.left = offset.dx + _leftReservedSize,跟 chart leaf
+        //     在 BarChart widget 内的实际位置对齐
         if (_touchedOffset != null) ...[
           Positioned(
-            // 1.5px 虚线居中在 offset.dx
-            left: _touchedOffset!.dx - 0.75,
+            // 1.5px 虚线居中在 offset.dx(BarChartLeaf 内坐标) + leftReservedSize
+            // 才是 BarChart widget 内的实际位置
+            left: _touchedOffset!.dx + _leftReservedSize - 0.75,
             top: 0,
             bottom: 0,
             width: 1.5,
@@ -428,8 +452,8 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
             ),
           ),
           Positioned(
-            // 56px 宽 label,left = dx - 28 居中
-            left: _touchedOffset!.dx - 28,
+            // 56px 宽 label,left = dx + leftReservedSize - 28 居中
+            left: _touchedOffset!.dx + _leftReservedSize - 28,
             top: 0,
             width: 56,
             child: Center(
