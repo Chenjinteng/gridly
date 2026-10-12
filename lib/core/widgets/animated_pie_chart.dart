@@ -1,30 +1,35 @@
 // lib/core/widgets/animated_pie_chart.dart
-// fl_chart PieChart 扇区入场包装 —— 整个圆环顺时针扫角 + 颜色 fade in。
+// 圆环 / 仪表盘风格进度环 —— 全部用 CustomPainter 自绘,不用 fl_chart。
 //
-// 2026-10-12 重写语义(第 5 版,commit 48):
-//   - v1: value * progress(每扇区按比例同时增长)→ 用户反馈"生硬"
-//   - v2: TweenAnimationBuilder 12s 扫描角 → 用户说"切换时卡一下直接切"
-//   - v3: SpringSimulation 扫描角 + 启动延迟 → 用户反馈"不是扫角,
-//        想要色条从无到有的展开"
-//   - v4: 每扇区独立 stagger grow → 用户反馈"还是没看到从 0 到 360
-//        的 sweep 过程,太快了"(色块分别长,不是连贯扫角)
-//   - v5 (本版):单 sweep,累计角度追踪,扇区按累计角度比 vs sweep 比例
-//        显示,被扫到的扇区 value 0→full + 颜色透明→实色。
-//        视觉上是连续顺时针扫过去,ColorOS 17 控制中心 wifi/蓝牙圆环
-//        + Apple Activity ring 风格的"充能"动画。
-//
-// 总时长 2000ms(aquaIn 阻尼,前快后慢),让用户清楚看到 0°→360° 全过程。
+// 2026-10-12 重写语义(第 6 版,commit 49):
+//   - 之前 v1-v5 都用 fl_chart 的 PieChart,无论 value=0 时,fl_chart 都会
+//     渲染一条隐形 ring outline / track,导致打开页面瞬间看到"底色"
+//     (灰圈)再出色条 — user 反复反馈,不是干净的 gauge 体验
+//   - v6 (本版):完全自绘,CustomPainter + 手绘 partial annulus path。
+//     sweep progress = 0 时**什么也不画**(没底色、没 outline、没 swap
+//     animation),sweep 经过扇区时该段才"长"出来,色从透明渐变到实色。
+//     像 Apple Activity ring / ColorOS 17 控制中心 wifi/蓝牙圆环效果。
 //
 // 用法
 //   AnimatedPieChart(
 //     sections: [
 //       PieChartSectionData(value: 100, color: Colors.red, radius: 18),
 //     ],
+//     innerRadius: 46,  // 中心洞半径
+//     outerRadius: 64,  // 外圈半径
 //   )
 //
 // 实现要点:
 //   - AnimationController + addPostFrameCallback forward(首次 mount 启动)
+//   - Cumulative sweep angle,从 startDegreeOffset(-90°=12 点)顺时针绕
+//     - 总 sweep = 0°→360°
+//     - 每个扇区按累计角度位置分段:`start = cumDeg`,`end = cumDeg + sectorDeg`
+//     - sweep < start → 完全不画;start ≤ sweep ≤ end → 画 partial 弧 + 颜色 fade in;
+//       sweep > end → 完整扇区 + 完整颜色
+//   - duration 2400ms,8 个扇区每个 ~300ms,fade in 过程清晰可见
 //   - key 变化触发 widget 重新 mount → 重画(切月份 / 视角由父级 key 控制)
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
@@ -34,15 +39,21 @@ class AnimatedPieChart extends StatefulWidget {
   const AnimatedPieChart({
     super.key,
     required this.sections,
-    this.sectionsSpace = 2,
-    this.centerSpaceRadius = 46,
+    this.innerRadius = 46,
+    this.outerRadius = 64,
     this.startDegreeOffset = -90,
   });
 
-  /// 原始 sections(全部为最终目标 value)
+  /// 数据扇区(value / color 用上,radius 字段保留为兼容性但不参与绘制)
   final List<PieChartSectionData> sections;
-  final double sectionsSpace;
-  final double centerSpaceRadius;
+
+  /// 中心洞半径(中心文字显示区)
+  final double innerRadius;
+
+  /// 外圈半径
+  final double outerRadius;
+
+  /// 起始角(默认 -90° = 12 点钟方向,顺时针绕)
   final double startDegreeOffset;
 
   @override
@@ -54,11 +65,10 @@ class _AnimatedPieChartState extends State<AnimatedPieChart>
   late final AnimationController _ctrl;
   late final Animation<double> _t;
 
-  /// 总动画时长(commit 48,user 反馈"还是太快"):
-  ///   2000ms,ColorOS 17 控制中心圆环 sweep 同级。1300ms 看不清 0°→360°
-  ///   整个过程,2000ms 慢到用户能从 12 点位置顺时针绕一圈回到 12 点。
-  /// 配合 aquaIn 阻尼曲线(前快后慢),收尾自然减速。
-  static const Duration _kDuration = Duration(milliseconds: 2000);
+  /// 总动画时长(commit 49,从 2000ms 拉到 2400ms):
+  ///   2400ms 让 8 个扇区每个有 ~300ms 独立 fade-in 时间,user 能清楚看到
+  ///   "扫到一个,出一个颜色" 的先后顺序。aquaIn 阻尼前快后慢,收尾自然减速。
+  static const Duration _kDuration = Duration(milliseconds: 2400);
 
   @override
   void initState() {
@@ -83,69 +93,141 @@ class _AnimatedPieChartState extends State<AnimatedPieChart>
     return AnimatedBuilder(
       animation: _t,
       builder: (context, _) {
-        final t = _t.value;
-
-        // 累计角度 sweep —— 跟 v4 不同,这里用"单一 sweep 角 0°→360°",
-        // 每个扇区根据自己所在的累计角度位置决定显示比例:
-        //   - sweep ≤ start:扇区完全没被扫到(value=0,color=transparent)
-        //   - sweep ≥ end:扇区已扫完(value=full,color=full)
-        //   - 在 start~end 之间:value * (sweep-start)/sectorDeg,color 按
-        //     ratio 在 transparent ↔ 实色之间插值
-        // 整体视觉是扇区按 cumulativeAngle 顺序逐个被"扫过去"展开。
-        final total = widget.sections
-            .fold<double>(0, (sum, s) => sum + s.value);
-
-        if (total <= 0) {
-          // 防御:空数据时直接原样画 PieChart,避免除以 0
-          return PieChart(PieChartData(
-            sectionsSpace: widget.sectionsSpace,
-            centerSpaceRadius: widget.centerSpaceRadius,
-            startDegreeOffset: widget.startDegreeOffset,
+        return CustomPaint(
+          painter: _GaugePainter(
+            sweepProgress: _t.value,
             sections: widget.sections,
-          ));
-        }
-
-        final sweepDeg = t * 360;
-        var cumDeg = 0.0;
-        final animated = <PieChartSectionData>[];
-        for (final s in widget.sections) {
-          final sectorDeg = s.value / total * 360;
-          final start = cumDeg;
-          final end = cumDeg + sectorDeg;
-
-          final double ratio;
-          if (sweepDeg <= start) {
-            ratio = 0;
-          } else if (sweepDeg >= end) {
-            ratio = 1;
-          } else {
-            ratio = (sweepDeg - start) / sectorDeg;
-          }
-
-          animated.add(PieChartSectionData(
-            value: s.value * ratio,
-            color: Color.lerp(Colors.transparent, s.color, ratio)!,
-            title: s.title,
-            radius: s.radius,
-          ));
-          cumDeg += sectorDeg;
-        }
-
-        return PieChart(
-          PieChartData(
-            sectionsSpace: widget.sectionsSpace,
-            centerSpaceRadius: widget.centerSpaceRadius,
+            innerRadius: widget.innerRadius,
+            outerRadius: widget.outerRadius,
             startDegreeOffset: widget.startDegreeOffset,
-            sections: animated,
           ),
+          size: Size.infinite,
         );
       },
     );
   }
 }
 
+/// 自绘 partial annulus path — 给定中心 / 外圈半径 / 内圈半径 / 起始角 /
+/// 扫过角度,返回一个闭合 donut slice 路径。clockwise 顺时针方向。
+Path buildAnnulusPath({
+  required Offset center,
+  required double outer,
+  required double inner,
+  required double startDeg,
+  required double sweepDeg,
+}) {
+  final outerRect = Rect.fromCircle(center: center, radius: outer);
+  final innerRect = Rect.fromCircle(center: center, radius: inner);
+  final startRad = startDeg * math.pi / 180;
+  final sweepRad = sweepDeg * math.pi / 180;
+  final endRad = startRad + sweepRad;
+
+  final startOuter = Offset(
+    center.dx + outer * math.cos(startRad),
+    center.dy + outer * math.sin(startRad),
+  );
+  final endInner = Offset(
+    center.dx + inner * math.cos(endRad),
+    center.dy + inner * math.sin(endRad),
+  );
+
+  final path = Path()..moveTo(startOuter.dx, startOuter.dy);
+  // 外圈顺时针弧
+  path.arcTo(outerRect, startRad, sweepRad, false);
+  // 连线到内圈终点
+  path.lineTo(endInner.dx, endInner.dy);
+  // 内圈逆时针弧回起点
+  path.arcTo(innerRect, endRad, -sweepRad, false);
+  path.close();
+  return path;
+}
+
+class _GaugePainter extends CustomPainter {
+  final double sweepProgress;
+  final List<PieChartSectionData> sections;
+  final double innerRadius;
+  final double outerRadius;
+  final double startDegreeOffset;
+
+  _GaugePainter({
+    required this.sweepProgress,
+    required this.sections,
+    required this.innerRadius,
+    required this.outerRadius,
+    required this.startDegreeOffset,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    // 半径按 box 限制,防止 outer > maxOuter 越界
+    final maxOuter = math.min(size.width, size.height) / 2;
+    final outer = math.min(outerRadius, maxOuter);
+    final inner = math.min(innerRadius, outer - 4);
+
+    final total = sections.fold<double>(0, (s, e) => s + e.value);
+    if (total <= 0) return; // 空数据兜底:什么都不画
+
+    // sweep progress 0..1 → 0°..360° 顺时针
+    final sweepDeg = sweepProgress * 360;
+    // cumDeg 累加扇区累角度,起点 = startDegreeOffset (-90° = 12 点)
+    var cumDeg = startDegreeOffset;
+
+    for (final sec in sections) {
+      final sectorDeg = sec.value / total * 360;
+      final sectorStart = cumDeg;
+      final sectorEnd = cumDeg + sectorDeg;
+
+      // 距离 startDegreeOffset 的相对 sweep 位置
+      final sweepRel = sweepDeg;
+
+      double ratio;
+      if (sweepRel <= sectorStart - startDegreeOffset) {
+        ratio = 0;
+      } else if (sweepRel >= sectorEnd - startDegreeOffset) {
+        ratio = 1;
+      } else {
+        ratio = (sweepRel - (sectorStart - startDegreeOffset)) / sectorDeg;
+      }
+
+      if (ratio > 0) {
+        // 颜色 fade-in:从 transparent 渐变到实色
+        final color = Color.lerp(
+          Colors.transparent,
+          sec.color,
+          ratio.clamp(0.0, 1.0).toDouble(),
+        )!;
+        final paint = Paint()
+          ..color = color
+          ..style = PaintingStyle.fill;
+
+        // 自绘 partial annulus path —— 没底色、没 outline、没 swap 残留
+        final path = buildAnnulusPath(
+          center: center,
+          outer: outer,
+          inner: inner,
+          startDeg: sectorStart,
+          sweepDeg: sectorDeg * ratio,
+        );
+        canvas.drawPath(path, paint);
+      }
+
+      cumDeg += sectorDeg;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_GaugePainter old) =>
+      old.sweepProgress != sweepProgress ||
+      old.sections != sections ||
+      old.innerRadius != innerRadius ||
+      old.outerRadius != outerRadius ||
+      old.startDegreeOffset != startDegreeOffset;
+}
+
 /// 计算 sections 的内容 hash,用作 AnimatedPieChart 的 ValueKey。
-/// sections 数据变化 → hash 变化 → widget 重新 mount → 扇区重新展开。
+/// sections 数据变化 → hash 变化 → widget 重新 mount → 重画。
 Key pieChartKeyForSections(List<PieChartSectionData> sections) {
   final h = Object.hashAll(
       sections.map((s) => Object.hash(s.value, s.color)));
