@@ -246,10 +246,15 @@ class _CompactViewSegmented extends StatelessWidget {
   }
 }
 
-/// 单段 — 仅文字,underline 共享(在父 Stack 上;commit 66 不再自己渲染)
-///   - 选中:文字 onSurface 加粗;InkWell ripple disable(避免当前段重复点击时的"晃一下")
+/// 单段 — 仅文字,underline 共享(在父 Stack 上;commit 71 起纯 GestureDetector)
+///   - 选中:文字 onSurface 加粗;GestureDetector disable(避免当前段重复点击时的"晃一下")
 ///   - 未选中:文字 onSurfaceVariant
-///   - ripple 圆角:18(commit 61 太 pill)→ 8(柔但不 pill 形)。
+///   - 无 ripple / 无 splash / 无 highlight:user 反馈"InkWell 即使 borderRadius:8
+///     ripple 看起来还是 pill bg"(M3 InkRipple splash 默认浅色波形,跟 pill bg 视觉
+///     重合)。commit 71 改成 GestureDetector,完全无 tap 视觉反馈,只保留:
+///     1) 文字色 + 加粗切换(240ms aquaIn)
+///     2) 父 Stack 上共享 underline 横条滑动 240ms aquaIn
+///   - 触觉:无(v66 起就无)
 class _CompactViewSegment extends StatelessWidget {
   const _CompactViewSegment({
     required this.label,
@@ -267,11 +272,11 @@ class _CompactViewSegment extends StatelessWidget {
     final fg = selected
         ? theme.colorScheme.onSurface
         : theme.colorScheme.onSurfaceVariant;
-    return InkWell(
-      // 选中时 InkWell disable,避免"当前段被点时不响应也起 ripple"的鬼影
+    return GestureDetector(
+      // 选中时 disable,避免"当前段被点时不响应"的鬼影;
+      // 完全无 splash / highlight / ripple — user 反馈 ripple 看着像 pill bg
       onTap: selected ? null : onTap,
-      // borderRadius:18 (commit 61) 像 pill 阴影 → user 反馈后改 8,柔但不 pill
-      borderRadius: BorderRadius.circular(8),
+      behavior: HitTestBehavior.opaque,
       child: Padding(
         // vertical 8,horizontal 由父 SizedBox(width:56) 给死,此处 0
         padding: const EdgeInsets.symmetric(vertical: 8),
