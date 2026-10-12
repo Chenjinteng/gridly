@@ -9,7 +9,7 @@
 //
 // 视角路由:
 //   expense → CategoryPie + TopExpenses + MonthlyTrendChart
-//   income  → IncomePie + MonthlyTrendChart
+//   income  → IncomePie(2026-10-12 user:"收暂时先只给一个圆环,别的还没想好要放什么报表")
 //   assets  → 占位(2026-10-11 资产功能预留)
 //
 // 2026-10-12 报表 widget 错峰入场(用户反馈"想有类似流水的那种往上抬"):
@@ -159,8 +159,6 @@ class _StatsPageState extends ConsumerState<StatsPage> {
         add(const MonthlyTrendChart());
       case StatsView.income:
         add(const IncomePie());
-        widgets.add(const SizedBox(height: AppSpacing.s3));
-        add(const MonthlyTrendChart());
       case StatsView.assets:
         add(const _AssetsPlaceholder());
     }
