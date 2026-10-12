@@ -109,6 +109,8 @@ class CategoryPie extends ConsumerWidget {
                                   ),
                                 )
                                 .toList()),
+                            innerRadius: 52,
+                            outerRadius: 64,
                             sections: shown
                                 .map(
                                   (e) => PieChartSectionData(

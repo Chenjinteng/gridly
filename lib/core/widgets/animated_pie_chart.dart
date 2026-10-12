@@ -44,7 +44,7 @@ class AnimatedPieChart extends StatefulWidget {
   const AnimatedPieChart({
     super.key,
     required this.sections,
-    this.innerRadius = 46,
+    this.innerRadius = 52,
     this.outerRadius = 64,
     this.startDegreeOffset = -90,
   });
@@ -138,9 +138,10 @@ class _GaugePainter extends CustomPainter {
   });
 
   /// 扇区间的可见间隙(paddingDeg 的一部分)。
-  /// 1.2° 看着清晰但不过分,跟 round cap 配合效果好。
-  /// 调整这个值改"sector 之间分多开"。
-  static const double _kClearanceDeg = 1.2;
+  /// 0.8° 是 v8 commit 51 的 1.2° 减下来 —— user 反馈"圆角端太圆",
+  /// 改薄环厚度从 18 → 12(内圈 46 → 52)的同时把可见间距也收紧一点,
+  /// 让 caps 不会过分突出
+  static const double _kClearanceDeg = 0.8;
 
   @override
   void paint(Canvas canvas, Size size) {
