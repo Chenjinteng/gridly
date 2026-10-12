@@ -39,6 +39,14 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
   ///   - null = 该分类未变更(用原值)
   final Map<int, double> _pendingBudgets = {};
 
+  /// commit 101 加:显式 X 删除的分类。
+  ///   bug:之前 `_pendingBudgets.remove(catId)` 让 row 立刻消失,但保存时
+  ///   `_save()` 遍历 `_pendingBudgets` 找 `value <= 0` 的进 `toDelete` 列表,
+  ///   而该 catId 已不在 map,所以 DB 中的记录永远不会删 → 下次重新点开
+  ///   overviewLoaded 加载 → row 又出现。
+  ///   修法:X 删除时同时 add 到 `_pendingDeletions`,`_save` 优先遍历此集合。
+  final Set<int> _pendingDeletions = {};
+
   /// 是否加载完 budgetOverview(决定了能否显示分类列表)
   bool _overviewLoaded = false;
   bool _saving = false;
@@ -79,10 +87,13 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
         .fold<double>(0.0, (sum, i) => sum + _effectiveAmount(i));
   }
 
-  /// 从已添加列表移除某分类(同时清除 pending 标记)
+  /// 从已添加列表移除某分类(同时记录到 pendingDeletions 让保存时真删 DB)
+  /// commit 101 改:之前只 `_pendingBudgets.remove`,row 立刻消失但 DB 不删,
+  ///   下次进来 overviewLoaded 加载回 _pendingBudgets → row 又出现
   void _removeCategory(Category category) {
     setState(() {
       _pendingBudgets.remove(category.id);
+      _pendingDeletions.add(category.id);
     });
   }
 
@@ -135,11 +146,14 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
       // 2) 保存所有 pending 的分类子额度
       final repo = ref.read(categoryBudgetRepositoryProvider);
       final now = DateTime.now();
-      // 收集需要删除的(categoryId → 0)
-      final toDelete = _pendingBudgets.entries
-          .where((e) => e.value <= 0)
-          .map((e) => e.key)
-          .toList();
+      // 收集需要删除的:
+      //   - _pendingDeletions(显式 X 删除,commit 101 加 ——
+      //     row 立刻消失但保存时要真删 DB,否则下次进来又会回来)
+      //   - _pendingBudgets 中 value <= 0(用户清空输入框)
+      final toDelete = <int>{
+        ..._pendingDeletions,
+        ..._pendingBudgets.entries.where((e) => e.value <= 0).map((e) => e.key),
+      };
       // 收集需要 upsert 的(categoryId → amount)
       final toUpsert = _pendingBudgets.entries
           .where((e) => e.value > 0)
@@ -157,6 +171,9 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
         );
       }
 
+      // commit 101:清空 _pendingDeletions,避免下次保存重复删
+      _pendingDeletions.clear();
+
       refreshAllData(ref);
       if (mounted) Navigator.pop(context);
     } finally {
@@ -167,7 +184,19 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
   Future<void> _clear() async {
     setState(() => _saving = true);
     try {
+      // commit 101 改:之前只清总额度,DB 中本月所有 categoryBudgets
+      //   还在 → 下次点开 BudgetSheet,overviewLoaded 从 DB 加载 → row 又出现
+      //   修法:同时把 DB 中本月所有分类子额度删了
       await ref.read(monthlyBudgetProvider.notifier).set(0);
+      final repo = ref.read(categoryBudgetRepositoryProvider);
+      final now = DateTime.now();
+      final existing = await repo.byMonth(now.year, now.month);
+      for (final catId in existing.keys) {
+        await repo.delete(categoryId: catId, year: now.year, month: now.month);
+      }
+      // 清 pending state(下次进入 BudgetSheet 时不会基于旧 state 复活)
+      _pendingBudgets.clear();
+      _pendingDeletions.clear();
       _totalController.clear();
       refreshAllData(ref);
       if (mounted) Navigator.pop(context);
