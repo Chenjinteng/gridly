@@ -14,6 +14,7 @@ import '../../../core/utils/asset_balance_provider.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/gridly_banner.dart';
 import '../../../core/utils/refresh_providers.dart';
+import '../../../core/motion/app_motion.dart';
 import '../application/transactions_providers.dart';
 import 'widgets/transaction_tile.dart';
 
@@ -77,41 +78,72 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
         ref.watch(ledgerSearchQueryProvider).isNotEmpty;
   }
 
-  /// 2026-10-12 P5 follow-up 第 2 次改:打开"搜索 + 筛选"sheet
-  ///   - 顶部搜索框(搜备注 / 分类)+ 4 维度 pill
-  ///   - AppBar 只留 filter_alt 一个入口,合并搜索避免两个按钮拥挤
+  /// 2026-10-12 P5 follow-up 第 4 次改:从顶部弹出(用 showGeneralDialog)
+  ///   user 反馈"不要从底部弹出,而是从顶部弹出"
+  ///   - 用 showGeneralDialog + Align(topCenter) + SlideTransition from top
+  ///   - 屏障半透明黑,点屏障外 dismiss(同 modal sheet 习惯)
+  ///   - 复用 _FilterSheet widget 内容(搜索 + 4 chip + 清空)
   void _openFilterSheet({
     required List<Asset> allAssets,
     required List<Category> catsForType,
   }) {
-    showModalBottomSheet(
+    final theme = Theme.of(context);
+    showGeneralDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
-      ),
-      builder: (sheetCtx) => _FilterSheet(
-        searchController: _searchController,
-        onSearchChanged: (v) =>
-            ref.read(ledgerSearchQueryProvider.notifier).state = v,
-        currentType: ref.read(ledgerTypeFilterProvider),
-        currentMonth: ref.read(ledgerMonthFilterProvider),
-        currentCategory: ref.read(ledgerCategoryFilterProvider),
-        currentAsset: ref.read(ledgerAssetFilterProvider),
-        catsForType: catsForType,
-        monthKeys: _recentMonthKeys(),
-        formatMonthKey: _formatMonthKey,
-        allAssets: allAssets,
-        onTypeChanged: (v) =>
-            ref.read(ledgerTypeFilterProvider.notifier).state = v,
-        onMonthChanged: (v) =>
-            ref.read(ledgerMonthFilterProvider.notifier).state = v,
-        onCategoryChanged: (v) =>
-            ref.read(ledgerCategoryFilterProvider.notifier).state = v,
-        onAssetChanged: (v) =>
-            ref.read(ledgerAssetFilterProvider.notifier).state = v,
-      ),
+      barrierDismissible: true,
+      barrierLabel: '关闭筛选',
+      barrierColor: Colors.black54,
+      transitionDuration: const Duration(milliseconds: 240),
+      pageBuilder: (dialogCtx, anim, secAnim) {
+        return Align(
+          alignment: Alignment.topCenter,
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.s2,
+                vertical: AppSpacing.s2,
+              ),
+              child: ClipRRect(
+                borderRadius: AppRadius.brLg,
+                child: Material(
+                  color: theme.colorScheme.surface,
+                  child: _FilterSheet(
+                    searchController: _searchController,
+                    onSearchChanged: (v) =>
+                        ref.read(ledgerSearchQueryProvider.notifier).state = v,
+                    currentType: ref.read(ledgerTypeFilterProvider),
+                    currentMonth: ref.read(ledgerMonthFilterProvider),
+                    currentCategory: ref.read(ledgerCategoryFilterProvider),
+                    currentAsset: ref.read(ledgerAssetFilterProvider),
+                    catsForType: catsForType,
+                    monthKeys: _recentMonthKeys(),
+                    formatMonthKey: _formatMonthKey,
+                    allAssets: allAssets,
+                    onTypeChanged: (v) =>
+                        ref.read(ledgerTypeFilterProvider.notifier).state = v,
+                    onMonthChanged: (v) =>
+                        ref.read(ledgerMonthFilterProvider.notifier).state = v,
+                    onCategoryChanged: (v) =>
+                        ref.read(ledgerCategoryFilterProvider.notifier).state =
+                            v,
+                    onAssetChanged: (v) =>
+                        ref.read(ledgerAssetFilterProvider.notifier).state = v,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (ctx, anim, secAnim, child) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, -1),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: anim, curve: AppMotion.aquaIn)),
+          child: child,
+        );
+      },
     );
   }
 
