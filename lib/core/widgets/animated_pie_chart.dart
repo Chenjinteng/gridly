@@ -1,14 +1,17 @@
 // lib/core/widgets/animated_pie_chart.dart
 // 圆环 / 仪表盘风格进度环 —— 全部用 CustomPainter 自绘,不用 fl_chart。
 //
-// 2026-10-12 重写语义(第 6 版,commit 49):
-//   - 之前 v1-v5 都用 fl_chart 的 PieChart,无论 value=0 时,fl_chart 都会
-//     渲染一条隐形 ring outline / track,导致打开页面瞬间看到"底色"
-//     (灰圈)再出色条 — user 反复反馈,不是干净的 gauge 体验
-//   - v6 (本版):完全自绘,CustomPainter + 手绘 partial annulus path。
-//     sweep progress = 0 时**什么也不画**(没底色、没 outline、没 swap
-//     animation),sweep 经过扇区时该段才"长"出来,色从透明渐变到实色。
-//     像 Apple Activity ring / ColorOS 17 控制中心 wifi/蓝牙圆环效果。
+// 2026-10-12 重写语义(第 7 版,commit 50):
+//   - v1-v5 全用 fl_chart,用户反馈"打开瞬间有底色 + 切换卡顿"
+//   - v6 commit 49 改 CustomPainter 自绘 + Color.lerp(transparent → 实色):
+//     没了底色,但 user 反馈\"过程中好像会有色差\"—— Color.lerp 在 ratio=0.5
+//     时颜色半透明,在浅/深背景下被\"洗白\",看起来不像实色
+//   - v7 (本版) 参考 ColorOS 17 健康 App 步数环(同款 Apple Activity Ring
+//     风格) 的做法:
+//       - 实色填充,**没有 alpha 渐变**——颜色从出现瞬间就是满色,彻底
+//         解决色差问题
+//       - 每扇区角度从 0 涨到 full,顺时针连贯扫,8 个扇区依次出现
+//       - 扇区之间留 1.2° 小间隙,既方便肉眼区分段,又不喧宾夺主
 //
 // 用法
 //   AnimatedPieChart(
@@ -21,13 +24,17 @@
 //
 // 实现要点:
 //   - AnimationController + addPostFrameCallback forward(首次 mount 启动)
-//   - Cumulative sweep angle,从 startDegreeOffset(-90°=12 点)顺时针绕
-//     - 总 sweep = 0°→360°
-//     - 每个扇区按累计角度位置分段:`start = cumDeg`,`end = cumDeg + sectorDeg`
-//     - sweep < start → 完全不画;start ≤ sweep ≤ end → 画 partial 弧 + 颜色 fade in;
-//       sweep > end → 完整扇区 + 完整颜色
-//   - duration 2400ms,8 个扇区每个 ~300ms,fade in 过程清晰可见
-//   - key 变化触发 widget 重新 mount → 重画(切月份 / 视角由父级 key 控制)
+//   - Sweep 从 startDegreeOffset(-90°=12 点)顺时针 0°→360°
+//   - 每扇区累计角度 = cumDeg,sectorEnd = cumDeg + sectorDeg
+//   - 距离 startDegreeOffset 的 sweep 位置:
+//     - sweepRel < sectorStart  → ratio = 0(不画)
+//     - sweepRel > sectorEnd    → ratio = 1(完整)
+//     - 中间                    → ratio = (sweepRel - sectorStart) / sectorDeg
+//   - 实色绘制:`sec.color` 直接给 paint.color,**没有 transparent 渐变**。
+//     ratio 仅控制 angular extent(从 0 涨到 sectorDeg - _kGapDeg)
+//   - 间隙:每扇区在 visual 上两侧各缩 0.6°,既可分辨边界又不破坏连贯感
+//   - duration 2400ms,8 个扇区每个 ~300ms(剔除 1.2° 间隙后完整填充)
+//   - key 变化触发 widget 重新 mount → 重画
 import 'dart:math' as math;
 
 import 'package:fl_chart/fl_chart.dart';
@@ -65,9 +72,9 @@ class _AnimatedPieChartState extends State<AnimatedPieChart>
   late final AnimationController _ctrl;
   late final Animation<double> _t;
 
-  /// 总动画时长(commit 49,从 2000ms 拉到 2400ms):
-  ///   2400ms 让 8 个扇区每个有 ~300ms 独立 fade-in 时间,user 能清楚看到
-  ///   "扫到一个,出一个颜色" 的先后顺序。aquaIn 阻尼前快后慢,收尾自然减速。
+  /// 总动画时长(commit 50,从 v6 2400ms 保持):
+  ///   8 个扇区每个有 ~300ms 独立填充时间,user 能清楚看到"扫到一个,
+  ///   出一个颜色"的先后顺序。aquaIn 阻尼前快后慢,收尾自然减速。
   static const Duration _kDuration = Duration(milliseconds: 2400);
 
   @override
@@ -158,6 +165,12 @@ class _GaugePainter extends CustomPainter {
     required this.startDegreeOffset,
   });
 
+  /// 扇区之间留 1.2° 间隔(两侧各 0.6°)。
+  /// ColorOS 17 健康 App 步数环同款 visual rhythm —— 扇区界限清晰,
+  /// 但间隙小得刚好看到而不是被"切断"。
+  static const double _kGapDeg = 1.2;
+  static const double _kHalfGapDeg = _kGapDeg / 2;
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
@@ -169,9 +182,7 @@ class _GaugePainter extends CustomPainter {
     final total = sections.fold<double>(0, (s, e) => s + e.value);
     if (total <= 0) return; // 空数据兜底:什么都不画
 
-    // sweep progress 0..1 → 0°..360° 顺时针
     final sweepDeg = sweepProgress * 360;
-    // cumDeg 累加扇区累角度,起点 = startDegreeOffset (-90° = 12 点)
     var cumDeg = startDegreeOffset;
 
     for (final sec in sections) {
@@ -192,25 +203,27 @@ class _GaugePainter extends CustomPainter {
       }
 
       if (ratio > 0) {
-        // 颜色 fade-in:从 transparent 渐变到实色
-        final color = Color.lerp(
-          Colors.transparent,
-          sec.color,
-          ratio.clamp(0.0, 1.0).toDouble(),
-        )!;
+        // 实色填充(不 fade)—— ColorOS 17 Health ring / Apple Activity 风格。
+        // 一旦该扇区被扫到,瞬间就是满色,过程中无色差
         final paint = Paint()
-          ..color = color
+          ..color = sec.color
           ..style = PaintingStyle.fill;
 
-        // 自绘 partial annulus path —— 没底色、没 outline、没 swap 残留
-        final path = buildAnnulusPath(
-          center: center,
-          outer: outer,
-          inner: inner,
-          startDeg: sectorStart,
-          sweepDeg: sectorDeg * ratio,
-        );
-        canvas.drawPath(path, paint);
+        // 绘制 visual extent = sectorDeg * ratio - gap,
+        // 即使 sectorDeg 很小时 gap 上限也不让它变负
+        final maxDrawSweep = math.max(0.0, sectorDeg - _kGapDeg);
+        final drawSweep = maxDrawSweep * ratio;
+
+        if (drawSweep > 0) {
+          final path = buildAnnulusPath(
+            center: center,
+            outer: outer,
+            inner: inner,
+            startDeg: sectorStart + _kHalfGapDeg,
+            sweepDeg: drawSweep,
+          );
+          canvas.drawPath(path, paint);
+        }
       }
 
       cumDeg += sectorDeg;
