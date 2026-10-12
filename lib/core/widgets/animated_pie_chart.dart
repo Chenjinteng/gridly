@@ -42,7 +42,7 @@ class AnimatedPieChart extends StatefulWidget {
   const AnimatedPieChart({
     super.key,
     required this.sections,
-    this.innerRadius = 50,
+    this.innerRadius = 48,
     this.outerRadius = 64,
     this.startDegreeOffset = -90,
   });

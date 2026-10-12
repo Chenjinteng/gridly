@@ -109,7 +109,7 @@ class IncomePie extends ConsumerWidget {
                                   ),
                                 )
                                 .toList()),
-                            innerRadius: 50,
+                            innerRadius: 48,
                             outerRadius: 64,
                             sections: shown
                                 .map(
