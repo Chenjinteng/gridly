@@ -21,13 +21,14 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/motion/app_motion.dart';
-import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/refresh_providers.dart';
 import '../../../core/widgets/staggered_fade_in.dart';
 import 'widgets/category_pie.dart';
 import 'widgets/budget_overview_chart.dart';
 import 'widgets/monthly_trend.dart';
+import 'widgets/assets_overview_chart.dart';
+import 'widgets/assets_radar.dart';
 import 'widgets/range_summary.dart';
 import 'widgets/range_tabs.dart';
 import 'widgets/top_expenses.dart';
@@ -181,7 +182,10 @@ class _StatsPageState extends ConsumerState<StatsPage> {
         }
         add(const MonthlyTrendChart());
       case StatsView.assets:
-        add(const _AssetsPlaceholder());
+        // 2026-10-12 P4 commit:资产视角 = 总览卡 + 4 维雷达图(替换 P5 前的 placeholder)
+        add(const AssetsOverviewChart());
+        widgets.add(const SizedBox(height: AppSpacing.s3));
+        add(const AssetsRadar());
     }
     return widgets;
   }
@@ -309,59 +313,6 @@ class _CompactViewSegment extends StatelessWidget {
             ),
             child: Text(label),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AssetsPlaceholder extends StatelessWidget {
-  const _AssetsPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    // 2026-10-12 修:资产 placeholder 的「即将上线」文字 dark mode 下也看不见
-    // (AppGray.g600 在黑背景上融掉)。改用 onSurfaceVariant。
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.s4,
-        vertical: AppSpacing.s6,
-      ),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.s4,
-          vertical: AppSpacing.s6,
-        ),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Theme.of(context).colorScheme.outlineVariant,
-            width: 0.5,
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              Icons.account_balance_wallet_rounded,
-              size: 40,
-              color: AppGray.g400,
-            ),
-            const SizedBox(height: AppSpacing.s3),
-            const Text(
-              '资产结构',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: AppSpacing.s2),
-            Text(
-              '即将上线',
-              style: TextStyle(
-                fontSize: 13,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
         ),
       ),
     );

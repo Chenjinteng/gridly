@@ -51,23 +51,48 @@ final assetBalanceProvider = FutureProvider.family<double, int>((
   return balances[assetId] ?? 0.0;
 });
 
-/// 资产负债总览(给 P3 资产负债页用,P1 暂未引用)
-///   totalCashFlow = sum(所有 cash_flow 账户 currentBalance)
-///   P3 会再扩展:加 fixed_asset / liability 维度,这里先占位。
+/// 2026-10-12 P4 commit 扩展:资产总览(给 P4 资产页雷达图 + AssetsOverviewChart 用)
+///   - totalCashFlow / totalFixedAsset / totalLiability / totalOther 4 维度
+///   - 负债用累加(不取 abs),让用户看到"实际欠多少"(负值)
+///   - 雷达图单独取 abs 用以显示对比幅度
 class AssetTotals {
-  const AssetTotals({required this.totalCashFlow});
+  const AssetTotals({
+    required this.totalCashFlow,
+    required this.totalFixedAsset,
+    required this.totalLiability,
+    required this.totalOther,
+  });
   final double totalCashFlow;
+  final double totalFixedAsset;
+  final double totalLiability;
+  final double totalOther;
 }
 
 final assetTotalsProvider = FutureProvider<AssetTotals>((ref) async {
   final repo = ref.watch(assetRepositoryProvider);
   final assets = await repo.all();
   final balances = await ref.watch(assetBalancesProvider.future);
-  var totalCashFlow = 0.0;
+  var cf = 0.0, fa = 0.0, li = 0.0, ot = 0.0;
   for (final a in assets) {
-    if (a.type == 'cash_flow') {
-      totalCashFlow += balances[a.id] ?? 0.0;
+    final bal = balances[a.id] ?? 0.0;
+    switch (a.type) {
+      case 'cash_flow':
+        cf += bal;
+        break;
+      case 'fixed_asset':
+        fa += bal;
+        break;
+      case 'liability':
+        li += bal;
+        break;
+      default:
+        ot += bal;
     }
   }
-  return AssetTotals(totalCashFlow: totalCashFlow);
+  return AssetTotals(
+    totalCashFlow: cf,
+    totalFixedAsset: fa,
+    totalLiability: li,
+    totalOther: ot,
+  );
 });
