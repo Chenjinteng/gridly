@@ -23,7 +23,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/motion/app_motion.dart';
 import '../../../core/haptics/app_haptics.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/refresh_providers.dart';
 import '../../../core/widgets/staggered_fade_in.dart';
@@ -64,6 +63,22 @@ class _StatsPageState extends ConsumerState<StatsPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('报表'),
+        actions: [
+          // 2026-10-12 视角选择:从 AppBar 下方一整行 segmented,改放
+          // AppBar 右侧紧凑 SegmentedButton。原来占整行宽(占视觉重量),
+          // 改成 Material 3 SegmentedButton 紧凑版,字号 12 + 紧凑 padding,
+          // 整体宽度约 156px,跟 title "报表" 同行不挤。
+          Padding(
+            padding: const EdgeInsets.only(right: AppSpacing.s2),
+            child: Center(
+              child: _CompactViewSegmented(
+                current: view,
+                onChange: (v) =>
+                    ref.read(statsViewProvider.notifier).state = v,
+              ),
+            ),
+          ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: () async => refreshAllData(ref),
@@ -71,16 +86,8 @@ class _StatsPageState extends ConsumerState<StatsPage> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.only(bottom: AppSpacing.s6),
           children: [
-            // 2026-10-12 视角选择从右上角 dropdown 改为 AppBar 下方 3 段
-            // segmented([支出 | 收入 | 资产])。原来要点右上角 → 弹底部
-            // sheet → 再点选项,3 步;现在 1 步切换,ColorOS 控制中心
-            // segmented 风格。
-            _ViewSegmented(
-              current: view,
-              onChange: (v) =>
-                  ref.read(statsViewProvider.notifier).state = v,
-            ),
-            // 时间范围(本月/本年) —— 跟着 view segmented 之下
+            // 时间范围(本月/本年) —— 现在是该页 body 的最顶(view
+            // segmented 改到 AppBar 右侧了,这里不再有 view 行)
             const RangeTabs(),
             // 汇总(收入/支出/结余)— 三个视角共享(它是"窗口内总览")
             const RangeSummary(),
@@ -171,13 +178,15 @@ class _StatsPageState extends ConsumerState<StatsPage> {
 /// - 点击弹出 3 项菜单,选中后 onChange 回调立刻更新 provider
 /// - 这里不监听 widget 自身 rebuild 状态,current 是 build 参数,onChange
 ///   触发后父级 StatsPage 会因 watch 重新 build,current 自动同步
-/// 2026-10-12 视角选择 segmented(支出 | 收入 | 资产):
-///   - 从右上角 dropdown + bottom sheet 三步,改成 AppBar 下方 3 段
-///     segmented,1 步切换
-///   - 视觉跟 RangeSegment 一致:选中段 primary 12% alpha + 整段 scale 1.02
-///   - 触觉:selectionClick(ColorOS 标志性"咔哒")
-class _ViewSegmented extends StatelessWidget {
-  const _ViewSegmented({
+/// 2026-10-12 紧凑视角选择 — 放 AppBar 右侧,Material 3 SegmentedButton。
+///
+/// 设计:
+///   - 字号 12 / padding 8-4,整段宽度约 156px,跟 title "报表" 同一行
+///   - 3 段(支出 / 收入 / 资产),点选切换
+///   - showSelectedIcon:false(不要 ✓ icon,只要文字高亮区分)
+///   - 触觉:selectionClick
+class _CompactViewSegmented extends StatelessWidget {
+  const _CompactViewSegmented({
     required this.current,
     required this.onChange,
   });
@@ -185,93 +194,31 @@ class _ViewSegmented extends StatelessWidget {
   final StatsView current;
   final ValueChanged<StatsView> onChange;
 
-  static const _options = <(StatsView, String)>[
-    (StatsView.expense, '支出'),
-    (StatsView.income, '收入'),
-    (StatsView.assets, '资产'),
-  ];
-
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.s4,
-        AppSpacing.s2,
-        AppSpacing.s4,
-        0,
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerLow,
-          borderRadius: AppRadius.brLg,
+    return SegmentedButton<StatsView>(
+      segments: const [
+        ButtonSegment(value: StatsView.expense, label: Text('支出')),
+        ButtonSegment(value: StatsView.income, label: Text('收入')),
+        ButtonSegment(value: StatsView.assets, label: Text('资产')),
+      ],
+      selected: {current},
+      showSelectedIcon: false,
+      onSelectionChanged: (sel) {
+        final v = sel.first;
+        if (v == current) return;
+        AppHaptics.select();
+        onChange(v);
+      },
+      style: ButtonStyle(
+        // 紧凑:字号 12,横向 padding 8,纵向 4,整体高度 ~28-32px
+        visualDensity: VisualDensity.compact,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        textStyle: WidgetStateProperty.all(
+          const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
         ),
-        child: Row(
-          children: [
-            for (final (view, label) in _options)
-              Expanded(
-                child: _ViewSegment(
-                  label: label,
-                  selected: view == current,
-                  onTap: () {
-                    if (view == current) return;
-                    // 视角切换:selectionClick(ColorOS 标志性"咔哒")
-                    AppHaptics.select();
-                    onChange(view);
-                  },
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 单段 segmented 按钮 — 选中态 AnimatedContainer + scale 1.02,
-/// 跟 _RangeSegment 视觉对齐。
-class _ViewSegment extends StatelessWidget {
-  const _ViewSegment({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final fg = selected
-        ? theme.colorScheme.primary
-        : theme.colorScheme.onSurfaceVariant;
-    return InkWell(
-      borderRadius: AppRadius.brLg,
-      onTap: onTap,
-      child: AnimatedScale(
-        scale: selected ? 1.02 : 1.0,
-        duration: AppMotion.fast,
-        curve: AppMotion.aquaIn,
-        child: AnimatedContainer(
-          duration: AppMotion.fast,
-          curve: AppMotion.aquaIn,
-          decoration: BoxDecoration(
-            color: selected
-                ? theme.colorScheme.primary.withValues(alpha: 0.12)
-                : Colors.transparent,
-            borderRadius: AppRadius.brLg,
-          ),
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.s2),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              color: fg,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-            ),
-          ),
+        padding: WidgetStateProperty.all(
+          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         ),
       ),
     );
