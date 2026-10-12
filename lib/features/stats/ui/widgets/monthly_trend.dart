@@ -248,7 +248,11 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
       BarChartData(
         maxY: widget.maxY,
         minY: 0,
-        alignment: BarChartAlignment.spaceAround,
+        // daily 30 根柱,BarChartAlignment.spaceAround 默认会把柱挨在一起;
+        // 改 spaceBetween + groupsSpace 4 让每根柱之间有 4px 留白,看起来"呼吸"
+        // 2026-10-12 user 反馈"柱与柱之间没有间隔",commit 73 加
+        alignment: BarChartAlignment.spaceBetween,
+        groupsSpace: 4,
         barTouchData: BarTouchData(
           handleBuiltInTouches: true,
           touchTooltipData: BarTouchTooltipData(
@@ -352,6 +356,8 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
     for (int i = 0; i < widget.bars.length; i++) {
       if (widget.labelKind == BarLabelKind.day) {
         // 每日 1 柱
+        // commit 73:width 8 → 5 + groupsSpace 4,30 根柱的 30×5 + 29×4 = 266
+        // + chart padding ≈ 330,30 根柱之间各有 4px 留白
         final d = widget.bars[i];
         groups.add(
           BarChartGroupData(
@@ -360,7 +366,7 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
               BarChartRodData(
                 toY: d.expense,
                 color: widget.color,
-                width: 8, // 30+ 根柱子时单柱窄一点
+                width: 5,
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(2),
                 ),
