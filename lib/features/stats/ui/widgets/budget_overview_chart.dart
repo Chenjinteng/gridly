@@ -77,16 +77,23 @@ class BudgetOverviewChart extends ConsumerWidget {
   }
 }
 
-class _BudgetOverviewBody extends StatelessWidget {
+class _BudgetOverviewBody extends StatefulWidget {
   const _BudgetOverviewBody({required this.overview});
 
   final BudgetOverview overview;
+
+  @override
+  State<_BudgetOverviewBody> createState() => _BudgetOverviewBodyState();
+}
+
+class _BudgetOverviewBodyState extends State<_BudgetOverviewBody> {
+  BudgetOverview get overview => widget.overview;
 
   /// 总已花
   double get _totalSpent =>
       overview.items.fold<double>(0.0, (sum, i) => sum + i.spent);
 
-  /// 进度比(可能 > 1,表示超额;commit 100 之前 clamp 到 [0,1])
+  /// 进度比(可能 > 1,表示超额)
   ///   - ≤ 1:圆环 1 圈内,已花 + 剩余两段
   ///   - > 1:圆环 multi-turn,已花占 1 圈 + 超额继续转 N 圈
   double get _progress {
@@ -104,10 +111,67 @@ class _BudgetOverviewBody extends StatelessWidget {
   double get _overSpent =>
       (_totalSpent - overview.totalBudget).clamp(0.0, double.infinity);
 
+  /// commit 102 加:viewport-aware 触发入场动画
+  ///   - false:widget 还没进入 scroll viewport,圆环和数字都不动
+  ///   - true:viewport 进入后,圆环和数字才开始动 —— 一次性,不再重置
+  bool _appeared = false;
+
+  /// 用来拿 widget 在 scroll viewport 中的位置
+  final GlobalKey _chartKey = GlobalKey();
+
+  /// 监听 Scrollable 滚动,每次滚动时检查 widget 是否进入 viewport
+  ScrollPosition? _scrollPos;
+
+  @override
+  void initState() {
+    super.initState();
+    // 跟 monthly_trend BarChart 同模式(commit 86):监听 Scrollable.position
+    // 任何子 widget 在 scrollable 坐标系中"任意部分进入 viewport"都触发
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _scrollPos = Scrollable.maybeOf(context)?.position;
+      _scrollPos?.addListener(_checkInView);
+      _checkInView();
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollPos?.removeListener(_checkInView);
+    super.dispose();
+  }
+
+  /// 检测 widget 是否在 scroll viewport 内
+  ///   - 拿 chart RenderBox,scrollable RenderBox
+  ///   - box.localToGlobal(Offset.zero, ancestor: scrollableBox).dy
+  ///     是 widget 顶在 scrollable 坐标系中的 y
+  ///   - 如果 widget 顶 < viewport 高 && widget 底 > 0 → 任意部分可见 → 触发
+  void _checkInView() {
+    if (_appeared) return;
+    final ctx = _chartKey.currentContext;
+    if (ctx == null) return;
+    final box = ctx.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final scrollableBox =
+        _scrollPos?.context.notificationContext?.findRenderObject()
+            as RenderBox?;
+    if (scrollableBox == null) return;
+    final widgetTopInScrollable = box
+        .localToGlobal(Offset.zero, ancestor: scrollableBox)
+        .dy;
+    final widgetHeight = box.size.height;
+    final viewportHeight = scrollableBox.size.height;
+    if (widgetTopInScrollable < viewportHeight &&
+        widgetTopInScrollable + widgetHeight > 0) {
+      _appeared = true;
+      _scrollPos?.removeListener(_checkInView);
+      setState(() {});
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final hasBudget = overview.totalBudget > 0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -127,7 +191,7 @@ class _BudgetOverviewBody extends StatelessWidget {
                 '本月预算',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               ),
-              if (hasBudget)
+              if (_hasBudget)
                 Text(
                   '总额 ¥${Formatters.amount(overview.totalBudget)}',
                   style: const TextStyle(fontSize: 12, color: AppGray.g600),
@@ -145,145 +209,169 @@ class _BudgetOverviewBody extends StatelessWidget {
         //       N = _overSpent / budget(可超过 1,触发 multi-turn)
         //   中心:小标签 + 大金额(数字 TweenAnimationBuilder 从 0 递增到实际值)
         //   右侧:图例(已花 / 超额 或 已花 / 剩余 三段)
-        Padding(
-          padding: const EdgeInsets.all(AppSpacing.s4),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 140,
-                height: 140,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Builder(
-                      builder: (_) {
-                        final sections = <PieChartSectionData>[
-                          if (_hasBudget && _isOver)
-                            PieChartSectionData(
-                              // 已花段:固定 1 圈(error 红)
-                              value: 1.0,
-                              color: AppStatus.error,
-                              radius: 18,
-                            ),
-                          if (_hasBudget && _isOver)
-                            PieChartSectionData(
-                              // 超额段:N 圈(deep 红)
-                              value: _overSpent / overview.totalBudget,
-                              color: AppSemantic.overBudgetDeep,
-                              radius: 18,
-                            ),
-                          if (_hasBudget && !_isOver && _progress > 0)
-                            PieChartSectionData(
-                              // 已花段:0~1 圈(error 红)
-                              value: _progress.clamp(0.001, 1.0),
-                              color: AppStatus.error,
-                              radius: 18,
-                            ),
-                          if (_hasBudget && !_isOver)
-                            PieChartSectionData(
-                              // 剩余段:0~1 圈(灰)
-                              value: (1.0 - _progress).clamp(0.0, 1.0),
-                              color: AppGray.g200,
-                              radius: 18,
-                            ),
-                          if (!_hasBudget)
-                            PieChartSectionData(
-                              value: 1.0,
-                              color: AppGray.g200,
-                              radius: 18,
-                            ),
-                        ];
-                        return AnimatedOverBudgetChart(
-                          key: pieChartKeyForSections(sections),
-                          sections: sections,
-                          innerRadius: 48,
-                          outerRadius: 64,
-                        );
-                      },
-                    ),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          '已花',
-                          style: TextStyle(fontSize: 11, color: AppGray.g600),
-                        ),
-                        const SizedBox(height: 2),
-                        // 数字加载动画:从 0 递增到实际值(1200ms aquaIn 阻尼)
-                        // ValueKey 让 target 变化时重启,target 不变时保持稳定值
-                        TweenAnimationBuilder<double>(
-                          key: ValueKey('spent-${_totalSpent.round()}'),
-                          tween: Tween(begin: 0.0, end: _totalSpent),
-                          duration: const Duration(milliseconds: 1200),
-                          curve: AppMotion.aquaIn,
-                          builder: (context, value, _) {
-                            return Text(
-                              _hasBudget ? '¥${Formatters.amount(value)}' : '—',
+        //   commit 102 加 KeyedSubtree 给上半部分:_checkInView 用此 key 拿
+        //     widget 在 scrollable 坐标系中的位置,任意部分进入 viewport 时
+        //     setState(_appeared = true) → 圆环 + 数字动画开始
+        KeyedSubtree(
+          key: _chartKey,
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.s4),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 140,
+                  height: 140,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Builder(
+                        builder: (_) {
+                          final sections = <PieChartSectionData>[
+                            if (_hasBudget && _isOver)
+                              PieChartSectionData(
+                                // 已花段:固定 1 圈(error 红)
+                                value: 1.0,
+                                color: AppStatus.error,
+                                radius: 18,
+                              ),
+                            if (_hasBudget && _isOver)
+                              PieChartSectionData(
+                                // 超额段:N 圈(deep 红)
+                                value: _overSpent / overview.totalBudget,
+                                color: AppSemantic.overBudgetDeep,
+                                radius: 18,
+                              ),
+                            if (_hasBudget && !_isOver && _progress > 0)
+                              PieChartSectionData(
+                                // 已花段:0~1 圈(error 红)
+                                value: _progress.clamp(0.001, 1.0),
+                                color: AppStatus.error,
+                                radius: 18,
+                              ),
+                            if (_hasBudget && !_isOver)
+                              PieChartSectionData(
+                                // 剩余段:0~1 圈(灰)
+                                value: (1.0 - _progress).clamp(0.0, 1.0),
+                                color: AppGray.g200,
+                                radius: 18,
+                              ),
+                            if (!_hasBudget)
+                              PieChartSectionData(
+                                value: 1.0,
+                                color: AppGray.g200,
+                                radius: 18,
+                              ),
+                          ];
+                          return AnimatedOverBudgetChart(
+                            key: pieChartKeyForSections(sections),
+                            sections: sections,
+                            innerRadius: 48,
+                            outerRadius: 64,
+                            // commit 102:viewport-aware 触发,play=false 时不 forward,
+                            //   _appeared 变 true 时由 didUpdateWidget 触发
+                            play: _appeared,
+                          );
+                        },
+                      ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            '已花',
+                            style: TextStyle(fontSize: 11, color: AppGray.g600),
+                          ),
+                          const SizedBox(height: 2),
+                          // 数字加载动画:viewport 进入后才从 0 递增到实际值
+                          //   - _appeared=false:显示静态最终值(避免"未加载完成"闪过)
+                          //   - _appeared=true:TweenAnimationBuilder mount,begin=0 递增到 end
+                          //     2000ms aquaIn(commit 102 改:之前 1200ms user 反馈太快)
+                          if (_appeared)
+                            TweenAnimationBuilder<double>(
+                              key: ValueKey('spent-${_totalSpent.round()}'),
+                              tween: Tween(begin: 0.0, end: _totalSpent),
+                              duration: const Duration(milliseconds: 2000),
+                              curve: AppMotion.aquaIn,
+                              builder: (context, value, _) {
+                                return Text(
+                                  _hasBudget
+                                      ? '¥${Formatters.amount(value)}'
+                                      : '—',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                );
+                              },
+                            )
+                          else
+                            Text(
+                              _hasBudget
+                                  ? '¥${Formatters.amount(_totalSpent)}'
+                                  : '—',
                               style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
                               ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppSpacing.s4),
-              // 右侧图例(commit 100 加第三段"超额")
-              //   - 未设置预算: 空
-              //   - 已花 ≤ 预算: 已花 + 剩余
-              //   - 已花 > 预算: 已花 + 超额
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (_hasBudget) ...[
-                      _legendRow(
-                        AppStatus.error,
-                        '已花',
-                        _isOver
-                            ? '100' // 已花占满 100% 预算,不再乘 _progress
-                            : (_progress * 100).toStringAsFixed(0),
-                        Formatters.amount(_totalSpent, withUnit: false),
-                      ),
-                      const SizedBox(height: 4),
-                      if (_isOver)
-                        _legendRow(
-                          AppSemantic.overBudgetDeep,
-                          '超额',
-                          // 超额百分比 = (over / budget) × 100
-                          (_overSpent / overview.totalBudget * 100)
-                              .toStringAsFixed(0),
-                          Formatters.amount(_overSpent, withUnit: false),
-                        )
-                      else
-                        _legendRow(
-                          AppGray.g200,
-                          '剩余',
-                          ((1 - _progress).clamp(0.0, 1.0) * 100)
-                              .toStringAsFixed(0),
-                          Formatters.amount(
-                            (overview.totalBudget - _totalSpent).clamp(
-                              0.0,
-                              double.infinity,
                             ),
-                            withUnit: false,
-                          ),
-                        ),
+                        ],
+                      ),
                     ],
-                  ],
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(width: AppSpacing.s4),
+                // 右侧图例(commit 100 加第三段"超额")
+                //   - 未设置预算: 空
+                //   - 已花 ≤ 预算: 已花 + 剩余
+                //   - 已花 > 预算: 已花 + 超额
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_hasBudget) ...[
+                        _legendRow(
+                          AppStatus.error,
+                          '已花',
+                          _isOver
+                              ? '100' // 已花占满 100% 预算,不再乘 _progress
+                              : (_progress * 100).toStringAsFixed(0),
+                          Formatters.amount(_totalSpent, withUnit: false),
+                        ),
+                        const SizedBox(height: 4),
+                        if (_isOver)
+                          _legendRow(
+                            AppSemantic.overBudgetDeep,
+                            '超额',
+                            // 超额百分比 = (over / budget) × 100
+                            (_overSpent / overview.totalBudget * 100)
+                                .toStringAsFixed(0),
+                            Formatters.amount(_overSpent, withUnit: false),
+                          )
+                        else
+                          _legendRow(
+                            AppGray.g200,
+                            '剩余',
+                            ((1 - _progress).clamp(0.0, 1.0) * 100)
+                                .toStringAsFixed(0),
+                            Formatters.amount(
+                              (overview.totalBudget - _totalSpent).clamp(
+                                0.0,
+                                double.infinity,
+                              ),
+                              withUnit: false,
+                            ),
+                          ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         // commit 98 移除:中部一行"已用 X% / 剩余 ¥X / 总额 ¥X" 是冗余信息
         //   — 已花百分比已经在圆环图例,剩余/总额已经在标题栏右侧 + 图例双行。
         // 共享池说明
-        if (hasBudget)
+        if (_hasBudget)
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.s4,

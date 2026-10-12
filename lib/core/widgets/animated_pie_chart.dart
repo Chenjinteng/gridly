@@ -268,6 +268,7 @@ class AnimatedOverBudgetChart extends StatefulWidget {
     this.innerRadius = 48,
     this.outerRadius = 64,
     this.startDegreeOffset = -90,
+    this.play = true,
   });
 
   /// 数据扇区。**value 是"圈数"** — 例如 1.0 = 1 圈(360°),0.86 = 309.6°
@@ -275,6 +276,12 @@ class AnimatedOverBudgetChart extends StatefulWidget {
   final double innerRadius;
   final double outerRadius;
   final double startDegreeOffset;
+
+  /// commit 102 加:是否启动扫角动画。
+  ///   - 默认 true(向后兼容,initState 后立即 forward)
+  ///   - false 时 widget mount 但不 forward;parent 通过 setState 改为 true
+  ///     时由 didUpdateWidget 触发 forward(用于 viewport-aware 触发场景)
+  final bool play;
 
   @override
   State<AnimatedOverBudgetChart> createState() =>
@@ -286,11 +293,16 @@ class _AnimatedOverBudgetChartState extends State<AnimatedOverBudgetChart>
   late final AnimationController _ctrl;
   late final Animation<double> _t;
 
-  static const Duration _kBaseDuration = Duration(milliseconds: 1200);
+  static const Duration _kBaseDuration = Duration(milliseconds: 2000);
 
-  /// 每多 1 圈 +200ms,最多加成 5 圈(封顶 2200ms 防止太长)
-  static const double _kExtraPerTurnMs = 200;
+  /// 每多 1 圈 +300ms,最多加成 5 圈(封顶 3500ms 防止太长)
+  /// commit 102 改:user 反馈 1200ms 太短 + 200ms/圈太短,看起来"唰一下"就转完。
+  ///   现在基础 2000ms + 300ms/圈,9 圈预算约 4100ms,跟"转多圈"的视觉重量匹配
+  static const double _kExtraPerTurnMs = 300;
   static const double _kExtraMaxTurns = 5;
+
+  /// commit 102 加:防止 _play 被重复调用
+  bool _appeared = false;
 
   @override
   void initState() {
@@ -304,9 +316,29 @@ class _AnimatedOverBudgetChartState extends State<AnimatedOverBudgetChart>
       duration: Duration(milliseconds: ms),
     );
     _t = CurvedAnimation(parent: _ctrl, curve: AppMotion.aquaIn);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _ctrl.forward();
-    });
+    // commit 102 改:play=true 时 initState 后立即 forward;
+    //   play=false 时由 parent 触发(didUpdateWidget 调 _play)
+    if (widget.play) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _play();
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(AnimatedOverBudgetChart old) {
+    super.didUpdateWidget(old);
+    // play 由 false 变 true → 触发 forward(viewport-aware 场景)
+    if (widget.play && !_appeared) {
+      _play();
+    }
+  }
+
+  /// 一次性 forward,触发后不再重播
+  void _play() {
+    if (_appeared) return;
+    _appeared = true;
+    _ctrl.forward();
   }
 
   double _totalTurns() =>
