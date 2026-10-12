@@ -64,18 +64,19 @@ class _StatsPageState extends ConsumerState<StatsPage> {
       appBar: AppBar(
         title: const Text('报表'),
         actions: [
-          // 2026-10-12 视角选择:从 AppBar 下方一整行 segmented,改放
-          // AppBar 右侧紧凑 SegmentedButton。原来占整行宽(占视觉重量),
-          // 改成 Material 3 SegmentedButton 紧凑版,字号 12 + 紧凑 padding,
-          // 整体宽度约 156px,跟 title "报表" 同行不挤。
+          // 2026-10-12 视角选择:AppBar 右侧 3 段 underline indicator
+          // (ColorOS 16 风格)。
+          // ── 修复 ── (2026-10-12 UAT 截图反馈"title 不见 + 3 段不显示"):
+          //   1. 不能包 `Center`:Center 在 AppBar actions slot 里会强行
+          //      撑满横向空间,把 title 挤出可见区,只剩 actions 左对齐
+          //      的"支出"浮在左上
+          //   2. AppBar 自己会垂直居中 actions,不需要 Center
           Padding(
             padding: const EdgeInsets.only(right: AppSpacing.s2),
-            child: Center(
-              child: _CompactViewSegmented(
-                current: view,
-                onChange: (v) =>
-                    ref.read(statsViewProvider.notifier).state = v,
-              ),
+            child: _CompactViewSegmented(
+              current: view,
+              onChange: (v) =>
+                  ref.read(statsViewProvider.notifier).state = v,
             ),
           ),
         ],
@@ -173,20 +174,20 @@ class _StatsPageState extends ConsumerState<StatsPage> {
   }
 }
 
-/// AppBar 右侧的视角 dropdown
-/// - 显示当前 view 文字 + expand_more icon(常驻可见)
-/// - 点击弹出 3 项菜单,选中后 onChange 回调立刻更新 provider
-/// - 这里不监听 widget 自身 rebuild 状态,current 是 build 参数,onChange
-///   触发后父级 StatsPage 会因 watch 重新 build,current 自动同步
-/// 2026-10-12 紧凑视角选择 — ColorOS 16 underline indicator 风格。
-///
-/// 视觉(参考 ColorOS 16 小布记账):
+/// AppBar 右侧的视角选择(ColorOS 16 underline indicator 风格)
 ///   - 3 段(支出 / 收入 / 资产),放 AppBar 右侧,跟 title 同一行
-///   - 每段:文字 + 下方 2px 下划线 indicator
+///   - 每段:文字 + 下方固定宽 20px 下划线 indicator
 ///   - 选中:文字 onSurface 加粗 + 下划线 primary 色
-///   - 未选中:文字 onSurfaceVariant + 下划线 width 0
-///   - 切换时下划线 AnimatedContainer 平滑从 0 → full width
+///   - 未选中:文字 onSurfaceVariant + 下划线 transparent(同位置,但不可见)
+///   - 切换时下划线 AnimatedContainer 平滑 fade 颜色,240ms aquaIn
 ///   - 触觉:selectionClick
+///
+/// ── 修复 ── (2026-10-12 UAT 截图反馈"title 不见 + 3 段不显示"):
+///   - 下划线绝不能用 `width: selected ? double.infinity : 0`:
+///     Column 在 AppBar actions 这种非约束环境里接到 maxWidth:∞,
+///     直接撞 RenderBox infinite size,整段不渲染。
+///   - 改为固定宽 20(略窄于 14sp 中文 2 字 ≈ 28px),所有段都预留同样
+///     宽度的"下划线槽",颜色淡入就行,3 段底部视觉对齐。
 class _CompactViewSegmented extends StatelessWidget {
   const _CompactViewSegmented({
     required this.current,
@@ -242,10 +243,10 @@ class _CompactViewSegment extends StatelessWidget {
         : theme.colorScheme.onSurfaceVariant;
     return InkWell(
       onTap: onTap,
-      // 紧凑:水平 padding 10,垂直 6。AppBar 高度 56,segment 总高 ~36px
-      // (12 字号 + 6 vertical padding + 2 underline + 4 gap)
+      // 紧凑:水平 padding 12,垂直 8。AppBar 高度 56,segment 总高 ~36px
+      // (14 字号 + 8 vertical padding + 2 underline + 4 gap)
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -258,14 +259,18 @@ class _CompactViewSegment extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            // 下划线 indicator:AnimatedContainer 让未选中(0)→ 选中(full)
-            // 平滑过渡,240ms aquaIn
+            // 下划线 indicator:固定 20px 宽(不取 double.infinity!),颜色淡入
             AnimatedContainer(
               duration: AppMotion.fast,
               curve: AppMotion.aquaIn,
               height: 2,
-              width: selected ? double.infinity : 0,
-              color: theme.colorScheme.primary,
+              width: 20,
+              decoration: BoxDecoration(
+                color: selected
+                    ? theme.colorScheme.primary
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(1),
+              ),
             ),
           ],
         ),
