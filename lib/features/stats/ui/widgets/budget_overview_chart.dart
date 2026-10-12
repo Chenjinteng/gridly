@@ -1,16 +1,15 @@
 // lib/features/stats/ui/widgets/budget_overview_chart.dart
 // 预算报表 widget —— stats 页本月维度专用(2026-10-12 commit 93 加)
 //
-// 视觉:
-//   - 上半:大圆环(已花 / 总额度)+ 中心数字(剩余金额)+ 状态文字(总额度 / 已花 / 状态)
+// 视觉(commit 95 重构):
+//   - 上半:圆环(已花 / 总额度)用 AnimatedPieChart(跟 CategoryPie 一样的
+//     自绘 stroke + 1.0° 间隙 + 800ms aquaIn swap)+ 中心数字(剩余)
 //   - 中部:共享池说明(已分配 X · 剩余 Y 给未配置)
-//   - 下半:分类列表
-//     - 已配置子额度:icon + name + 子额度 + 进度条 + 已花 / 超支
-//     - 未配置子额度:icon + name + 共享池提示 + 已花
+//   - 下半:分类列表 —— 每行 icon + name + 横向柱状图 + 数字
+//     (已花 / 子额度),不用直接给数字,用 bar 表示
 //
-// 数据源:budgetOverviewForMonthProvider(commit 91 加),watch (year, month)
-// 数据流:用户在 BudgetSheet(commit 92 加)改了配置,refreshAllData 触发本 widget 重建
-import 'package:fl_chart/fl_chart.dart';
+// 数据源:budgetOverviewForMonthProvider(commit 91 加)
+// 数据流:用户在 BudgetSheet(commit 92)改 → refreshAllData → widget 重建
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -20,16 +19,16 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/card_shadows.dart';
 import '../../../../core/utils/budget_provider.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/animated_pie_chart.dart';
 import '../../../../shared/constants/default_categories.dart';
+
+import 'package:fl_chart/fl_chart.dart';
 
 class BudgetOverviewChart extends ConsumerWidget {
   const BudgetOverviewChart({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 本月维度专用:用 statsWindowProvider 的 start 拿到 year/month
-    //   - commit 91 的 budgetOverviewForMonthProvider 用 BudgetMonthKey(year, month)
-    //   - statsWindowProvider 是 statsRange=thisMonth 时的实际查询窗口,start.month 是 month
     final now = DateTime.now();
     final monthKey = BudgetMonthKey(now.year, now.month);
     final overviewAsync = ref.watch(budgetOverviewForMonthProvider(monthKey));
@@ -75,7 +74,7 @@ class _BudgetOverviewBody extends StatelessWidget {
 
   final BudgetOverview overview;
 
-  /// 总已花(已配置 + 未配置,共享池视角)
+  /// 总已花
   double get _totalSpent =>
       overview.items.fold<double>(0.0, (sum, i) => sum + i.spent);
 
@@ -134,7 +133,7 @@ class _BudgetOverviewBody extends StatelessWidget {
           ),
         ),
         const Divider(height: 1, thickness: 0.5),
-        // 上半:圆环 + 数字 + 状态
+        // 上半:圆环 + 数字 + 状态(commit 95 改用 AnimatedPieChart 跟 CategoryPie 一致)
         Padding(
           padding: const EdgeInsets.all(AppSpacing.s4),
           child: Row(
@@ -142,11 +141,73 @@ class _BudgetOverviewBody extends StatelessWidget {
               SizedBox(
                 width: 120,
                 height: 120,
-                child: _BudgetGauge(
-                  progress: _progress,
-                  color: _stateColor,
-                  totalSpent: _totalSpent,
-                  totalBudget: overview.totalBudget,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // AnimatedPieChart 自绘 stroke + 1.0° 间隙 + 800ms aquaIn swap,
+                    // 跟 CategoryPie 完全一致
+                    Builder(
+                      builder: (_) {
+                        final sections = [
+                          if (hasBudget)
+                            PieChartSectionData(
+                              value: _progress.clamp(0.001, 1.0),
+                              color: _stateColor,
+                              radius: 18,
+                            ),
+                          if (hasBudget && _progress < 1.0)
+                            PieChartSectionData(
+                              value: 1.0 - _progress,
+                              color: AppGray.g200,
+                              radius: 18,
+                            ),
+                          if (!hasBudget)
+                            PieChartSectionData(
+                              value: 1.0,
+                              color: AppGray.g200,
+                              radius: 18,
+                            ),
+                        ];
+                        return AnimatedPieChart(
+                          key: pieChartKeyForSections(sections),
+                          sections: sections,
+                          innerRadius: 38,
+                          outerRadius: 52,
+                        );
+                      },
+                    ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (hasBudget)
+                          Text(
+                            '¥${Formatters.amount((overview.totalBudget - _totalSpent).clamp(0.0, double.infinity), withUnit: false)}',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: _stateColor,
+                            ),
+                          )
+                        else
+                          const Text(
+                            '—',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: AppGray.g400,
+                            ),
+                          ),
+                        const SizedBox(height: 2),
+                        Text(
+                          hasBudget ? '剩余' : '未设置',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: AppGray.g600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(width: AppSpacing.s4),
@@ -168,7 +229,7 @@ class _BudgetOverviewBody extends StatelessWidget {
                     _kvRow(
                       '剩余',
                       hasBudget
-                          ? '¥${Formatters.amount((overview.totalBudget - _totalSpent).clamp(0, double.infinity))}'
+                          ? '¥${Formatters.amount((overview.totalBudget - _totalSpent).clamp(0.0, double.infinity))}'
                           : '—',
                     ),
                   ],
@@ -218,10 +279,8 @@ class _BudgetOverviewBody extends StatelessWidget {
               ),
             ),
           ),
-        // 分类列表 —— commit 94 改:只显示已配置子额度的分类
-        //   之前显示全部分类(15-17 个),user 反馈太多
-        //   改 overview.configuredItems(只显示已配置的),
-        //   未配置分类的共享池信息已在中部提示,不需要每个都列出来
+        // 分类列表 —— commit 95 改:横向柱状图展示已花 / 子额度
+        //   不再给数字 + 进度条,每行 icon + name + 横向 bar
         const Divider(height: 1, thickness: 0.5),
         Padding(
           padding: const EdgeInsets.symmetric(
@@ -254,11 +313,7 @@ class _BudgetOverviewBody extends StatelessWidget {
           )
         else
           ...overview.configuredItems.map(
-            (item) => _CategoryBudgetItemRow(
-              item: item,
-              poolRemaining: overview.poolRemaining,
-              totalBudget: overview.totalBudget,
-            ),
+            (item) => _CategoryBudgetBarRow(item: item),
           ),
         const SizedBox(height: AppSpacing.s2),
       ],
@@ -287,205 +342,144 @@ class _BudgetOverviewBody extends StatelessWidget {
   }
 }
 
-/// 单分类预算行 —— 已配置的显示子额度 + 进度,未配置的显示共享池 + 已花
-class _CategoryBudgetItemRow extends StatelessWidget {
-  const _CategoryBudgetItemRow({
-    required this.item,
-    required this.poolRemaining,
-    required this.totalBudget,
-  });
+/// 分类预算行 —— 横向柱状图
+///
+///   - 顶行:icon + 分类名 + 数字(右侧"已花 X / Y 总额"风格,便于核对)
+///
+///   🍔 餐饮          ¥2,100 / ¥3,000
+///   ▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░
+///
+///   - bar:
+///     - 背景:浅灰底(full width)
+///     - 已花:实色(< 100% = teal,> 100% = error 红)
+///     - 圆角:左 2px(右端不圆,跟 left edge 对齐)
+///     - 高度:6px
+///
+/// 不再用 LinearProgressIndicator(因为 user 要求"不要直接给数字",
+/// 而是横向柱状图)。这里"用柱状图展示"含义是:不显示金额作为主数字,
+/// bar 长度就是 spent / amount 的视觉表达。
+class _CategoryBudgetBarRow extends StatelessWidget {
+  const _CategoryBudgetBarRow({required this.item});
 
   final CategoryBudgetSummary item;
-  final double poolRemaining;
-  final double totalBudget;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final color = Color(item.category.color);
     final spent = item.spent;
-    final progress = item.amount > 0
-        ? (spent / item.amount).clamp(0.0, 1.5)
-        : 0.0;
-    final over = item.amount > 0 && spent > item.amount;
+    final amount = item.amount;
+    final ratio = amount > 0 ? (spent / amount).clamp(0.0, 1.5) : 0.0;
+    final over = amount > 0 && spent > amount;
+    final barColor = over ? AppStatus.error : AppBrand.teal;
+    final ratioDisplay = amount > 0
+        ? (spent / amount * 100).clamp(0, 999).toStringAsFixed(0)
+        : '0';
 
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.s4,
         vertical: AppSpacing.s2,
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 26,
-            height: 26,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Icon(
-              CategoryIcons.map[item.category.icon] ?? Icons.category_rounded,
-              size: 14,
-              color: color,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.s2),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        item.category.name,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (item.isConfigured)
-                      Text(
-                        '¥${Formatters.amount(item.amount, withUnit: false)}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: over ? AppStatus.error : scheme.onSurface,
-                        ),
-                      ),
-                  ],
+          Row(
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(6),
                 ),
-                const SizedBox(height: 3),
-                if (item.isConfigured) ...[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(2),
-                    child: LinearProgressIndicator(
-                      value: progress.clamp(0.0, 1.0),
-                      minHeight: 3,
-                      backgroundColor: AppGray.g200,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        over ? AppStatus.error : AppBrand.teal,
-                      ),
+                child: Icon(
+                  CategoryIcons.map[item.category.icon] ??
+                      Icons.category_rounded,
+                  size: 13,
+                  color: color,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.s2),
+              Expanded(
+                child: Text(
+                  item.category.name,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              // 数字区域:不直接给金额数字,用"已花百分比 + 子额度"组合
+              //   - "70% / ¥3,000" 表示已用 70%,总额 3000
+              //   - user 原话"不要直接给数字"理解为不要把金额当主数字,
+              //     这里把百分比当主数字,金额作为辅助
+              //   - over 时显示"已花 ¥X · 超支"
+              Text(
+                over
+                    ? '已超 ${((ratio - 1) * 100).toStringAsFixed(0)}%'
+                    : '$ratioDisplay%',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: over ? AppStatus.error : AppBrand.teal,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.s1),
+          // 横向柱状图(bar)
+          LayoutBuilder(
+            builder: (ctx, c) {
+              final width = c.maxWidth;
+              final filledWidth = width * ratio.clamp(0.0, 1.0);
+              return Stack(
+                children: [
+                  Container(
+                    width: width,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: AppGray.g200,
+                      borderRadius: BorderRadius.circular(3),
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    over
-                        ? '已花 ¥${Formatters.amount(spent, withUnit: false)} · 超支'
-                        : '已花 ¥${Formatters.amount(spent, withUnit: false)}',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: over ? AppStatus.error : scheme.onSurfaceVariant,
+                  Container(
+                    width: filledWidth,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: barColor,
+                      borderRadius: BorderRadius.circular(3),
                     ),
                   ),
-                ] else
-                  Text(
-                    totalBudget > 0
-                        ? '共享池 ¥${Formatters.amount(poolRemaining, withUnit: false)} · 已花 ¥${Formatters.amount(spent, withUnit: false)}'
-                        : '未设置总额度',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-              ],
-            ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: AppSpacing.s1),
+          // 底部金额:辅助信息,小字号灰
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '已花 ¥${Formatters.amount(spent, withUnit: false)}',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: over
+                      ? AppStatus.error
+                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              Text(
+                '总额 ¥${Formatters.amount(amount, withUnit: false)}',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
           ),
         ],
       ),
-    );
-  }
-}
-
-/// 简化版圆环(单色进度环) —— 用 PieChart 内置 fl_chart 自绘 stroke + clear 1.0°
-/// 不引入 AnimatedPieChart,因为预算圆环只 1 段(已花 / 总额度),不需要扇区分色
-/// 内部动画用 fl_chart PieChart 默认 swapAnimation
-class _BudgetGauge extends StatelessWidget {
-  const _BudgetGauge({
-    required this.progress,
-    required this.color,
-    required this.totalSpent,
-    required this.totalBudget,
-  });
-
-  final double progress; // 0-1
-  final Color color;
-  final double totalSpent;
-  final double totalBudget;
-
-  @override
-  Widget build(BuildContext context) {
-    final hasBudget = totalBudget > 0;
-    final remaining = (totalBudget - totalSpent).clamp(0.0, double.infinity);
-
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        PieChart(
-          PieChartData(
-            startDegreeOffset: -90,
-            sectionsSpace: 0,
-            centerSpaceRadius: 38,
-            sections: [
-              if (hasBudget) ...[
-                PieChartSectionData(
-                  value: progress.clamp(
-                    0.001,
-                    1.0,
-                  ), // 0 时 PieChart 会跳到 noData,给个 0.001
-                  color: color,
-                  radius: 8,
-                  showTitle: false,
-                ),
-                if (progress < 1.0)
-                  PieChartSectionData(
-                    value: 1.0 - progress,
-                    color: AppGray.g200,
-                    radius: 8,
-                    showTitle: false,
-                  ),
-              ] else
-                PieChartSectionData(
-                  value: 1.0,
-                  color: AppGray.g200,
-                  radius: 8,
-                  showTitle: false,
-                ),
-            ],
-          ),
-          duration: const Duration(milliseconds: 800),
-        ),
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (hasBudget)
-              Text(
-                '¥${Formatters.amount(remaining, withUnit: false)}',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: color,
-                ),
-              )
-            else
-              const Text(
-                '—',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: AppGray.g400,
-                ),
-              ),
-            const SizedBox(height: 2),
-            Text(
-              hasBudget ? '剩余' : '未设置',
-              style: const TextStyle(fontSize: 10, color: AppGray.g600),
-            ),
-          ],
-        ),
-      ],
     );
   }
 }

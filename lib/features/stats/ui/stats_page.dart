@@ -171,15 +171,15 @@ class _StatsPageState extends ConsumerState<StatsPage> {
       case StatsView.expense:
         add(const CategoryPie());
         widgets.add(const SizedBox(height: AppSpacing.s3));
-        // 2026-10-12 commit 93 加:预算报表
-        //   - 仅本月维度显示(本年维度是 12 月趋势,跟月度预算无关)
-        //   - 位置:CategoryPie 后、TopExpenses 前(逻辑顺序:概览 → 预算 → Top)
+        add(const TopExpenses());
+        widgets.add(const SizedBox(height: AppSpacing.s3));
+        // 2026-10-12 commit 95 改位置:预算报表放到 Top 10 支出下面
+        //   user 原话:"预算放在 top10 支出报表下面"
+        //   仅本月维度显示(本年维度跟月度预算无关)
         if (ref.watch(statsRangeProvider) == StatsRange.thisMonth) {
           add(const BudgetOverviewChart());
           widgets.add(const SizedBox(height: AppSpacing.s3));
         }
-        add(const TopExpenses());
-        widgets.add(const SizedBox(height: AppSpacing.s3));
         add(const MonthlyTrendChart());
       case StatsView.income:
         add(const IncomePie());
