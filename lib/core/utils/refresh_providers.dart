@@ -7,6 +7,8 @@
 //   - 用户在任何页面下拉刷新 → RefreshIndicator 调用
 //   - 用户进入 stats tab → StatsPage.initState 主动调一次
 //     (commit 84 加,防 Riverpod cache + 兜底打开报表那一刻拉最新)
+//   - 用户在 BudgetSheet 配置 / 调整分类子额度 → BudgetSheet 调
+//     (commit 91 加,family 的所有 month 都失效)
 //
 // 涉及的页面:
 //   - 流水页(allTransactionsByDayProvider / filteredTransactionsByDayProvider)
@@ -15,10 +17,13 @@
 //     topExpensesProvider / monthlyTrendProvider /
 //     dailyExpenseTrendProvider / yearlyExpenseTrendProvider)
 //   - 分类页 / 关于页(allCategoriesProvider)
+//   - 分类预算(categoryBudgetsForMonthProvider /
+//     categoryBudgetUsageForMonthProvider / budgetOverviewForMonthProvider)
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/ledger/application/transactions_providers.dart';
 import '../../features/stats/application/stats_providers.dart';
+import 'budget_provider.dart';
 
 void refreshAllData(WidgetRef ref) {
   ref.invalidate(allTransactionsByDayProvider);
@@ -40,4 +45,11 @@ void refreshAllData(WidgetRef ref) {
   // 选择器必须同步刷新;之前只 invalidate allCategoriesProvider,family 的
   // categoriesByTypeProvider 还是缓存,新分类选不到。
   ref.invalidate(categoriesByTypeProvider);
+  // 2026-10-12 commit 91 补:分类预算 family provider
+  //   - add/update/delete transaction 后,分类支出汇总变 → 必须 invalidate
+  //     实际支出(usage)和预算总览(overview)
+  //   - BudgetSheet 改完子额度 → invalidate budgets 和 overview
+  ref.invalidate(categoryBudgetsForMonthProvider);
+  ref.invalidate(categoryBudgetUsageForMonthProvider);
+  ref.invalidate(budgetOverviewForMonthProvider);
 }
