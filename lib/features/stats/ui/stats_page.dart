@@ -178,12 +178,14 @@ class _StatsPageState extends ConsumerState<StatsPage> {
 /// - 点击弹出 3 项菜单,选中后 onChange 回调立刻更新 provider
 /// - 这里不监听 widget 自身 rebuild 状态,current 是 build 参数,onChange
 ///   触发后父级 StatsPage 会因 watch 重新 build,current 自动同步
-/// 2026-10-12 紧凑视角选择 — 放 AppBar 右侧,Material 3 SegmentedButton。
+/// 2026-10-12 紧凑视角选择 — ColorOS 16 underline indicator 风格。
 ///
-/// 设计:
-///   - 字号 12 / padding 8-4,整段宽度约 156px,跟 title "报表" 同一行
-///   - 3 段(支出 / 收入 / 资产),点选切换
-///   - showSelectedIcon:false(不要 ✓ icon,只要文字高亮区分)
+/// 视觉(参考 ColorOS 16 小布记账):
+///   - 3 段(支出 / 收入 / 资产),放 AppBar 右侧,跟 title 同一行
+///   - 每段:文字 + 下方 2px 下划线 indicator
+///   - 选中:文字 onSurface 加粗 + 下划线 primary 色
+///   - 未选中:文字 onSurfaceVariant + 下划线 width 0
+///   - 切换时下划线 AnimatedContainer 平滑从 0 → full width
 ///   - 触觉:selectionClick
 class _CompactViewSegmented extends StatelessWidget {
   const _CompactViewSegmented({
@@ -194,31 +196,78 @@ class _CompactViewSegmented extends StatelessWidget {
   final StatsView current;
   final ValueChanged<StatsView> onChange;
 
+  static const _options = <(StatsView, String)>[
+    (StatsView.expense, '支出'),
+    (StatsView.income, '收入'),
+    (StatsView.assets, '资产'),
+  ];
+
   @override
   Widget build(BuildContext context) {
-    return SegmentedButton<StatsView>(
-      segments: const [
-        ButtonSegment(value: StatsView.expense, label: Text('支出')),
-        ButtonSegment(value: StatsView.income, label: Text('收入')),
-        ButtonSegment(value: StatsView.assets, label: Text('资产')),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final (view, label) in _options)
+          _CompactViewSegment(
+            label: label,
+            selected: view == current,
+            onTap: () {
+              if (view == current) return;
+              AppHaptics.select();
+              onChange(view);
+            },
+          ),
       ],
-      selected: {current},
-      showSelectedIcon: false,
-      onSelectionChanged: (sel) {
-        final v = sel.first;
-        if (v == current) return;
-        AppHaptics.select();
-        onChange(v);
-      },
-      style: ButtonStyle(
-        // 紧凑:字号 12,横向 padding 8,纵向 4,整体高度 ~28-32px
-        visualDensity: VisualDensity.compact,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        textStyle: WidgetStateProperty.all(
-          const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-        ),
-        padding: WidgetStateProperty.all(
-          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    );
+  }
+}
+
+/// 单段 — 文字 + 下方下划线 indicator(ColorOS 16 风格)
+class _CompactViewSegment extends StatelessWidget {
+  const _CompactViewSegment({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final fg = selected
+        ? theme.colorScheme.onSurface
+        : theme.colorScheme.onSurfaceVariant;
+    return InkWell(
+      onTap: onTap,
+      // 紧凑:水平 padding 10,垂直 6。AppBar 高度 56,segment 总高 ~36px
+      // (12 字号 + 6 vertical padding + 2 underline + 4 gap)
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                color: fg,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 4),
+            // 下划线 indicator:AnimatedContainer 让未选中(0)→ 选中(full)
+            // 平滑过渡,240ms aquaIn
+            AnimatedContainer(
+              duration: AppMotion.fast,
+              curve: AppMotion.aquaIn,
+              height: 2,
+              width: selected ? double.infinity : 0,
+              color: theme.colorScheme.primary,
+            ),
+          ],
         ),
       ),
     );
