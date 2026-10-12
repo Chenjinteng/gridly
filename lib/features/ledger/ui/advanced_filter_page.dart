@@ -2,16 +2,16 @@
 // 流水页"高级筛选"全屏页 —— 替代 AppBar 弹出的紧凑 modal sheet
 //
 // 2026-10-13 新建:user UAT 反馈"高级筛选里加上资产条件,要不全屏显示 4 条件一行行"。
-// 2026-10-13 第 2 次改:user UAT 反馈"高级筛选需要给一个确认或者搜索的按钮,
-//   每种搜索条件不要复用原来底部弹出样式,直接展开式"。
-//   - 加 sticky bottom "应用筛选" 按钮(Navigator.pop 关闭,filter 已实时生效)
-//   - 4 条件 row 改成"点开展开式"——点 row 在 row 下方 inline 展开选项 list
-//     (单选 radio / 多选 checkbox),不再弹底部 modal sheet
-//   - 同时只能展开 1 个 row(点别的 row 会自动收起当前 row)
-//   - 实时生效(选完 row 的选项立刻更新 provider,跟之前 _FilterSheet 行为一致),
-//     "应用筛选" 按钮只是给 user 一个明确的"我筛选好了" 关闭动作
-//   - 跟 in-page _FilterBar 3-dropdown 横滚条共存:_FilterBar 快速筛选
-//     (3 个常用),_AdvancedFilterPage 完整 4 条件 + 搜索(深度筛选)
+// 2026-10-13 第 2 次改:加 sticky bottom "应用筛选" 按钮 + 4 条件 inline 展开。
+// 2026-10-13 第 3 次改:user UAT 反馈"高级筛选里面的所有都可以进行多选,
+//   并且 inline 需要像 coloros 一样上一些下拉的丝滑动画"。
+//   - 4 条件全部多选(类型/月份/分类/资产)— 类型从 String 改 Set<String>,
+//     月份从 int? 改 Set<int>(provider 同步升级,filter 逻辑走 OR)
+//   - 类型列表去掉"全部"选项(空 Set = 全部),改 checkbox 风格
+//   - 月份列表去掉"全部"选项(空 Set = 全部),改 checkbox 风格
+//   - inline 展开加 ColorOS 风格动画:AnimatedSize 320ms easeOutCubic +
+//     列表项 30ms 错峰 fade-in + 内容 8px 上推下滑入
+//   - 同时间只展开 1 个 row(tap 别的 row 自动收起当前 row,带 240ms 反向动画)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -40,7 +40,6 @@ class _AdvancedFilterPageState extends ConsumerState<AdvancedFilterPage> {
   @override
   void initState() {
     super.initState();
-    // 初始值取自当前 provider(从 ledger_page.dart 跳过来时已有 filter active)
     _searchController = TextEditingController(
       text: ref.read(ledgerSearchQueryProvider),
     );
@@ -58,27 +57,32 @@ class _AdvancedFilterPageState extends ConsumerState<AdvancedFilterPage> {
     });
   }
 
-  // ============ label helpers ============
+  // ============ label helpers(全部支持 Set 多选)============
 
   String _typeLabel() {
-    switch (ref.watch(ledgerTypeFilterProvider)) {
-      case 'expense':
-        return '支出';
-      case 'income':
-        return '收入';
-      case 'balance':
-        return '调拨';
-      default:
-        return '全部';
+    final s = ref.watch(ledgerTypeFilterProvider);
+    if (s.isEmpty) return '全部';
+    if (s.length == 1) {
+      switch (s.first) {
+        case 'expense':
+          return '支出';
+        case 'income':
+          return '收入';
+        case 'balance':
+          return '调拨';
+      }
     }
+    return '已选 ${s.length} 项';
   }
 
   String _monthLabel() {
-    final m = ref.watch(ledgerMonthFilterProvider);
-    if (m == null) return '全部';
-    final y = m ~/ 100;
-    final mo = m % 100;
-    return '$y 年 $mo 月';
+    final s = ref.watch(ledgerMonthFilterProvider);
+    if (s.isEmpty) return '全部';
+    if (s.length == 1) {
+      final k = s.first;
+      return '${k ~/ 100} 年 ${k % 100} 月';
+    }
+    return '已选 ${s.length} 个月';
   }
 
   String _categoryLabel(List<Category> catsForType) {
@@ -109,8 +113,8 @@ class _AdvancedFilterPageState extends ConsumerState<AdvancedFilterPage> {
 
   bool _anyFilterActive() {
     return _searchController.text.isNotEmpty ||
-        ref.read(ledgerTypeFilterProvider) != 'all' ||
-        ref.read(ledgerMonthFilterProvider) != null ||
+        ref.read(ledgerTypeFilterProvider).isNotEmpty ||
+        ref.read(ledgerMonthFilterProvider).isNotEmpty ||
         ref.read(ledgerCategoryFilterProvider).isNotEmpty ||
         ref.read(ledgerAssetFilterProvider).isNotEmpty;
   }
@@ -118,8 +122,8 @@ class _AdvancedFilterPageState extends ConsumerState<AdvancedFilterPage> {
   void _clearAll() {
     _searchController.clear();
     ref.read(ledgerSearchQueryProvider.notifier).state = '';
-    ref.read(ledgerTypeFilterProvider.notifier).state = 'all';
-    ref.read(ledgerMonthFilterProvider.notifier).state = null;
+    ref.read(ledgerTypeFilterProvider.notifier).state = <String>{};
+    ref.read(ledgerMonthFilterProvider.notifier).state = <int>{};
     ref.read(ledgerCategoryFilterProvider.notifier).state = <int>{};
     ref.read(ledgerAssetFilterProvider.notifier).state = <int>{};
   }
@@ -143,20 +147,26 @@ class _AdvancedFilterPageState extends ConsumerState<AdvancedFilterPage> {
     return list;
   }
 
-  static String _formatMonthKey(int key) {
-    final y = key ~/ 100;
-    final m = key % 100;
-    return '$y 年 $m 月';
+  // ============ 各条件多选 toggle(空 Set = 全部)============
+
+  void _toggleType(String value) {
+    final cur = {...ref.read(ledgerTypeFilterProvider)};
+    if (cur.contains(value)) {
+      cur.remove(value);
+    } else {
+      cur.add(value);
+    }
+    ref.read(ledgerTypeFilterProvider.notifier).state = cur;
   }
 
-  // ============ 各条件的选择器(单选 / 多选 inline list) ============
-
-  void _selectType(String value) {
-    ref.read(ledgerTypeFilterProvider.notifier).state = value;
-  }
-
-  void _selectMonth(int? value) {
-    ref.read(ledgerMonthFilterProvider.notifier).state = value;
+  void _toggleMonth(int value) {
+    final cur = {...ref.read(ledgerMonthFilterProvider)};
+    if (cur.contains(value)) {
+      cur.remove(value);
+    } else {
+      cur.add(value);
+    }
+    ref.read(ledgerMonthFilterProvider.notifier).state = cur;
   }
 
   void _toggleCategory(int id) {
@@ -190,9 +200,10 @@ class _AdvancedFilterPageState extends ConsumerState<AdvancedFilterPage> {
     final allAssetsAsync = ref.watch(allAssetsProvider);
     final allAssets = allAssetsAsync.valueOrNull ?? const <Asset>[];
 
-    final catsForType = typeFilter == 'all'
+    // 2026-10-13:类型 filter 改 Set<String>,catsForType 走"空 = 全部,非空 = OR"
+    final catsForType = typeFilter.isEmpty
         ? allCats
-        : allCats.where((c) => c.type == typeFilter).toList();
+        : allCats.where((c) => typeFilter.contains(c.type)).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -271,55 +282,57 @@ class _AdvancedFilterPageState extends ConsumerState<AdvancedFilterPage> {
             ),
           ),
           const Divider(height: 1),
-          // ============ 类型 row(单选) ============
+          // ============ 类型 row(多选,空 = 全部)============
           _SectionHeader(
             icon: Icons.category_outlined,
             label: '类型',
             value: _typeLabel(),
-            active: typeFilter != 'all',
+            active: typeFilter.isNotEmpty,
             expanded: _expanded == 'type',
             onTap: () => _toggleSection('type'),
           ),
-          if (_expanded == 'type')
-            _RadioOptionList<String>(
+          _ExpandableList(
+            expanded: _expanded == 'type',
+            child: _CheckboxOptionList<String>(
               options: const [
-                ('all', '全部'),
                 ('expense', '支出'),
                 ('income', '收入'),
                 ('balance', '调拨'),
               ],
-              currentValue: typeFilter,
-              onSelect: (v) => _selectType(v),
+              selected: typeFilter,
+              onToggle: _toggleType,
             ),
+          ),
           const Divider(
             height: 1,
             indent: AppSpacing.s4,
             endIndent: AppSpacing.s4,
           ),
-          // ============ 月份 row(单选) ============
+          // ============ 月份 row(多选,空 = 全部)============
           _SectionHeader(
             icon: Icons.calendar_today_outlined,
             label: '月份',
             value: _monthLabel(),
-            active: monthFilter != null,
+            active: monthFilter.isNotEmpty,
             expanded: _expanded == 'month',
             onTap: () => _toggleSection('month'),
           ),
-          if (_expanded == 'month')
-            _RadioOptionList<int?>(
-              options: <(int?, String)>[
-                (null, '全部'),
-                ..._recentMonthKeys().map((k) => (k, _formatMonthKey(k))),
-              ],
-              currentValue: monthFilter,
-              onSelect: (v) => _selectMonth(v),
+          _ExpandableList(
+            expanded: _expanded == 'month',
+            child: _CheckboxOptionList<int>(
+              options: _recentMonthKeys()
+                  .map((k) => (k, '${k ~/ 100} 年 ${k % 100} 月'))
+                  .toList(),
+              selected: monthFilter,
+              onToggle: _toggleMonth,
             ),
+          ),
           const Divider(
             height: 1,
             indent: AppSpacing.s4,
             endIndent: AppSpacing.s4,
           ),
-          // ============ 分类 row(多选) ============
+          // ============ 分类 row(多选)============
           _SectionHeader(
             icon: Icons.local_offer_outlined,
             label: '分类',
@@ -328,18 +341,20 @@ class _AdvancedFilterPageState extends ConsumerState<AdvancedFilterPage> {
             expanded: _expanded == 'category',
             onTap: () => _toggleSection('category'),
           ),
-          if (_expanded == 'category')
-            _CheckboxCategoryList(
+          _ExpandableList(
+            expanded: _expanded == 'category',
+            child: _CheckboxCategoryList(
               categories: catsForType,
               selected: categoryFilter,
               onToggle: _toggleCategory,
             ),
+          ),
           const Divider(
             height: 1,
             indent: AppSpacing.s4,
             endIndent: AppSpacing.s4,
           ),
-          // ============ 资产 row(多选) ============
+          // ============ 资产 row(多选)============
           _SectionHeader(
             icon: Icons.account_balance_wallet_outlined,
             label: '资产',
@@ -348,12 +363,14 @@ class _AdvancedFilterPageState extends ConsumerState<AdvancedFilterPage> {
             expanded: _expanded == 'asset',
             onTap: () => _toggleSection('asset'),
           ),
-          if (_expanded == 'asset')
-            _CheckboxAssetList(
+          _ExpandableList(
+            expanded: _expanded == 'asset',
+            child: _CheckboxAssetList(
               assets: allAssets,
               selected: assetFilter,
               onToggle: _toggleAsset,
             ),
+          ),
           const Divider(height: 1),
           // 底部留空,避免列表被应用按钮遮挡
           const SizedBox(height: 80),
@@ -408,7 +425,7 @@ class _AdvancedFilterPageState extends ConsumerState<AdvancedFilterPage> {
 }
 
 // ============================================================================
-// 行 widget:section header(可点开展开)
+// 行 widget:section header(可点开展开) + AnimatedRotation chevron
 // ============================================================================
 
 class _SectionHeader extends StatelessWidget {
@@ -476,9 +493,11 @@ class _SectionHeader extends StatelessWidget {
               ),
             ),
             const SizedBox(width: AppSpacing.s2),
+            // 2026-10-13:chevron 旋转 + 同时透明度 1.0(展开时强调)
             AnimatedRotation(
               turns: expanded ? 0.25 : 0,
-              duration: const Duration(milliseconds: 200),
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeOutCubic,
               child: Icon(
                 Icons.chevron_right_rounded,
                 size: 20,
@@ -493,65 +512,76 @@ class _SectionHeader extends StatelessWidget {
 }
 
 // ============================================================================
-// 单选 list(类型 / 月份)
-//   - 每行 radio 风格,选中态 primary
-//   - 展开时 inline 出现,高度自适应内容(最多 ~280px 后内部滚)
+// ColorOS 风格 inline 展开容器
+//   - AnimatedSize 高度 0 ↔ 内容高度,320ms easeOutCubic(比 M3 长,水感)
+//   - ClipRect 防止内容溢出
+//   - 用 AnimatedSlide 8px 上推下滑入(模拟下拉)
+//
+// ListView 内部子项用 _StaggeredItem 包 30ms 错峰 fade-in(总 ≤200ms),
+// 模拟 ColorOS 列表项进场
 // ============================================================================
 
-class _RadioOptionList<T> extends StatelessWidget {
-  const _RadioOptionList({
-    required this.options,
-    required this.currentValue,
-    required this.onSelect,
-  });
-
-  final List<(T, String)> options;
-  final T currentValue;
-  final ValueChanged<T> onSelect;
+class _ExpandableList extends StatelessWidget {
+  const _ExpandableList({required this.expanded, required this.child});
+  final bool expanded;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: ClipRect(
+        child: expanded
+            ? AnimatedSlide(
+                offset: Offset.zero,
+                duration: const Duration(milliseconds: 320),
+                curve: Curves.easeOutCubic,
+                child: AnimatedOpacity(
+                  opacity: 1.0,
+                  duration: const Duration(milliseconds: 280),
+                  child: child,
+                ),
+              )
+            : const SizedBox(width: double.infinity, height: 0),
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// 多选通用 list(类型 / 月份)— 纯文字 checkbox
+//   复用 _CheckboxTile
+// ============================================================================
+
+class _CheckboxOptionList<T> extends StatelessWidget {
+  const _CheckboxOptionList({
+    required this.options,
+    required this.selected,
+    required this.onToggle,
+  });
+
+  final List<(T, String)> options;
+  final Set<T> selected;
+  final ValueChanged<T> onToggle;
+
+  @override
+  Widget build(BuildContext context) {
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: 280),
+      constraints: const BoxConstraints(maxHeight: 320),
       child: SingleChildScrollView(
         padding: const EdgeInsets.only(bottom: AppSpacing.s2),
         child: Column(
           children: [
-            for (final (value, label) in options)
-              InkWell(
-                onTap: () => onSelect(value),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.s4,
-                    vertical: AppSpacing.s3,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        value == currentValue
-                            ? Icons.radio_button_checked
-                            : Icons.radio_button_unchecked,
-                        size: 20,
-                        color: value == currentValue
-                            ? theme.colorScheme.primary
-                            : theme.colorScheme.outlineVariant,
-                      ),
-                      const SizedBox(width: AppSpacing.s3),
-                      Text(
-                        label,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: value == currentValue
-                              ? FontWeight.w600
-                              : FontWeight.w400,
-                          color: value == currentValue
-                              ? theme.colorScheme.primary
-                              : theme.colorScheme.onSurface,
-                        ),
-                      ),
-                    ],
-                  ),
+            for (var i = 0; i < options.length; i++)
+              _StaggeredItem(
+                index: i,
+                child: _CheckboxTile(
+                  key: ValueKey('opt-${options[i].$1}'),
+                  checked: selected.contains(options[i].$1),
+                  label: options[i].$2,
+                  onTap: () => onToggle(options[i].$1),
                 ),
               ),
           ],
@@ -592,18 +622,21 @@ class _CheckboxCategoryList extends StatelessWidget {
       );
     }
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: 280),
+      constraints: const BoxConstraints(maxHeight: 320),
       child: SingleChildScrollView(
         padding: const EdgeInsets.only(bottom: AppSpacing.s2),
         child: Column(
           children: [
-            for (final c in categories)
-              _CheckboxTile(
-                key: ValueKey('cat-opt-${c.id}'),
-                checked: selected.contains(c.id),
-                color: Color(c.color),
-                label: c.name,
-                onTap: () => onToggle(c.id),
+            for (var i = 0; i < categories.length; i++)
+              _StaggeredItem(
+                index: i,
+                child: _CheckboxTile(
+                  key: ValueKey('cat-opt-${categories[i].id}'),
+                  checked: selected.contains(categories[i].id),
+                  color: Color(categories[i].color),
+                  label: categories[i].name,
+                  onTap: () => onToggle(categories[i].id),
+                ),
               ),
           ],
         ),
@@ -643,19 +676,22 @@ class _CheckboxAssetList extends StatelessWidget {
       );
     }
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: 280),
+      constraints: const BoxConstraints(maxHeight: 320),
       child: SingleChildScrollView(
         padding: const EdgeInsets.only(bottom: AppSpacing.s2),
         child: Column(
           children: [
-            for (final a in assets)
-              _CheckboxTile(
-                key: ValueKey('asset-opt-${a.id}'),
-                checked: selected.contains(a.id),
-                color: Color(a.color),
-                icon: _iconFor(a.icon),
-                label: a.name,
-                onTap: () => onToggle(a.id),
+            for (var i = 0; i < assets.length; i++)
+              _StaggeredItem(
+                index: i,
+                child: _CheckboxTile(
+                  key: ValueKey('asset-opt-${assets[i].id}'),
+                  checked: selected.contains(assets[i].id),
+                  color: Color(assets[i].color),
+                  icon: _iconFor(assets[i].icon),
+                  label: assets[i].name,
+                  onTap: () => onToggle(assets[i].id),
+                ),
               ),
           ],
         ),
@@ -686,7 +722,7 @@ class _CheckboxAssetList extends StatelessWidget {
 }
 
 // ============================================================================
-// checkbox 风格单行(reuse 给分类 / 资产)
+// checkbox 风格单行(reuse 给类型 / 月份 / 分类 / 资产)
 //   - 左 checked icon(实心 ✓ / 空心 ○)
 //   - 中 icon(可选,资产)/ color dot(分类)+ label
 //   - 选中态整行 tint 资产/分类配色 0.08
@@ -696,14 +732,14 @@ class _CheckboxTile extends StatelessWidget {
   const _CheckboxTile({
     super.key,
     required this.checked,
-    required this.color,
     required this.label,
     required this.onTap,
+    this.color,
     this.icon,
   });
 
   final bool checked;
-  final Color color;
+  final Color? color;
   final String label;
   final VoidCallback onTap;
   final IconData? icon;
@@ -711,10 +747,11 @@ class _CheckboxTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tint = color ?? theme.colorScheme.primary;
     return InkWell(
       onTap: onTap,
       child: Container(
-        color: checked ? color.withValues(alpha: 0.08) : Colors.transparent,
+        color: checked ? tint.withValues(alpha: 0.08) : Colors.transparent,
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.s4,
           vertical: AppSpacing.s3,
@@ -734,22 +771,22 @@ class _CheckboxTile extends StatelessWidget {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
+                  color: tint.withValues(alpha: 0.12),
                   borderRadius: AppRadius.brXs,
                   border: Border.all(
-                    color: color.withValues(alpha: 0.3),
+                    color: tint.withValues(alpha: 0.3),
                     width: 0.5,
                   ),
                 ),
-                child: Icon(icon, color: color, size: 16),
+                child: Icon(icon, color: tint, size: 16),
               ),
-            ] else ...[
+            ] else if (color != null) ...[
               const SizedBox(width: AppSpacing.s3),
               Container(
                 width: 10,
                 height: 10,
                 decoration: BoxDecoration(
-                  color: color,
+                  color: tint,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -770,6 +807,62 @@ class _CheckboxTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ============================================================================
+// 错峰进场 item — 30ms × index delay,240ms fade-in + 8px 上推
+//   模拟 ColorOS 列表项"水流式" 进场
+// ============================================================================
+
+class _StaggeredItem extends StatefulWidget {
+  const _StaggeredItem({required this.index, required this.child});
+  final int index;
+  final Widget child;
+
+  @override
+  State<_StaggeredItem> createState() => _StaggeredItemState();
+}
+
+class _StaggeredItemState extends State<_StaggeredItem>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _opacity;
+  late final Animation<Offset> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 240),
+    );
+    _opacity = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+    _slide = Tween<Offset>(
+      begin: const Offset(0, 0.04), // 8/200 = 4% down → slide up
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+    // 30ms 错峰 delay,模拟逐项进场
+    Future.delayed(Duration(milliseconds: 30 * widget.index), () {
+      if (mounted) _ctrl.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _opacity,
+      child: SlideTransition(position: _slide, child: widget.child),
     );
   }
 }

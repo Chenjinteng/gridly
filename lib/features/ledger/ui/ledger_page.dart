@@ -50,11 +50,10 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
     super.dispose();
   }
 
-  // 2026-10-12 P5 follow-up 第 2 次改:_toggleSearch 删除,搜索/清空逻辑搬到
-  //   _FilterSheet 内的搜索 TextField + 底部"清空筛选"按钮。
+  // 2026-10-13:类型/月份 filter 改成 Set,active 检测走 isNotEmpty
   bool _anyFilterActive(WidgetRef ref) {
-    return ref.watch(ledgerTypeFilterProvider) != 'all' ||
-        ref.watch(ledgerMonthFilterProvider) != null ||
+    return ref.watch(ledgerTypeFilterProvider).isNotEmpty ||
+        ref.watch(ledgerMonthFilterProvider).isNotEmpty ||
         ref.watch(ledgerCategoryFilterProvider).isNotEmpty ||
         ref.watch(ledgerAssetFilterProvider).isNotEmpty ||
         ref.watch(ledgerSearchQueryProvider).isNotEmpty;
@@ -105,9 +104,10 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
     // 搜索 query(用于 _EmptyState 显示"没找到匹配的"提示)
     final searchQuery = ref.watch(ledgerSearchQueryProvider);
 
-    final catsForType = typeFilter == 'all'
+    // 2026-10-13:类型 filter 改 Set<String>,catsForType 走"空 = 全部,非空 = OR"
+    final catsForType = typeFilter.isEmpty
         ? allCats
-        : allCats.where((c) => c.type == typeFilter).toList();
+        : allCats.where((c) => typeFilter.contains(c.type)).toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -244,38 +244,51 @@ class _FilterBar extends ConsumerWidget {
     required this.onCategoryChanged,
   });
 
-  final String typeFilter;
-  final int? monthFilter;
+  // 2026-10-13:类型 / 月份 filter 改 Set(支持 高级筛选 多选),
+  //   in-page _FilterBar 走单选 picker 时,选'全部' = 空 Set,选具体值 = {value}
+  final Set<String> typeFilter;
+  final Set<int> monthFilter;
   final Set<int> categoryFilter;
   final List<Category> catsForType;
   final List<int> monthKeys;
   final String Function(int) formatMonthKey;
-  final ValueChanged<String> onTypeChanged;
-  final ValueChanged<int?> onMonthChanged;
+  final ValueChanged<Set<String>> onTypeChanged;
+  final ValueChanged<Set<int>> onMonthChanged;
   final ValueChanged<Set<int>> onCategoryChanged;
 
   bool get _hasActiveFilter =>
-      typeFilter != 'all' || monthFilter != null || categoryFilter.isNotEmpty;
+      typeFilter.isNotEmpty ||
+      monthFilter.isNotEmpty ||
+      categoryFilter.isNotEmpty;
 
   void _clearAll(WidgetRef ref) {
-    ref.read(ledgerTypeFilterProvider.notifier).state = 'all';
-    ref.read(ledgerMonthFilterProvider.notifier).state = null;
+    ref.read(ledgerTypeFilterProvider.notifier).state = <String>{};
+    ref.read(ledgerMonthFilterProvider.notifier).state = <int>{};
     ref.read(ledgerCategoryFilterProvider.notifier).state = <int>{};
   }
 
   String _typeLabel() {
-    switch (typeFilter) {
-      case 'expense':
-        return '支出';
-      case 'income':
-        return '收入';
-      default:
-        return '全部';
+    if (typeFilter.isEmpty) return '全部';
+    if (typeFilter.length == 1) {
+      switch (typeFilter.first) {
+        case 'expense':
+          return '支出';
+        case 'income':
+          return '收入';
+        case 'balance':
+          return '调拨';
+      }
     }
+    return '已选 ${typeFilter.length} 个';
   }
 
-  String _monthLabel() =>
-      monthFilter == null ? '全部' : formatMonthKey(monthFilter!);
+  String _monthLabel() {
+    if (monthFilter.isEmpty) return '全部';
+    if (monthFilter.length == 1) {
+      return formatMonthKey(monthFilter.first);
+    }
+    return '已选 ${monthFilter.length} 个月';
+  }
 
   String _categoryLabel() {
     if (categoryFilter.isEmpty) return '全部';
@@ -312,7 +325,7 @@ class _FilterBar extends ConsumerWidget {
             child: _DropdownField(
               label: '类型',
               value: _typeLabel(),
-              active: typeFilter != 'all',
+              active: typeFilter.isNotEmpty,
               onTap: () => _showTypePicker(context),
             ),
           ),
@@ -321,7 +334,7 @@ class _FilterBar extends ConsumerWidget {
             child: _DropdownField(
               label: '月份',
               value: _monthLabel(),
-              active: monthFilter != null,
+              active: monthFilter.isNotEmpty,
               onTap: () => _showMonthPicker(context),
             ),
           ),
@@ -344,46 +357,54 @@ class _FilterBar extends ConsumerWidget {
     );
   }
 
-  // ============ 弹层:类型(单选) ============
+  // ============ 弹层:类型(单选 — 给 in-page _FilterBar 用) ============
+  //   2026-10-13:类型 provider 改 Set<String>,但 in-page _FilterBar 仍是单选
+  //   UX(只有一个 dropdown 位)。选'全部' → 空 Set,选具体值 → {value}。
   Future<void> _showTypePicker(BuildContext context) async {
+    // 2026-10-13 改:支持 3 个 type(含 balance),跟高级筛选对齐
     final options = <(Object?, String)>[
       (allPicked, '全部'),
       ('expense', '支出'),
       ('income', '收入'),
+      ('balance', '调拨'),
     ];
-    final selected = await showSingleSelectSheet<String>(
+    // 推断 currentValue:空 = null,单选 = 单值,多选 = null(不显示选中态)
+    final currentValue = typeFilter.length == 1 ? typeFilter.first : null;
+    final selected = await showSingleSelectSheet<String?>(
       context,
       title: '选择类型',
       options: options,
-      currentValue: typeFilter,
+      currentValue: currentValue,
     );
     if (selected == null || selected is SheetDismissed) return;
     if (selected is AllPicked) {
-      onTypeChanged('all');
+      onTypeChanged(<String>{});
       return;
     }
-    onTypeChanged(selected as String);
+    onTypeChanged(<String>{selected as String});
   }
 
-  // ============ 弹层:月份(单选) ============
+  // ============ 弹层:月份(单选 — 给 in-page _FilterBar 用) ============
+  //   2026-10-13:月份 provider 改 Set<int>,逻辑同上
   Future<void> _showMonthPicker(BuildContext context) async {
     final options = <(Object?, String)>[
       (allPicked, '全部'),
       ...monthKeys.map((k) => (k, formatMonthKey(k))),
     ];
+    final currentValue = monthFilter.length == 1 ? monthFilter.first : null;
     final selected = await showSingleSelectSheet<int?>(
       context,
       title: '选择月份',
       options: options,
-      currentValue: monthFilter,
+      currentValue: currentValue,
     );
     if (selected == null || selected is SheetDismissed) return;
-    // 选"全部" → 触发 onMonthChanged(null) 重置
+    // 选'全部' → 触发 onMonthChanged(空 Set) 重置
     if (selected is AllPicked) {
-      onMonthChanged(null);
+      onMonthChanged(<int>{});
       return;
     }
-    onMonthChanged(selected as int?);
+    onMonthChanged(<int>{selected as int});
   }
 
   // ============ 弹层:分类(多选) ============

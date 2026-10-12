@@ -93,18 +93,24 @@ final openSwipeTileIdProvider = StateProvider<int?>((ref) => null);
 // 流水筛选(流水页用)—— 类型 / 月份 / 分类 / 搜索关键字
 // ============================================================
 
-/// 类型筛选:'all' / 'expense' / 'income'
-final ledgerTypeFilterProvider = StateProvider<String>((ref) => 'all');
+/// 类型筛选:空 Set = 全部,非空 = 仅命中任一 type 的流水(多选 OR 关系)
+/// 2026-10-13 改:从 `String`('all'/'expense'/'income') 改成 `Set<String>`,
+///   支持高级筛选全屏 inline 多选(in-page _FilterBar 单选 picker 仍走单选,
+///   提交时设成单元素 Set 或空 Set)。
+final ledgerTypeFilterProvider = StateProvider<Set<String>>(
+  (ref) => <String>{},
+);
 
-/// 月份筛选:null = 全部,否则用 `year*100 + month` 做 key(如 202610 = 2026 年 10 月)
-final ledgerMonthFilterProvider = StateProvider<int?>((ref) => null);
+/// 月份筛选:空 Set = 全部,非空 = 仅命中任一月份的流水(多选 OR 关系)
+/// 2026-10-13 改:从 `int?` 改成 `Set<int>`(key 仍是 year*100+month)
+final ledgerMonthFilterProvider = StateProvider<Set<int>>((ref) => <int>{});
 
 /// 分类筛选:空 Set = 全部,非空 = 仅命中任一 id 的分类(多选 OR 关系)
 final ledgerCategoryFilterProvider = StateProvider<Set<int>>((ref) => <int>{});
 
 /// 2026-10-12 P3 commit 加(后续被 P3 follow-up 删掉,P5 follow-up 重新加回):
-///   资产 filter 入口在 AppBar 右上角 filter_alt 图标 → 弹多维 sheet
-///   filter bar 主行保持 3 dropdown 不动(类型/月份/分类)
+///   资产 filter 入口在 AppBar 右上角 filter_alt 图标 → 推入 AdvancedFilterPage
+///   高级筛选全屏页 + 4 条件 inline 多选
 final ledgerAssetFilterProvider = StateProvider<Set<int>>((ref) => <int>{});
 
 // 2026-10-12 P3 加的 ledgerAssetFilterProvider 在 P3 follow-up commit 删掉:
@@ -143,12 +149,14 @@ final filteredTransactionsByDayProvider =
 
       final all = await ref.watch(transactionRepositoryProvider).all();
       final filtered = all.where((t) {
-        // 类型
-        if (typeFilter != 'all' && t.type != typeFilter) return false;
-        // 月份
-        if (monthFilter != null) {
+        // 类型(多选 OR:空 = 全部,非空 = 命中任一选中的 type)
+        if (typeFilter.isNotEmpty && !typeFilter.contains(t.type)) {
+          return false;
+        }
+        // 月份(多选 OR:空 = 全部,非空 = 命中任一选中的月份)
+        if (monthFilter.isNotEmpty) {
           final dt = t.occurredAt;
-          if (dt.year * 100 + dt.month != monthFilter) return false;
+          if (!monthFilter.contains(dt.year * 100 + dt.month)) return false;
         }
         // 分类(多选 OR:命中任一选中的 id)
         if (categoryFilter.isNotEmpty &&
