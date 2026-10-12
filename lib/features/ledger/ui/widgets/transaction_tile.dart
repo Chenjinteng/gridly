@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/providers.dart';
+import '../../../../core/haptics/app_haptics.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -20,8 +21,8 @@ import '../../application/transactions_providers.dart';
 
 /// 2026-10-11 UAT:tile 的外边距跟按钮层的内边距必须严格一致(都是 16/4),
 /// 否则视觉上"tile 跟按钮不在同一条对齐线上"。改任一处只改这两个常量,不会飘。
-const double _kRowHorizontalInset = AppSpacing.s4;  // 16
-const double _kRowVerticalInset = AppSpacing.s1;    // 4
+const double _kRowHorizontalInset = AppSpacing.s4; // 16
+const double _kRowVerticalInset = AppSpacing.s1; // 4
 
 class TransactionTile extends ConsumerWidget {
   const TransactionTile({super.key, required this.transaction});
@@ -40,14 +41,15 @@ class TransactionTile extends ConsumerWidget {
           }
         }
         final color = cat == null ? AppGray.g400 : Color(cat.color);
-        final amountColor =
-            transaction.type == 'income' ? AppBrand.gold : AppStatus.error;
+        final amountColor = transaction.type == 'income'
+            ? AppBrand.gold
+            : AppStatus.error;
         final prefix = transaction.type == 'income' ? '+' : '-';
         final theme = Theme.of(context);
         return _SwipeToDelete(
           key: ValueKey('tx-${transaction.id}'),
           transactionId: transaction.id,
-          onDelete: () => _onDeleteRequested(context, ref),
+          onDelete: () => _onDeleteRequested(context, ref, cat),
           onEdit: () => _onEditRequested(context),
           child: Container(
             margin: const EdgeInsets.symmetric(
@@ -134,21 +136,40 @@ class TransactionTile extends ConsumerWidget {
     );
   }
 
-  /// 点击删除按钮触发:删 + 广谱 invalidate + SnackBar 提示
-  Future<void> _onDeleteRequested(BuildContext context, WidgetRef ref) async {
+  /// 点击删除按钮触发:先弹中央确认 dialog,user 真正点"确认删除"才删。
+  ///
+  /// 2026-10-12 加(commit 67):user 反馈"数据是最重要的",加确认屏障防误删。
+  /// 流程:
+  ///   1. 弹 _DeleteConfirmDialog(modal,barrier 可 dismiss = 等价取消)
+  ///   2. user 选"取消"或 barrier dismiss → 直接 return,**不删**
+  ///   3. user 选"确认删除" → 真正调 repository.delete + invalidate 缓存 + SnackBar
+  ///   4. AppHaptics:取消 tap(轻),确认 delete warning(中量 — destructive action 信号)
+  /// 5. SnackBar 保留:告知"已删除",跟主流程一致
+  /// (没加 undo SnackBar 的 reason:确认 dialog 已经给了 user 显式机会,
+  /// undo 是"删完了还能反悔",跟 user 当前诉求"先确认再删"是不同范式)
+  Future<void> _onDeleteRequested(
+    BuildContext context,
+    WidgetRef ref,
+    Category? cat,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true, // 点 dialog 外面 = 取消
+      builder: (ctx) =>
+          _DeleteConfirmDialog(transaction: transaction, cat: cat),
+    );
+    if (confirmed != true) return;
+
+    // 真正删除 + 广谱 invalidate + SnackBar
     await ref.read(transactionRepositoryProvider).delete(transaction.id);
     refreshAllData(ref);
     if (context.mounted) {
-      showGridlyBanner(
-        context,
-        '已删除',
-        kind: GridlyBannerKind.success,
-      );
+      showGridlyBanner(context, '已删除', kind: GridlyBannerKind.success);
     }
   }
 
   /// 点击编辑按钮触发:在当前 tab 弹出 sheet 编辑(预填 + 保存 update),
-/// 关闭 sheet 不跳路由,保留流水列表可见 / 不丢上下文
+  /// 关闭 sheet 不跳路由,保留流水列表可见 / 不丢上下文
   /// 点击编辑按钮触发:push 全屏编辑路由(/edit/:id)。
   /// 2026-10-11 改:之前用 showEditTransactionSheet(modal sheet),
   /// sheet 内部 AnimatedPadding 把 Numpad 推上去不被键盘覆盖。
@@ -266,9 +287,7 @@ class _SwipeToDeleteState extends ConsumerState<_SwipeToDelete>
     _ctrl.stop();
     // SpringSimulation 签名: (spring, start, end, velocity)
     // 之前我写成 (spring, start, velocity, end) → end=0 / velocity=target,导致动画方向错
-    _ctrl.animateWith(
-      SpringSimulation(_kSpring, _offset, target, velocity),
-    );
+    _ctrl.animateWith(SpringSimulation(_kSpring, _offset, target, velocity));
   }
 
   /// 用 friction 让 _offset 自然减速 —— 模拟 fling 释放后的惯性滑动
@@ -276,9 +295,7 @@ class _SwipeToDeleteState extends ConsumerState<_SwipeToDelete>
   void _flingWith(double velocity) {
     _ctrl.stop();
     _isFlinging = true;
-    _ctrl.animateWith(
-      FrictionSimulation(_kDrag, _offset, velocity),
-    );
+    _ctrl.animateWith(FrictionSimulation(_kDrag, _offset, velocity));
   }
 
   /// 用户开始拖动:立即停止正在进行的吸附动画,防止 drag 与 animation 并发修改 _offset
@@ -304,8 +321,8 @@ class _SwipeToDeleteState extends ConsumerState<_SwipeToDelete>
     //   - 快速左 fling → open(没划够也锁开)
     //   - 快速右 fling → close(强反向)
     //   - 其它 → close
-    final shouldOpen = _offset.abs() > _kSnapThreshold ||
-        velocity < _kFlingVelocity;
+    final shouldOpen =
+        _offset.abs() > _kSnapThreshold || velocity < _kFlingVelocity;
 
     if (shouldOpen) {
       // 2026-10-11 UAT:注册自己到 openSwipeTileIdProvider,
@@ -319,10 +336,7 @@ class _SwipeToDeleteState extends ConsumerState<_SwipeToDelete>
       _flingWith(velocity);
     } else {
       // 慢速:直接 spring snap(传部分 velocity 模拟惯性)
-      _springTo(
-        shouldOpen ? -_kOpenOffset : 0.0,
-        velocity: velocity * 0.5,
-      );
+      _springTo(shouldOpen ? -_kOpenOffset : 0.0, velocity: velocity * 0.5);
     }
   }
 
@@ -382,7 +396,7 @@ class _SwipeToDeleteState extends ConsumerState<_SwipeToDelete>
                             onTap: widget.onEdit,
                             child: const Center(
                               child: Text(
-                                '\ue3c9',  // Material Icons Round "edit"
+                                '\ue3c9', // Material Icons Round "edit"
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontFamily: 'MaterialIconsRound',
@@ -390,10 +404,7 @@ class _SwipeToDeleteState extends ConsumerState<_SwipeToDelete>
                                   color: Colors.white,
                                   height: 1.0,
                                   shadows: [
-                                    Shadow(
-                                      color: Colors.white,
-                                      blurRadius: 2,
-                                    ),
+                                    Shadow(color: Colors.white, blurRadius: 2),
                                   ],
                                 ),
                               ),
@@ -423,7 +434,7 @@ class _SwipeToDeleteState extends ConsumerState<_SwipeToDelete>
                             onTap: widget.onDelete,
                             child: const Center(
                               child: Text(
-                                '\ue872',  // Material Icons Round "delete"
+                                '\ue872', // Material Icons Round "delete"
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontFamily: 'MaterialIconsRound',
@@ -431,10 +442,7 @@ class _SwipeToDeleteState extends ConsumerState<_SwipeToDelete>
                                   color: Colors.white,
                                   height: 1.0,
                                   shadows: [
-                                    Shadow(
-                                      color: Colors.white,
-                                      blurRadius: 2,
-                                    ),
+                                    Shadow(color: Colors.white, blurRadius: 2),
                                   ],
                                 ),
                               ),
@@ -480,6 +488,235 @@ class _SwipeToDeleteState extends ConsumerState<_SwipeToDelete>
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 删除确认 modal dialog(commit 67,user 强调"数据是最重要的")
+///
+/// 设计要点:
+///   - 中央 modal 比底部 sheet 更"严肃":destructive action 必须强制 user
+///     停下当前手势、看明白要删什么、再决定。底部 sheet 容易被忽略。
+///   - barrierDismissible=true(主 widget 设置):点 dialog 外面 = 取消,等于
+///     显式"反悔",不删。
+///   - 内容布局:头部 destructive icon + 标题 → 流水预览(分类图 + 名称 + 日期
+///     + 备注 + 金额)→ 警示文案"数据本地存储,删除后无法恢复" → 两个按钮
+///     [取消](outline)/ [确认删除](error 实心红)
+///   - 触觉:打开 dialog 不加(让动画自己呈现 destructive 视觉);取消 tap;
+///     确认删除 warning(中量,跟 destructive 语义对齐)
+///   - 不用 Material 自带 AlertDialog 是因为它的 contentPadding / insetPadding
+///     在视觉上太"系统默认",跟 gridly 卡片化的调性不贴。自绘 dialog 跟
+///     现有 CardShadows.brLg 卡片风格一致。
+class _DeleteConfirmDialog extends StatelessWidget {
+  const _DeleteConfirmDialog({required this.transaction, required this.cat});
+
+  final Transaction transaction;
+  final Category? cat;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // cat 是 _DeleteConfirmDialog 的 final field,Dart 不在三元 else 分支提升
+    // (cat.color 报 unchecked_use_of_nullable_value)。先 hoist 到 local var,
+    // local final 可提升 → ternary 内部 catColor.cat 拿到 Category 类型。
+    final Category? catOrNull = cat;
+    final catColor = catOrNull == null ? AppGray.g400 : Color(catOrNull.color);
+    final isIncome = transaction.type == 'income';
+    final amountColor = isIncome ? AppBrand.gold : AppStatus.error;
+    final amountPrefix = isIncome ? '+' : '-';
+
+    return Dialog(
+      backgroundColor: theme.colorScheme.surface,
+      // 去掉 Material default 的蓝色 tint overlay(避免 surface 跟卡片调性冲突)
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: AppRadius.brLg),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.s4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 头部:destructive icon + 标题
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppStatus.error.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Icon(
+                      Icons.delete_outline_rounded,
+                      color: AppStatus.error,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.s3),
+                  Expanded(
+                    child: Text(
+                      '删除这笔流水?',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.s4),
+              // 流水预览卡片(让 user 看清要删什么 — 防误删最关键的一步)
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.s3),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerLow,
+                  borderRadius: AppRadius.brMd,
+                  border: Border.all(
+                    color: theme.colorScheme.outlineVariant,
+                    width: 1.0,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: catColor.withValues(alpha: 0.12),
+                        borderRadius: AppRadius.brXs,
+                        border: Border.all(
+                          color: catColor.withValues(alpha: 0.3),
+                          width: 0.5,
+                        ),
+                      ),
+                      child: Icon(
+                        CategoryIcons.map[cat?.icon ?? 'category'] ??
+                            Icons.category_rounded,
+                        color: catColor,
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.s3),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            cat?.name ?? '未分类',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            Formatters.shortDate(transaction.occurredAt),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          if (transaction.note != null &&
+                              transaction.note!.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              transaction.note!,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    Text(
+                      '$amountPrefix ¥${Formatters.amount(transaction.amount)}',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: amountColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.s4),
+              // 警示文案
+              Text(
+                '数据本地存储,删除后无法恢复',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.s4),
+              // 按钮:[取消](outline)/ [确认删除](error 红实心)
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        foregroundColor: theme.colorScheme.onSurfaceVariant,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: AppRadius.brMd,
+                          side: BorderSide(
+                            color: theme.colorScheme.outlineVariant,
+                            width: 1.0,
+                          ),
+                        ),
+                      ),
+                      onPressed: () {
+                        AppHaptics.tap();
+                        Navigator.of(context).pop(false);
+                      },
+                      child: const Text(
+                        '取消',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.s2),
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppStatus.error,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: AppRadius.brMd,
+                        ),
+                      ),
+                      onPressed: () {
+                        AppHaptics.warning();
+                        Navigator.of(context).pop(true);
+                      },
+                      child: const Text(
+                        '确认删除',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
