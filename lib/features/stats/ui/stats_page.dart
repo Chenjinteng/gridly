@@ -64,15 +64,6 @@ class _StatsPageState extends ConsumerState<StatsPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('报表'),
-        actions: [
-          // 视角下拉 —— 与 title 同一行(AppBar 右侧 actions)
-          _ViewMenu(
-            current: view,
-            onChange: (v) =>
-                ref.read(statsViewProvider.notifier).state = v,
-          ),
-          const SizedBox(width: AppSpacing.s2),
-        ],
       ),
       body: RefreshIndicator(
         onRefresh: () async => refreshAllData(ref),
@@ -80,7 +71,16 @@ class _StatsPageState extends ConsumerState<StatsPage> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.only(bottom: AppSpacing.s6),
           children: [
-            // 时间范围(本月/本年) —— 现在是该页 body 的最顶
+            // 2026-10-12 视角选择从右上角 dropdown 改为 AppBar 下方 3 段
+            // segmented([支出 | 收入 | 资产])。原来要点右上角 → 弹底部
+            // sheet → 再点选项,3 步;现在 1 步切换,ColorOS 控制中心
+            // segmented 风格。
+            _ViewSegmented(
+              current: view,
+              onChange: (v) =>
+                  ref.read(statsViewProvider.notifier).state = v,
+            ),
+            // 时间范围(本月/本年) —— 跟着 view segmented 之下
             const RangeTabs(),
             // 汇总(收入/支出/结余)— 三个视角共享(它是"窗口内总览")
             const RangeSummary(),
@@ -171,146 +171,55 @@ class _StatsPageState extends ConsumerState<StatsPage> {
 /// - 点击弹出 3 项菜单,选中后 onChange 回调立刻更新 provider
 /// - 这里不监听 widget 自身 rebuild 状态,current 是 build 参数,onChange
 ///   触发后父级 StatsPage 会因 watch 重新 build,current 自动同步
-class _ViewMenu extends StatelessWidget {
-  const _ViewMenu({required this.current, required this.onChange});
+/// 2026-10-12 视角选择 segmented(支出 | 收入 | 资产):
+///   - 从右上角 dropdown + bottom sheet 三步,改成 AppBar 下方 3 段
+///     segmented,1 步切换
+///   - 视觉跟 RangeSegment 一致:选中段 primary 12% alpha + 整段 scale 1.02
+///   - 触觉:selectionClick(ColorOS 标志性"咔哒")
+class _ViewSegmented extends StatelessWidget {
+  const _ViewSegmented({
+    required this.current,
+    required this.onChange,
+  });
 
   final StatsView current;
   final ValueChanged<StatsView> onChange;
 
-  String get _currentLabel => switch (current) {
-        StatsView.expense => '支出',
-        StatsView.income => '收入',
-        StatsView.assets => '资产',
-      };
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return InkWell(
-      onTap: () => _openPicker(context),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s2),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              _currentLabel,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: theme.colorScheme.onSurface,
-              ),
-            ),
-            const SizedBox(width: 2),
-            Icon(
-              Icons.expand_more_rounded,
-              size: 18,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 2026-10-11 UAT:之前用系统 PopupMenuButton,Material 默认深色 item + 阴影,
-  /// 跟 gridly UI 风格脱节。换成自定义 bottom sheet:
-  ///   - 顶部 drag handle(跟日期 picker / 月份 picker 一致)
-  ///   - 标题"选择视角"
-  ///   - 3 行 item:选中行 brand 色背景 + check icon;未选中行主题色
-  ///   - 圆角 AppRadius.brXl 顶部,跟其它 sheet 视觉一致
-  Future<void> _openPicker(BuildContext context) async {
-    final picked = await showModalBottomSheet<StatsView>(
-      context: context,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
-      ),
-      builder: (_) => _ViewPickerSheet(current: current, onPick: (v) {
-        Navigator.pop(context, v);
-      }),
-    );
-    if (picked != null && picked != current) {
-      // 视角切换:selectionClick(ColorOS 标志性"咔哒")
-      AppHaptics.select();
-      onChange(picked);
-    }
-  }
-}
-
-/// 视角选择底部 sheet
-class _ViewPickerSheet extends StatelessWidget {
-  const _ViewPickerSheet({required this.current, required this.onPick});
-
-  final StatsView current;
-  final ValueChanged<StatsView> onPick;
-
-  // 视角 icon 跟 kind 颜色,跟 gridly 卡片视觉对齐
-  static const _options = <(StatsView, String, IconData, Color)>[
-    (StatsView.expense, '支出', Icons.arrow_outward_rounded, AppStatus.error),
-    (StatsView.income, '收入', Icons.south_west_rounded, AppBrand.gold),
-    (StatsView.assets, '资产', Icons.account_balance_wallet_rounded, AppBrand.teal),
+  static const _options = <(StatsView, String)>[
+    (StatsView.expense, '支出'),
+    (StatsView.income, '收入'),
+    (StatsView.assets, '资产'),
   ];
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: AppSpacing.s4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.s4,
+        AppSpacing.s2,
+        AppSpacing.s4,
+        0,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerLow,
+          borderRadius: AppRadius.brLg,
+        ),
+        child: Row(
           children: [
-            // 把手
-            Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.only(top: 8, bottom: 12),
-              decoration: BoxDecoration(
-                color: AppGray.g400,
-                borderRadius: BorderRadius.circular(2),
+            for (final (view, label) in _options)
+              Expanded(
+                child: _ViewSegment(
+                  label: label,
+                  selected: view == current,
+                  onTap: () {
+                    if (view == current) return;
+                    // 视角切换:selectionClick(ColorOS 标志性"咔哒")
+                    AppHaptics.select();
+                    onChange(view);
+                  },
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.s4,
-                vertical: AppSpacing.s2,
-              ),
-              child: Row(
-                children: [
-                  const Text(
-                    '选择视角',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const Spacer(),
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('关闭'),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
-              child: Column(
-                children: [
-                  for (final (view, label, icon, color) in _options)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.s2),
-                      child: _ViewOption(
-                        label: label,
-                        icon: icon,
-                        color: color,
-                        selected: view == current,
-                        onTap: () => onPick(view),
-                      ),
-                    ),
-                ],
-              ),
-            ),
           ],
         ),
       ),
@@ -318,77 +227,51 @@ class _ViewPickerSheet extends StatelessWidget {
   }
 }
 
-/// 视角选择行:icon + label + check(选中时)
-class _ViewOption extends StatelessWidget {
-  const _ViewOption({
+/// 单段 segmented 按钮 — 选中态 AnimatedContainer + scale 1.02,
+/// 跟 _RangeSegment 视觉对齐。
+class _ViewSegment extends StatelessWidget {
+  const _ViewSegment({
     required this.label,
-    required this.icon,
-    required this.color,
     required this.selected,
     required this.onTap,
   });
 
   final String label;
-  final IconData icon;
-  final Color color;
   final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final fg = selected
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurfaceVariant;
     return InkWell(
       borderRadius: AppRadius.brLg,
       onTap: onTap,
-      child: Container(
-        height: 56,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s3),
-        decoration: BoxDecoration(
-          color: selected
-              ? theme.colorScheme.primary.withValues(alpha: 0.12)
-              : theme.colorScheme.surfaceContainerLow,
-          borderRadius: AppRadius.brLg,
-          border: Border.all(
+      child: AnimatedScale(
+        scale: selected ? 1.02 : 1.0,
+        duration: AppMotion.fast,
+        curve: AppMotion.aquaIn,
+        child: AnimatedContainer(
+          duration: AppMotion.fast,
+          curve: AppMotion.aquaIn,
+          decoration: BoxDecoration(
             color: selected
-                ? theme.colorScheme.primary
-                : theme.colorScheme.outlineVariant,
-            width: 1,
+                ? theme.colorScheme.primary.withValues(alpha: 0.12)
+                : Colors.transparent,
+            borderRadius: AppRadius.brLg,
           ),
-        ),
-        child: Row(
-          children: [
-            // icon 块:kind 颜色 18% alpha 背景 + 全 icon
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.18),
-                borderRadius: AppRadius.brMd,
-              ),
-              alignment: Alignment.center,
-              child: Icon(icon, color: color, size: 20),
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.s2),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              color: fg,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
             ),
-            const SizedBox(width: AppSpacing.s3),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight:
-                      selected ? FontWeight.w700 : FontWeight.w600,
-                  color: selected
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurface,
-                ),
-              ),
-            ),
-            if (selected)
-              Icon(
-                Icons.check_rounded,
-                color: theme.colorScheme.primary,
-                size: 22,
-              ),
-          ],
+          ),
         ),
       ),
     );
