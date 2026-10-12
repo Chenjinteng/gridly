@@ -70,3 +70,8 @@ gridly/
 | D24 | 滑动删除手写不引入 flutter_slidable | 控制依赖,Stack + AnimationController 够用 |
 | D25 | `refreshAllData` helper 放 `lib/core/utils/` | 避免 ledger 模块反向依赖 stats 模块 |
 | D26 | `amountVisibilityProvider` StateNotifier + SharedPreferences | 月度汇总 + 预算共用一个开关 |
+| D27 | 月度预算分层持久化 | 总额度(SharedPreferences)+ 分类子额度(Drift `CategoryBudgets` 表,`schemaVersion: 2` + `onUpgrade` createTable) |
+| D28 | 共享剩余池 = 总额度 − 已配置分类子额度总和 | 未配置分类共享这个池,UI 单独显示「已分配 X · 共享池 Y」 |
+| D29 | `AnimatedOverBudgetChart` 接受 `value = 圈数` 而非占比 | multi-turn 圆环支持:`totalTurns > 1` 时 painter 累加 360° × totalTurns,实现转多圈 |
+| D30 | push 子页过渡 360ms + fade `Interval(0.0, 0.3)` | 消除 480ms 全程 fade 透明度渐变时看到的"背景残影"——fade 前 30% 时间(108ms)就完成,后段时间只跑 slide 保留 aquaIn 重量感 |
+| D31 | `_pendingDeletions: Set<int>` 跟踪显式 X 删除 | 修"`_pendingBudgets.remove` 后保存时该 catId 不进 toDelete 列表 → DB 不删"bug,`Set` 显式跟踪 + 保存时优先遍历 |
