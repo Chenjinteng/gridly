@@ -1,15 +1,15 @@
 // lib/features/stats/ui/widgets/budget_overview_chart.dart
 // 预算报表 widget —— stats 页本月维度专用(2026-10-12 commit 93 加)
 //
-// 视觉(commit 95 重构,commit 96 对齐 CategoryPie 风格):
+// 视觉(commit 95 重构,commit 96 对齐 CategoryPie 风格,commit 98 去重 + 三档颜色):
 //   - 标题栏:本月预算 + 总额(右侧,跟 CategoryPie "共 ¥X" 对等)
-//   - 上半:圆环(已花 / 总额度)+ 右侧图例(已花 / 剩余 百分比)
+//   - 上半:圆环(已花 / 总额度)+ 右侧图例(已花 / 剩余)
 //     圆环 140x140 + inner 48 / outer 64 + 中心"已花 ¥X"
-//     跟 CategoryPie 视觉完全一致(尺寸、stroke、中心标签/金额顺序、图例格式)
-//   - 中部一行:状态(已用 X% / 快超了 / 已超,彩色)+ 剩余/总额(灰)
+//     跟 CategoryPie 视觉完全一致(尺寸、stroke、中心标签/金额顺序)
+//     图例双行:第一行色块 + 名字 + 百分比,第二行(缩进)绝对金额
 //   - 共享池说明(已分配 X · 共享池 Y 给未配置)
-//   - 下半:分类列表 —— 每行 icon + name + 横向柱状图 + 数字
-//     (已花 / 子额度),不用直接给数字,用 bar 表示
+//   - 下半:分类列表 —— 每行 icon + name + 横向柱状图 + 百分比
+//     颜色三档:< 80% teal / 80-100% warning 黄 / > 100% error 红
 //
 // 数据源:budgetOverviewForMonthProvider(commit 91 加)
 // 数据流:用户在 BudgetSheet(commit 92)改 → refreshAllData → widget 重建
@@ -94,14 +94,6 @@ class _BudgetOverviewBody extends StatelessWidget {
     if (p < 0.8) return AppBrand.teal;
     if (p <= 1.0) return AppStatus.warning;
     return AppStatus.error;
-  }
-
-  String get _stateLabel {
-    if (overview.totalBudget <= 0) return '未设置预算';
-    final p = (_progress * 100).toStringAsFixed(0);
-    if (_progress < 0.8) return '已用 $p%';
-    if (_progress <= 1.0) return '快超了 · $p%';
-    return '已超 · ${((_totalSpent / overview.totalBudget - 1) * 100).toStringAsFixed(0)}%';
   }
 
   @override
@@ -212,6 +204,7 @@ class _BudgetOverviewBody extends StatelessWidget {
                       _stateColor,
                       '已花',
                       (_progress * 100).toStringAsFixed(0),
+                      Formatters.amount(_totalSpent, withUnit: false),
                     ),
                     const SizedBox(height: 4),
                     _legendRow(
@@ -221,6 +214,15 @@ class _BudgetOverviewBody extends StatelessWidget {
                           ? ((1 - _progress).clamp(0.0, 1.0) * 100)
                                 .toStringAsFixed(0)
                           : '0',
+                      hasBudget
+                          ? Formatters.amount(
+                              (overview.totalBudget - _totalSpent).clamp(
+                                0.0,
+                                double.infinity,
+                              ),
+                              withUnit: false,
+                            )
+                          : '0',
                     ),
                   ],
                 ),
@@ -228,36 +230,8 @@ class _BudgetOverviewBody extends StatelessWidget {
             ],
           ),
         ),
-        // 中部一行:状态(彩色) + 剩余/总额(辅助信息)
-        if (hasBudget)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.s4,
-              0,
-              AppSpacing.s4,
-              AppSpacing.s3,
-            ),
-            child: Row(
-              children: [
-                Text(
-                  _stateLabel,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: _stateColor,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  '剩余 ¥${Formatters.amount((overview.totalBudget - _totalSpent).clamp(0.0, double.infinity), withUnit: false)} / 总额 ¥${Formatters.amount(overview.totalBudget, withUnit: false)}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
+        // commit 98 移除:中部一行"已用 X% / 剩余 ¥X / 总额 ¥X" 是冗余信息
+        //   — 已花百分比已经在圆环图例,剩余/总额已经在标题栏右侧 + 图例双行。
         // 共享池说明
         if (hasBudget)
           Padding(
@@ -340,36 +314,50 @@ class _BudgetOverviewBody extends StatelessWidget {
     );
   }
 
-  /// 图例行:色块 + 名字 + 百分比
-  ///   跟 CategoryPie 的图例行视觉一致
-  Widget _legendRow(Color color, String name, String pct) {
+  /// 图例行:双行 — 第一行 色块 + 名字 + 百分比,第二行(缩进对齐名字)绝对金额
+  ///   commit 98 改:之前只有百分比,user 反馈"已花 / 剩余其实可以放金额"
+  ///   双行布局只占 2 行,信息密度合理(只两个图例)。
+  Widget _legendRow(Color color, String name, String pct, String amount) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(2),
-            ),
+          Row(
+            children: [
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  name,
+                  style: const TextStyle(fontSize: 13),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Text(
+                '$pct%',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppGray.g600,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Expanded(
+          // 第二行:缩进对齐名字(8px 色块 + 8px gap = 18px)
+          Padding(
+            padding: const EdgeInsets.only(left: 18, top: 2),
             child: Text(
-              name,
-              style: const TextStyle(fontSize: 13),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Text(
-            '$pct%',
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppGray.g600,
-              fontWeight: FontWeight.w500,
+              '¥$amount',
+              style: const TextStyle(fontSize: 11, color: AppGray.g600),
             ),
           ),
         ],
@@ -405,8 +393,15 @@ class _CategoryBudgetBarRow extends StatelessWidget {
     final spent = item.spent;
     final amount = item.amount;
     final ratio = amount > 0 ? (spent / amount).clamp(0.0, 1.5) : 0.0;
+    // 三档状态(commit 98 加 warning 段,跟 _stateColor 规则一致):
+    //   < 80% teal / 80-100% warning 黄 / > 100% error 红
     final over = amount > 0 && spent > amount;
-    final barColor = over ? AppStatus.error : AppBrand.teal;
+    final warning = !over && amount > 0 && spent / amount >= 0.8;
+    final barColor = over
+        ? AppStatus.error
+        : warning
+        ? AppStatus.warning
+        : AppBrand.teal;
     final ratioDisplay = amount > 0
         ? (spent / amount * 100).clamp(0, 999).toStringAsFixed(0)
         : '0';
@@ -447,10 +442,10 @@ class _CategoryBudgetBarRow extends StatelessWidget {
                 ),
               ),
               // 数字区域:不直接给金额数字,用"已花百分比 + 子额度"组合
-              //   - "70% / ¥3,000" 表示已用 70%,总额 3000
-              //   - user 原话"不要直接给数字"理解为不要把金额当主数字,
-              //     这里把百分比当主数字,金额作为辅助
-              //   - over 时显示"已花 ¥X · 超支"
+              //   - "70%" 表示已用 70%
+              //   - over 时显示"已超 X%"(红)
+              //   - warning (80-100%) 显示百分比(黄)
+              //   - 三档颜色跟 bar / 底部"已花 ¥X"同步
               Text(
                 over
                     ? '已超 ${((ratio - 1) * 100).toStringAsFixed(0)}%'
@@ -458,13 +453,13 @@ class _CategoryBudgetBarRow extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
-                  color: over ? AppStatus.error : AppBrand.teal,
+                  color: barColor,
                 ),
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.s1),
-          // 横向柱状图(bar)
+          // 横向柱状图(bar) — 三档颜色:< 80% teal / 80-100% warning 黄 / > 100% error 红
           LayoutBuilder(
             builder: (ctx, c) {
               final width = c.maxWidth;
@@ -492,7 +487,7 @@ class _CategoryBudgetBarRow extends StatelessWidget {
             },
           ),
           const SizedBox(height: AppSpacing.s1),
-          // 底部金额:辅助信息,小字号灰
+          // 底部金额:辅助信息,小字号 — 颜色跟状态同步
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -500,8 +495,8 @@ class _CategoryBudgetBarRow extends StatelessWidget {
                 '已花 ¥${Formatters.amount(spent, withUnit: false)}',
                 style: TextStyle(
                   fontSize: 10,
-                  color: over
-                      ? AppStatus.error
+                  color: over || warning
+                      ? barColor
                       : Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
