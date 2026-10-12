@@ -124,8 +124,9 @@ class _MainShellState extends ConsumerState<MainShell> {
     if (shellNav != null && shellNav.canPop()) {
       shellNav.popUntil((route) => route.isFirst);
     }
-    // 触觉:标准切 tab 用 select(短促 selectionClick)
-    AppHaptics.select();
+    // 触觉:commit 46 撤掉 — 切 tab 不再 selectionClick,避免打扰
+    // (之前用 select 的初衷是 ColorOS O-Haptic 咔哒,但 user 反馈
+    // "切换时的震动不需要",停掉)
     _lastRouteTab = newTab;
     setState(() => _currentTab = newTab);
     context.go(_routeFor(newTab));
@@ -160,17 +161,22 @@ class _MainShellState extends ConsumerState<MainShell> {
       body: Stack(
         children: [
           const Positioned.fill(child: LedgerGridBackground()),
-          // 2026-10-12 (commit 44) body 切 tab:
-          //   - AnimatedSwitcher 320ms cross-fade(aquaIn / aquaOut)
+          // 2026-10-12 (commit 44+46) body 切 tab:
+          //   - AnimatedSwitcher 480ms AppMotion.normal cross-fade
+          //     (commit 46 改:之前 320ms 太快,user 反馈"可以慢一点",
+          //     ColorOS 标准动效节奏 = 480ms)
           //   - 再叠一层方向感知 SlideTransition,offset = -dir * 0.06
           //     (屏幕宽 6%)。tap→右:新页从 +0.06(右侧)滑入,旧页向左侧
           //     滑出;tap→左:镜像。ColorOS 切 tab 的标志性"页面推过去"
-          //   - 进 320ms 跟随 previous 在 Stack 同时可见(cross-fade)
+          //   - 进 480ms aquaIn,出 480ms aquaOut,新旧 page 在 Stack
+          //     同时可见(cross-fade)
+          //   - 触觉:commit 46 撤掉切换震动,保留 FAB 主操作震动
           //   - 之前 commit 40 撤掉方向感是因为 pill 太丑,现在 pill 也撤了,
           //     方向感知 slide 留着,符合"丝滑"要求
           Positioned.fill(
             child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 320),
+              duration: AppMotion.normal,
+              reverseDuration: AppMotion.fast,
               switchInCurve: AppMotion.aquaIn,
               switchOutCurve: AppMotion.aquaOut,
               layoutBuilder: (currentChild, previousChildren) {
