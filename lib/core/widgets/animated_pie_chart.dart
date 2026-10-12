@@ -93,6 +93,13 @@ class _AnimatedPieChartState extends State<AnimatedPieChart>
 
   @override
   Widget build(BuildContext context) {
+    // Shadow 配色:dark mode 下用白色微透(给环勾出暗背景下的立体感),
+    // light mode 用黑色微透(经典 drop shadow)。透给 _GaugePainter 让
+    // sector 之前先画一整圈 blur。
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final shadowColor = isDark
+        ? Colors.white.withValues(alpha: 0.12)
+        : Colors.black.withValues(alpha: 0.22);
     return AnimatedBuilder(
       animation: _t,
       builder: (context, _) {
@@ -103,6 +110,7 @@ class _AnimatedPieChartState extends State<AnimatedPieChart>
             innerRadius: widget.innerRadius,
             outerRadius: widget.outerRadius,
             startDegreeOffset: widget.startDegreeOffset,
+            shadowColor: shadowColor,
           ),
           size: Size.infinite,
         );
@@ -111,18 +119,24 @@ class _AnimatedPieChartState extends State<AnimatedPieChart>
   }
 }
 
-/// 自绘 stroke 平切端 sector —— 不做任何圆角处理。
+/// 自绘 stroke 平切端 sector + 整圈投影 —— 给环加一点立体感。
 ///
-/// commit 54 撤掉 v10 的手动小圆点软化(看起来奇怪)。现在只剩:
-///   - stroke 弧(StrokeCap.butt 平端切)
+/// commit 58 (本版) 在 sector 之前先画一整圈 blur 微下移 shadow,
+/// 然后每个 sector 覆盖在上面。视觉上看 sectors 之下有一圈淡淡的
+/// 投影,像"环悬浮在卡片上"。sector 间隙(1.0°)允许 shadow 透出来,
+/// 显出环轮廓但不让 sectors 之间糊。
+///
+///   - shadow:MaskFilter.blur sigma=3.5 + 下移 1.5px,半透明黑/白
+///     (dark mode 用白,light mode 用黑)给一点 3D 立体感
+///   - sectors:stroke + StrokeCap.butt 平端切,无圆角
 ///   - 1.0° 可见间隙让相邻 sector 之间背景透出
-///   - 完全没有 pill cap、没有 endpoint dot,只是干净的 sector 切片
 class _GaugePainter extends CustomPainter {
   final double sweepProgress;
   final List<PieChartSectionData> sections;
   final double innerRadius;
   final double outerRadius;
   final double startDegreeOffset;
+  final Color shadowColor;
 
   _GaugePainter({
     required this.sweepProgress,
@@ -130,6 +144,7 @@ class _GaugePainter extends CustomPainter {
     required this.innerRadius,
     required this.outerRadius,
     required this.startDegreeOffset,
+    required this.shadowColor,
   });
 
   /// 扇区间的可见间隙(commit 54 保持 1.0°)
@@ -144,6 +159,19 @@ class _GaugePainter extends CustomPainter {
     final inner = math.min(innerRadius, outer - 4);
     final middleRadius = (outer + inner) / 2;
     final ringThickness = outer - inner;
+
+    // ── 1. 整圈投影(在 sectors 之下)给立体感 ──
+    // 单圈 blur + 下移 1.5px,sector 间隙处隐约透出投影,
+    // 看得到环轮廓"悬浮"在卡片上但不糊 sector 边界
+    final shadowPaint = Paint()
+      ..color = shadowColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = ringThickness
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 3.5);
+    canvas.save();
+    canvas.translate(0, 1.5);
+    canvas.drawCircle(center, middleRadius, shadowPaint);
+    canvas.restore();
 
     final total = sections.fold<double>(0, (s, e) => s + e.value);
     if (total <= 0) return; // 空数据兜底:什么都不画
