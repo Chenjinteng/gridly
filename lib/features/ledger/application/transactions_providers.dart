@@ -102,10 +102,10 @@ final ledgerMonthFilterProvider = StateProvider<int?>((ref) => null);
 /// 分类筛选:空 Set = 全部,非空 = 仅命中任一 id 的分类(多选 OR 关系)
 final ledgerCategoryFilterProvider = StateProvider<Set<int>>((ref) => <int>{});
 
-/// 2026-10-12 P3 commit 加:资产筛选(空 Set = 全部,非空 = 仅命中任一 id 的账户)
-///   - 跟分类筛选同模式(多选 OR)
-///   - 流水 tile 在 transaction_tile 里走 accountByIdProvider 显示资产 icon
-final ledgerAssetFilterProvider = StateProvider<Set<int>>((ref) => <int>{});
+// 2026-10-12 P3 加的 ledgerAssetFilterProvider 在 P3 follow-up commit 删掉:
+//   user 反馈"4 个筛选太多长了,按之前的来只占一行就行"
+//   filter bar 回到 3 dropdown 单行布局(类型/月份/分类),资产 filter 不上 UI
+//   资产显示仍通过 transaction_tile._AccountBadge(transaction 内 accountId 字段)
 
 /// 搜索关键字:匹配 note(备注)和分类名
 final ledgerSearchQueryProvider = StateProvider<String>((ref) => '');
@@ -123,8 +123,6 @@ final filteredTransactionsByDayProvider =
       final typeFilter = ref.watch(ledgerTypeFilterProvider);
       final monthFilter = ref.watch(ledgerMonthFilterProvider);
       final categoryFilter = ref.watch(ledgerCategoryFilterProvider);
-      // 2026-10-12 P3 加:资产筛选
-      final assetFilter = ref.watch(ledgerAssetFilterProvider);
       final query = ref.watch(ledgerSearchQueryProvider).trim().toLowerCase();
 
       // 取分类一次,用来按分类名匹配搜索关键字
@@ -148,10 +146,6 @@ final filteredTransactionsByDayProvider =
         // 分类(多选 OR:命中任一选中的 id)
         if (categoryFilter.isNotEmpty &&
             !categoryFilter.contains(t.categoryId)) {
-          return false;
-        }
-        // 2026-10-12 P3 加:资产(多选 OR)
-        if (assetFilter.isNotEmpty && !assetFilter.contains(t.accountId)) {
           return false;
         }
         // 搜索关键字(note 命中 或 分类名命中)
