@@ -72,10 +72,7 @@ class TopExpenses extends ConsumerWidget {
               height: 520,
               child: const TabBarView(
                 physics: NeverScrollableScrollPhysics(),
-                children: [
-                  _TopList(),
-                  _TopByCategory(),
-                ],
+                children: [_TopList(), _TopByCategory()],
               ),
             ),
           ],
@@ -94,7 +91,8 @@ class _TopList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final topAsync = ref.watch(topExpensesProvider);
-    final cats = ref.watch(allCategoriesProvider).valueOrNull ?? const <Category>[];
+    final cats =
+        ref.watch(allCategoriesProvider).valueOrNull ?? const <Category>[];
     return topAsync.when(
       data: (txs) {
         if (txs.isEmpty) {
@@ -126,7 +124,9 @@ class _TopList extends ConsumerWidget {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('加载失败:$e', style: const TextStyle(color: AppStatus.error))),
+      error: (e, _) => Center(
+        child: Text('加载失败:$e', style: const TextStyle(color: AppStatus.error)),
+      ),
     );
   }
 }
@@ -140,7 +140,8 @@ class _TopByCategory extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final expensesAsync = ref.watch(expenseByCategoryProvider);
-    final cats = ref.watch(allCategoriesProvider).valueOrNull ?? const <Category>[];
+    final cats =
+        ref.watch(allCategoriesProvider).valueOrNull ?? const <Category>[];
     return expensesAsync.when(
       data: (data) {
         final total = data.fold<double>(0, (s, e) => s + e.amount);
@@ -162,7 +163,8 @@ class _TopByCategory extends ConsumerWidget {
                 color: Color(top[i].color),
                 iconKey: _iconKeyForCategory(top[i].categoryId, cats),
                 primary: top[i].name,
-                secondary: '${(top[i].amount / total * 100).toStringAsFixed(0)}%',
+                secondary:
+                    '${(top[i].amount / total * 100).toStringAsFixed(0)}%',
                 trailing: '¥${Formatters.amount(top[i].amount)}',
                 trailingColor: Color(top[i].color),
               ),
@@ -173,10 +175,13 @@ class _TopByCategory extends ConsumerWidget {
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('加载失败:$e', style: const TextStyle(color: AppStatus.error))),
+      error: (e, _) => Center(
+        child: Text('加载失败:$e', style: const TextStyle(color: AppStatus.error)),
+      ),
     );
   }
 }
+
 // 固定高度的数据行(单笔 / 分类共用)
 class _DataRow extends StatelessWidget {
   const _DataRow({
@@ -208,9 +213,7 @@ class _DataRow extends StatelessWidget {
     return Container(
       height: height,
       decoration: const BoxDecoration(
-        border: Border(
-          top: BorderSide(color: AppGray.g100, width: 0.5),
-        ),
+        border: Border(top: BorderSide(color: AppGray.g100, width: 0.5)),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(
@@ -267,10 +270,7 @@ class _DataRow extends StatelessWidget {
                   if (secondary != null && secondary!.isNotEmpty)
                     Text(
                       secondary!,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppGray.g600,
-                      ),
+                      style: const TextStyle(fontSize: 11, color: AppGray.g600),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -293,10 +293,7 @@ class _DataRow extends StatelessWidget {
                 if (trailingSub != null && trailingSub!.isNotEmpty)
                   Text(
                     trailingSub!,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: AppGray.g600,
-                    ),
+                    style: const TextStyle(fontSize: 10, color: AppGray.g600),
                   ),
               ],
             ),
@@ -318,9 +315,7 @@ class _EmptyRow extends StatelessWidget {
     return Container(
       height: height,
       decoration: const BoxDecoration(
-        border: Border(
-          top: BorderSide(color: AppGray.g100, width: 0.5),
-        ),
+        border: Border(top: BorderSide(color: AppGray.g100, width: 0.5)),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),

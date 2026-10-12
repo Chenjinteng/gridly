@@ -59,10 +59,7 @@ class CategoryPie extends ConsumerWidget {
                     final total = data.fold<double>(0, (s, e) => s + e.amount);
                     return Text(
                       '共 ¥${Formatters.amount(total)}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppGray.g600,
-                      ),
+                      style: const TextStyle(fontSize: 12, color: AppGray.g600),
                     );
                   },
                   orElse: () => const SizedBox.shrink(),
@@ -99,16 +96,18 @@ class CategoryPie extends ConsumerWidget {
                         alignment: Alignment.center,
                         children: [
                           AnimatedPieChart(
-                            key: pieChartKeyForSections(shown
-                                .map(
-                                  (e) => PieChartSectionData(
-                                    value: e.amount,
-                                    color: Color(e.color),
-                                    title: '',
-                                    radius: 18,
-                                  ),
-                                )
-                                .toList()),
+                            key: pieChartKeyForSections(
+                              shown
+                                  .map(
+                                    (e) => PieChartSectionData(
+                                      value: e.amount,
+                                      color: Color(e.color),
+                                      title: '',
+                                      radius: 18,
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
                             innerRadius: 48,
                             outerRadius: 64,
                             sections: shown
