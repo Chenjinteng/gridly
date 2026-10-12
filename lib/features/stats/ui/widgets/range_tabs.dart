@@ -79,17 +79,15 @@ class RangeTabs extends ConsumerWidget {
         ),
         child: Row(
           children: [
-            // ── commit 69 (圆角 brLg=16 → brSm=8) ── 共享 pill 滑动
-            //   v68 改成"horizontal 6 + vertical 2" user 觉得 inset 不错,
-            //   但反馈"圆角太圆了,调一下":
-            //   - 之前 pill borderRadius = brLg (16),pill 高度 ~32 时 brLg 刚好是
-            //     full semicircle(stadium 胶囊),两端完全半圆,user 觉得"过圆"
-            //   - 降到 brSm = 8:corner radius 8 < half-height 16,pill 从 stadium
-            //     变成 rounded rectangle,圆角变成 quarter circle,跟 Container 的
-            //     brLg=16 圆角区分开(嵌套感更强)
-            //   - 仍保留 pill 视觉 soft 感(不是 brXs 直角),但不再"药丸胶囊"
+            // ── commit 70 (圆角 brSm=8 → brMd=12) ── 共享 pill 滑动
+            //   v69 改成 brSm=8 user 反馈"方了一点,再调一下":
+            //   - brSm=8(rounded rectangle)user 觉得略方,缺 soft 感
+            //   - 折中到 brMd=12:corner radius 12 介于 stadium (brLg=16) 和
+            //     rounded rectangle (brSm=8) 之间
+            //   - pill 高度 ~32 时,brMd=12 还是 quarter circle(< half-height 16),
+            //     但弧度比 brSm 更弯,柔和多一点
             //
-            //   其他 inset / 尺寸完全跟 v68 一致(horizontal 6 + vertical 2):
+            //   其他 inset / 尺寸不动(v68 一致):
             //   - left: 6 / segWidth + 6
             //   - top: 2, bottom: 2
             //   - width: segWidth - 12
@@ -100,7 +98,7 @@ class RangeTabs extends ConsumerWidget {
                   return Stack(
                     children: [
                       // 滑动 pill —— 在 InkWell 之下,ripple press 时 pill 短时被遮,抬起可见
-                      //   horizontal 6 + vertical 2 inset,圆角 brSm=8(rounded rectangle,不是 stadium)。
+                      //   horizontal 6 + vertical 2 inset,圆角 brMd=12(柔和 rounded rectangle)。
                       AnimatedPositioned(
                         duration: AppMotion.fast,
                         curve: AppMotion.aquaIn,
@@ -113,7 +111,7 @@ class RangeTabs extends ConsumerWidget {
                             color: theme.colorScheme.primary.withValues(
                               alpha: 0.12,
                             ),
-                            borderRadius: AppRadius.brSm,
+                            borderRadius: AppRadius.brMd,
                           ),
                         ),
                       ),
