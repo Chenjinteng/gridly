@@ -15,7 +15,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/providers.dart';
-import '../../../../core/haptics/app_haptics.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -43,6 +42,10 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
   /// 是否加载完 budgetOverview(决定了能否显示分类列表)
   bool _overviewLoaded = false;
   bool _saving = false;
+
+  /// commit 99 加:刚 picker 选中的分类 → 列表 row mount 后自动聚焦 + 弹键盘,
+  ///   让用户直接输入子额度(避免弹 amount dialog)。
+  int? _focusedCatId;
 
   @override
   void initState() {
@@ -76,17 +79,6 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
         .fold<double>(0.0, (sum, i) => sum + _effectiveAmount(i));
   }
 
-  /// 添加/更新某分类的子额度
-  void _setCategoryBudget(Category category, double amount) {
-    setState(() {
-      if (amount <= 0) {
-        _pendingBudgets[category.id] = 0; // 标记删除
-      } else {
-        _pendingBudgets[category.id] = amount;
-      }
-    });
-  }
-
   /// 从已添加列表移除某分类(同时清除 pending 标记)
   void _removeCategory(Category category) {
     setState(() {
@@ -101,12 +93,15 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
         .length;
   }
 
-  /// 弹分类 picker(只显示未添加的)→ 选一个 → 弹 amount 输入 → 加入列表
+  /// 弹分类 picker(只显示未添加的)→ 选一个 → 直接加入列表(row 内自带输入框)
+  /// commit 99 改:之前 picker → 弹 amount dialog → 输入,弹窗动画 + 自绘 Dialog
+  ///   layout 在低端机会掉帧。改回 picker → 直接在 row 内 TextField 输入,
+  ///   节省一次弹窗动画,row widget 也从 bar / 已花数字 / 进度条精简到
+  ///   "icon + 名字 + 输入框 + 删除",整体 rebuild 开销小,不再掉帧。
   Future<void> _openCategoryPicker(
     BuildContext context,
     BudgetOverview overview,
   ) async {
-    // 未添加的分类
     final available = overview.items
         .where((i) => !_pendingBudgets.containsKey(i.category.id))
         .map((i) => i.category)
@@ -120,16 +115,12 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
       builder: (ctx) => _BudgetCategoryPickerSheet(categories: available),
     );
     if (picked == null) return;
-    // context.mounted 检查 BuildContext(Flutter 3.7+ 新 API)替代 mounted 检查
     if (!context.mounted) return;
 
-    // 选完分类后,弹 amount 输入
-    final amount = await _askAmount(context, initial: 0);
-    if (amount == null) return;
-    if (!context.mounted) return;
-
+    // 选完分类 → 直接加入 pending(初始 0),并标记需要自动聚焦 + 弹键盘
     setState(() {
-      _pendingBudgets[picked.id] = amount > 0 ? amount : 0;
+      _pendingBudgets[picked.id] = 0;
+      _focusedCatId = picked.id;
     });
   }
 
@@ -183,23 +174,6 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
-  }
-
-  /// 弹 number input → 返回 amount;取消返回 null
-  ///
-  /// 实现细节:dialog 用独立的 StatefulWidget [_AmountDialog],controller 由
-  ///   它自己 initState 创建 / dispose 释放。避免 outer-scope 创建 controller
-  ///   + showDialog 返回后立即 dispose 引起的 _dependents.isEmpty assertion:
-  ///   EditableText(autofocus + 键盘未完全收起)还在用 controller 时被 dispose
-  ///   会触发 InheritedElement 的 dependents 清理竞态。
-  Future<double?> _askAmount(
-    BuildContext context, {
-    required double initial,
-  }) async {
-    return showDialog<double>(
-      context: context,
-      builder: (ctx) => _AmountDialog(initial: initial),
-    );
   }
 
   @override
@@ -389,27 +363,22 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
                               .firstOrNull;
                           if (item == null) return const SizedBox.shrink();
                           return _CategoryBudgetRow(
-                            item: item,
-                            effective: _effectiveAmount(item),
-                            configured: _isConfigured(item),
-                            poolRemaining: poolRemaining,
-                            totalBudget: total,
-                            onAdd: () async {
-                              final v = await _askAmount(context, initial: 0);
-                              if (v != null) {
-                                _setCategoryBudget(item.category, v);
+                            key: ValueKey(catId),
+                            category: item.category,
+                            initialAmount: entry.value,
+                            // commit 99:刚 picker 选中的 row 自动聚焦 + 弹键盘,
+                            //   用户不用再点一下输入框
+                            autofocus: catId == _focusedCatId,
+                            onAmountChanged: (v) {
+                              setState(() {
+                                _pendingBudgets[catId] = v;
+                              });
+                              // 只聚焦一次,聚焦后清掉标记
+                              if (catId == _focusedCatId) {
+                                _focusedCatId = null;
                               }
                             },
-                            onEdit: () async {
-                              final v = await _askAmount(
-                                context,
-                                initial: _effectiveAmount(item),
-                              );
-                              if (v != null) {
-                                _setCategoryBudget(item.category, v);
-                              }
-                            },
-                            onClear: () => _removeCategory(item.category),
+                            onRemove: () => _removeCategory(item.category),
                           );
                         }),
                       // + 添加分类 按钮(只在还有未添加分类时显示)
@@ -504,41 +473,82 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
   }
 }
 
-/// 单分类预算行:icon + name + 子额度 / 进度条 / + 号
-class _CategoryBudgetRow extends StatelessWidget {
+/// 单分类预算行:icon + 分类名 + 子额度输入框 + 删除按钮
+///
+/// commit 99 重构(精简掉一半内容):
+///   - 之前:LinearProgressIndicator(bar) + 已花数字 + 进度条 + +/编辑/撤销 3 个按钮
+///   - 现在:只剩 icon + 名字 + TextField(子额度) + 删除按钮
+///   - 之前是 StatelessWidget,弹 dialog 时 BudgetSheet 整体 rebuild → row 重新
+///     layout bar / 进度 / 数字 → 低端机掉帧
+///   - 现在是 StatefulWidget 自己管 TextEditingController + FocusNode,
+///     onChanged 只调 parent 的 onAmountChanged(轻量 setState),widget tree 轻,
+///     不再掉帧
+///
+/// user 原话(2026-10-12):
+///   "其实不需要显示横向的条,也不需要显示已经花了多少,只需要有一个输入框,
+///    一个删除按钮就行,连编辑按钮都不需要,在输入框输入完就直接点击保存预算就行"
+class _CategoryBudgetRow extends StatefulWidget {
   const _CategoryBudgetRow({
-    required this.item,
-    required this.effective,
-    required this.configured,
-    required this.poolRemaining,
-    required this.totalBudget,
-    required this.onAdd,
-    required this.onEdit,
-    required this.onClear,
+    super.key,
+    required this.category,
+    required this.initialAmount,
+    required this.autofocus,
+    required this.onAmountChanged,
+    required this.onRemove,
   });
 
-  final CategoryBudgetSummary item;
-  final double effective;
-  final bool configured;
-  final double poolRemaining;
-  final double totalBudget;
-  final VoidCallback onAdd;
-  final VoidCallback onEdit;
-  final VoidCallback onClear;
+  final Category category;
+  final double initialAmount;
+
+  /// commit 99 加:刚 picker 选中的 row 自动聚焦 + 弹键盘,user 直接输入子额度
+  final bool autofocus;
+  final ValueChanged<double> onAmountChanged;
+  final VoidCallback onRemove;
+
+  @override
+  State<_CategoryBudgetRow> createState() => _CategoryBudgetRowState();
+}
+
+class _CategoryBudgetRowState extends State<_CategoryBudgetRow> {
+  late final TextEditingController _ctrl;
+  late final FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(
+      text: widget.initialAmount > 0
+          ? widget.initialAmount.toStringAsFixed(0)
+          : '',
+    );
+    _focusNode = FocusNode();
+    // postFrameCallback 保证 row 已 mounted + layout 完成后才 requestFocus,
+    //   直接在 initState 调 focus 在某些场景会触发 assertion
+    if (widget.autofocus) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _focusNode.requestFocus();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final color = Color(item.category.color);
-    final spent = item.spent;
-    final progress = effective > 0 ? (spent / effective).clamp(0.0, 1.5) : 0.0;
-    final over = effective > 0 && spent > effective;
-
+    final color = Color(widget.category.color);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.s2),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.s4,
+        vertical: AppSpacing.s1,
+      ),
       child: Row(
         children: [
-          // icon
+          // icon(分类色块 + 缩略 icon,跟 stats widget 风格一致)
           Container(
             width: 28,
             height: 28,
@@ -547,329 +557,60 @@ class _CategoryBudgetRow extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
-              CategoryIcons.map[item.category.icon] ?? Icons.category_rounded,
+              CategoryIcons.map[widget.category.icon] ?? Icons.category_rounded,
               size: 16,
               color: color,
             ),
           ),
-          const SizedBox(width: AppSpacing.s2),
-          // name + 进度
+          const SizedBox(width: AppSpacing.s3),
+          // 分类名
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        item.category.name,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (configured)
-                      Text(
-                        '¥${Formatters.amount(effective, withUnit: false)}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: over ? AppStatus.error : scheme.onSurface,
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                if (configured) ...[
-                  // 已配置:显示进度条
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(2),
-                    child: LinearProgressIndicator(
-                      value: progress.clamp(0.0, 1.0),
-                      minHeight: 4,
-                      backgroundColor: AppGray.g200,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        over ? AppStatus.error : AppBrand.teal,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    over
-                        ? '已花 ¥${Formatters.amount(spent, withUnit: false)} / 超出'
-                        : '已花 ¥${Formatters.amount(spent, withUnit: false)}',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: over ? AppStatus.error : scheme.onSurfaceVariant,
-                    ),
-                  ),
-                ] else
-                  // 未配置:显示共享池 + 已花
-                  Text(
-                    totalBudget > 0
-                        ? '共享剩余池 ¥${Formatters.amount(poolRemaining, withUnit: false)} · 已花 ¥${Formatters.amount(spent, withUnit: false)}'
-                        : '设置总额度后可分配子额度',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-              ],
+            child: Text(
+              widget.category.name,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
           const SizedBox(width: AppSpacing.s2),
-          // 操作按钮:+ / 编辑 / 撤销
-          if (configured)
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.close_rounded, size: 18),
-                  tooltip: '撤销子额度(回到共享池)',
-                  onPressed: onClear,
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(
-                    minWidth: 32,
-                    minHeight: 32,
-                  ),
+          // 子额度输入框 — 输完直接点底部"保存预算"统一提交
+          SizedBox(
+            width: 130,
+            child: TextField(
+              controller: _ctrl,
+              focusNode: _focusNode,
+              textAlign: TextAlign.right,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: [const _AmountInputFormatter()],
+              decoration: InputDecoration(
+                prefixText: '¥ ',
+                prefixStyle: TextStyle(color: AppGray.g600, fontSize: 13),
+                border: const OutlineInputBorder(),
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 10,
                 ),
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined, size: 18),
-                  tooltip: '编辑子额度',
-                  onPressed: onEdit,
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(
-                    minWidth: 32,
-                    minHeight: 32,
-                  ),
-                ),
-              ],
-            )
-          else
-            IconButton(
-              icon: const Icon(Icons.add_circle_outline, size: 22),
-              tooltip: '设置子额度',
-              onPressed: onAdd,
-              color: AppBrand.teal,
-              visualDensity: VisualDensity.compact,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                hintText: '0',
+                hintStyle: TextStyle(color: AppGray.g400),
+              ),
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              onChanged: (text) {
+                final v = double.tryParse(text.trim()) ?? 0;
+                widget.onAmountChanged(v);
+              },
             ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 金额输入 dialog — 自绘,跟 _DeleteConfirmDialog 同款(ColorOS 风)
-///
-/// 为什么不用 AlertDialog:Material 默认的 AlertDialog 跟 gridly 卡片化
-///   调性不贴(contentPadding / insetPadding 太系统默认,标题 / 内容 / 按钮
-///   间距跟现有 dialog 不一致)。自绘 Dialog + brLg 圆角 + teal 品牌色头
-///   跟 _DeleteConfirmDialog 完全同款风格。
-///
-/// 为什么 StatefulWidget:controller 由 initState 创建、dispose 释放,
-///   生命周期跟 dialog element 卸载对齐,避免 outer-scope 创建 + 立即 dispose
-///   引起的 InheritedElement._dependents.isEmpty assertion。
-class _AmountDialog extends StatefulWidget {
-  const _AmountDialog({required this.initial});
-  final double initial;
-
-  @override
-  State<_AmountDialog> createState() => _AmountDialogState();
-}
-
-class _AmountDialogState extends State<_AmountDialog> {
-  late final TextEditingController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = TextEditingController(
-      text: widget.initial > 0 ? widget.initial.toStringAsFixed(0) : '',
-    );
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Dialog(
-      backgroundColor: theme.colorScheme.surface,
-      // 去掉 Material default 蓝色 tint overlay,跟卡片风格一致
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: AppRadius.brLg),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 360),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.s4),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 头部:teal icon + 标题
-              Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: AppBrand.teal.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Icon(
-                      Icons.tune_rounded,
-                      color: AppBrand.teal,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.s3),
-                  Expanded(
-                    child: Text(
-                      '设置子额度',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: theme.colorScheme.onSurface,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.s4),
-              // 金额输入区:大字号 ¥ + 输入框(卡片化,跟 budget_sheet 风格一致)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.s3,
-                  vertical: AppSpacing.s3,
-                ),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerLow,
-                  borderRadius: AppRadius.brMd,
-                  border: Border.all(
-                    color: AppBrand.teal.withValues(alpha: 0.4),
-                    width: 1.0,
-                  ),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(right: AppSpacing.s2),
-                      child: Text(
-                        '¥',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w600,
-                          color: AppBrand.teal,
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: TextField(
-                        controller: _ctrl,
-                        autofocus: true,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        inputFormatters: [const _AmountInputFormatter()],
-                        // 无边框输入(容器边框已经画了)+ hint 灰底提示
-                        decoration: InputDecoration(
-                          border: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          isCollapsed: true,
-                          contentPadding: EdgeInsets.zero,
-                          hintText: '0',
-                          hintStyle: TextStyle(
-                            color: AppGray.g400,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w700,
-                          color: theme.colorScheme.onSurface,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: AppSpacing.s4),
-              // 按钮行:取消(outline) + 确定(filled teal)
-              //   跟 _DeleteConfirmDialog 风格一致(只是 destructive 红改成品牌 teal)
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: AppRadius.brMd,
-                        ),
-                        side: BorderSide(
-                          color: theme.colorScheme.outlineVariant,
-                          width: 1.0,
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      onPressed: () {
-                        AppHaptics.tap();
-                        Navigator.of(context).pop();
-                      },
-                      child: Text(
-                        '取消',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: theme.colorScheme.onSurface,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.s2),
-                  Expanded(
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppBrand.teal,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: AppRadius.brMd,
-                        ),
-                      ),
-                      onPressed: () {
-                        AppHaptics.tap();
-                        final v = double.tryParse(_ctrl.text.trim());
-                        if (v != null && v >= 0) {
-                          Navigator.of(context).pop(v);
-                        }
-                      },
-                      child: const Text(
-                        '确定',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
           ),
-        ),
+          IconButton(
+            icon: const Icon(Icons.close_rounded, size: 18),
+            tooltip: '移除该分类',
+            onPressed: widget.onRemove,
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+          ),
+        ],
       ),
     );
   }
