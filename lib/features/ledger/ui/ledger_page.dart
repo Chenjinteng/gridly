@@ -10,26 +10,12 @@ import '../../../core/widgets/staggered_fade_in.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
-import '../../../core/utils/asset_balance_provider.dart';
 import '../../../core/utils/formatters.dart';
-import '../../../core/utils/gridly_banner.dart';
 import '../../../core/utils/refresh_providers.dart';
 import '../application/transactions_providers.dart';
+import 'advanced_filter_page.dart';
+import 'filter_picker_sheets.dart';
 import 'widgets/transaction_tile.dart';
-
-/// Sentinel —— ModalBottomSheet dismiss 时返回,跟"选了全部"区分开
-class _SheetDismissed {
-  const _SheetDismissed();
-}
-
-const _sheetDismissed = _SheetDismissed();
-
-/// Sentinel —— 用户明确点了"全部"项(等价于 reset 到默认值)
-class _AllPicked {
-  const _AllPicked();
-}
-
-const _allPicked = _AllPicked();
 
 class LedgerPage extends ConsumerStatefulWidget {
   const LedgerPage({super.key});
@@ -39,10 +25,8 @@ class LedgerPage extends ConsumerStatefulWidget {
 }
 
 class _LedgerPageState extends ConsumerState<LedgerPage> {
-  final _searchController = TextEditingController();
-  // 搜索状态(2026-10-12 P5 follow-up 第 2 次改):搜索输入搬到 _FilterSheet 顶部,
-  //   不再切 AppBar title;controller 仍由 _LedgerPageState 持有(关闭 sheet
-  //   后再次打开保留搜索内容);searching 标志由 ledgerSearchQueryProvider 推导。
+  // 2026-10-13:搜索 TextFieldController 移到 AdvancedFilterPage 自己持有
+  //   ledger_page.dart 不再需要 _searchController(搜索逻辑统一在高级筛选页)
 
   /// 2026-10-12 ColorOS 列表错峰 fade-in:
   ///   - false:首次 build 阶段,所有 tile 走 _StaggeredTile 动画分支,
@@ -63,7 +47,6 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
 
   @override
   void dispose() {
-    _searchController.dispose();
     super.dispose();
   }
 
@@ -77,42 +60,15 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
         ref.watch(ledgerSearchQueryProvider).isNotEmpty;
   }
 
-  /// 2026-10-13 revert:回到底部弹出(modal bottom sheet)
-  ///   user UAT 反馈"顶部下拉还是不喜欢,改回去以前的版本"——从底部弹出。
-  ///   - showModalBottomSheet + isScrollControlled,沿用 0bcf1ea 的圆角 + 表面色写法
-  ///   - shape 顶部圆角 AppRadius.xl(28px)一致其他 picker
-  ///   - 内部 _FilterSheet 保留紧凑 chip 横排 + 搜索 + 清空布局(不动结构)
-  ///   - 过渡动画用回 Material 默认从下滑入
-  void _openFilterSheet({
-    required List<Asset> allAssets,
-    required List<Category> catsForType,
-  }) {
-    final theme = Theme.of(context);
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: theme.colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
-      ),
-      builder: (sheetCtx) => _FilterSheet(
-        searchController: _searchController,
-        onSearchChanged: (v) =>
-            ref.read(ledgerSearchQueryProvider.notifier).state = v,
-        catsForType: catsForType,
-        monthKeys: _recentMonthKeys(),
-        formatMonthKey: _formatMonthKey,
-        allAssets: allAssets,
-        onTypeChanged: (v) =>
-            ref.read(ledgerTypeFilterProvider.notifier).state = v,
-        onMonthChanged: (v) =>
-            ref.read(ledgerMonthFilterProvider.notifier).state = v,
-        onCategoryChanged: (v) =>
-            ref.read(ledgerCategoryFilterProvider.notifier).state = v,
-        onAssetChanged: (v) =>
-            ref.read(ledgerAssetFilterProvider.notifier).state = v,
-      ),
-    );
+  /// 2026-10-13 改为 push 全屏 AdvancedFilterPage
+  ///   user UAT 反馈'高级筛选里加上资产条件,要不高级筛选就直接全屏显示,
+  ///   把 4 个条件都一行行列出来看看'。
+  ///   - 移除 _openFilterSheet / _FilterSheet 旧的 modal sheet 实现
+  ///   - 改用 Navigator.push 推全屏页 AdvancedFilterPage(替代)
+  ///   - icon 在有任意筛选激活时 tint primary 色(不变)
+  void _openAdvancedFilter() {
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const AdvancedFilterPage()));
   }
 
   /// 最近 12 个月(含本月),按时间倒序
@@ -145,9 +101,7 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
     final typeFilter = ref.watch(ledgerTypeFilterProvider);
     final monthFilter = ref.watch(ledgerMonthFilterProvider);
     final categoryFilter = ref.watch(ledgerCategoryFilterProvider);
-    // 2026-10-12 P5 follow-up 加回:资产 filter(默认空,不参与过滤)
-    // 资产列表(给 AppBar filter sheet 用)— 提前 watch
-    final allAssetsAsync = ref.watch(allAssetsProvider);
+    // 2026-10-13:资产 list 不用再在 ledger_page 里 watch,AdvancedFilterPage 自己 watch
     // 搜索 query(用于 _EmptyState 显示"没找到匹配的"提示)
     final searchQuery = ref.watch(ledgerSearchQueryProvider);
 
@@ -162,9 +116,9 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
         //   - 标题固定 '流水',不再切 search field
         title: const Text('流水'),
         actions: [
-          // 2026-10-12 P5 follow-up 加:AppBar 右上角 filter 按钮
-          //   弹多维筛选 sheet:搜索 + 类型 / 月份 / 分类 / 资产
-          //   icon 在有任意筛选激活时 tint primary 色,user 一眼看到"在筛选中"
+          // 2026-10-13 改:AppBar 右上角 filter 按钮 → push 全屏 AdvancedFilterPage
+          //   4 条件 row-by-row(类型 / 月份 / 分类 / 资产)+ 搜索
+          //   icon 在有任意筛选激活时 tint primary 色(不变)
           IconButton(
             icon: Icon(
               Icons.filter_alt_rounded,
@@ -172,10 +126,7 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
                   ? Theme.of(context).colorScheme.primary
                   : null,
             ),
-            onPressed: () => _openFilterSheet(
-              allAssets: allAssetsAsync.valueOrNull ?? const [],
-              catsForType: catsForType,
-            ),
+            onPressed: _openAdvancedFilter,
           ),
         ],
       ),
@@ -396,18 +347,18 @@ class _FilterBar extends ConsumerWidget {
   // ============ 弹层:类型(单选) ============
   Future<void> _showTypePicker(BuildContext context) async {
     final options = <(Object?, String)>[
-      (_allPicked, '全部'),
+      (allPicked, '全部'),
       ('expense', '支出'),
       ('income', '收入'),
     ];
-    final selected = await _showSingleSelectSheet<String>(
+    final selected = await showSingleSelectSheet<String>(
       context,
       title: '选择类型',
       options: options,
       currentValue: typeFilter,
     );
-    if (selected == null || selected is _SheetDismissed) return;
-    if (selected is _AllPicked) {
+    if (selected == null || selected is SheetDismissed) return;
+    if (selected is AllPicked) {
       onTypeChanged('all');
       return;
     }
@@ -417,18 +368,18 @@ class _FilterBar extends ConsumerWidget {
   // ============ 弹层:月份(单选) ============
   Future<void> _showMonthPicker(BuildContext context) async {
     final options = <(Object?, String)>[
-      (_allPicked, '全部'),
+      (allPicked, '全部'),
       ...monthKeys.map((k) => (k, formatMonthKey(k))),
     ];
-    final selected = await _showSingleSelectSheet<int?>(
+    final selected = await showSingleSelectSheet<int?>(
       context,
       title: '选择月份',
       options: options,
       currentValue: monthFilter,
     );
-    if (selected == null || selected is _SheetDismissed) return;
+    if (selected == null || selected is SheetDismissed) return;
     // 选"全部" → 触发 onMonthChanged(null) 重置
-    if (selected is _AllPicked) {
+    if (selected is AllPicked) {
       onMonthChanged(null);
       return;
     }
@@ -444,7 +395,7 @@ class _FilterBar extends ConsumerWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
       ),
-      builder: (ctx) => _MultiSelectCategorySheet(
+      builder: (ctx) => MultiSelectCategorySheet(
         categories: catsForType,
         initial: categoryFilter,
       ),
@@ -456,284 +407,7 @@ class _FilterBar extends ConsumerWidget {
   //   流水 tile 仍显示账户名作为视觉信息)。
 }
 
-/// 单选弹层(类型 / 月份)—— 选完自动关闭
-///
-/// ⚠️ 关键修复:用两个 sentinel 严格区分:
-///   - _SheetDismissed → barrier dismiss / "关闭"按钮(没操作)
-///   - _AllPicked → 用户明确点"全部"(要 reset 到默认值)
-///   - 其他 value → 用户点了某个具体选项
-/// 选项用 `Object?` 而非 T,因为"全部"用 sentinel 不能跟 T 类型混
-///
-/// 2026-10-13 revert:showGeneralDialog → showModalBottomSheet
-///   user UAT 反馈'顶部下拉还是不喜欢,改回去以前的版本'——回退 2df4d7b。
-///   - 沿用 3f4a6e0 的底部 modal sheet 写法
-///   - backgroundColor + shape 提供表面色 + 顶部圆角
-///   - Material 默认从下滑入
-Future<Object?> _showSingleSelectSheet<T>(
-  BuildContext context, {
-  required String title,
-  required List<(Object?, String)> options,
-  required T currentValue,
-}) {
-  return showModalBottomSheet<Object?>(
-    context: context,
-    backgroundColor: Theme.of(context).colorScheme.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
-    ),
-    builder: (ctx) {
-      final theme = Theme.of(ctx);
-      return SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.s2),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 把手
-              Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(top: 8, bottom: 12),
-                decoration: BoxDecoration(
-                  color: AppGray.g400,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.s4,
-                  vertical: AppSpacing.s2,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, _sheetDismissed),
-                      child: const Text('关闭'),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: options.length,
-                  itemBuilder: (_, i) {
-                    final (value, label) = options[i];
-                    // 选中态判断:value 是 _allPicked 且 currentValue 是 null
-                    final selected =
-                        (value is _AllPicked && currentValue == null) ||
-                        (value == currentValue);
-                    return InkWell(
-                      onTap: () => Navigator.pop(ctx, value),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.s4,
-                          vertical: AppSpacing.s3,
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                label,
-                                style: const TextStyle(fontSize: 15),
-                              ),
-                            ),
-                            if (selected)
-                              Icon(
-                                Icons.check,
-                                size: 20,
-                                color: theme.colorScheme.primary,
-                              ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    },
-  );
-}
-
-/// 多选弹层(分类)—— 临时持有选择集合,点"确定"才提交
-class _MultiSelectCategorySheet extends StatefulWidget {
-  const _MultiSelectCategorySheet({
-    required this.categories,
-    required this.initial,
-  });
-  final List<Category> categories;
-  final Set<int> initial;
-
-  @override
-  State<_MultiSelectCategorySheet> createState() =>
-      _MultiSelectCategorySheetState();
-}
-
-class _MultiSelectCategorySheetState extends State<_MultiSelectCategorySheet> {
-  late Set<int> _selected;
-
-  @override
-  void initState() {
-    super.initState();
-    _selected = {...widget.initial};
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    return DraggableScrollableSheet(
-      initialChildSize: 0.7,
-      minChildSize: 0.4,
-      maxChildSize: 0.9,
-      expand: false,
-      builder: (ctx, scrollController) {
-        return Column(
-          children: [
-            Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.only(top: 8, bottom: 12),
-              decoration: BoxDecoration(
-                color: AppGray.g400,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.s4,
-                vertical: AppSpacing.s2,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    '选择分类(可多选)',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                  ),
-                  TextButton(
-                    onPressed: _selected.isEmpty
-                        ? null
-                        : () => setState(_selected.clear),
-                    child: const Text('清空'),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: ListView.builder(
-                controller: scrollController,
-                itemCount: widget.categories.length,
-                itemBuilder: (_, i) {
-                  final c = widget.categories[i];
-                  final checked = _selected.contains(c.id);
-                  final color = Color(c.color);
-                  return InkWell(
-                    onTap: () => setState(() {
-                      if (checked) {
-                        _selected.remove(c.id);
-                      } else {
-                        _selected.add(c.id);
-                      }
-                    }),
-                    child: Container(
-                      color: checked
-                          ? color.withValues(alpha: 0.08)
-                          : Colors.transparent,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.s4,
-                        vertical: AppSpacing.s3,
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: color,
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              c.name,
-                              style: const TextStyle(fontSize: 15),
-                            ),
-                          ),
-                          if (checked)
-                            Icon(
-                              Icons.check_circle,
-                              color: theme.colorScheme.primary,
-                              size: 22,
-                            )
-                          else
-                            Icon(
-                              Icons.radio_button_unchecked,
-                              color: theme.colorScheme.outlineVariant,
-                              size: 22,
-                            ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.s4,
-                AppSpacing.s3,
-                AppSpacing.s4,
-                AppSpacing.s3,
-              ),
-              child: SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () => Navigator.pop(ctx, _selected),
-                  style: FilledButton.styleFrom(
-                    // dark mode 仿 onDark:ink → cream
-                    backgroundColor: isDark ? AppSecondary.cream : AppBrand.ink,
-                    foregroundColor: isDark ? AppBrand.ink : null,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: AppSpacing.s3,
-                    ),
-                    shape: RoundedRectangleBorder(borderRadius: AppRadius.brLg),
-                  ),
-                  child: Text(
-                    _selected.isEmpty ? '显示全部' : '确定(${_selected.length})',
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-/// 2026-10-12 P3 commit 加:多选弹层(资产)—— 跟 _MultiSelectCategorySheet 同款结构
+/// 2026-10-12 P3 commit 加:多选弹层(资产)—— 跟 MultiSelectCategorySheet 同款结构
 ///   - 行 item:asset icon chip + name + currentBalance(右对齐)
 ///   - 选中态:整行背景 tint asset 配色 + check icon
 ///   - 顶部标题"选择账户(可多选)" + 清空 + 底部"显示全部 / 确定(N)"
@@ -973,448 +647,6 @@ class _DaySection extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-/// 2026-10-12 P5 follow-up 第 5 次改:ConsumerWidget 自己 watch providers
-///   - 之前 _FilterSheet 是 StatelessWidget,5 个 current* 通过构造参数传快照
-///   - picker sheet 回写 provider 后,dialog 内 widget 不会 rebuild(chip 状态不刷新)
-///   - 现在内部 watch 5 个 provider,chip active 状态实时更新
-///   - 搜索 TextField controller 仍由 _LedgerPageState 持有,关闭 sheet 再
-///     打开内容还在
-class _FilterSheet extends ConsumerWidget {
-  const _FilterSheet({
-    required this.searchController,
-    required this.onSearchChanged,
-    required this.catsForType,
-    required this.monthKeys,
-    required this.formatMonthKey,
-    required this.allAssets,
-    required this.onTypeChanged,
-    required this.onMonthChanged,
-    required this.onCategoryChanged,
-    required this.onAssetChanged,
-  });
-
-  final TextEditingController searchController;
-  final ValueChanged<String> onSearchChanged;
-  final List<Category> catsForType;
-  final List<int> monthKeys;
-  final String Function(int) formatMonthKey;
-  final List<Asset> allAssets;
-  final ValueChanged<String> onTypeChanged;
-  final ValueChanged<int?> onMonthChanged;
-  final ValueChanged<Set<int>> onCategoryChanged;
-  final ValueChanged<Set<int>> onAssetChanged;
-
-  bool _hasAnyFilter(WidgetRef ref) {
-    return searchController.text.isNotEmpty ||
-        ref.watch(ledgerTypeFilterProvider) != 'all' ||
-        ref.watch(ledgerMonthFilterProvider) != null ||
-        ref.watch(ledgerCategoryFilterProvider).isNotEmpty ||
-        ref.watch(ledgerAssetFilterProvider).isNotEmpty;
-  }
-
-  String _typeLabel(WidgetRef ref) {
-    switch (ref.watch(ledgerTypeFilterProvider)) {
-      case 'expense':
-        return '支出';
-      case 'income':
-        return '收入';
-      case 'balance':
-        return '调拨';
-      default:
-        return '全部';
-    }
-  }
-
-  String _monthLabel(WidgetRef ref) {
-    final m = ref.watch(ledgerMonthFilterProvider);
-    return m == null ? '全部' : formatMonthKey(m);
-  }
-
-  String _categoryLabel(WidgetRef ref) {
-    final cs = ref.watch(ledgerCategoryFilterProvider);
-    if (cs.isEmpty) return '全部';
-    if (cs.length == 1) {
-      final id = cs.first;
-      for (final c in catsForType) {
-        if (c.id == id) return c.name;
-      }
-    }
-    return '已选 ${cs.length} 个';
-  }
-
-  String _assetLabel(WidgetRef ref) {
-    final as = ref.watch(ledgerAssetFilterProvider);
-    if (as.isEmpty) return '全部';
-    if (as.length == 1) {
-      final id = as.first;
-      for (final a in allAssets) {
-        if (a.id == id) return a.name;
-      }
-    }
-    return '已选 ${as.length} 个';
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    // 2026-10-12 P5 follow-up 第 5 次改:内部 watch 5 个 provider,picker
-    //   sheet 回写后 chip 自动 rebuild
-    final currentType = ref.watch(ledgerTypeFilterProvider);
-    final currentMonth = ref.watch(ledgerMonthFilterProvider);
-    final currentCategory = ref.watch(ledgerCategoryFilterProvider);
-    final currentAsset = ref.watch(ledgerAssetFilterProvider);
-    // 2026-10-13 revert:回到底部 modal sheet 风格
-    //   - SafeArea 默认(top:true 由 sheet 自己处理,modal sheet 顶部不会撞 status bar)
-    //   - 搜索框 Padding top 还原到静态 s2(不再用 MediaQuery.padding.top 贴 status bar)
-    //   - 把手 margin 还原到 top:8, bottom:12
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: AppSpacing.s2),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 把手
-            Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.only(top: 8, bottom: 12),
-              decoration: BoxDecoration(
-                color: AppGray.g400,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            // 搜索框(2026-10-12 P5 follow-up 第 2 次改:从 AppBar 搬到 sheet 顶部,
-            //   AppBar 只留 filter_alt 一个入口)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.s4,
-                AppSpacing.s2,
-                AppSpacing.s4,
-                AppSpacing.s2,
-              ),
-              child: TextField(
-                controller: searchController,
-                onChanged: onSearchChanged,
-                decoration: InputDecoration(
-                  hintText: '搜备注 / 分类',
-                  hintStyle: const TextStyle(color: AppGray.g400, fontSize: 14),
-                  prefixIcon: const Icon(
-                    Icons.search_rounded,
-                    size: 18,
-                    color: AppGray.g600,
-                  ),
-                  // 输入框清除按钮(右侧 ✕)— 仅在有文字时显示
-                  suffixIcon: searchController.text.isEmpty
-                      ? null
-                      : IconButton(
-                          icon: const Icon(
-                            Icons.close_rounded,
-                            size: 16,
-                            color: AppGray.g600,
-                          ),
-                          onPressed: () {
-                            searchController.clear();
-                            onSearchChanged('');
-                          },
-                        ),
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.s2,
-                    vertical: AppSpacing.s2,
-                  ),
-                  filled: true,
-                  fillColor: theme.colorScheme.surfaceContainerLow,
-                  border: OutlineInputBorder(
-                    borderRadius: AppRadius.brMd,
-                    borderSide: BorderSide(
-                      color: theme.colorScheme.outlineVariant,
-                      width: 0.5,
-                    ),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: AppRadius.brMd,
-                    borderSide: BorderSide(
-                      color: theme.colorScheme.outlineVariant,
-                      width: 0.5,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            // 标题行(2026-10-12 P5 follow-up 第 3 次改:删掉'筛选'标题,只剩 ✕
-            //   关闭按钮在右上角,再省 1 行高度)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('关闭'),
-              ),
-            ),
-            // 4 维度 chip 横排(2026-10-12 P5 follow-up 第 3 次改):
-            //   user 反馈'一个条件占一行,弹窗太大' → 改成 Wrap 横向排,
-            //   窄屏自动换行 1-2 行,整体 sheet 高度大幅压缩
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.s4,
-                AppSpacing.s2,
-                AppSpacing.s4,
-                AppSpacing.s2,
-              ),
-              child: SingleChildScrollView(
-                // 2026-10-12 P5 follow-up 第 5 次改:4 chip 用 SingleChildScrollView
-                //   横滚,不再 Wrap(避免窄屏 2+2 居中难看)。
-                //   高度固定 32px(s2+s2),让 sheet 顶部布局更紧凑。
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _FilterChip(
-                      icon: Icons.category_outlined,
-                      label: '类型',
-                      value: _typeLabel(ref),
-                      active: currentType != 'all',
-                      onTap: () => _pickType(context, ref),
-                    ),
-                    const SizedBox(width: AppSpacing.s2),
-                    _FilterChip(
-                      icon: Icons.calendar_today_outlined,
-                      label: '月份',
-                      value: _monthLabel(ref),
-                      active: currentMonth != null,
-                      onTap: () => _pickMonth(context, ref),
-                    ),
-                    const SizedBox(width: AppSpacing.s2),
-                    _FilterChip(
-                      icon: Icons.local_offer_outlined,
-                      label: '分类',
-                      value: _categoryLabel(ref),
-                      active: currentCategory.isNotEmpty,
-                      onTap: () => _pickCategory(context, ref),
-                    ),
-                    const SizedBox(width: AppSpacing.s2),
-                    _FilterChip(
-                      icon: Icons.account_balance_wallet_outlined,
-                      label: '资产',
-                      value: _assetLabel(ref),
-                      active: currentAsset.isNotEmpty,
-                      onTap: () => _pickAsset(context, ref),
-                    ),
-                    const SizedBox(width: AppSpacing.s4),
-                  ],
-                ),
-              ),
-            ),
-            const Divider(height: 1),
-            // 底部"清空"按钮(仅当有任意筛选激活时显示)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.s4,
-                AppSpacing.s2,
-                AppSpacing.s4,
-                AppSpacing.s2,
-              ),
-              child: SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: _hasAnyFilter(ref)
-                      ? () {
-                          // 2026-10-12 P5 follow-up 第 2 次改:清空也清搜索 query + controller
-                          searchController.clear();
-                          onSearchChanged('');
-                          onTypeChanged('all');
-                          onMonthChanged(null);
-                          onCategoryChanged(<int>{});
-                          onAssetChanged(<int>{});
-                        }
-                      : null,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: isDark ? AppSecondary.cream : AppBrand.ink,
-                    foregroundColor: isDark ? AppBrand.ink : null,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: AppSpacing.s3,
-                    ),
-                    shape: RoundedRectangleBorder(borderRadius: AppRadius.brLg),
-                  ),
-                  child: const Text(
-                    '清空筛选',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _pickType(BuildContext context, WidgetRef ref) async {
-    final options = <(Object?, String)>[
-      (_allPicked, '全部'),
-      ('expense', '支出'),
-      ('income', '收入'),
-      ('balance', '调拨'),
-    ];
-    final selected = await _showSingleSelectSheet<String>(
-      context,
-      title: '选择类型',
-      options: options,
-      currentValue: ref.read(ledgerTypeFilterProvider),
-    );
-    if (selected == null || selected is _SheetDismissed) return;
-    if (selected is _AllPicked) {
-      onTypeChanged('all');
-      return;
-    }
-    onTypeChanged(selected as String);
-  }
-
-  Future<void> _pickMonth(BuildContext context, WidgetRef ref) async {
-    final options = <(Object?, String)>[
-      (_allPicked, '全部'),
-      ...monthKeys.map((k) => (k, formatMonthKey(k))),
-    ];
-    final selected = await _showSingleSelectSheet<int?>(
-      context,
-      title: '选择月份',
-      options: options,
-      currentValue: ref.read(ledgerMonthFilterProvider),
-    );
-    if (selected == null || selected is _SheetDismissed) return;
-    if (selected is _AllPicked) {
-      onMonthChanged(null);
-      return;
-    }
-    onMonthChanged(selected as int?);
-  }
-
-  Future<void> _pickCategory(BuildContext context, WidgetRef ref) async {
-    // 2026-10-13 revert:showGeneralDialog → showModalBottomSheet
-    //   沿用 3f4a6e0 的 inline 写法,isScrollControlled 让 sheet 高度自适应。
-    final selected = await showModalBottomSheet<Set<int>>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
-      ),
-      builder: (_) => _MultiSelectCategorySheet(
-        categories: catsForType,
-        initial: ref.read(ledgerCategoryFilterProvider),
-      ),
-    );
-    if (selected != null) onCategoryChanged(selected);
-  }
-
-  Future<void> _pickAsset(BuildContext context, WidgetRef ref) async {
-    if (allAssets.isEmpty) {
-      showGridlyBanner(
-        context,
-        '还没有账户,请先到"我的 > 资产"新建',
-        kind: GridlyBannerKind.info,
-      );
-      return;
-    }
-    // 2026-10-13 revert:showGeneralDialog → showModalBottomSheet(同上)
-    final selected = await showModalBottomSheet<Set<int>>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
-      ),
-      builder: (_) => _MultiSelectAssetSheet(
-        assets: allAssets,
-        initial: ref.read(ledgerAssetFilterProvider),
-      ),
-    );
-    if (selected != null) onAssetChanged(selected);
-  }
-}
-
-/// sheet 内的单行筛选维度 pill(icon + label + value + 激活态)
-/// 2026-10-12 P5 follow-up 第 3 次改:紧凑横向 chip(替代原 _FilterSheetField 单行满宽版)
-///   - 单行布局:icon + label + value + chevron_down(替换 chevron_right 表示"下拉弹 picker")
-///   - padding 横向 s2 + 纵向 s2(原 s3 + s3),高度约 32px
-///   - 用 Wrap 在 sheet 里横排,4 维度窄屏自动换 1-2 行,避免 sheet 过高
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.active,
-    required this.onTap,
-  });
-  final IconData icon;
-  final String label;
-  final String value;
-  final bool active;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: AppRadius.brSm,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.s2,
-          vertical: AppSpacing.s2,
-        ),
-        decoration: BoxDecoration(
-          color: active
-              ? theme.colorScheme.primary.withValues(alpha: 0.08)
-              : theme.colorScheme.surfaceContainerLow,
-          borderRadius: AppRadius.brSm,
-          border: Border.all(
-            color: active
-                ? theme.colorScheme.primary.withValues(alpha: 0.4)
-                : theme.colorScheme.outlineVariant,
-            width: 1,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 14,
-              color: active
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: active
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(width: 4),
-            Text(
-              value,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(width: 2),
-            Icon(
-              Icons.keyboard_arrow_down_rounded,
-              size: 16,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
