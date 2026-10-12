@@ -27,6 +27,8 @@ import '../../../core/database/providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/utils/asset_balance_provider.dart';
+import '../../../core/utils/formatters.dart';
 import '../../../core/utils/gridly_banner.dart';
 import '../../../core/utils/refresh_providers.dart';
 import '../../../shared/constants/default_categories.dart';
@@ -62,6 +64,11 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   String _type = 'expense';
   int? _categoryId;
   DateTime _occurredAt = DateTime.now();
+  // 2026-10-12 P3 commit 加:账户选择(state)
+  //   - 新增模式:initState 时取第一个 cash_flow 账户(displayOrder 升序 = "现金")
+  //   - 编辑模式:用 editTransaction.accountId(已有流水自带)
+  //   - 改 _type 时**保留账户**(切换支出/收入/调拨不重置账户,跟用户"调拨对应账户"的预期一致)
+  int? _accountId;
   final _noteController = TextEditingController();
   final _calc = _CalcState();
 
@@ -70,11 +77,12 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   @override
   void initState() {
     super.initState();
-    // 编辑模式:预填已有数据
     final t = widget.editTransaction;
     if (t != null) {
+      // 编辑模式:预填已有数据
       _type = t.type;
       _categoryId = t.categoryId;
+      _accountId = t.accountId;
       _occurredAt = t.occurredAt;
       _noteController.text = t.note ?? '';
       // 金额显示:整数显示整数,小数保留原值
@@ -83,6 +91,21 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       } else {
         _calc.display = t.amount.toString();
       }
+    } else {
+      // 新增模式:默认账户取第一个 cash_flow(displayOrder 升序 = "现金")
+      //   改用 addPostFrameCallback:第一次 build 时 ref 还没 ready,
+      //   直接 read 会触发 "ref used outside build" 警告
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        final repo = ref.read(assetRepositoryProvider);
+        final assets = await repo.all();
+        if (!mounted) return;
+        final cash = assets.where((a) => a.type == 'cash_flow').toList();
+        if (cash.isEmpty) return; // 没 cash_flow 账户,保持 null,save 时 banner 兜底
+        setState(() {
+          _accountId ??= cash.first.id;
+        });
+      });
     }
   }
 
@@ -249,6 +272,13 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       _toast('选个分类');
       return;
     }
+    if (_accountId == null) {
+      // 兜底:P2 阶段如果用户没在"我的"建任何账户,这里走 _firstCashAssetId
+      // 兜底为 0;但若 assets 表为空(种子还没跑),repo.add 会抛 StateError,
+      // 这里 banner 给用户清晰提示
+      _toast('先在"我的"里建账户');
+      return;
+    }
     final note = _noteController.text.isEmpty ? null : _noteController.text;
     final repo = ref.read(transactionRepositoryProvider);
     try {
@@ -259,6 +289,7 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
             amount: value,
             type: _type,
             categoryId: _categoryId!,
+            accountId: _accountId!,
             occurredAt: _occurredAt,
             note: Value(note),
           ),
@@ -270,6 +301,7 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
           amount: value,
           type: _type,
           categoryId: _categoryId!,
+          accountId: _accountId!,
           occurredAt: _occurredAt,
           note: note,
         );
@@ -380,6 +412,18 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       }
     });
     final hasCat = sel != null;
+    // 2026-10-12 P3 commit 加:账户 chip —— 监听 allAssetsProvider 取已选账户对象
+    final assetsAsync = ref.watch(allAssetsProvider);
+    Asset? selAccount;
+    assetsAsync.whenData((assets) {
+      for (final a in assets) {
+        if (a.id == _accountId) {
+          selAccount = a;
+          break;
+        }
+      }
+    });
+    final hasAccount = selAccount != null;
     final isToday =
         _occurredAt.year == DateTime.now().year &&
         _occurredAt.month == DateTime.now().month &&
@@ -428,12 +472,13 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
             style: const TextStyle(fontSize: 13),
           ),
           const SizedBox(height: AppSpacing.s2),
-          // 下行:[日期][分类][保存] —— 2026-10-11 UAT 第四轮反馈:
-          //   日期 + 分类 1:1 均分(两个弹性 Expanded 同 flex),
-          //   保存按钮固定窄宽(跟之前一致),不强拉成 1/3。
+          // 2026-10-12 P3 commit:4 列操作行
+          //   [日期 pill][账户 chip][分类 chip][保存按钮]
+          //   日期 / 账户 / 分类 1:1:1 均分(三个弹性 Expanded 同 flex),
+          //   保存按钮固定窄宽。账户跟分类同级,跟现有 UI 一致。
           Row(
             children: [
-              // 1) 日期 pill(均分 1/2)
+              // 1) 日期 pill
               Expanded(
                 child: _ActionPill(
                   icon: Icons.calendar_today_rounded,
@@ -446,7 +491,21 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                 ),
               ),
               const SizedBox(width: AppSpacing.s2),
-              // 2) 分类 chip(均分 1/2)
+              // 2) 账户 chip(P3 加):显示已选账户 icon + name,没选时显示"选账户"
+              Expanded(
+                child: _ActionPill(
+                  icon: _assetIconFor(selAccount),
+                  label: hasAccount ? selAccount!.name : '选账户',
+                  highlighted: hasAccount,
+                  highlightColor: hasAccount ? Color(selAccount!.color) : null,
+                  iconColorOverride: hasAccount
+                      ? Color(selAccount!.color)
+                      : null,
+                  onTap: _openAccountPicker,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.s2),
+              // 3) 分类 chip
               Expanded(
                 child: _ActionPill(
                   icon: hasCat
@@ -456,16 +515,11 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                   highlighted: hasCat,
                   highlightColor: hasCat ? Color(sel!.color) : null,
                   iconColorOverride: hasCat ? Color(sel!.color) : null,
-                  // 2026-10-12 Hero flight 改承接在 AppBar(2026-10-12 修):
-                  // tile 端 36x36 飞到这里 chip 的 14px icon 形态不一致,
-                  // 落点视觉"挤"。改成 tile 飞到 EditTransactionPage AppBar 右侧
-                  // 同形态 36x36 块,chip 不参与 Hero。
                   onTap: _openCategoryPicker,
                 ),
               ),
               const SizedBox(width: AppSpacing.s2),
-              // 3) 保存按钮(永远可点,validation 由 _save() 里的 banner 提示
-              //   处理:空分类 → "选个分类";空金额 → "金额要大于 0")
+              // 4) 保存按钮
               SizedBox(
                 height: 36,
                 child: FilledButton(
@@ -489,7 +543,77 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
               ),
             ],
           ),
+          // 2026-10-12 P3 commit:balance 流水提示
+          //   - 仅在 type='balance' 时显示
+          //   - 提示文案:"动资产,不算月度收支"
+          //   - 用 onSurfaceVariant 中性色(提示性,非强调)
+          if (_type == 'balance')
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.s2),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    size: 12,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '调拨:动资产,不算月度收支',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
+      ),
+    );
+  }
+
+  /// 2026-10-12 P3 commit 加:Asset icon 名 → IconData 转换
+  ///   跟 AssetTile.icons 同款,放这里 inline 避免跨文件 import
+  IconData _assetIconFor(Asset? a) {
+    if (a == null) return Icons.account_balance_wallet_outlined;
+    switch (a.icon) {
+      case 'credit_card':
+        return Icons.credit_card_rounded;
+      case 'savings':
+        return Icons.savings_rounded;
+      case 'payments':
+        return Icons.payments_rounded;
+      case 'account_balance':
+        return Icons.account_balance_rounded;
+      case 'home':
+        return Icons.home_rounded;
+      case 'directions_car':
+        return Icons.directions_car_rounded;
+      case 'swap_horiz':
+        return Icons.swap_horiz_rounded;
+      default:
+        return Icons.account_balance_wallet_rounded;
+    }
+  }
+
+  /// 2026-10-12 P3 commit 加:账户选择 bottom sheet
+  ///   - 类似 _openCategoryPicker,弹 modal sheet 显示所有账户列表
+  ///   - 选完 → setState(_accountId) + pop
+  void _openAccountPicker() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      builder: (_) => _AccountPickerSheet(
+        selected: _accountId,
+        onSelect: (id) {
+          setState(() => _accountId = id);
+          Navigator.of(context).pop();
+        },
       ),
     );
   }
@@ -817,5 +941,216 @@ class _CategoryPickerSheet extends ConsumerWidget {
         );
       },
     );
+  }
+}
+
+/// 2026-10-12 P3 commit 加:账户选择底部 sheet(列表模式,不像分类用 grid)
+///   - 顶部把手 + 标题"选账户" + 计数
+///   - 每行:icon + name + type chip + currentBalance(右对齐)
+///   - 选中态:左侧 / 整行高亮 + check icon
+///   - 空态:引导用户去"我的"建账户
+class _AccountPickerSheet extends ConsumerWidget {
+  const _AccountPickerSheet({required this.selected, required this.onSelect});
+  final int? selected;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final assetsAsync = ref.watch(allAssetsProvider);
+    return SafeArea(
+      child: assetsAsync.when(
+        loading: () => const Padding(
+          padding: EdgeInsets.all(AppSpacing.s4),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+        error: (e, _) => Padding(
+          padding: const EdgeInsets.all(AppSpacing.s4),
+          child: Center(child: Text('加载失败:$e')),
+        ),
+        data: (assets) => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(top: 8, bottom: 12),
+              decoration: BoxDecoration(
+                color: AppGray.g400,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.s4,
+                0,
+                AppSpacing.s4,
+                AppSpacing.s2,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    '选账户',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                  ),
+                  Text(
+                    '${assets.length} 个',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (assets.isEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.s4,
+                  AppSpacing.s4,
+                  AppSpacing.s4,
+                  AppSpacing.s5,
+                ),
+                child: Text(
+                  '还没有账户,请先到"我的 > 资产"新建',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              )
+            else
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: assets.length,
+                  itemBuilder: (_, i) {
+                    final a = assets[i];
+                    final isSelected = a.id == selected;
+                    final color = Color(a.color);
+                    final balanceAsync = ref.watch(assetBalanceProvider(a.id));
+                    final balance = balanceAsync.valueOrNull ?? 0.0;
+                    return InkWell(
+                      onTap: () => onSelect(a.id),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.s4,
+                          vertical: AppSpacing.s3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? color.withValues(alpha: 0.10)
+                              : Colors.transparent,
+                          border: Border(
+                            bottom: BorderSide(
+                              color: theme.colorScheme.outlineVariant,
+                              width: 0.5,
+                            ),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: color.withValues(alpha: 0.12),
+                                borderRadius: AppRadius.brXs,
+                                border: Border.all(
+                                  color: color.withValues(alpha: 0.3),
+                                  width: 0.5,
+                                ),
+                              ),
+                              child: Icon(
+                                _iconForAsset(a.icon),
+                                color: color,
+                                size: 18,
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.s3),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    a.name,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    _typeLabel(a.type),
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text(
+                              '¥${Formatters.amount(balance)}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: AppSemantic.balanceFor(balance),
+                              ),
+                            ),
+                            if (isSelected) ...[
+                              const SizedBox(width: 8),
+                              Icon(
+                                Icons.check_circle_rounded,
+                                size: 18,
+                                color: color,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  IconData _iconForAsset(String iconKey) {
+    switch (iconKey) {
+      case 'credit_card':
+        return Icons.credit_card_rounded;
+      case 'savings':
+        return Icons.savings_rounded;
+      case 'payments':
+        return Icons.payments_rounded;
+      case 'account_balance':
+        return Icons.account_balance_rounded;
+      case 'home':
+        return Icons.home_rounded;
+      case 'directions_car':
+        return Icons.directions_car_rounded;
+      case 'swap_horiz':
+        return Icons.swap_horiz_rounded;
+      default:
+        return Icons.account_balance_wallet_rounded;
+    }
+  }
+
+  String _typeLabel(String t) {
+    switch (t) {
+      case 'cash_flow':
+        return '现金流';
+      case 'fixed_asset':
+        return '不动产';
+      case 'liability':
+        return '负债';
+      default:
+        return '其他';
+    }
   }
 }

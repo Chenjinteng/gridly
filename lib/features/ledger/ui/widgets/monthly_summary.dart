@@ -29,8 +29,7 @@ class MonthlySummary extends ConsumerWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     // 日均支出 = 当月支出 / 当日已过天数(月初时 = 当日)
-    final dailyAvg =
-        now.day > 0 ? summary.expense / now.day : summary.expense;
+    final dailyAvg = now.day > 0 ? summary.expense / now.day : summary.expense;
 
     // 金额文本:隐藏时显示「¥ •••••」占位(位数感保留),不暴露具体数字
     // withUnit=false → 数字不带"万",由"万"作为单独 TextSpan 在大数字右侧补上
@@ -100,12 +99,11 @@ class MonthlySummary extends ConsumerWidget {
                           Text(
                             hidden ? '显示金额' : '本月结余',
                             style: TextStyle(
-                              color: hidden
-                                  ? AppSecondary.cream
-                                  : AppGray.g400,
+                              color: hidden ? AppSecondary.cream : AppGray.g400,
                               fontSize: 11,
-                              fontWeight:
-                                  hidden ? FontWeight.w600 : FontWeight.w400,
+                              fontWeight: hidden
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
                             ),
                           ),
                           const SizedBox(width: 4),
@@ -114,9 +112,7 @@ class MonthlySummary extends ConsumerWidget {
                                 ? Icons.visibility_outlined
                                 : Icons.visibility_off_outlined,
                             size: 14,
-                            color: hidden
-                                ? AppSecondary.cream
-                                : AppGray.g400,
+                            color: hidden ? AppSecondary.cream : AppGray.g400,
                           ),
                         ],
                       ),
@@ -154,8 +150,7 @@ class MonthlySummary extends ConsumerWidget {
                         // 万元 mode + 可见时:小号灰"(万元)"作单位标记
                         // 灰色固定,因为单位标记是"信息"非"信号";
                         // 信号(正/负)在主数字颜色上
-                        if (!hidden &&
-                            Formatters.unit(summary.balance) == '万元')
+                        if (!hidden && Formatters.unit(summary.balance) == '万元')
                           TextSpan(
                             text: ' (万元)', // 前导空格 ≈ 4px 呼吸
                             style: TextStyle(
@@ -225,14 +220,14 @@ class MonthlySummary extends ConsumerWidget {
                 children: [
                   Text(
                     // 动态单位后缀
-                    hidden
-                        ? '日均支出'
-                        : Formatters.labelledUnit('日均支出', dailyAvg),
+                    hidden ? '日均支出' : Formatters.labelledUnit('日均支出', dailyAvg),
                     style: const TextStyle(color: AppGray.g400, fontSize: 11),
                   ),
                   const Spacer(),
                   Text(
-                    hidden ? '••••••' : '¥${Formatters.amount(dailyAvg, withUnit: false)}',
+                    hidden
+                        ? '••••••'
+                        : '¥${Formatters.amount(dailyAvg, withUnit: false)}',
                     style: TextStyle(
                       color: hidden ? AppGray.g400 : AppStatus.error,
                       fontSize: 12,
@@ -310,7 +305,9 @@ class _Cell extends StatelessWidget {
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
             child: Text(
-              amount == null ? '••••••' : '¥${Formatters.amount(amount!, withUnit: false)}',
+              amount == null
+                  ? '••••••'
+                  : '¥${Formatters.amount(amount!, withUnit: false)}',
               style: TextStyle(
                 color: amount == null ? AppGray.g400 : color,
                 fontSize: 15,

@@ -11,13 +11,18 @@ final monthRangeProvider = Provider<({DateTime start, DateTime end})>((ref) {
   final now = DateTime.now();
   return (
     start: DateTime(now.year, now.month, 1),
-    end: DateTime(now.year, now.month + 1, 1)
-        .subtract(const Duration(seconds: 1)),
+    end: DateTime(
+      now.year,
+      now.month + 1,
+      1,
+    ).subtract(const Duration(seconds: 1)),
   );
 });
 
 /// 当前月份的所有流水(按时间倒序)
-final monthTransactionsProvider = FutureProvider<List<Transaction>>((ref) async {
+final monthTransactionsProvider = FutureProvider<List<Transaction>>((
+  ref,
+) async {
   final range = ref.watch(monthRangeProvider);
   final db = ref.watch(databaseProvider);
   return (db.select(db.transactions)
@@ -53,21 +58,25 @@ final allCategoriesProvider = FutureProvider<List<Category>>((ref) async {
 });
 
 /// 按 type 取分类
-final categoriesByTypeProvider =
-    FutureProvider.family<List<Category>, String>((ref, type) async {
+final categoriesByTypeProvider = FutureProvider.family<List<Category>, String>((
+  ref,
+  type,
+) async {
   return ref.watch(categoryRepositoryProvider).byType(type);
 });
 
 /// 所有流水按日分组
 final allTransactionsByDayProvider =
     FutureProvider<Map<DateTime, List<Transaction>>>((ref) async {
-  return ref.watch(transactionRepositoryProvider).groupedByDay();
-});
+      return ref.watch(transactionRepositoryProvider).groupedByDay();
+    });
 
 /// 按 id 取单笔流水(2026-10-11 新增:EditTransactionPage 全屏编辑路由用)
 /// 找不到返回 null(被删除 / id 错误 / DB 异常),UI 层处理 fallback
-final transactionByIdProvider =
-    FutureProvider.family<Transaction?, int>((ref, id) async {
+final transactionByIdProvider = FutureProvider.family<Transaction?, int>((
+  ref,
+  id,
+) async {
   return ref.watch(transactionRepositoryProvider).byId(id);
 });
 
@@ -93,6 +102,11 @@ final ledgerMonthFilterProvider = StateProvider<int?>((ref) => null);
 /// 分类筛选:空 Set = 全部,非空 = 仅命中任一 id 的分类(多选 OR 关系)
 final ledgerCategoryFilterProvider = StateProvider<Set<int>>((ref) => <int>{});
 
+/// 2026-10-12 P3 commit 加:资产筛选(空 Set = 全部,非空 = 仅命中任一 id 的账户)
+///   - 跟分类筛选同模式(多选 OR)
+///   - 流水 tile 在 transaction_tile 里走 accountByIdProvider 显示资产 icon
+final ledgerAssetFilterProvider = StateProvider<Set<int>>((ref) => <int>{});
+
 /// 搜索关键字:匹配 note(备注)和分类名
 final ledgerSearchQueryProvider = StateProvider<String>((ref) => '');
 
@@ -106,46 +120,63 @@ final ledgerSearchQueryProvider = StateProvider<String>((ref) => '');
 /// 一次取所有流水,在内存里过滤 + 重新分组(数据量小,响应快)
 final filteredTransactionsByDayProvider =
     FutureProvider<Map<DateTime, List<Transaction>>>((ref) async {
-  final typeFilter = ref.watch(ledgerTypeFilterProvider);
-  final monthFilter = ref.watch(ledgerMonthFilterProvider);
-  final categoryFilter = ref.watch(ledgerCategoryFilterProvider);
-  final query = ref.watch(ledgerSearchQueryProvider).trim().toLowerCase();
+      final typeFilter = ref.watch(ledgerTypeFilterProvider);
+      final monthFilter = ref.watch(ledgerMonthFilterProvider);
+      final categoryFilter = ref.watch(ledgerCategoryFilterProvider);
+      // 2026-10-12 P3 加:资产筛选
+      final assetFilter = ref.watch(ledgerAssetFilterProvider);
+      final query = ref.watch(ledgerSearchQueryProvider).trim().toLowerCase();
 
-  // 取分类一次,用来按分类名匹配搜索关键字
-  final allCats = ref.watch(allCategoriesProvider).valueOrNull ?? const [];
-  final queryCatIds = query.isEmpty
-      ? <int>{}
-      : allCats
-          .where((c) => c.name.toLowerCase().contains(query))
-          .map((c) => c.id)
-          .toSet();
+      // 取分类一次,用来按分类名匹配搜索关键字
+      final allCats = ref.watch(allCategoriesProvider).valueOrNull ?? const [];
+      final queryCatIds = query.isEmpty
+          ? <int>{}
+          : allCats
+                .where((c) => c.name.toLowerCase().contains(query))
+                .map((c) => c.id)
+                .toSet();
 
-  final all = await ref.watch(transactionRepositoryProvider).all();
-  final filtered = all.where((t) {
-    // 类型
-    if (typeFilter != 'all' && t.type != typeFilter) return false;
-    // 月份
-    if (monthFilter != null) {
-      final dt = t.occurredAt;
-      if (dt.year * 100 + dt.month != monthFilter) return false;
-    }
-    // 分类(多选 OR:命中任一选中的 id)
-    if (categoryFilter.isNotEmpty && !categoryFilter.contains(t.categoryId)) {
-      return false;
-    }
-    // 搜索关键字(note 命中 或 分类名命中)
-    if (query.isNotEmpty) {
-      final noteHit = (t.note ?? '').toLowerCase().contains(query);
-      final catHit = queryCatIds.contains(t.categoryId);
-      if (!noteHit && !catHit) return false;
-    }
-    return true;
-  });
+      final all = await ref.watch(transactionRepositoryProvider).all();
+      final filtered = all.where((t) {
+        // 类型
+        if (typeFilter != 'all' && t.type != typeFilter) return false;
+        // 月份
+        if (monthFilter != null) {
+          final dt = t.occurredAt;
+          if (dt.year * 100 + dt.month != monthFilter) return false;
+        }
+        // 分类(多选 OR:命中任一选中的 id)
+        if (categoryFilter.isNotEmpty &&
+            !categoryFilter.contains(t.categoryId)) {
+          return false;
+        }
+        // 2026-10-12 P3 加:资产(多选 OR)
+        if (assetFilter.isNotEmpty && !assetFilter.contains(t.accountId)) {
+          return false;
+        }
+        // 搜索关键字(note 命中 或 分类名命中)
+        if (query.isNotEmpty) {
+          final noteHit = (t.note ?? '').toLowerCase().contains(query);
+          final catHit = queryCatIds.contains(t.categoryId);
+          if (!noteHit && !catHit) return false;
+        }
+        return true;
+      });
 
-  final map = <DateTime, List<Transaction>>{};
-  for (final t in filtered) {
-    final day = DateTime(t.occurredAt.year, t.occurredAt.month, t.occurredAt.day);
-    map.putIfAbsent(day, () => []).add(t);
-  }
-  return map;
+      final map = <DateTime, List<Transaction>>{};
+      for (final t in filtered) {
+        final day = DateTime(
+          t.occurredAt.year,
+          t.occurredAt.month,
+          t.occurredAt.day,
+        );
+        map.putIfAbsent(day, () => []).add(t);
+      }
+      return map;
+    });
+
+/// 2026-10-12 P3 加:按 id 取单个资产(给 transaction_tile 显示资产 icon 用)
+///   family provider,assetId 作 key
+final assetByIdProvider = FutureProvider.family<Asset?, int>((ref, id) async {
+  return ref.watch(assetRepositoryProvider).byId(id);
 });

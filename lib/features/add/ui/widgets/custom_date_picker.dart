@@ -66,22 +66,50 @@ class _CustomDatePickerSheetState extends State<CustomDatePickerSheet> {
 
   static const List<String> _weekdays = ['日', '一', '二', '三', '四', '五', '六'];
   static const List<String> _monthNames = [
-    '一月', '二月', '三月', '四月', '五月', '六月',
-    '七月', '八月', '九月', '十月', '十一月', '十二月',
+    '一月',
+    '二月',
+    '三月',
+    '四月',
+    '五月',
+    '六月',
+    '七月',
+    '八月',
+    '九月',
+    '十月',
+    '十一月',
+    '十二月',
   ];
 
   @override
   void initState() {
     super.initState();
-    _selected = DateTime(widget.initialDate.year, widget.initialDate.month, widget.initialDate.day);
+    _selected = DateTime(
+      widget.initialDate.year,
+      widget.initialDate.month,
+      widget.initialDate.day,
+    );
     _viewMonth = DateTime(_selected.year, _selected.month);
   }
 
   bool _isInRange(DateTime d) {
-    if (widget.firstDate != null && d.isBefore(DateTime(widget.firstDate!.year, widget.firstDate!.month, widget.firstDate!.day))) {
+    if (widget.firstDate != null &&
+        d.isBefore(
+          DateTime(
+            widget.firstDate!.year,
+            widget.firstDate!.month,
+            widget.firstDate!.day,
+          ),
+        )) {
       return false;
     }
-    if (widget.lastDate != null && d.isAfter(DateTime(widget.lastDate!.year, widget.lastDate!.month, widget.lastDate!.day))) {
+    if (widget.lastDate != null &&
+        d.isAfter(
+          DateTime(
+            widget.lastDate!.year,
+            widget.lastDate!.month,
+            widget.lastDate!.day,
+          ),
+        )) {
       return false;
     }
     return true;
@@ -188,10 +216,7 @@ class _CustomDatePickerSheetState extends State<CustomDatePickerSheet> {
           child: Center(
             child: Text(
               '${_viewMonth.year} 年 ${_monthNames[_viewMonth.month - 1]}',
-              style: const TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-              ),
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
             ),
           ),
         ),
@@ -346,7 +371,9 @@ class _CustomDatePickerSheetState extends State<CustomDatePickerSheet> {
           '${d.day}',
           style: TextStyle(
             fontSize: 14,
-            fontWeight: isSelected || isToday ? FontWeight.w700 : FontWeight.w500,
+            fontWeight: isSelected || isToday
+                ? FontWeight.w700
+                : FontWeight.w500,
             color: fg,
           ),
         ),
@@ -381,9 +408,7 @@ class _CustomDatePickerSheetState extends State<CustomDatePickerSheet> {
               horizontal: AppSpacing.s5,
               vertical: AppSpacing.s2,
             ),
-            shape: RoundedRectangleBorder(
-              borderRadius: AppRadius.brMd,
-            ),
+            shape: RoundedRectangleBorder(borderRadius: AppRadius.brMd),
           ),
           child: const Text(
             '确定',

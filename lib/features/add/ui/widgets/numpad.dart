@@ -157,8 +157,7 @@ class _NumpadKeyState extends State<_NumpadKey>
       stiffness: AppMotion.pressSpringStiffness,
       damping: AppMotion.pressSpringDamping,
     );
-    final simulation =
-        SpringSimulation(spring, _press.value, 1.0, 3.0);
+    final simulation = SpringSimulation(spring, _press.value, 1.0, 3.0);
     _press.animateWith(simulation);
   }
 
@@ -172,18 +171,14 @@ class _NumpadKeyState extends State<_NumpadKey>
       child: AnimatedBuilder(
         animation: _press,
         builder: (context, child) {
-          return Transform.scale(
-            scale: _press.value,
-            child: child,
-          );
+          return Transform.scale(scale: _press.value, child: child);
         },
         child: Center(
           child: Text(
             widget.label,
             style: TextStyle(
               fontSize: widget.isNumber ? 22 : 20,
-              fontWeight:
-                  widget.isNumber ? FontWeight.w500 : FontWeight.w600,
+              fontWeight: widget.isNumber ? FontWeight.w500 : FontWeight.w600,
               color: widget.color,
             ),
           ),

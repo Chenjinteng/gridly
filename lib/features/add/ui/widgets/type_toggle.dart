@@ -1,5 +1,14 @@
 // lib/features/add/ui/widgets/type_toggle.dart
-// 类型切换:支出 / 收入
+// 类型切换:支出 / 收入 / 调拨
+//
+// 2026-10-12 P3 commit 改:加 'balance' 段(3 段 → 3 段)
+//   - 'balance' = 动资产但不算月度收支(公积金月供 / 期权 / 外借等)
+//   - UI 标签:中文"调拨"(比"balance"直观,user 一眼就懂)
+//   - icon:swap_horiz_rounded(横向调拨视觉)
+//
+// 业务规则(TransactionForm 内):
+//   - type='expense' / 'income' → 计入月度汇总(已花 / 收入)
+//   - type='balance' → 不计入月度汇总,仅算对应资产 currentBalance 变动
 import 'package:flutter/material.dart';
 
 class TypeToggle extends StatelessWidget {
@@ -20,6 +29,11 @@ class TypeToggle extends StatelessWidget {
           value: 'income',
           label: Text('收入'),
           icon: Icon(Icons.south_west_rounded, size: 18),
+        ),
+        ButtonSegment(
+          value: 'balance',
+          label: Text('调拨'),
+          icon: Icon(Icons.swap_horiz_rounded, size: 18),
         ),
       ],
       selected: {value},

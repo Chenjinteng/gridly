@@ -8,12 +8,19 @@ import '../../../../core/theme/app_spacing.dart';
 class AmountDisplay extends StatelessWidget {
   const AmountDisplay({super.key, required this.amount, required this.type});
 
-  final String amount;     // 用户输入的字符串
-  final String type;       // 'expense' | 'income'
+  final String amount; // 用户输入的字符串
+  final String type; // 'expense' | 'income' | 'balance'
+  // 2026-10-12 P3 commit 加 'balance' type:
+  //   - balance 流水动资产但不算月度收支,中性色 AppSecondary.softGold(暖金),
+  //     跟 income(brand gold)区分开,避免"调拨"看着像收入。
 
   @override
   Widget build(BuildContext context) {
-    final color = type == 'income' ? AppBrand.gold : AppStatus.error;
+    final color = switch (type) {
+      'income' => AppBrand.gold,
+      'balance' => AppSecondary.softGold,
+      _ => AppStatus.error, // 'expense'
+    };
     return Container(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.s4),
       child: Row(

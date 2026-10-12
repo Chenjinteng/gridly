@@ -41,10 +41,23 @@ class TransactionTile extends ConsumerWidget {
           }
         }
         final color = cat == null ? AppGray.g400 : Color(cat.color);
-        final amountColor = transaction.type == 'income'
-            ? AppBrand.gold
-            : AppStatus.error;
-        final prefix = transaction.type == 'income' ? '+' : '-';
+        // 2026-10-12 P3 commit:amount 颜色按 type 分
+        //   - income → gold
+        //   - balance → softGold(中性暖金,跟 income 区分开)
+        //   - expense → error
+        final amountColor = switch (transaction.type) {
+          'income' => AppBrand.gold,
+          'balance' => AppSecondary.softGold,
+          _ => AppStatus.error,
+        };
+        // 2026-10-12 P3 commit:balance 流水不显示 ± prefix
+        //   (调拨可正可负,跟"支出=负 / 收入=正"的语义不同)
+        final showPrefix = transaction.type != 'balance';
+        final prefix = switch (transaction.type) {
+          'income' => '+',
+          'expense' => '-',
+          _ => '',
+        };
         final theme = Theme.of(context);
         return _SwipeToDelete(
           key: ValueKey('tx-${transaction.id}'),
@@ -111,11 +124,20 @@ class TransactionTile extends ConsumerWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
+                      // 2026-10-12 P3 commit:流水 tile 下方追加"账户 chip"
+                      //   - 小尺寸 11px,onSurfaceVariant 色
+                      //   - 显示账户名 + 小 icon(角标,asset 配色)
+                      //   - 让 user 在流水列表一眼看到"哪笔进哪个账户"
+                      const SizedBox(height: 2),
+                      _AccountBadge(accountId: transaction.accountId),
                     ],
                   ),
                 ),
                 Text(
-                  '$prefix ¥${Formatters.amount(transaction.amount)}',
+                  // 2026-10-12 P3:balance 流水不显示 ± prefix(正负自定)
+                  showPrefix
+                      ? '$prefix ¥${Formatters.amount(transaction.amount)}'
+                      : '¥${Formatters.amount(transaction.amount)}',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -180,9 +202,73 @@ class TransactionTile extends ConsumerWidget {
   }
 }
 
+/// 2026-10-12 P3 commit 加:流水 tile 下的资产角标(单行 11px 小字 + icon)
+///   - assetByIdProvider 取账户对象(找不到 → 显示 'unknown 账户')
+///   - 用 AssetTile.icons 风格的小 icon(14px,asset 配色)
+///   - 不显示余额(余额已在 SummaryCard 显示,避免重复)
+class _AccountBadge extends ConsumerWidget {
+  const _AccountBadge({required this.accountId});
+  final int accountId;
+
+  IconData _iconFor(String iconKey) {
+    switch (iconKey) {
+      case 'credit_card':
+        return Icons.credit_card_rounded;
+      case 'savings':
+        return Icons.savings_rounded;
+      case 'payments':
+        return Icons.payments_rounded;
+      case 'account_balance':
+        return Icons.account_balance_rounded;
+      case 'home':
+        return Icons.home_rounded;
+      case 'directions_car':
+        return Icons.directions_car_rounded;
+      case 'swap_horiz':
+        return Icons.swap_horiz_rounded;
+      default:
+        return Icons.account_balance_wallet_rounded;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final assetAsync = ref.watch(assetByIdProvider(accountId));
+    final asset = assetAsync.valueOrNull;
+    final theme = Theme.of(context);
+    if (asset == null) {
+      return Text(
+        'unknown 账户',
+        style: TextStyle(
+          fontSize: 11,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      );
+    }
+    final color = Color(asset.color);
+    return Row(
+      children: [
+        Icon(_iconFor(asset.icon), size: 12, color: color),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            asset.name,
+            style: TextStyle(
+              fontSize: 11,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// 手势滑动展开操作按钮 —— 类似 iOS Mail.app 的滑动效果
-///
-/// 行为:
 ///   - 左滑超过阈值 → snap 露出 [编辑][删除] 两个操作按钮(不执行)
 ///   - 编辑按钮可点 → 触发 onEdit
 ///   - 删除按钮可点 → 触发 onDelete

@@ -10,7 +10,9 @@ import '../../../core/widgets/staggered_fade_in.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/utils/asset_balance_provider.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/gridly_banner.dart';
 import '../../../core/utils/refresh_providers.dart';
 import '../application/transactions_providers.dart';
 import 'widgets/transaction_tile.dart';
@@ -103,6 +105,10 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
     final typeFilter = ref.watch(ledgerTypeFilterProvider);
     final monthFilter = ref.watch(ledgerMonthFilterProvider);
     final categoryFilter = ref.watch(ledgerCategoryFilterProvider);
+    // 2026-10-12 P3 加:资产筛选
+    final assetFilter = ref.watch(ledgerAssetFilterProvider);
+    // 资产列表(给 _AssetPickerSheet 用)— 提前 watch,让 _FilterBar 不再触发 watch
+    final allAssetsAsync = ref.watch(allAssetsProvider);
 
     final catsForType = typeFilter == 'all'
         ? allCats
@@ -155,15 +161,19 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
               typeFilter: typeFilter,
               monthFilter: monthFilter,
               categoryFilter: categoryFilter,
+              assetFilter: assetFilter,
               catsForType: catsForType,
               monthKeys: _recentMonthKeys(),
               formatMonthKey: _formatMonthKey,
+              allAssets: allAssetsAsync.valueOrNull ?? const [],
               onTypeChanged: (v) =>
                   ref.read(ledgerTypeFilterProvider.notifier).state = v,
               onMonthChanged: (v) =>
                   ref.read(ledgerMonthFilterProvider.notifier).state = v,
               onCategoryChanged: (v) =>
                   ref.read(ledgerCategoryFilterProvider.notifier).state = v,
+              onAssetChanged: (v) =>
+                  ref.read(ledgerAssetFilterProvider.notifier).state = v,
             ),
             Expanded(
               child: RefreshIndicator(
@@ -185,7 +195,9 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
                     return ListView.builder(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.only(
-                          top: AppSpacing.s2, bottom: AppSpacing.s6),
+                        top: AppSpacing.s2,
+                        bottom: AppSpacing.s6,
+                      ),
                       itemCount: days.length,
                       itemBuilder: (context, i) {
                         final day = days[i];
@@ -224,38 +236,56 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
   }
 }
 
-/// 筛选条 —— 3 个 dropdown 按钮横向均分,点击弹 modal bottom sheet 单选/多选
+/// 筛选条 —— 4 个 dropdown 按钮(P3 加资产维度)横向均分,点击弹 modal bottom sheet 单选/多选
 /// 任意筛选激活时,右侧出现"清空"快捷按钮
+///
+/// 2026-10-12 P3 commit 改:4 维度后横向挤不下,用 Wrap 排版
+///   - 横向 viewport 宽 → 一行 4 chip
+///   - 窄屏 → 第二行 chip 自动换行
+///   - 每个 chip 用 IntrinsicWidth 撑最小宽度,不被压缩
 class _FilterBar extends ConsumerWidget {
   const _FilterBar({
     required this.typeFilter,
     required this.monthFilter,
     required this.categoryFilter,
+    required this.assetFilter,
     required this.catsForType,
     required this.monthKeys,
     required this.formatMonthKey,
+    required this.allAssets,
     required this.onTypeChanged,
     required this.onMonthChanged,
     required this.onCategoryChanged,
+    required this.onAssetChanged,
   });
 
   final String typeFilter;
   final int? monthFilter;
   final Set<int> categoryFilter;
+  // 2026-10-12 P3 加
+  final Set<int> assetFilter;
   final List<Category> catsForType;
   final List<int> monthKeys;
   final String Function(int) formatMonthKey;
+  // 2026-10-12 P3 加:资产列表(给 _AssetPickerSheet 用)
+  final List<Asset> allAssets;
   final ValueChanged<String> onTypeChanged;
   final ValueChanged<int?> onMonthChanged;
   final ValueChanged<Set<int>> onCategoryChanged;
+  // 2026-10-12 P3 加
+  final ValueChanged<Set<int>> onAssetChanged;
 
   bool get _hasActiveFilter =>
-      typeFilter != 'all' || monthFilter != null || categoryFilter.isNotEmpty;
+      typeFilter != 'all' ||
+      monthFilter != null ||
+      categoryFilter.isNotEmpty ||
+      assetFilter.isNotEmpty;
 
   void _clearAll(WidgetRef ref) {
     ref.read(ledgerTypeFilterProvider.notifier).state = 'all';
     ref.read(ledgerMonthFilterProvider.notifier).state = null;
     ref.read(ledgerCategoryFilterProvider.notifier).state = <int>{};
+    ref.read(ledgerAssetFilterProvider.notifier).state = <int>{};
   }
 
   String _typeLabel() {
@@ -283,9 +313,28 @@ class _FilterBar extends ConsumerWidget {
     return '已选 ${categoryFilter.length} 个';
   }
 
+  /// 2026-10-12 P3 加:资产 chip 标签
+  ///   - 空 → "全部"
+  ///   - 单选 → 账户 name
+  ///   - 多选 → "已选 N 个"
+  String _assetLabel() {
+    if (assetFilter.isEmpty) return '全部';
+    if (assetFilter.length == 1) {
+      final id = assetFilter.first;
+      for (final a in allAssets) {
+        if (a.id == id) return a.name;
+      }
+    }
+    return '已选 ${assetFilter.length} 个';
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    // 2026-10-12 P3 commit:4 维度后改 Wrap 排版
+    //   - 每个 chip 用 IntrinsicWidth 撑最小宽度(根据 label 文字自动适应)
+    //   - spacing/runSpacing = s2 让 chip 之间留 8px 间隙
+    //   - 窄屏自动换行,清空按钮单独一行
     return Container(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.s4,
@@ -301,39 +350,38 @@ class _FilterBar extends ConsumerWidget {
           ),
         ),
       ),
-      child: Row(
+      child: Wrap(
+        spacing: AppSpacing.s2,
+        runSpacing: AppSpacing.s2,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          Expanded(
-            child: _DropdownField(
-              label: '类型',
-              value: _typeLabel(),
-              active: typeFilter != 'all',
-              onTap: () => _showTypePicker(context),
-            ),
+          _DropdownField(
+            label: '类型',
+            value: _typeLabel(),
+            active: typeFilter != 'all',
+            onTap: () => _showTypePicker(context),
           ),
-          const SizedBox(width: AppSpacing.s2),
-          Expanded(
-            child: _DropdownField(
-              label: '月份',
-              value: _monthLabel(),
-              active: monthFilter != null,
-              onTap: () => _showMonthPicker(context),
-            ),
+          _DropdownField(
+            label: '月份',
+            value: _monthLabel(),
+            active: monthFilter != null,
+            onTap: () => _showMonthPicker(context),
           ),
-          const SizedBox(width: AppSpacing.s2),
-          Expanded(
-            child: _DropdownField(
-              label: '分类',
-              value: _categoryLabel(),
-              active: categoryFilter.isNotEmpty,
-              onTap: () => _showCategoryPicker(context),
-            ),
+          _DropdownField(
+            label: '分类',
+            value: _categoryLabel(),
+            active: categoryFilter.isNotEmpty,
+            onTap: () => _showCategoryPicker(context),
           ),
-          // 仅当有任意筛选激活时,显示"清空"按钮,避免挤占默认 UI
-          if (_hasActiveFilter) ...[
-            const SizedBox(width: AppSpacing.s2),
-            _ClearButton(onTap: () => _clearAll(ref)),
-          ],
+          // 2026-10-12 P3 加:资产 chip
+          _DropdownField(
+            label: '账户',
+            value: _assetLabel(),
+            active: assetFilter.isNotEmpty,
+            onTap: () => _showAssetPicker(context),
+          ),
+          // 仅当有任意筛选激活时,显示"清空"按钮
+          if (_hasActiveFilter) _ClearButton(onTap: () => _clearAll(ref)),
         ],
       ),
     );
@@ -396,6 +444,29 @@ class _FilterBar extends ConsumerWidget {
       ),
     );
     if (selected != null) onCategoryChanged(selected);
+  }
+
+  // ============ 弹层:资产(多选)— 2026-10-12 P3 加 ============
+  Future<void> _showAssetPicker(BuildContext context) async {
+    if (allAssets.isEmpty) {
+      showGridlyBanner(
+        context,
+        '还没有账户,请先到"我的 > 资产"新建',
+        kind: GridlyBannerKind.info,
+      );
+      return;
+    }
+    final selected = await showModalBottomSheet<Set<int>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      builder: (ctx) =>
+          _MultiSelectAssetSheet(assets: allAssets, initial: assetFilter),
+    );
+    if (selected != null) onAssetChanged(selected);
   }
 }
 
@@ -465,7 +536,8 @@ Future<Object?> _showSingleSelectSheet<T>(
                   itemBuilder: (_, i) {
                     final (value, label) = options[i];
                     // 选中态判断:value 是 _allPicked 且 currentValue 是 null
-                    final selected = (value is _AllPicked && currentValue == null) ||
+                    final selected =
+                        (value is _AllPicked && currentValue == null) ||
                         (value == currentValue);
                     return InkWell(
                       onTap: () => Navigator.pop(ctx, value),
@@ -517,8 +589,7 @@ class _MultiSelectCategorySheet extends StatefulWidget {
       _MultiSelectCategorySheetState();
 }
 
-class _MultiSelectCategorySheetState
-    extends State<_MultiSelectCategorySheet> {
+class _MultiSelectCategorySheetState extends State<_MultiSelectCategorySheet> {
   late Set<int> _selected;
 
   @override
@@ -649,14 +720,203 @@ class _MultiSelectCategorySheetState
                     padding: const EdgeInsets.symmetric(
                       vertical: AppSpacing.s3,
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: AppRadius.brLg,
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: AppRadius.brLg),
                   ),
                   child: Text(
-                    _selected.isEmpty
-                        ? '显示全部'
-                        : '确定(${_selected.length})',
+                    _selected.isEmpty ? '显示全部' : '确定(${_selected.length})',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// 2026-10-12 P3 commit 加:多选弹层(资产)—— 跟 _MultiSelectCategorySheet 同款结构
+///   - 行 item:asset icon chip + name + currentBalance(右对齐)
+///   - 选中态:整行背景 tint asset 配色 + check icon
+///   - 顶部标题"选择账户(可多选)" + 清空 + 底部"显示全部 / 确定(N)"
+class _MultiSelectAssetSheet extends StatefulWidget {
+  const _MultiSelectAssetSheet({required this.assets, required this.initial});
+  final List<Asset> assets;
+  final Set<int> initial;
+
+  @override
+  State<_MultiSelectAssetSheet> createState() => _MultiSelectAssetSheetState();
+}
+
+class _MultiSelectAssetSheetState extends State<_MultiSelectAssetSheet> {
+  late Set<int> _selected;
+
+  IconData _iconFor(String iconKey) {
+    switch (iconKey) {
+      case 'credit_card':
+        return Icons.credit_card_rounded;
+      case 'savings':
+        return Icons.savings_rounded;
+      case 'payments':
+        return Icons.payments_rounded;
+      case 'account_balance':
+        return Icons.account_balance_rounded;
+      case 'home':
+        return Icons.home_rounded;
+      case 'directions_car':
+        return Icons.directions_car_rounded;
+      case 'swap_horiz':
+        return Icons.swap_horiz_rounded;
+      default:
+        return Icons.account_balance_wallet_rounded;
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = {...widget.initial};
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (ctx, scrollController) {
+        return Column(
+          children: [
+            Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(top: 8, bottom: 12),
+              decoration: BoxDecoration(
+                color: AppGray.g400,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.s4,
+                vertical: AppSpacing.s2,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    '选择账户(可多选)',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                  ),
+                  TextButton(
+                    onPressed: _selected.isEmpty
+                        ? null
+                        : () => setState(_selected.clear),
+                    child: const Text('清空'),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                itemCount: widget.assets.length,
+                itemBuilder: (_, i) {
+                  final a = widget.assets[i];
+                  final checked = _selected.contains(a.id);
+                  final color = Color(a.color);
+                  return InkWell(
+                    onTap: () => setState(() {
+                      if (checked) {
+                        _selected.remove(a.id);
+                      } else {
+                        _selected.add(a.id);
+                      }
+                    }),
+                    child: Container(
+                      color: checked
+                          ? color.withValues(alpha: 0.08)
+                          : Colors.transparent,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.s4,
+                        vertical: AppSpacing.s3,
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: 0.12),
+                              borderRadius: AppRadius.brXs,
+                              border: Border.all(
+                                color: color.withValues(alpha: 0.3),
+                                width: 0.5,
+                              ),
+                            ),
+                            child: Icon(
+                              _iconFor(a.icon),
+                              color: color,
+                              size: 18,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.s3),
+                          Expanded(
+                            child: Text(
+                              a.name,
+                              style: const TextStyle(fontSize: 15),
+                            ),
+                          ),
+                          if (checked)
+                            Icon(
+                              Icons.check_circle,
+                              color: theme.colorScheme.primary,
+                              size: 22,
+                            )
+                          else
+                            Icon(
+                              Icons.radio_button_unchecked,
+                              color: theme.colorScheme.outlineVariant,
+                              size: 22,
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.s4,
+                AppSpacing.s3,
+                AppSpacing.s4,
+                AppSpacing.s3,
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(ctx, _selected),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: isDark ? AppSecondary.cream : AppBrand.ink,
+                    foregroundColor: isDark ? AppBrand.ink : null,
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.s3,
+                    ),
+                    shape: RoundedRectangleBorder(borderRadius: AppRadius.brLg),
+                  ),
+                  child: Text(
+                    _selected.isEmpty ? '显示全部' : '确定(${_selected.length})',
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
@@ -903,12 +1163,12 @@ class _DaySection extends StatelessWidget {
         // 2026-10-12 错峰 fade-in:section 内 tile 按 index 30ms 递增。
         // animateStagger=false 时退化为普通 TransactionTile,无额外开销
         ...transactions.asMap().entries.map(
-              (e) => StaggeredFadeIn(
-                index: e.key,
-                enabled: animateStagger,
-                child: TransactionTile(transaction: e.value),
-              ),
-            ),
+          (e) => StaggeredFadeIn(
+            index: e.key,
+            enabled: animateStagger,
+            child: TransactionTile(transaction: e.value),
+          ),
+        ),
       ],
     );
   }
