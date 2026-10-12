@@ -78,68 +78,41 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
         ref.watch(ledgerSearchQueryProvider).isNotEmpty;
   }
 
-  /// 2026-10-12 P5 follow-up 第 4 次改:从顶部弹出(用 showGeneralDialog)
-  ///   user 反馈"不要从底部弹出,而是从顶部弹出"
-  ///   - 用 showGeneralDialog + Align(topCenter) + SlideTransition from top
-  ///   - 屏障半透明黑,点屏障外 dismiss(同 modal sheet 习惯)
-  ///   - 复用 _FilterSheet widget 内容(搜索 + 4 chip + 清空)
+  /// 2026-10-13 revert:回到底部弹出(modal bottom sheet)
+  ///   user UAT 反馈"顶部下拉还是不喜欢,改回去以前的版本"——从底部弹出。
+  ///   - showModalBottomSheet + isScrollControlled,沿用 0bcf1ea 的圆角 + 表面色写法
+  ///   - shape 顶部圆角 AppRadius.xl(28px)一致其他 picker
+  ///   - 内部 _FilterSheet 保留紧凑 chip 横排 + 搜索 + 清空布局(不动结构)
+  ///   - 过渡动画用回 Material 默认从下滑入
   void _openFilterSheet({
     required List<Asset> allAssets,
     required List<Category> catsForType,
   }) {
     final theme = Theme.of(context);
-    showGeneralDialog(
+    showModalBottomSheet(
       context: context,
-      barrierDismissible: true,
-      barrierLabel: '关闭筛选',
-      barrierColor: Colors.black54,
-      transitionDuration: const Duration(milliseconds: 240),
-      pageBuilder: (dialogCtx, anim, secAnim) {
-        // 顶部下拉样式(2026-10-13 P6 第 1 次改:ColorOS 风格贴 status bar):
-        //   - Align(topCenter) + IntrinsicHeight:让 sheet 高度自适应内容
-        //   - SafeArea(top: false):sheet 顶点对齐屏幕 0,搜索框跟 status bar 视觉贴近
-        //     (上一版 SafeArea(top:true) + _FilterSheet 内嵌套 SafeArea 重复加 status bar
-        //      padding,导致顶部空隙过大)
-        //   - Material 铺底给 chip InkWell 提供 ancestor
-        return Align(
-          alignment: Alignment.topCenter,
-          child: SafeArea(
-            top: false,
-            bottom: false,
-            child: IntrinsicHeight(
-              child: Material(
-                color: theme.colorScheme.surface,
-                child: _FilterSheet(
-                  searchController: _searchController,
-                  onSearchChanged: (v) =>
-                      ref.read(ledgerSearchQueryProvider.notifier).state = v,
-                  catsForType: catsForType,
-                  monthKeys: _recentMonthKeys(),
-                  formatMonthKey: _formatMonthKey,
-                  allAssets: allAssets,
-                  onTypeChanged: (v) =>
-                      ref.read(ledgerTypeFilterProvider.notifier).state = v,
-                  onMonthChanged: (v) =>
-                      ref.read(ledgerMonthFilterProvider.notifier).state = v,
-                  onCategoryChanged: (v) =>
-                      ref.read(ledgerCategoryFilterProvider.notifier).state = v,
-                  onAssetChanged: (v) =>
-                      ref.read(ledgerAssetFilterProvider.notifier).state = v,
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-      transitionBuilder: (ctx, anim, secAnim, child) {
-        return SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(0, -1),
-            end: Offset.zero,
-          ).animate(CurvedAnimation(parent: anim, curve: AppMotion.aquaIn)),
-          child: child,
-        );
-      },
+      isScrollControlled: true,
+      backgroundColor: theme.colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      builder: (sheetCtx) => _FilterSheet(
+        searchController: _searchController,
+        onSearchChanged: (v) =>
+            ref.read(ledgerSearchQueryProvider.notifier).state = v,
+        catsForType: catsForType,
+        monthKeys: _recentMonthKeys(),
+        formatMonthKey: _formatMonthKey,
+        allAssets: allAssets,
+        onTypeChanged: (v) =>
+            ref.read(ledgerTypeFilterProvider.notifier).state = v,
+        onMonthChanged: (v) =>
+            ref.read(ledgerMonthFilterProvider.notifier).state = v,
+        onCategoryChanged: (v) =>
+            ref.read(ledgerCategoryFilterProvider.notifier).state = v,
+        onAssetChanged: (v) =>
+            ref.read(ledgerAssetFilterProvider.notifier).state = v,
+      ),
     );
   }
 
@@ -1106,34 +1079,32 @@ class _FilterSheet extends ConsumerWidget {
     final currentMonth = ref.watch(ledgerMonthFilterProvider);
     final currentCategory = ref.watch(ledgerCategoryFilterProvider);
     final currentAsset = ref.watch(ledgerAssetFilterProvider);
-    // 2026-10-13 P6:内部 SafeArea 只保 bottom(防小白条),top 由搜索框自己
-    //   用 MediaQuery.padding.top + 8 视觉缓冲。配合 pageBuilder SafeArea(top:false),
-    //   sheet 顶部贴 viewport 0,搜索框紧跟 status bar(ColorOS 顶部 banner 风格)。
+    // 2026-10-13 revert:回到底部 modal sheet 风格
+    //   - SafeArea 默认(top:true 由 sheet 自己处理,modal sheet 顶部不会撞 status bar)
+    //   - 搜索框 Padding top 还原到静态 s2(不再用 MediaQuery.padding.top 贴 status bar)
+    //   - 把手 margin 还原到 top:8, bottom:12
     return SafeArea(
-      top: false,
-      bottom: true,
       child: Padding(
         padding: const EdgeInsets.only(bottom: AppSpacing.s2),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 把手(2026-10-13 P6:跟搜索框一起往顶部移,把搜索框推到 status bar 附近)
+            // 把手
             Container(
               width: 36,
               height: 4,
-              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              margin: const EdgeInsets.only(top: 8, bottom: 12),
               decoration: BoxDecoration(
                 color: AppGray.g400,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
             // 搜索框(2026-10-12 P5 follow-up 第 2 次改:从 AppBar 搬到 sheet 顶部,
-            //   AppBar 只留 filter_alt 一个入口。
-            //   2026-10-13 P6:top padding 加 MediaQuery.padding.top 让搜索框紧贴 status bar)
+            //   AppBar 只留 filter_alt 一个入口)
             Padding(
-              padding: EdgeInsets.fromLTRB(
+              padding: const EdgeInsets.fromLTRB(
                 AppSpacing.s4,
-                MediaQuery.of(context).padding.top + AppSpacing.s2,
+                AppSpacing.s2,
                 AppSpacing.s4,
                 AppSpacing.s2,
               ),
