@@ -157,7 +157,8 @@ class _MainShellState extends ConsumerState<MainShell> {
     // 因为 modal 自己带从底上推动画,叠加会抖。
     int dir = 0;
     final locForDir = GoRouterState.of(context).uri.path;
-    final onModalNow = locForDir.startsWith('/add') || locForDir.startsWith('/edit');
+    final onModalNow =
+        locForDir.startsWith('/add') || locForDir.startsWith('/edit');
     if (!_wasOnModal && !onModalNow) {
       dir = _currentTab > _prevTab ? 1 : (_currentTab < _prevTab ? -1 : 0);
     }
@@ -168,11 +169,20 @@ class _MainShellState extends ConsumerState<MainShell> {
       body: Stack(
         children: [
           const Positioned.fill(child: LedgerGridBackground()),
-          // 2026-10-12 (commit 44+46+47) body 切 tab:
+          // 2026-10-12 (commit 44+46+47+88) body 切 tab:
           //   - GestureDetector + LayoutBuilder 监听水平 swipe 触发 switchToTab
           //     (commit 47 加:commit 40 撤 PageView 时把 swipe 一起撤了,
-          //     user 反馈"现在左右滑动手势不行"。阈值:水平位移 > 18% 屏幕宽
-          //     或 velocity > 280 px/s 即触发)
+          //     user 反馈"现在左右滑动手势不行")
+          //   - commit 88 改:阈值从 OR(distance > 18% OR velocity > 280)
+          //     改成 AND(distance > 18% AND velocity > 400)
+          //     原因:user 反馈"chart 内的横向滑动跟切 tab 手势冲突"
+          //     - BarChart 内部用 RenderObject 直接吃 pointer(不走
+          //       GestureDetector arena),所以 chart 内的 horizontal pan
+          //       不会被外层 GestureDetector 拒绝
+          //     - 原 OR 阈值让 chart 内慢速或短距离 pan 也能误触切 tab
+          //     - 改成 AND:chart 内单柱 pan(短距离慢速)不会触发,
+          //       user 真要切 tab 需要快速 + 大距离 swipe(正常 swipe tab
+          //       动作)
           //   - AnimatedSwitcher 480ms AppMotion.normal cross-fade
           //   - 再叠一层方向感知 SlideTransition,offset = -dir * 0.06(屏宽 6%)
           //   - 触觉:commit 46 撤掉切换震动,保留 FAB 主操作震动
@@ -192,9 +202,10 @@ class _MainShellState extends ConsumerState<MainShell> {
                   },
                   onHorizontalDragEnd: (d) {
                     final velocity = d.primaryVelocity ?? 0;
+                    // commit 88 改 OR → AND:避免 chart 内 pan 误触发切 tab
                     final pastDistance = _swipeDx.abs() > screenWidth * 0.18;
-                    final pastVelocity = velocity.abs() > 280;
-                    if (pastDistance || pastVelocity) {
+                    final pastVelocity = velocity.abs() > 400;
+                    if (pastDistance && pastVelocity) {
                       // drag 负方向(向左)→ 下一 tab;正方向(向右)→ 上一 tab
                       final dir = _swipeDx < 0 ? 1 : -1;
                       final target = (_currentTab + dir).clamp(0, 3);
@@ -211,10 +222,7 @@ class _MainShellState extends ConsumerState<MainShell> {
                     layoutBuilder: (currentChild, previousChildren) {
                       return Stack(
                         alignment: Alignment.topCenter,
-                        children: <Widget>[
-                          ...previousChildren,
-                          ?currentChild,
-                        ],
+                        children: <Widget>[...previousChildren, ?currentChild],
                       );
                     },
                     transitionBuilder: (child, animation) {
@@ -226,10 +234,7 @@ class _MainShellState extends ConsumerState<MainShell> {
                       ).animate(animation);
                       return SlideTransition(
                         position: slide,
-                        child: FadeTransition(
-                          opacity: animation,
-                          child: child,
-                        ),
+                        child: FadeTransition(opacity: animation, child: child),
                       );
                     },
                     child: KeyedSubtree(
