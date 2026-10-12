@@ -27,6 +27,7 @@ import '../../features/stats/ui/stats_page.dart';
 import '../../features/settings/ui/settings_page.dart';
 import '../../features/settings/ui/category_management_page.dart';
 import '../../features/settings/ui/budget_management_page.dart';
+import '../../features/settings/ui/assets_management_page.dart';
 import '../../features/settings/ui/about_page.dart';
 import '../motion/app_motion.dart';
 
@@ -228,6 +229,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _pushSubPage(
           key: state.pageKey,
           child: const BudgetManagementPage(),
+        ),
+      ),
+      // 2026-10-12 P2 加:我的页资产 section 全屏路由
+      //   类比 /settings/budget:全屏 page,viewInsets 由 Scaffold 处理,
+      //   无 showModalBottomSheet 弹窗过渡动画。
+      GoRoute(
+        path: '/settings/assets',
+        name: 'assetsManagement',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => _pushSubPage(
+          key: state.pageKey,
+          child: const AssetsManagementPage(),
         ),
       ),
     ],

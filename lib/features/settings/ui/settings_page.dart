@@ -197,6 +197,10 @@ class SettingsPage extends ConsumerWidget {
             dense: true,
           ),
 
+          // 资产(2026-10-12 P2 commit 加,放在"预算"和"数据"之间)
+          _SectionHeader(title: '资产'),
+          _AssetsTile(),
+
           // 预算
           _SectionHeader(title: '预算'),
           _BudgetTile(),
@@ -281,6 +285,24 @@ class _BudgetTile extends ConsumerWidget {
         //   无 showModalBottomSheet 弹窗过渡动画,见 budget_management_page.dart 注释)
         context.push('/settings/budget');
       },
+      dense: true,
+    );
+  }
+}
+
+/// 2026-10-12 P2 commit 加:资产入口 tile(指向 /settings/assets 全屏路由)
+class _AssetsTile extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ListTile(
+      leading: const Icon(Icons.account_balance_wallet_outlined, size: 20),
+      title: const Text('资产', style: TextStyle(fontSize: 14)),
+      subtitle: const Text(
+        '账户管理 + 总资产 + 4 大类',
+        style: TextStyle(fontSize: 11, color: AppGray.g600),
+      ),
+      trailing: const Icon(Icons.chevron_right, size: 18, color: AppGray.g400),
+      onTap: () => context.push('/settings/assets'),
       dense: true,
     );
   }

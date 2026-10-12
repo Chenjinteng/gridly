@@ -28,96 +28,96 @@ class _CategoryFormSheetState extends ConsumerState<CategoryFormSheet> {
   bool _saving = false;
 
   /// v3:扩充到 30+ 个常用场景图标(支出 28 + 收入 6 + 通用 1)
-/// 按消费场景分组排版(餐饮 / 交通 / 购物 / 居住 / 通讯 / 医疗 / 教育 /
-/// 居家 / 娱乐 / 美妆 / 健身旅行 / 数码 / 收入 / 其他),Wrap 自动换行
-static const _iconKeys = [
-  // === 餐饮 ===
-  'restaurant',
-  'local_cafe',
-  'local_dining',
-  'cake',
-  'local_bar',
-  // === 交通 ===
-  'directions_bus',
-  'directions_car',
-  'local_taxi',
-  'flight',
-  'directions_bike',
-  // === 购物 ===
-  'shopping_bag',
-  'shopping_cart',
-  'redeem',
-  // === 居住 / 居家 ===
-  'home',
-  'bed',
-  'kitchen',
-  'cleaning_services',
-  'chair',
-  'lightbulb',
-  // === 通讯 / 数码 ===
-  'phone_iphone',
-  'wifi',
-  'devices',
-  'laptop_mac',
-  // === 医疗 ===
-  'medical_services',
-  'local_pharmacy',
-  'monitor_heart',
-  // === 教育 ===
-  'school',
-  'menu_book',
-  'auto_stories',
-  // === 娱乐 ===
-  'movie',
-  'music_note',
-  'headphones',
-  'videogame_asset',
-  'sports_esports',
-  // === 美妆 ===
-  'spa',
-  'face',
-  'content_cut',
-  // === 健身 / 旅行 ===
-  'fitness_center',
-  'hotel',
-  'luggage',
-  // === 宠物 / 其他 ===
-  'pets',
-  'more_horiz',
-  // === 收入 ===
-  'payments',
-  'card_giftcard',
-  'emoji_events',
-  'savings',
-  'trending_up',
-  'account_balance_wallet',
-  'work',
-  'replay',
-  // === 兜底 ===
-  'category',
-];
+  /// 按消费场景分组排版(餐饮 / 交通 / 购物 / 居住 / 通讯 / 医疗 / 教育 /
+  /// 居家 / 娱乐 / 美妆 / 健身旅行 / 数码 / 收入 / 其他),Wrap 自动换行
+  static const _iconKeys = [
+    // === 餐饮 ===
+    'restaurant',
+    'local_cafe',
+    'local_dining',
+    'cake',
+    'local_bar',
+    // === 交通 ===
+    'directions_bus',
+    'directions_car',
+    'local_taxi',
+    'flight',
+    'directions_bike',
+    // === 购物 ===
+    'shopping_bag',
+    'shopping_cart',
+    'redeem',
+    // === 居住 / 居家 ===
+    'home',
+    'bed',
+    'kitchen',
+    'cleaning_services',
+    'chair',
+    'lightbulb',
+    // === 通讯 / 数码 ===
+    'phone_iphone',
+    'wifi',
+    'devices',
+    'laptop_mac',
+    // === 医疗 ===
+    'medical_services',
+    'local_pharmacy',
+    'monitor_heart',
+    // === 教育 ===
+    'school',
+    'menu_book',
+    'auto_stories',
+    // === 娱乐 ===
+    'movie',
+    'music_note',
+    'headphones',
+    'videogame_asset',
+    'sports_esports',
+    // === 美妆 ===
+    'spa',
+    'face',
+    'content_cut',
+    // === 健身 / 旅行 ===
+    'fitness_center',
+    'hotel',
+    'luggage',
+    // === 宠物 / 其他 ===
+    'pets',
+    'more_horiz',
+    // === 收入 ===
+    'payments',
+    'card_giftcard',
+    'emoji_events',
+    'savings',
+    'trending_up',
+    'account_balance_wallet',
+    'work',
+    'replay',
+    // === 兜底 ===
+    'category',
+  ];
 
-/// v3:16 色 = 12 色调色板 + 4 个高频语义色,避免用户挑不出合适颜色
-static const _colorOptions = <int>[
-  // 12 色调色板(与 AppCategory.hashPalette 对齐,自定义分类随机分配也用这套)
-  0xFFFB923C, // 浅橙
-  0xFFEC4899, // 粉
-  0xFF06B6D4, // 青
-  0xFFA855F7, // 紫
-  0xFFD97706, // 棕橙
-  0xFFF43F5E, // 玫红
-  0xFF6366F1, // 靛
-  0xFF14B8A6, // 青绿
-  0xFFEAB308, // 柠檬黄
-  0xFF84CC16, // 草绿
-  0xFF0891B2, // 深青
-  0xFF7C3AED, // 深紫
-  // 4 个高频语义色(用户常选的"主流"颜色)
-  0xFFEF4444, // 红
-  0xFFF5BC1F, // 金
-  0xFF3B82F6, // 蓝
-  0xFFF59E0B, // 橙
-];
+  /// v3:16 色 = 12 色调色板 + 4 个高频语义色,避免用户挑不出合适颜色
+  static const _colorOptions = <int>[
+    // 12 色调色板(与 AppCategory.hashPalette 对齐,自定义分类随机分配也用这套)
+    0xFFFB923C, // 浅橙
+    0xFFEC4899, // 粉
+    0xFF06B6D4, // 青
+    0xFFA855F7, // 紫
+    0xFFD97706, // 棕橙
+    0xFFF43F5E, // 玫红
+    0xFF6366F1, // 靛
+    0xFF14B8A6, // 青绿
+    0xFFEAB308, // 柠檬黄
+    0xFF84CC16, // 草绿
+    0xFF0891B2, // 深青
+    0xFF7C3AED, // 深紫
+    // 4 个高频语义色(用户常选的"主流"颜色)
+    0xFFEF4444, // 红
+    0xFFF5BC1F, // 金
+    0xFF3B82F6, // 蓝
+    0xFFF59E0B, // 橙
+  ];
 
   @override
   void initState() {
@@ -149,19 +149,16 @@ static const _colorOptions = <int>[
     try {
       final repo = ref.read(categoryRepositoryProvider);
       if (widget.existing == null) {
-        await repo.create(
-          name: name,
-          icon: _icon,
-          color: _color,
-          type: _type,
-        );
+        await repo.create(name: name, icon: _icon, color: _color, type: _type);
       } else {
-        await repo.update(widget.existing!.copyWith(
-          name: name,
-          icon: _icon,
-          color: _color,
-          type: _type,
-        ));
+        await repo.update(
+          widget.existing!.copyWith(
+            name: name,
+            icon: _icon,
+            color: _color,
+            type: _type,
+          ),
+        );
       }
       ref.invalidate(allCategoriesProvider);
       ref.invalidate(categoriesByTypeProvider);
@@ -238,8 +235,7 @@ static const _colorOptions = <int>[
                   ButtonSegment(value: 'income', label: Text('收入')),
                 ],
                 selected: {_type},
-                onSelectionChanged: (s) =>
-                    setState(() => _type = s.first),
+                onSelectionChanged: (s) => setState(() => _type = s.first),
               ),
               const SizedBox(height: AppSpacing.s4),
 
@@ -307,7 +303,11 @@ static const _colorOptions = <int>[
                         ),
                       ),
                       child: selected
-                          ? const Icon(Icons.check, color: Colors.white, size: 18)
+                          ? const Icon(
+                              Icons.check,
+                              color: Colors.white,
+                              size: 18,
+                            )
                           : null,
                     ),
                   );
@@ -323,10 +323,10 @@ static const _colorOptions = <int>[
                     // dark mode 仿 onDark:ink → cream
                     backgroundColor: isDark ? AppSecondary.cream : AppBrand.ink,
                     foregroundColor: isDark ? AppBrand.ink : null,
-                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.s3),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: AppRadius.brLg,
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppSpacing.s3,
                     ),
+                    shape: RoundedRectangleBorder(borderRadius: AppRadius.brLg),
                   ),
                   child: _saving
                       ? const SizedBox(

@@ -11,7 +11,16 @@
 //   调用方只需 watch assetBalancesProvider,得到 Map<assetId, currentBalance>。
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../database/app_database.dart';
 import '../database/providers.dart';
+
+/// 2026-10-12 P2 commit 加:所有资产列表(按 displayOrder 升序)
+///   AssetsManagementPage / AssetSummaryCard 用。
+///   跟 AssetRepository.all() 等价但作为 Provider 暴露便于 ref.watch。
+final allAssetsProvider = FutureProvider<List<Asset>>((ref) async {
+  final repo = ref.watch(assetRepositoryProvider);
+  return repo.all();
+});
 
 /// 每个资产的实时余额(assetId → currentBalance)
 /// 公式:currentBalance = asset.initialBalance + balanceDelta(assetId)

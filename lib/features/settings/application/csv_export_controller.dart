@@ -45,17 +45,15 @@ List<CsvRangeOption> buildRangeOptions() {
       DateTime(now.year, 1, 1),
       DateTime(now.year + 1, 1, 1).subtract(const Duration(seconds: 1)),
     ),
-    CsvRangeOption(
-      '全部',
-      DateTime(2000),
-      DateTime(now.year + 1, 1, 1),
-    ),
+    CsvRangeOption('全部', DateTime(2000), DateTime(now.year + 1, 1, 1)),
   ];
 }
 
 /// 触发 CSV 导出 + 分享
 Future<File> generateCsvFile(WidgetRef ref, CsvRangeOption range) async {
-  final csv = await ref.read(csvExporterProvider).generate(range.start, range.end);
+  final csv = await ref
+      .read(csvExporterProvider)
+      .generate(range.start, range.end);
   final dir = await getTemporaryDirectory();
   final stamp = DateTime.now().millisecondsSinceEpoch;
   final file = File(p.join(dir.path, 'gridly_$stamp.csv'));
@@ -64,8 +62,7 @@ Future<File> generateCsvFile(WidgetRef ref, CsvRangeOption range) async {
 }
 
 Future<void> shareCsvFile(File file, CsvRangeOption range) async {
-  await Share.shareXFiles(
-    [XFile(file.path, mimeType: 'text/csv')],
-    text: '格子记账导出 · ${range.label}',
-  );
+  await Share.shareXFiles([
+    XFile(file.path, mimeType: 'text/csv'),
+  ], text: '格子记账导出 · ${range.label}');
 }

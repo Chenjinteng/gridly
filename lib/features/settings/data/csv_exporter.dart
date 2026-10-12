@@ -12,19 +12,20 @@ class CsvExporter {
 
   /// 生成指定时间范围的 CSV 字符串
   Future<String> generate(DateTime start, DateTime end) async {
-    final txs = await (_db.select(_db.transactions)
-          ..where((t) => t.occurredAt.isBetweenValues(start, end))
-          ..orderBy([(t) => OrderingTerm.asc(t.occurredAt)]))
-        .get();
+    final txs =
+        await (_db.select(_db.transactions)
+              ..where((t) => t.occurredAt.isBetweenValues(start, end))
+              ..orderBy([(t) => OrderingTerm.asc(t.occurredAt)]))
+            .get();
 
     final cats = await _db.select(_db.categories).get();
     final catMap = {for (final c in cats) c.id: c.name};
 
-    final buffer = StringBuffer()
-      ..writeln('date,type,category,amount,note');
+    final buffer = StringBuffer()..writeln('date,type,category,amount,note');
 
     for (final t in txs) {
-      final date = '${t.occurredAt.year.toString().padLeft(4, "0")}-'
+      final date =
+          '${t.occurredAt.year.toString().padLeft(4, "0")}-'
           '${t.occurredAt.month.toString().padLeft(2, "0")}-'
           '${t.occurredAt.day.toString().padLeft(2, "0")}';
       final type = t.type == 'income' ? 'income' : 'expense';
@@ -55,6 +56,8 @@ class CsvExportService {
     final query = _db.selectOnly(_db.transactions)
       ..addColumns([_db.transactions.id.count()])
       ..where(_db.transactions.occurredAt.isBetweenValues(start, end));
-    return query.map((row) => row.read(_db.transactions.id.count())!).getSingle();
+    return query
+        .map((row) => row.read(_db.transactions.id.count())!)
+        .getSingle();
   }
 }

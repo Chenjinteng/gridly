@@ -118,11 +118,7 @@ class CategoryManagementPage extends ConsumerWidget {
       ref.invalidate(allTransactionsByDayProvider);
     } catch (e) {
       if (context.mounted) {
-        showGridlyBanner(
-          context,
-          '删除失败:$e',
-          kind: GridlyBannerKind.error,
-        );
+        showGridlyBanner(context, '删除失败:$e', kind: GridlyBannerKind.error);
       }
     }
   }
@@ -161,11 +157,13 @@ class _Group extends StatelessWidget {
             ),
           ),
         ),
-        ...items.map((c) => _CategoryTile(
-              category: c,
-              onEdit: () => onEdit(c),
-              onDelete: () => onDelete(c),
-            )),
+        ...items.map(
+          (c) => _CategoryTile(
+            category: c,
+            onEdit: () => onEdit(c),
+            onDelete: () => onDelete(c),
+          ),
+        ),
       ],
     );
   }
@@ -205,10 +203,7 @@ class _CategoryTile extends StatelessWidget {
           decoration: BoxDecoration(
             color: color.withValues(alpha: 0.12),
             borderRadius: AppRadius.brXs,
-            border: Border.all(
-              color: color.withValues(alpha: 0.3),
-              width: 0.5,
-            ),
+            border: Border.all(color: color.withValues(alpha: 0.3), width: 0.5),
           ),
           child: Icon(
             CategoryIcons.map[category.icon] ?? Icons.category_rounded,
@@ -238,8 +233,11 @@ class _CategoryTile extends StatelessWidget {
               onPressed: onEdit,
             ),
             IconButton(
-              icon: const Icon(Icons.delete_outline,
-                  size: 18, color: AppStatus.error),
+              icon: const Icon(
+                Icons.delete_outline,
+                size: 18,
+                color: AppStatus.error,
+              ),
               visualDensity: VisualDensity.compact,
               onPressed: onDelete,
             ),

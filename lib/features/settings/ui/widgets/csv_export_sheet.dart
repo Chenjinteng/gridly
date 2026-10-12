@@ -37,11 +37,7 @@ class _CsvExportSheetState extends ConsumerState<CsvExportSheet> {
       } catch (_) {}
     } catch (e) {
       if (mounted) {
-        showGridlyBanner(
-          context,
-          '导出失败:$e',
-          kind: GridlyBannerKind.error,
-        );
+        showGridlyBanner(context, '导出失败:$e', kind: GridlyBannerKind.error);
       }
     } finally {
       if (mounted) setState(() => _exporting = false);
@@ -95,7 +91,8 @@ class _CsvExportSheetState extends ConsumerState<CsvExportSheet> {
                 padding: const EdgeInsets.only(bottom: AppSpacing.s2),
                 child: _RangeOption(
                   label: r.label,
-                  sub: '${Formatters.shortDate(r.start)} - ${Formatters.shortDate(r.end)}',
+                  sub:
+                      '${Formatters.shortDate(r.start)} - ${Formatters.shortDate(r.end)}',
                   selected: _selectedIndex == i,
                   onTap: () => setState(() => _selectedIndex = i),
                 ),
@@ -108,13 +105,10 @@ class _CsvExportSheetState extends ConsumerState<CsvExportSheet> {
                 onPressed: _exporting ? null : _export,
                 style: FilledButton.styleFrom(
                   // dark mode 仿 onDark 模式:ink → cream,避免和 sheet surface 融掉
-                  backgroundColor:
-                      isDark ? AppSecondary.cream : AppBrand.ink,
+                  backgroundColor: isDark ? AppSecondary.cream : AppBrand.ink,
                   foregroundColor: isDark ? AppBrand.ink : null,
                   padding: const EdgeInsets.symmetric(vertical: AppSpacing.s3),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: AppRadius.brLg,
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: AppRadius.brLg),
                 ),
                 child: _exporting
                     ? SizedBox(
@@ -184,7 +178,10 @@ class _RangeOption extends StatelessWidget {
                 children: [
                   Text(
                     label,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(

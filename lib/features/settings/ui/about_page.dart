@@ -72,7 +72,8 @@ class AboutPage extends ConsumerWidget {
 
           _Section(title: '简介'),
           _BodyCard(
-            text: '格子记账是一款本地优先的记账工具,'
+            text:
+                '格子记账是一款本地优先的记账工具,'
                 '所有数据只存在你的设备上,不上传任何服务器。'
                 '用"格子"的几何语言,让每一笔账目都有自己的位置。',
           ),
@@ -82,7 +83,8 @@ class AboutPage extends ConsumerWidget {
             // markdown 语法修正:
             // - `**` 必须紧贴文字(无空格),CommonMark 不识别 `** 文字 **`
             // - 列表必须用 `-` 或 `*` 开头,`·` 只会当纯文本渲染
-            text: '**数据本地化**\n'
+            text:
+                '**数据本地化**\n'
                 '- 所有流水、分类、设置只存在你的手机/电脑本地数据库中。\n'
                 '- 不会上传到任何服务器,不会收集任何使用统计。\n\n'
                 '**导出**\n'
@@ -98,7 +100,8 @@ class AboutPage extends ConsumerWidget {
 
           _Section(title: '联系'),
           _BodyCard(
-            text: '· 仓库:github.com/Chenjinteng/gridly\n'
+            text:
+                '· 仓库:github.com/Chenjinteng/gridly\n'
                 '· 项目代号:gridly\n'
                 '· 包名:cn.jinteng.gridly',
           ),
@@ -117,9 +120,7 @@ class AboutPage extends ConsumerWidget {
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: AppStatus.error),
                   padding: const EdgeInsets.symmetric(vertical: AppSpacing.s3),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: AppRadius.brLg,
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: AppRadius.brLg),
                 ),
                 child: const Text(
                   '清空所有数据',
@@ -173,19 +174,11 @@ class AboutPage extends ConsumerWidget {
     try {
       await ref.read(databaseProvider).clearAllData();
       if (context.mounted) {
-        showGridlyBanner(
-          context,
-          '已清空所有流水',
-          kind: GridlyBannerKind.success,
-        );
+        showGridlyBanner(context, '已清空所有流水', kind: GridlyBannerKind.success);
       }
     } catch (e) {
       if (context.mounted) {
-        showGridlyBanner(
-          context,
-          '清空失败:$e',
-          kind: GridlyBannerKind.error,
-        );
+        showGridlyBanner(context, '清空失败:$e', kind: GridlyBannerKind.error);
       }
     }
   }
@@ -244,14 +237,8 @@ class _BodyCard extends StatelessWidget {
           data: text,
           styleSheet: MarkdownStyleSheet(
             p: const TextStyle(fontSize: 13, height: 1.6),
-            h1: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-            h2: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-            ),
+            h1: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            h2: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
             strong: const TextStyle(fontWeight: FontWeight.w700),
             listBullet: const TextStyle(fontSize: 13, height: 1.6),
           ),
