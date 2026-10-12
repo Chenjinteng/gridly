@@ -226,11 +226,13 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
 }
 
 /// 筛选条 —— 3 个 dropdown 按钮横向均分(类型 / 月份 / 分类),点击弹 modal bottom sheet 单选/多选
-/// 任意筛选激活时,右侧出现"清空"快捷按钮
+/// 任意筛选激活(含 高级筛选 设的 资产 / 搜索)时,右侧出现"清空"快捷按钮
 ///
 /// 2026-10-12 P3 follow-up commit:从 4 dropdown(P3 加资产维度)退回 3 dropdown 一行布局。
 ///   user 反馈"4 个筛选太多长了,按之前的来只占一行就行"。
-///   资产维度不上 UI(ledgerAssetFilterProvider 已删,流水 tile 仍显示账户名作为视觉信息)。
+///   资产 / 搜索 维度搬到 AppBar ⚙️ filter_alt 推入的 AdvancedFilterPage 全屏页(2026-10-13)。
+/// 2026-10-13:清空按钮扩到 5 个维度(原 3 个 + 资产 + 搜索),user 反馈
+///   "外面这个清空按钮无法清空高级筛选里面的,这个要增加上"。
 class _FilterBar extends ConsumerWidget {
   const _FilterBar({
     required this.typeFilter,
@@ -256,15 +258,22 @@ class _FilterBar extends ConsumerWidget {
   final ValueChanged<Set<int>> onMonthChanged;
   final ValueChanged<Set<int>> onCategoryChanged;
 
-  bool get _hasActiveFilter =>
+  // 2026-10-13:从 getter 改成方法,需要 ref.watch 高级筛选的 资产 / 搜索 provider
+  bool _hasActiveFilter(WidgetRef ref) =>
       typeFilter.isNotEmpty ||
       monthFilter.isNotEmpty ||
-      categoryFilter.isNotEmpty;
+      categoryFilter.isNotEmpty ||
+      ref.watch(ledgerAssetFilterProvider).isNotEmpty ||
+      ref.watch(ledgerSearchQueryProvider).isNotEmpty;
 
   void _clearAll(WidgetRef ref) {
+    // 2026-10-13:一键清空所有 5 个筛选(含高级筛选里的 资产 + 搜索),
+    //   不只清 in-page _FilterBar 看到的 3 个(类型 / 月份 / 分类)
     ref.read(ledgerTypeFilterProvider.notifier).state = <String>{};
     ref.read(ledgerMonthFilterProvider.notifier).state = <int>{};
     ref.read(ledgerCategoryFilterProvider.notifier).state = <int>{};
+    ref.read(ledgerAssetFilterProvider.notifier).state = <int>{};
+    ref.read(ledgerSearchQueryProvider.notifier).state = '';
   }
 
   String _typeLabel() {
@@ -348,7 +357,7 @@ class _FilterBar extends ConsumerWidget {
             ),
           ),
           // 仅当有任意筛选激活时,显示"清空"按钮,避免挤占默认 UI
-          if (_hasActiveFilter) ...[
+          if (_hasActiveFilter(ref)) ...[
             const SizedBox(width: AppSpacing.s2),
             _ClearButton(onTap: () => _clearAll(ref)),
           ],
