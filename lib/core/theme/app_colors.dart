@@ -53,6 +53,12 @@ class AppSemantic {
   //   已花 = error 红(#EF4444),超额 = overBudgetDeep(#B91C1C,更深更暗)
   //   已花转 1 圈 + 超额继续转 N 圈时,颜色深度递进,警示感更强
   static const Color overBudgetDeep = Color(0xFFB91C1C);
+  // commit 103 加:4 阶超额色阶(配合 _overColorForTurn)
+  //   - overBudgetDarker   #7F1D1D → 超额 200-300%(第 2 圈)
+  //   - overBudgetDarkest  #450A0A → 超额 300%+(第 3 圈及以后)
+  //   解决超额 2-3 倍时圆环颜色糊成一片的问题——每多 1 圈颜色加深一阶
+  static const Color overBudgetDarker = Color(0xFF7F1D1D);
+  static const Color overBudgetDarkest = Color(0xFF450A0A);
 
   /// 结余按值动态选色(2026-10-11 UAT 要求"正数绿、负数红"):
   ///   v > 0   → teal #14B8A6   (品牌青 = 设计稿"绿",hue 174° 偏 green)

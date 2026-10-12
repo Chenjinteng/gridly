@@ -89,6 +89,21 @@ class _BudgetOverviewBody extends StatefulWidget {
 class _BudgetOverviewBodyState extends State<_BudgetOverviewBody> {
   BudgetOverview get overview => widget.overview;
 
+  /// commit 103 加:4 阶超额色阶,按"超额第几圈"取色
+  ///   - 0 → overBudgetDeep     #B91C1C (超额 100-200%,第 1 圈)
+  ///   - 1 → overBudgetDarker   #7F1D1D (超额 200-300%,第 2 圈)
+  ///   - 2 → overBudgetDarkest  #450A0A (超额 300%+,第 3 圈及以后)
+  ///   - 超过 2 都按最深色兜底
+  static const List<Color> _overColors = [
+    AppSemantic.overBudgetDeep,
+    AppSemantic.overBudgetDarker,
+    AppSemantic.overBudgetDarkest,
+  ];
+
+  /// commit 103 加:按"超额第几圈"取色
+  static Color _overColorForTurn(int turnIndex) =>
+      _overColors[turnIndex.clamp(0, _overColors.length - 1)];
+
   /// 总已花
   double get _totalSpent =>
       overview.items.fold<double>(0.0, (sum, i) => sum + i.spent);
@@ -226,6 +241,16 @@ class _BudgetOverviewBodyState extends State<_BudgetOverviewBody> {
                     children: [
                       Builder(
                         builder: (_) {
+                          // commit 103 改:多圈超额时拆段,每圈 1 个色阶
+                          //   - 整圈部分:每圈 value=1.0,色按 _overColors[i] 递进
+                          //   - 余数圈:value=partialTurn,色按 _overColors[fullOverTurns]
+                          //   解决"3 圈以上全 deep 红"糊成一片问题
+                          final overSpentTurns = _isOver
+                              ? _overSpent / overview.totalBudget
+                              : 0.0;
+                          final fullOverTurns = overSpentTurns.floor();
+                          final partialTurn = overSpentTurns - fullOverTurns;
+
                           final sections = <PieChartSectionData>[
                             if (_hasBudget && _isOver)
                               PieChartSectionData(
@@ -234,13 +259,23 @@ class _BudgetOverviewBodyState extends State<_BudgetOverviewBody> {
                                 color: AppStatus.error,
                                 radius: 18,
                               ),
-                            if (_hasBudget && _isOver)
-                              PieChartSectionData(
-                                // 超额段:N 圈(deep 红)
-                                value: _overSpent / overview.totalBudget,
-                                color: AppSemantic.overBudgetDeep,
-                                radius: 18,
-                              ),
+                            if (_hasBudget && _isOver) ...[
+                              // 超额段:拆成多圈,每圈 1.0 圈
+                              for (int i = 0; i < fullOverTurns; i++)
+                                PieChartSectionData(
+                                  value: 1.0,
+                                  color: _overColorForTurn(i),
+                                  radius: 18,
+                                ),
+                              if (partialTurn > 0)
+                                PieChartSectionData(
+                                  value: partialTurn,
+                                  color: _overColorForTurn(
+                                    fullOverTurns.toInt(),
+                                  ),
+                                  radius: 18,
+                                ),
+                            ],
                             if (_hasBudget && !_isOver && _progress > 0)
                               PieChartSectionData(
                                 // 已花段:0~1 圈(error 红)
