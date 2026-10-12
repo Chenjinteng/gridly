@@ -8,6 +8,13 @@
 //   - 复位行为用末尾的"清除"图标按钮表达:custom 不为空且不等于当前时启用,
 //     点击同时清 month/year 筛选并把 range 拉回 thisMonth
 //
+// 2026-10-12 pill 滑动动画 (commit 62):
+//   - 之前每个 segment 自己 AnimatedContainer 背景各自 fade,切 tab 时两边的
+//     bg 同时淡入/淡出,过渡"破碎"
+//   - 改成 Stack + AnimatedPositioned 单 pill:选中态是同 1 个 pill,切 tab 时
+//     pill left 在两 segment 之间水平滑动 + bg color 不变(pill 已经在那了)
+//   - pill 走 AppMotion.fast(240ms aquaIn),Sweep 风格前快后慢
+//
 // 整段 tap 行为(本月/本年 mirror):
 //   - 已在该段 → 弹对应 picker sheet(改月/年 / 回本月/本年)
 //   - 在另一段 → 只切到该段视图,不弹 picker(避免"我只是想看本年"被强塞 picker)
@@ -70,37 +77,80 @@ class RangeTabs extends ConsumerWidget {
         ),
         child: Row(
           children: [
+            // ── commit 62 ── 共享 pill 滑动
+            //   2 个 segment 各自的 AnimatedContainer bg 撤掉,改成 Stack
+            //   单一 pill (primary @ 0.12 alpha),AnimatedPositioned left 在
+            //   两 segment 之间水平滑动 240ms aquaIn。
             Expanded(
-              child: _RangeSegment(
-                label: monthLabel,
-                selected: isThisMonth,
-                onTap: () {
-                  if (range == StatsRange.thisMonth) {
-                    // 已在该段 → 弹月份 picker,tap 反馈(打开 picker 不算 toggle)
-                    AppHaptics.tap();
-                    _pickMonth(context, ref, custom);
-                  } else {
-                    // 切到该段 → select 反馈(ColorOS O-Haptic 标志性"咔哒")
-                    AppHaptics.select();
-                    ref.read(statsRangeProvider.notifier).state =
-                        StatsRange.thisMonth;
-                  }
-                },
-              ),
-            ),
-            Expanded(
-              child: _RangeSegment(
-                label: yearLabel,
-                selected: isThisYear,
-                onTap: () {
-                  if (range == StatsRange.thisYear) {
-                    AppHaptics.tap();
-                    _pickYear(context, ref, customYear);
-                  } else {
-                    AppHaptics.select();
-                    ref.read(statsRangeProvider.notifier).state =
-                        StatsRange.thisYear;
-                  }
+              child: LayoutBuilder(
+                builder: (ctx, c) {
+                  final segWidth = c.maxWidth / 2;
+                  final themeInner = Theme.of(context);
+                  return Stack(
+                    children: [
+                      // 滑动 pill —— 在 InkWell 之下,ripple press 时短时被遮,
+                      // 抬起后 pill 仍可见
+                      AnimatedPositioned(
+                        duration: AppMotion.fast,
+                        curve: AppMotion.aquaIn,
+                        left: isThisMonth ? 0 : segWidth,
+                        top: 4,
+                        bottom: 4,
+                        width: segWidth,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: themeInner.colorScheme.primary
+                                  .withValues(alpha: 0.12),
+                              borderRadius: AppRadius.brLg,
+                            ),
+                          ),
+                        ),
+                      ),
+                      // 2 个 segment 本体(text + chevron,无背景,只是文字和 ripple)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _RangeSegment(
+                              label: monthLabel,
+                              selected: isThisMonth,
+                              onTap: () {
+                                if (range == StatsRange.thisMonth) {
+                                  // 已在该段 → 弹月份 picker,tap 反馈
+                                  AppHaptics.tap();
+                                  _pickMonth(context, ref, custom);
+                                } else {
+                                  // 切到该段 → select 反馈
+                                  AppHaptics.select();
+                                  ref
+                                      .read(statsRangeProvider.notifier)
+                                      .state = StatsRange.thisMonth;
+                                }
+                              },
+                            ),
+                          ),
+                          Expanded(
+                            child: _RangeSegment(
+                              label: yearLabel,
+                              selected: isThisYear,
+                              onTap: () {
+                                if (range == StatsRange.thisYear) {
+                                  AppHaptics.tap();
+                                  _pickYear(context, ref, customYear);
+                                } else {
+                                  AppHaptics.select();
+                                  ref
+                                      .read(statsRangeProvider.notifier)
+                                      .state = StatsRange.thisYear;
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
                 },
               ),
             ),
@@ -176,11 +226,12 @@ class RangeTabs extends ConsumerWidget {
   }
 }
 
-/// 单段 tab —— 整体选中态背景,整段可点(切 tab 或 弹月份 sheet 由父级 onTap 决定)
-/// 2026-10-12 ColorOS 选中态过渡:
-///   - 背景:AnimatedContainer 240ms aquaIn,transparent ↔ primary 12% alpha
-///   - 文字/chevron 颜色:AnimatedDefaultTextStyle 240ms aquaIn
-///   - 整段 scale:selected 时 1.02 微放大(整体"凸出"感,不是单纯色块变)
+/// 单段 tab —— 只是文字 + chevron,选中态背景由父级 Stack 的共享 pill 提供。
+/// 2026-10-12 commit 62 重构:
+///   - 之前自带 AnimatedContainer bg,跟当前共享 pill 重复(且会盖住 pill)
+///   - 现在只剩 text + chevron,选区动画完全交给 Stack 上的 AnimatedPositioned
+///   - 文字色:AnimatedDefaultTextStyle 240ms aquaIn
+///   - 整段 scale 撤掉(选了 pill 滑动的视觉变化,不需要再额外 scale)
 class _RangeSegment extends StatelessWidget {
   const _RangeSegment({
     required this.label,
@@ -198,69 +249,50 @@ class _RangeSegment extends StatelessWidget {
     final fg = selected
         ? theme.colorScheme.primary
         : theme.colorScheme.onSurfaceVariant;
-    // 整段 = tap target:InkWell 在最外层包 Container,把 Container padding
-    // 这块"死区"也变成可点;Container.borderRadius 跟 InkWell.borderRadius
-    // 同步,保证 ripple 圆角跟选中态背景对齐。
+    // 整段 = tap target:InkWell.borderRadius 跟选区 pill 圆角保持一致
+    // (都是 AppRadius.brLg),ripple 看起来自然地像 pill 内部的高光
     return InkWell(
       borderRadius: AppRadius.brLg,
       onTap: onTap,
-      child: AnimatedScale(
-        scale: selected ? 1.02 : 1.0,
-        duration: AppMotion.fast,
-        curve: AppMotion.aquaIn,
-        child: AnimatedContainer(
-          duration: AppMotion.fast,
-          curve: AppMotion.aquaIn,
-          decoration: BoxDecoration(
-            color: selected
-                ? theme.colorScheme.primary.withValues(alpha: 0.12)
-                : Colors.transparent,
-            borderRadius: AppRadius.brLg,
-          ),
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.s2),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Flexible(fit:loose) 给 Row 知道"这里能容纳的宽度",FittedBox 在
-              // 该约束内做 scaleDown,长 label "2026 年 10 月" 自动缩到不溢出
-              Flexible(
-                fit: FlexFit.loose,
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.center,
-                  child: AnimatedDefaultTextStyle(
-                    duration: AppMotion.fast,
-                    curve: AppMotion.aquaIn,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: fg,
-                      fontWeight:
-                          selected ? FontWeight.w700 : FontWeight.w500,
-                    ),
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.visible,
-                    ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.s2),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Flexible(fit:loose) 给 Row 知道"这里能容纳的宽度",FittedBox 在
+            // 该约束内做 scaleDown,长 label "2026 年 10 月" 自动缩到不溢出
+            Flexible(
+              fit: FlexFit.loose,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.center,
+                child: AnimatedDefaultTextStyle(
+                  duration: AppMotion.fast,
+                  curve: AppMotion.aquaIn,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: fg,
+                    fontWeight:
+                        selected ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.visible,
                   ),
                 ),
               ),
-              // 2026-10-11 UAT:加 chevron 提示"点了会下拉",跟 segment
-              // 行为一致(切月/切年),跟右上角"切换视角" chevron 视觉一致
-              const SizedBox(width: 2),
-              // chevron 颜色跟 label 一起动,套 AnimatedDefaultTextStyle 共享
-              // 同一组 color/curve —— 但 Icon 用 IconTheme 不是 TextStyle,
-              // 单独用 TweenAnimationBuilder 太重。简单做法:把 Icon 视作
-              // 一个 DefaultTextStyle 子节点,这里用 AnimatedIconTheme 替代
-              // (M3 没原生,但 Theme.of 跟 widget tree 自动重 build 即可)。
-              Icon(
-                Icons.expand_more_rounded,
-                size: 14,
-                color: fg,
-              ),
-            ],
-          ),
+            ),
+            // chevron 提示"点了会下拉",跟 segment 行为一致
+            // (切月/切年 / 切视角 chevron 视觉一致)
+            const SizedBox(width: 2),
+            Icon(
+              Icons.expand_more_rounded,
+              size: 14,
+              color: fg,
+            ),
+          ],
         ),
       ),
     );
