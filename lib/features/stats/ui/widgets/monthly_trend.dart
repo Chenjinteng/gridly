@@ -239,6 +239,10 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
   int? _touchedGroupIdx;
   Offset? _touchedOffset;
 
+  /// 当前 touch 柱的金额(toY 值)—— commit 85 加:tooltip 从 BarChart 自带
+  /// 搬到 overlay 自己画后,需要记下金额给 overlay tooltip 用。
+  double? _touchedValue;
+
   @override
   void initState() {
     super.initState();
@@ -258,15 +262,25 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
   }
 
   /// 处理 barChart touch:
-  ///   - onTouchDown / onTouchMove:更新 _touchedGroupIdx + _touchedOffset
-  ///     触发虚线 + label overlay
-  ///   - onPanEnd / onPanCancel:清空,虚线 + label 消失
+  ///   - commit 85 改:用 `!event.isInterestedForInteractions` 作为清空 trigger,
+  ///     覆盖所有"手指 / 鼠标离开"事件
+  ///     - FlPanEndEvent / FlPanCancelEvent(pan 结束 / 取消)
+  ///     - FlTapUpEvent / FlTapCancelEvent(tap 抬起 / tap 取消)
+  ///     - FlLongPressEnd(长按结束)
+  ///     - FlPointerExitEvent(鼠标移出 chart 边界)
+  ///   - 之前只清 FlPanEnd/FlPanCancel,tap 抬起不会触发 → 虚线卡在柱上不消失
+  ///   - 其它 event(FlPanDown / FlPanStart / FlPanUpdate / FlTapDown / FlLongPressStart):
+  ///     更新 _touchedGroupIdx + _touchedOffset + _touchedValue(给 overlay tooltip 用)
   void _onTouch(FlTouchEvent event, BarTouchResponse? response) {
-    if (event is FlPanEndEvent || event is FlPanCancelEvent) {
-      if (_touchedGroupIdx != null || _touchedOffset != null) {
+    if (!event.isInterestedForInteractions) {
+      // "手指 / 鼠标离开"事件:清掉虚线 + label + tooltip overlay
+      if (_touchedGroupIdx != null ||
+          _touchedOffset != null ||
+          _touchedValue != null) {
         setState(() {
           _touchedGroupIdx = null;
           _touchedOffset = null;
+          _touchedValue = null;
         });
       }
       return;
@@ -274,12 +288,16 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
     final spot = response?.spot;
     final idx = spot?.touchedBarGroupIndex;
     final off = spot?.offset;
+    final val = spot?.touchedRodData.toY;
     if (idx != null &&
         off != null &&
-        (idx != _touchedGroupIdx || off != _touchedOffset)) {
+        (idx != _touchedGroupIdx ||
+            off != _touchedOffset ||
+            val != _touchedValue)) {
       setState(() {
         _touchedGroupIdx = idx;
         _touchedOffset = off;
+        _touchedValue = val;
       });
     }
   }
@@ -331,21 +349,13 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
               // group index + extraLinesData.verticalLines,但 BarChart 不画
               // verticalLines(issue #1149),所以虚线根本没渲染。
               touchCallback: _onTouch,
-              // 保留金额 tooltip(用户要求"金额的显示保持现在的")
-              touchTooltipData: BarTouchTooltipData(
-                getTooltipColor: (_) => AppBrand.ink,
-                getTooltipItem: (group, gIdx, rod, rIdx) {
-                  final v = rod.toY;
-                  return BarTooltipItem(
-                    '¥${Formatters.amount(v)}',
-                    TextStyle(
-                      color: AppBrand.gold,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  );
-                },
-              ),
+              // commit 85 改:touchTooltipData 移除(空)
+              //   之前用 fl_chart 内置 BarTouchTooltipData 画金额 tooltip,
+              //   但内置 tooltip 画在 BarChart canvas 内(BarChartPainter
+              //   内部),跟 Stack overlay 的 dashed line 重叠时 tooltip 被
+              //   dashed line 盖住。user 反馈"跨线时金额要在虚线上方盖住虚线"。
+              //   → 把 tooltip 搬到 overlay 自己画(Stack children 顺序
+              //     最后,z-order 最顶层,盖住 dashed line)
             ),
             titlesData: FlTitlesData(
               show: true,
@@ -475,6 +485,41 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
               ),
             ),
           ),
+          // commit 85 加:金额 tooltip overlay(Stack 最顶层,盖住虚线)
+          //   - 之前用 fl_chart 内置 BarTouchTooltipData,但 tooltip 画在
+          //     BarChart canvas 内,被 overlay 虚线盖住
+          //     user 反馈"跨线时金额要在虚线上方,盖住虚线"
+          //   - 改成自己画,放在 Stack children 最后(z-order 顶层)
+          //   - 同时 user 反馈"金额底框太大":
+          //     原 BarTouchTooltipData 默认 tooltipPadding = h16/v8,
+          //     fontSize = 13;改成 h10/v4 + fontSize 12,底框更紧凑
+          //   - 位置:日期 label 下方(top: 26),跟虚线/柱子中心对齐
+          if (_touchedValue != null)
+            Positioned(
+              left: _touchedOffset!.dx + _leftReservedSize - 40,
+              top: 26,
+              width: 80,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppBrand.ink,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    '¥${Formatters.amount(_touchedValue!)}',
+                    style: TextStyle(
+                      color: AppBrand.gold,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ],
     );
