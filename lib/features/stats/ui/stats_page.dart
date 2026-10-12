@@ -85,17 +85,30 @@ class _StatsPageState extends ConsumerState<StatsPage> {
             // 汇总(收入/支出/结余)— 三个视角共享(它是"窗口内总览")
             const RangeSummary(),
             const SizedBox(height: AppSpacing.s3),
-            // 视角特定内容 — 包 AnimatedSwitcher,切视角(支出/收入/资产)时
-            // 纯 fade(680ms aquaIn),不再上推。
+            // 视角特定内容 — 包 AnimatedSwitcher cross-fade,切视角(支出/收入/资产)时
+            // 新旧 view 同时存在(Stack 同时透明),完全无缝过渡。
             //
-            // 2026-10-12 修:之前是 fade + 上推 4px,导致切到新视角时圆环
-            // spring 扫角过程被上推模糊,圆环"瞬间切上来"。改纯 fade 后,
-            // spring 扫角视觉集中(配合 spring 启动延迟 + spring 节奏
-            // 调整),圆环从起点顺时针画出来。
+            // 2026-10-12 修:之前 AnimatedSwitcher 默认 sequential fade
+            // (先 fade out 旧 view 完成,再 fade in 新 view),中间有"空白
+            // 瞬间",感觉"卡一下"。加 layoutBuilder 让 Stack 同时容纳新旧
+            // view,两者 FadeTransition 同步播放(opacity 1→0 + 0→1),
+            // 整个过程交叉淡入,无空白瞬间。
             AnimatedSwitcher(
               duration: AppMotion.slow,
               switchInCurve: AppMotion.aquaIn,
               switchOutCurve: AppMotion.aquaOut,
+              // cross-fade:Stack 让 previous children 跟 current child 同时
+              // 渲染(各自带 FadeTransition),默认布局只显示 current 会有
+              // "先消失后出现"的空白帧。ColorOS 切 view 风格是 cross-fade。
+              layoutBuilder: (currentChild, previousChildren) {
+                return Stack(
+                  alignment: Alignment.topCenter,
+                  children: <Widget>[
+                    ...previousChildren,
+                    ?currentChild,
+                  ],
+                );
+              },
               transitionBuilder: (child, animation) {
                 return FadeTransition(
                   opacity: animation,
