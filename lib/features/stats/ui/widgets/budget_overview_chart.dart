@@ -565,18 +565,19 @@ class _CategoryBudgetBarRow extends StatelessWidget {
     final color = Color(item.category.color);
     final spent = item.spent;
     final amount = item.amount;
-    final ratio = amount > 0 ? (spent / amount).clamp(0.0, 1.5) : 0.0;
+    final realRatio = amount > 0 ? (spent / amount) : 0.0;
+    final ratio = realRatio.clamp(0.0, 1.5);
     // 三档状态(commit 98 加 warning 段,跟 _stateColor 规则一致):
     //   < 80% teal / 80-100% warning 黄 / > 100% error 红
     final over = amount > 0 && spent > amount;
-    final warning = !over && amount > 0 && spent / amount >= 0.8;
+    final warning = !over && amount > 0 && realRatio >= 0.8;
     final barColor = over
         ? AppStatus.error
         : warning
         ? AppStatus.warning
         : AppBrand.teal;
     final ratioDisplay = amount > 0
-        ? (spent / amount * 100).clamp(0, 999).toStringAsFixed(0)
+        ? (realRatio * 100).clamp(0, 9999).toStringAsFixed(0)
         : '0';
 
     return Padding(
@@ -621,7 +622,7 @@ class _CategoryBudgetBarRow extends StatelessWidget {
               //   - 三档颜色跟 bar / 底部"已花 ¥X"同步
               Text(
                 over
-                    ? '已超 ${((ratio - 1) * 100).toStringAsFixed(0)}%'
+                    ? '已超 ${((realRatio - 1) * 100).clamp(0, 9999).toStringAsFixed(0)}%'
                     : '$ratioDisplay%',
                 style: TextStyle(
                   fontSize: 12,
