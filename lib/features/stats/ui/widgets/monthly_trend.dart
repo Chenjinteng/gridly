@@ -13,6 +13,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/motion/app_motion.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -191,18 +192,30 @@ enum BarLabelKind { day, month }
 /// ⚠️ 改 leftTitles.reservedSize 时要同步改这个常量,否则 overlay 错位
 const double _leftReservedSize = 56;
 
-/// 入场柱子 —— 从底部往上"长"起来,nice tween 480ms aquaIn。
+/// 入场柱子 —— 从底部往上"长"起来,aquaIn 600ms。
+///
+/// 2026-10-12 commit 86 加 viewport-aware 触发:
+///   - user 反馈"因为有一些 dashboard 是在下方的,只想加一些动画,只在滚动
+///     加载到该 dashboard 时才有动画。比如底下的柱状图,我想加一个柱条往上
+///     增长的动画,但是想滑动到该 dashboard 时才加载出来"
+///   - 修法:
+///     1) State 加 _appeared 标记 + GlobalKey + ScrollPosition 监听
+///     2) _checkInView 检测 widget 在 scroll viewport 内的位置,进入时
+///        setState(_appeared = true) + forward 动画
+///     3) _buildBarGroups 根据 _appeared 决定 toY:
+///        - _appeared=false → toY=0(柱子隐藏)
+///        - _appeared=true → toY=real(柱子显示)
+///        BarChart 看到 BarChartData 变化,自动用内置 swap animation
+///        (duration: 600ms aquaIn) 从 toY=0 过渡到 toY=real,实现"柱条往上长"
+///     4) 同步 fade-in Opacity 整体淡入(480ms)
+///     5) 离 viewport 后不再重放,只触发一次(_appeared flag 持久)
 ///
 /// 实现:
-///   - 内部 AnimationController 480ms aquaIn,从 0 走到 1
-///   - 用 _BarGrowCustomPainter 把 BarChart 重画,BarChartRodData 的
-///     toY 用 lerp(0, target, _ctrl.value) 做"长高"
-///   - 但是 fl_chart 的 BarChart 不直接暴露 BarChartRodData.toY 的 lerp 入口,
-///     改用整体 AnimationBuilder 包 BarChart,让 chart 容器整体 fade in(400ms)
-///     + 同步用一个 _BarGrowthWidget 在 chart 上 overlay 模拟柱子从下往上的
-///     蒙版 reveal(用 progress 0→1 提升 reveal 高度)。
-///
-/// 简化:不做 column-grow 蒙版,用整体 fade-in + chart 自带的入场动画即可。
+///   - 内部 AnimationController 480ms aquaIn,BarChart(duration: 600ms) 用
+///     fl_chart 内置 swap animation 从 zero→real,实现柱条增长
+///   - GlobalKey 给 chart widget,RenderBox.localToGlobal 拿 widget 在
+///     scrollable 坐标系中的位置,跟 viewport height 比较
+///   - Scrollable.maybeOf(context) 拿当前 Scrollable,addListener
 class _AnimatedBarChart extends StatefulWidget {
   const _AnimatedBarChart({
     required this.bars,
@@ -228,6 +241,17 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
 
+  /// 2026-10-12 commit 86 加 viewport-aware 触发入场动画
+  ///   - false:widget 还没进入 scroll viewport(toY=0,柱条隐藏)
+  ///   - true:widget 进入 viewport 后(toY=real,柱条长出)—— 一次性,不再重置
+  bool _appeared = false;
+
+  /// 用来拿 chart widget 在 scroll viewport 中的位置
+  final GlobalKey _chartKey = GlobalKey();
+
+  /// 监听 Scrollable 滚动,每次滚动时检查 widget 是否进入 viewport
+  ScrollPosition? _scrollPos;
+
   /// 当前 touch 的 group 索引(0..bars.length-1);null = 没有 touch
   /// commit 79 改:之前 commit 77 用 extraLinesData.verticalLines + VerticalLineLabel,
   /// 但 fl_chart 0.69 BarChart 完全不渲染 verticalLines(注释里写"Vertical lines
@@ -250,14 +274,61 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
       vsync: this,
       duration: const Duration(milliseconds: 480),
     );
+    // commit 86 改:不再立即 forward(),改用 viewport-aware 触发
+    // 等首帧后 _checkInView 检测 widget 是否在 viewport,进入时才触发动画
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _ctrl.forward();
+      if (mounted) {
+        _scrollPos = Scrollable.maybeOf(context)?.position;
+        _scrollPos?.addListener(_checkInView);
+        _checkInView();
+      }
     });
+  }
+
+  /// 2026-10-12 commit 86 加:检测 widget 是否在 scroll viewport 内
+  ///   - 拿 chart RenderBox,scrollable RenderBox
+  ///   - box.localToGlobal(Offset.zero, ancestor: scrollableBox).dy
+  ///     是 widget 顶在 scrollable 坐标系中的 y
+  ///   - 如果 widget 顶 < viewport 高 && widget 底 > 0 → 任意部分可见 → 触发
+  void _checkInView() {
+    if (_appeared) return;
+    final ctx = _chartKey.currentContext;
+    if (ctx == null) return;
+    final box = ctx.findRenderObject() as RenderBox?;
+    if (box == null || !box.attached) return;
+    final scrollable = Scrollable.maybeOf(context);
+    if (scrollable == null) {
+      // 没有 Scrollable(不嵌在滚动区域里),直接进入
+      _appear();
+      return;
+    }
+    final scrollableBox = scrollable.context.findRenderObject() as RenderBox?;
+    if (scrollableBox == null) return;
+    final widgetTopInScrollable = box
+        .localToGlobal(Offset.zero, ancestor: scrollableBox)
+        .dy;
+    final widgetHeight = box.size.height;
+    final viewportHeight = scrollableBox.size.height;
+    // 任意部分进入 viewport 就触发(不需要 50% 之类阈值,user 要"滚到时"立刻)
+    if (widgetTopInScrollable < viewportHeight &&
+        widgetTopInScrollable + widgetHeight > 0) {
+      _appear();
+    }
+  }
+
+  /// 进入 viewport 后:开 fade-in + BarChart swap 触发柱条增长
+  void _appear() {
+    if (_appeared) return;
+    _appeared = true;
+    _ctrl.forward();
+    _scrollPos?.removeListener(_checkInView);
+    _scrollPos = null;
   }
 
   @override
   void dispose() {
     _ctrl.dispose();
+    _scrollPos?.removeListener(_checkInView);
     super.dispose();
   }
 
@@ -319,7 +390,9 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
       builder: (context, _) {
         return Opacity(
           opacity: Curves.easeInOut.transform(_ctrl.value),
-          child: _buildChart(),
+          // commit 86 加:GlobalKey 给最外层,让 _checkInView 拿 RenderBox
+          // 检测 widget 在 scroll viewport 内的位置
+          child: KeyedSubtree(key: _chartKey, child: _buildChart()),
         );
       },
     );
@@ -333,6 +406,11 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
       // BarChart widget 边界而不被裁掉。
       clipBehavior: Clip.none,
       children: [
+        // commit 86 加:BarChart swap animation duration 600ms aquaIn
+        //   - _appeared=false → toY=0;viewport 进入 → setState → toY=real
+        //   - BarChart 看到 BarChartData 变化,自动用 swap 600ms 从 zero
+        //     lerp 到 real,实现"柱条往上长"
+        //   - 跟整体 Opacity fade-in(480ms) 同步叠加
         BarChart(
           BarChartData(
             maxY: widget.maxY,
@@ -435,6 +513,12 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
             borderData: FlBorderData(show: false),
             barGroups: _buildBarGroups(),
           ),
+          // commit 86:BarChart swap animation 600ms aquaIn
+          //   viewport 进入前 toY=0(viewport 内 setState 后)toY=real,
+          //   BarChart 看到 BarChartData 变化自动用 swap 从 0 lerp 到 real,
+          //   实现"柱条往上增长"。跟整体 Opacity fade-in(480ms)叠加。
+          duration: const Duration(milliseconds: 600),
+          curve: AppMotion.aquaIn,
         ),
         // commit 79 加:touch 选柱时,顶部画虚线 + "X日/X月" label
         //   - 虚线:_DashedLinePainter 自定义 painter,[4,3] dashArray,贯穿 chart 高度
@@ -529,6 +613,11 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
   ///
   /// - DailyExpenseBarChart:每天 1 根柱(支出,error 红)
   /// - MonthlyTrendBarChart:每月 1 根柱(支出,error 红;commit 78 改:之前是 grouped 双柱 income+expense)
+  ///
+  /// commit 86 加 viewport-aware 触发:
+  ///   - _appeared=false(toY=0):widget 还没进入 viewport,柱条隐藏
+  ///   - _appeared=true(toY=real):viewport 进入后,BarChart swap animation
+  ///     (duration: 600ms aquaIn) 把 toY 从 0 lerp 到 real → "柱条往上长"
   List<BarChartGroupData> _buildBarGroups() {
     final groups = <BarChartGroupData>[];
     for (int i = 0; i < widget.bars.length; i++) {
@@ -542,7 +631,7 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
             x: i,
             barRods: [
               BarChartRodData(
-                toY: d.expense,
+                toY: _appeared ? d.expense : 0.0,
                 color: widget.color,
                 width: 5,
                 borderRadius: const BorderRadius.vertical(
@@ -563,7 +652,7 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
             x: i,
             barRods: [
               BarChartRodData(
-                toY: m.expense,
+                toY: _appeared ? m.expense : 0.0,
                 color: widget.color,
                 width: 5,
                 borderRadius: const BorderRadius.vertical(
