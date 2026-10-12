@@ -24,7 +24,12 @@ import '../../../../core/utils/formatters.dart';
 import '../../../../shared/constants/default_categories.dart';
 
 class BudgetSheet extends ConsumerStatefulWidget {
-  const BudgetSheet({super.key});
+  const BudgetSheet({super.key, this.embedded = false});
+
+  /// commit 106 加:是否为嵌入到全屏 page 内(去掉 sheet 容器)。
+  ///   - false(默认):原 sheet 行为 — 顶部小拉手、底部 viewInsets padding
+  ///   - true:嵌入到 BudgetManagementPage 内 — 不要小拉手,viewInsets 由 Scaffold 处理
+  final bool embedded;
 
   @override
   ConsumerState<BudgetSheet> createState() => _BudgetSheetState();
@@ -214,12 +219,19 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
 
     return SafeArea(
       child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          AppSpacing.s4,
-          AppSpacing.s3,
-          AppSpacing.s4,
-          MediaQuery.of(context).viewInsets.bottom + AppSpacing.s4,
-        ),
+        // commit 106 改:embedded 模式(全屏 page 内)不要 viewInsets.bottom,
+        //   让 Scaffold 的 resizeToAvoidBottomInset 处理;sheet 模式保留原逻辑
+        padding: widget.embedded
+            ? const EdgeInsets.symmetric(
+                horizontal: AppSpacing.s4,
+                vertical: AppSpacing.s3,
+              )
+            : EdgeInsets.fromLTRB(
+                AppSpacing.s4,
+                AppSpacing.s3,
+                AppSpacing.s4,
+                MediaQuery.of(context).viewInsets.bottom + AppSpacing.s4,
+              ),
         // SingleChildScrollView 包裹:键盘弹起 viewInsets.bottom 增加时,
         //   sheet 可用高度被压缩 → 原来 Column(mainAxisSize.min)固定不可滚动,
         //   会触发 BOTTOM OVERFLOWED BY N PIXELS 错误。这里允许内容超出时滚动,
@@ -229,28 +241,32 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 顶部小拉手
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: AppSpacing.s3),
-                  decoration: BoxDecoration(
-                    color: AppGray.g400,
-                    borderRadius: BorderRadius.circular(2),
+              // commit 106 改:embedded 模式(全屏 page)无顶部小拉手
+              if (!widget.embedded)
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: AppSpacing.s3),
+                    decoration: BoxDecoration(
+                      color: AppGray.g400,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
-              ),
-              const Text(
-                '月度预算',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: AppSpacing.s1),
-              const Text(
-                '设置总额度后可给具体分类配置子额度;未配置分类共享剩余池。',
-                style: TextStyle(fontSize: 12, color: AppGray.g600),
-              ),
-              const SizedBox(height: AppSpacing.s4),
+              // commit 106 改:embedded 模式不显示"月度预算"标题(由 AppBar 提供)
+              if (!widget.embedded) ...[
+                const Text(
+                  '月度预算',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: AppSpacing.s1),
+                const Text(
+                  '设置总额度后可给具体分类配置子额度;未配置分类共享剩余池。',
+                  style: TextStyle(fontSize: 12, color: AppGray.g600),
+                ),
+                const SizedBox(height: AppSpacing.s4),
+              ],
               // 总额度输入
               TextField(
                 controller: _totalController,

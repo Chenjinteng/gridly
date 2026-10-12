@@ -2,7 +2,6 @@
 // 设置:主题切换 / 预算 / 数据导出 / 分类管理 / 关于
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-// ignore: unused_import
 import 'package:go_router/go_router.dart';
 
 import '../../../core/settings/amount_visibility_provider.dart';
@@ -16,7 +15,6 @@ import '../../../core/widgets/gridly_mark.dart';
 import '../../../core/theme/theme_mode_provider.dart';
 import '../../../core/utils/budget_provider.dart';
 import '../../../core/utils/formatters.dart';
-import 'widgets/budget_sheet.dart';
 import 'widgets/csv_export_sheet.dart';
 
 class SettingsPage extends ConsumerWidget {
@@ -278,17 +276,10 @@ class _BudgetTile extends ConsumerWidget {
       ),
       trailing: const Icon(Icons.chevron_right, size: 18, color: AppGray.g400),
       onTap: () {
-        showModalBottomSheet(
-          context: context,
-          isScrollControlled: true,
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(
-              top: Radius.circular(AppRadius.xl),
-            ),
-          ),
-          builder: (_) => const BudgetSheet(),
-        );
+        // commit 106 改:从 showModalBottomSheet 改 context.push 全屏路由
+        //   解决 BudgetSheet 还有点掉帧问题(viewInsets 由 Scaffold 处理,
+        //   无 showModalBottomSheet 弹窗过渡动画,见 budget_management_page.dart 注释)
+        context.push('/settings/budget');
       },
       dense: true,
     );

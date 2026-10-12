@@ -23,6 +23,7 @@ import '../../features/add/ui/edit_transaction_page.dart';
 import '../../features/stats/ui/stats_page.dart';
 import '../../features/settings/ui/settings_page.dart';
 import '../../features/settings/ui/category_management_page.dart';
+import '../../features/settings/ui/budget_management_page.dart';
 import '../../features/settings/ui/about_page.dart';
 import '../motion/app_motion.dart';
 
@@ -48,22 +49,26 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/home',
             name: 'home',
-            pageBuilder: (context, state) => const NoTransitionPage(child: HomePage()),
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: HomePage()),
           ),
           GoRoute(
             path: '/ledger',
             name: 'ledger',
-            pageBuilder: (context, state) => const NoTransitionPage(child: LedgerPage()),
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: LedgerPage()),
           ),
           GoRoute(
             path: '/stats',
             name: 'stats',
-            pageBuilder: (context, state) => const NoTransitionPage(child: StatsPage()),
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: StatsPage()),
           ),
           GoRoute(
             path: '/settings',
             name: 'settings',
-            pageBuilder: (context, state) => const NoTransitionPage(child: SettingsPage()),
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: SettingsPage()),
           ),
         ],
       ),
@@ -84,12 +89,18 @@ final routerProvider = Provider<GoRouter>((ref) {
           child: const AddTransactionPage(),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0, 1),
-                end: Offset.zero,
-              ).animate(CurvedAnimation(parent: animation, curve: AppMotion.aquaIn)),
+              position:
+                  Tween<Offset>(
+                    begin: const Offset(0, 1),
+                    end: Offset.zero,
+                  ).animate(
+                    CurvedAnimation(parent: animation, curve: AppMotion.aquaIn),
+                  ),
               child: FadeTransition(
-                opacity: CurvedAnimation(parent: animation, curve: AppMotion.aquaIn),
+                opacity: CurvedAnimation(
+                  parent: animation,
+                  curve: AppMotion.aquaIn,
+                ),
                 child: child,
               ),
             );
@@ -125,18 +136,28 @@ final routerProvider = Provider<GoRouter>((ref) {
             transitionDuration: AppMotion.normal,
             reverseTransitionDuration: AppMotion.fast,
             child: EditTransactionPage(transactionId: id),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 1),
-                  end: Offset.zero,
-                ).animate(CurvedAnimation(parent: animation, curve: AppMotion.aquaIn)),
-                child: FadeTransition(
-                  opacity: CurvedAnimation(parent: animation, curve: AppMotion.aquaIn),
-                  child: child,
-                ),
-              );
-            },
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  return SlideTransition(
+                    position:
+                        Tween<Offset>(
+                          begin: const Offset(0, 1),
+                          end: Offset.zero,
+                        ).animate(
+                          CurvedAnimation(
+                            parent: animation,
+                            curve: AppMotion.aquaIn,
+                          ),
+                        ),
+                    child: FadeTransition(
+                      opacity: CurvedAnimation(
+                        parent: animation,
+                        curve: AppMotion.aquaIn,
+                      ),
+                      child: child,
+                    ),
+                  );
+                },
           );
         },
       ),
@@ -154,12 +175,18 @@ final routerProvider = Provider<GoRouter>((ref) {
           child: const CategoryManagementPage(),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0, 0.06),
-                end: Offset.zero,
-              ).animate(CurvedAnimation(parent: animation, curve: AppMotion.aquaIn)),
+              position:
+                  Tween<Offset>(
+                    begin: const Offset(0, 0.06),
+                    end: Offset.zero,
+                  ).animate(
+                    CurvedAnimation(parent: animation, curve: AppMotion.aquaIn),
+                  ),
               child: FadeTransition(
-                opacity: CurvedAnimation(parent: animation, curve: AppMotion.aquaIn),
+                opacity: CurvedAnimation(
+                  parent: animation,
+                  curve: AppMotion.aquaIn,
+                ),
                 child: child,
               ),
             );
@@ -177,12 +204,50 @@ final routerProvider = Provider<GoRouter>((ref) {
           child: const AboutPage(),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0, 0.06),
-                end: Offset.zero,
-              ).animate(CurvedAnimation(parent: animation, curve: AppMotion.aquaIn)),
+              position:
+                  Tween<Offset>(
+                    begin: const Offset(0, 0.06),
+                    end: Offset.zero,
+                  ).animate(
+                    CurvedAnimation(parent: animation, curve: AppMotion.aquaIn),
+                  ),
               child: FadeTransition(
-                opacity: CurvedAnimation(parent: animation, curve: AppMotion.aquaIn),
+                opacity: CurvedAnimation(
+                  parent: animation,
+                  curve: AppMotion.aquaIn,
+                ),
+                child: child,
+              ),
+            );
+          },
+        ),
+      ),
+      // commit 106 加:月度预算配置全屏路由
+      //   之前用 showModalBottomSheet(BudgetSheet),user 反馈还有掉帧
+      //   改成全屏 page(viewInsets 由 Scaffold 处理 + 无弹窗过渡动画)
+      GoRoute(
+        path: '/settings/budget',
+        name: 'budgetManagement',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          transitionDuration: AppMotion.slow,
+          reverseTransitionDuration: AppMotion.normal,
+          child: const BudgetManagementPage(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return SlideTransition(
+              position:
+                  Tween<Offset>(
+                    begin: const Offset(0, 0.06),
+                    end: Offset.zero,
+                  ).animate(
+                    CurvedAnimation(parent: animation, curve: AppMotion.aquaIn),
+                  ),
+              child: FadeTransition(
+                opacity: CurvedAnimation(
+                  parent: animation,
+                  curve: AppMotion.aquaIn,
+                ),
                 child: child,
               ),
             );
