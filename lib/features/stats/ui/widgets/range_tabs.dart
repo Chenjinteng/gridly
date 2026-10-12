@@ -79,22 +79,20 @@ class RangeTabs extends ConsumerWidget {
         ),
         child: Row(
           children: [
-            // ── commit 68 (top/bottom 回到 2,horizontal 6) ── 共享 pill 滑动
-            //   v67 改成统一 4 边 6px inset,user 截图反馈"top 和 bottom 都调小一点,
-            //   不要都同样调走 6px,刚刚的 top bottom 就很合适,现在 6px 试试只给 left right":
-            //   - v66 的 `top: 2, bottom: 2` user 觉得正好
-            //   - 现在只要 horizontal 6 inset(解决"左右贴边"问题)
-            //   - 垂直 inset 还是 2(跟 v66 一致,user 满意)
+            // ── commit 69 (圆角 brLg=16 → brSm=8) ── 共享 pill 滑动
+            //   v68 改成"horizontal 6 + vertical 2" user 觉得 inset 不错,
+            //   但反馈"圆角太圆了,调一下":
+            //   - 之前 pill borderRadius = brLg (16),pill 高度 ~32 时 brLg 刚好是
+            //     full semicircle(stadium 胶囊),两端完全半圆,user 觉得"过圆"
+            //   - 降到 brSm = 8:corner radius 8 < half-height 16,pill 从 stadium
+            //     变成 rounded rectangle,圆角变成 quarter circle,跟 Container 的
+            //     brLg=16 圆角区分开(嵌套感更强)
+            //   - 仍保留 pill 视觉 soft 感(不是 brXs 直角),但不再"药丸胶囊"
             //
-            //   pill 最终形态:
-            //   - left: 6 / segWidth + 6(切 tab 时 240ms aquaIn 滑动)
+            //   其他 inset / 尺寸完全跟 v68 一致(horizontal 6 + vertical 2):
+            //   - left: 6 / segWidth + 6
             //   - top: 2, bottom: 2
             //   - width: segWidth - 12
-            //   - height: container 高度 - 4
-            //   - borderRadius: brLg (16)
-            //
-            //   视觉:水平方向 pill 是 floating tab(明显跟 segment 左右有 6px 间隙),
-            //   垂直方向 pill 几乎齐容器顶/底(2px 微弱呼吸,但仍是 flat pill 感)。
             Expanded(
               child: LayoutBuilder(
                 builder: (ctx, c) {
@@ -102,7 +100,7 @@ class RangeTabs extends ConsumerWidget {
                   return Stack(
                     children: [
                       // 滑动 pill —— 在 InkWell 之下,ripple press 时 pill 短时被遮,抬起可见
-                      //   horizontal 6px inset + vertical 2px inset,圆角 brLg=16。
+                      //   horizontal 6 + vertical 2 inset,圆角 brSm=8(rounded rectangle,不是 stadium)。
                       AnimatedPositioned(
                         duration: AppMotion.fast,
                         curve: AppMotion.aquaIn,
@@ -115,7 +113,7 @@ class RangeTabs extends ConsumerWidget {
                             color: theme.colorScheme.primary.withValues(
                               alpha: 0.12,
                             ),
-                            borderRadius: AppRadius.brLg,
+                            borderRadius: AppRadius.brSm,
                           ),
                         ),
                       ),
