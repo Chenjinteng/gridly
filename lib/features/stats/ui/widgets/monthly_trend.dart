@@ -22,7 +22,13 @@ class MonthlyTrendChart extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final trendAsync = ref.watch(monthlyTrendProvider);
     return Container(
-      margin: const EdgeInsets.all(AppSpacing.s4),
+      // 2026-10-12 修 margin 不一致:
+      // 之前用 EdgeInsets.all(s4)(四周 16px),跟其他 widget 顶部/底部
+      // 无 margin 的策略不同,导致跟上面 Top 10 间距 12+16=28px,比
+      // Top 10 ↔ CategoryPie 的 12px 大一倍。改成对称 horizontal,
+      // 跟 CategoryPie / TopExpenses 保持一致,间距由 stats_page 的
+      // SizedBox(height: s3) 统一控制(12px)。
+      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
       padding: const EdgeInsets.all(AppSpacing.s4),
       decoration: BoxDecoration(
         // 跟 Top 10 / CategoryPie / IncomePie 同色 = theme.colorScheme.surface
@@ -78,13 +84,20 @@ class MonthlyTrendChart extends ConsumerWidget {
               final niceInterval = _pickNiceInterval(maxVal);
               final maxY = maxVal == 0 ? 1.0 : (maxVal / niceInterval).ceil() * niceInterval;
               final chartNeedsWan = maxVal >= Formatters.wanThreshold;
-              return SizedBox(
-                height: 200,
-                child: _AnimatedLineChart(
-                  data: data,
-                  maxY: maxY,
-                  niceInterval: niceInterval,
-                  chartNeedsWan: chartNeedsWan,
+              // 2026-10-12 改:chart 顶部 8px 留白 + 高度 192(原 200)。
+// 之前 0 baseline 几乎贴底部 X 轴,跟 X 标签 0 重叠。给 chart 上方
+// 8px padding 后,0 baseline 在视觉上"中线偏下",有呼吸感;
+// chart 内容区仍是 192px,数据点比例不变。
+return Padding(
+                padding: const EdgeInsets.only(top: AppSpacing.s2),
+                child: SizedBox(
+                  height: 192,
+                  child: _AnimatedLineChart(
+                    data: data,
+                    maxY: maxY,
+                    niceInterval: niceInterval,
+                    chartNeedsWan: chartNeedsWan,
+                  ),
                 ),
               );
             },
@@ -275,7 +288,10 @@ class _AnimatedLineChartState extends State<_AnimatedLineChart>
                 leftTitles: AxisTitles(
                   sideTitles: SideTitles(
                     showTitles: true,
-                    reservedSize: 52,
+                    // 2026-10-12 调:dark mode 之前 44,light 模式 52 都
+                    // 会被"20,000" 这种 5 字符长 tick label 顶到裁切。
+                    // 改 60 给足够横向空间。
+                    reservedSize: 60,
                     interval: widget.niceInterval,
                     getTitlesWidget: (v, meta) {
                       // 2026-10-12 修:dark mode 下 AppGray.g600(深灰
