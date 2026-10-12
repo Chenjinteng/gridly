@@ -285,9 +285,11 @@ class _BudgetOverviewBodyState extends State<_BudgetOverviewBody> {
                               ),
                             if (_hasBudget && !_isOver)
                               PieChartSectionData(
-                                // 剩余段:0~1 圈(灰)
+                                // 剩余段:0~1 圈(teal 绿,commit 105 改)
+                                //   - user 反馈"剩余额度"用主题绿更"健康"
+                                //   - 跟分类预算行"未超额 teal"风格统一
                                 value: (1.0 - _progress).clamp(0.0, 1.0),
-                                color: AppGray.g200,
+                                color: AppBrand.teal,
                                 radius: 18,
                               ),
                             if (!_hasBudget)
@@ -383,7 +385,7 @@ class _BudgetOverviewBodyState extends State<_BudgetOverviewBody> {
                           )
                         else
                           _legendRow(
-                            AppGray.g200,
+                            AppBrand.teal,
                             '剩余',
                             ((1 - _progress).clamp(0.0, 1.0) * 100)
                                 .toStringAsFixed(0),
