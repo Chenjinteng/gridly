@@ -5,7 +5,8 @@
 //   3. 点击卡片 → 关闭
 //   4. snap 动画进行中再次拖动 → 动画停止,从当前位置继续
 //   5. 快速重复打开/关闭,无状态错乱
-//   6. 多条流水分别滑动,各自的 _offset 互不影响
+//   6. 多条流水分别滑动,各自的 _offset 互不影响(openSwipeTileIdProvider 互斥:
+//      打开一条会自动收起其余已开的,所以"独立"指 state 隔离,不是同时多开)
 //
 // 验证最终状态,不依赖逐帧截图。
 import 'package:flutter/material.dart';
@@ -204,7 +205,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(_offsetOf(tester, allTiles.at(0)), 0);
-    expect(_offsetOf(tester, allTiles.at(1)), -140, reason: '第二条应保持打开状态');
+    // 2026-10-13 修正:openSwipeTileIdProvider 互斥,打开第三条会自动收起第二条
+    // (见 transaction_tile.dart:439 ref.listen openSwipeTileIdProvider)。
+    // 这正是"互不影响"的另一种体现:每条 tile 的 ref.listen 只关心自己是否被覆盖,
+    // 不会让两条同时打开。
+    expect(_offsetOf(tester, allTiles.at(1)), 0, reason: '第二条被第三条挤回关闭(互斥)');
     expect(
       _offsetOf(tester, allTiles.at(2)),
       -140,
@@ -216,7 +221,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(_offsetOf(tester, allTiles.at(0)), 0);
-    expect(_offsetOf(tester, allTiles.at(1)), -140, reason: '第二条仍应打开');
+    // 2026-10-13:第三条关闭后没有其他 tile 覆盖 provider,第二条仍处于被挤回的 0 状态
+    expect(_offsetOf(tester, allTiles.at(1)), 0, reason: '第二条仍是被挤回的关闭状态');
     expect(_offsetOf(tester, allTiles.at(2)), 0, reason: '第三条应关闭');
   });
 
