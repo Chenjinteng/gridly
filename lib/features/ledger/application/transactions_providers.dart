@@ -102,6 +102,11 @@ final ledgerMonthFilterProvider = StateProvider<int?>((ref) => null);
 /// 分类筛选:空 Set = 全部,非空 = 仅命中任一 id 的分类(多选 OR 关系)
 final ledgerCategoryFilterProvider = StateProvider<Set<int>>((ref) => <int>{});
 
+/// 2026-10-12 P3 commit 加(后续被 P3 follow-up 删掉,P5 follow-up 重新加回):
+///   资产 filter 入口在 AppBar 右上角 filter_alt 图标 → 弹多维 sheet
+///   filter bar 主行保持 3 dropdown 不动(类型/月份/分类)
+final ledgerAssetFilterProvider = StateProvider<Set<int>>((ref) => <int>{});
+
 // 2026-10-12 P3 加的 ledgerAssetFilterProvider 在 P3 follow-up commit 删掉:
 //   user 反馈"4 个筛选太多长了,按之前的来只占一行就行"
 //   filter bar 回到 3 dropdown 单行布局(类型/月份/分类),资产 filter 不上 UI
@@ -123,6 +128,8 @@ final filteredTransactionsByDayProvider =
       final typeFilter = ref.watch(ledgerTypeFilterProvider);
       final monthFilter = ref.watch(ledgerMonthFilterProvider);
       final categoryFilter = ref.watch(ledgerCategoryFilterProvider);
+      // 2026-10-12 P5 follow-up 加回:资产 filter
+      final assetFilter = ref.watch(ledgerAssetFilterProvider);
       final query = ref.watch(ledgerSearchQueryProvider).trim().toLowerCase();
 
       // 取分类一次,用来按分类名匹配搜索关键字
@@ -146,6 +153,10 @@ final filteredTransactionsByDayProvider =
         // 分类(多选 OR:命中任一选中的 id)
         if (categoryFilter.isNotEmpty &&
             !categoryFilter.contains(t.categoryId)) {
+          return false;
+        }
+        // 2026-10-12 P5 follow-up 加回:资产(多选 OR)
+        if (assetFilter.isNotEmpty && !assetFilter.contains(t.accountId)) {
           return false;
         }
         // 搜索关键字(note 命中 或 分类名命中)
