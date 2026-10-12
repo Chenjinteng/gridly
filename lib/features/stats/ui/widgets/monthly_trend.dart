@@ -299,7 +299,9 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 24,
+              // commit 73: 24 → 18,让 X label 更靠近 0 baseline,
+              // user 反馈"纵坐标离横坐标太远"是 X label 离 chart 底部空了一截
+              reservedSize: 18,
               interval: 1,
               getTitlesWidget: (v, meta) {
                 final idx = v.toInt();
