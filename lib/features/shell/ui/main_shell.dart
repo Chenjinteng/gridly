@@ -13,10 +13,8 @@
 //       AnimatedSwitcher 320ms aquaIn 交叉淡入淡出,无水平 slide
 //       切入新 tab 时旧的跟新的同时存在(Stack 同时透明),全新/旧 view 之间
 //       是 cross-fade,ColorOS 标准切 tab 风格
-//   - bottom nav:NavigationBar + 自定义 ColorOS 17 风格 pill 指示器
-//     (AnimatedPositioned 滑行 + easeOutBack 微 overshoot)
-//     NavigationBar 自带的 tonal 指示器 indicatorColor:transparent 关掉,
-//     自绘 pill 替上,更"圆滑有重量"
+//   - bottom nav:NavigationBar 直接靠默认 selectIndIcon + 金 label 颜色做
+//     选区标识,不叠自定义 pill(commit 41-42 两版 pill 都撞视觉,撤掉)
 //   - tab 切换动效时长 320ms(比 M3 短促的 150ms 长,ColorOS 主动放慢)
 //   - 触觉:select feedback(已在 commit 17 加)
 //
@@ -172,109 +170,57 @@ class _MainShellState extends ConsumerState<MainShell> {
           ),
         ],
       ),
-      // 2026-10-12 (commit 40):底 nav 自定义 ColorOS 17 pill indicator
-      //   - NavigationBar 内部 indicator(tonal pill) 关掉(indicatorColor: 透明)
-      //   - 上面叠 LayerBuilder + AnimatedPositioned 来自绘 pill
-      //   - easeOutBack 微 overshoot,ColorOS 风格"轻撞击感"
+      // 2026-10-12 (commit 43):底 nav 去掉自定义 pill
+      //   - 之前 commit 40-41 试过 self-drawn ColorOS pill,无论宽 64 还是 56,
+      //     pill 跟中央 FAB 在 slot 内视觉冲突(都是大色块),撤掉
+      //   - 改回纯 NavigationBar + selectedIndex,选区只靠 "icon 改金 +
+      //     label 改金" 标识,极简
+      //   - 切 tab 时 NavigationBar 内部 fade 过渡足够丝滑
       bottomNavigationBar: SafeArea(
         top: false,
-        child: LayoutBuilder(
-          builder: (ctx, constraints) {
-            const destCount = 5;
-            // ── pill 几何 ── (2026-10-12 commit 41 修):
-            //   之前 pillW=64 pillH=32 top=22 → pill 占据 slot 中部,
-            //   跟旁边的中央 FAB(56x56)同高,视觉撞;还把"首页/流水/..."
-            //   label 推到底部只剩 18px 看着挤。
-            //   ColorOS 17 真正底部 nav 风格:细长药丸,只框 icon,
-            //   不碰 label。
-            //   现在 pillW=56 pillH=28 top=14 → 紧贴 icon 区,
-            //   顶部 14,底部 42,label 在 50-72 完整露出。
-            const pillW = 56.0;
-            const pillH = 28.0;
-            const pillTop = 14.0;
-            final slotW = constraints.maxWidth / destCount;
-            // pill 选中 dest(0..4);dest 2 (FAB 选中)时 pill 隐藏
-            final selectedDest = _destForTab(_currentTab);
-            // pill left:slot 中心对齐
-            final pillLeft =
-                selectedDest * slotW + (slotW - pillW) / 2;
-            return SizedBox(
-              height: 72,
-              child: Stack(
-                children: [
-                  NavigationBar(
-                    height: 72,
-                    selectedIndex: selectedDest,
-                    onDestinationSelected: _handleDestSelected,
-                    backgroundColor:
-                        Theme.of(context).colorScheme.surface,
-                    // 关闭 NavigationBar 自带的 tonal pill
-                    indicatorColor: Colors.transparent,
-                    destinations: const [
-                      NavigationDestination(
-                        icon: Icon(Icons.dashboard_outlined, size: 24),
-                        selectedIcon: Icon(Icons.dashboard_rounded, size: 24),
-                        label: '首页',
-                        tooltip: '',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.list_alt_outlined, size: 24),
-                        selectedIcon: Icon(Icons.list_alt_rounded, size: 24),
-                        label: '流水',
-                        tooltip: '',
-                      ),
-                      // 中央"+":大圆角色块
-                      NavigationDestination(
-                        icon: Padding(
-                          padding: EdgeInsets.only(bottom: AppSpacing.s1),
-                          child: _CenterFab(),
-                        ),
-                        label: '',
-                        tooltip: '',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.pie_chart_outline, size: 24),
-                        selectedIcon: Icon(Icons.pie_chart_rounded, size: 24),
-                        label: '报表',
-                        tooltip: '',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.person_outline, size: 24),
-                        selectedIcon: Icon(Icons.person_rounded, size: 24),
-                        label: '我的',
-                        tooltip: '',
-                      ),
-                    ],
-                  ),
-                  // ColorOS 17 风格 pill indicator:
-                  //   - secondaryContainer 实色 pill(更柔的 cream 色)
-                  //   - 选中时 fade in(200ms aquaIn),位置滑过去(420ms easeOutBack)
-                  //   - dest 2 (中央 FAB 选中)时整 pill 隐藏
-                  AnimatedPositioned(
-                    duration: const Duration(milliseconds: 420),
-                    curve: Curves.easeOutBack,
-                    left: pillLeft,
-                    top: pillTop,
-                    width: pillW,
-                    height: pillH,
-                    child: AnimatedOpacity(
-                      duration: const Duration(milliseconds: 200),
-                      curve: AppMotion.aquaIn,
-                      opacity: selectedDest == 2 ? 0.0 : 1.0,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .secondaryContainer,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+        child: NavigationBar(
+          height: 72,
+          selectedIndex: _destForTab(_currentTab),
+          onDestinationSelected: _handleDestSelected,
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          // 关掉自带的 tonal pill(就是 M3 那个"小药丸"背景);
+          // 我们只靠 icon + label 颜色变化表示选区
+          indicatorColor: Colors.transparent,
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.dashboard_outlined, size: 24),
+              selectedIcon: Icon(Icons.dashboard_rounded, size: 24),
+              label: '首页',
+              tooltip: '',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.list_alt_outlined, size: 24),
+              selectedIcon: Icon(Icons.list_alt_rounded, size: 24),
+              label: '流水',
+              tooltip: '',
+            ),
+            // 中央"+":大圆角色块
+            NavigationDestination(
+              icon: Padding(
+                padding: EdgeInsets.only(bottom: AppSpacing.s1),
+                child: _CenterFab(),
               ),
-            );
-          },
+              label: '',
+              tooltip: '',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.pie_chart_outline, size: 24),
+              selectedIcon: Icon(Icons.pie_chart_rounded, size: 24),
+              label: '报表',
+              tooltip: '',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.person_outline, size: 24),
+              selectedIcon: Icon(Icons.person_rounded, size: 24),
+              label: '我的',
+              tooltip: '',
+            ),
+          ],
         ),
       ),
     );
