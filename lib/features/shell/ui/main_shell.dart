@@ -58,6 +58,10 @@ class _MainShellState extends ConsumerState<MainShell> {
   /// 上一次 sync 过的 route tab —— 防 context.go 与 route 同步之间循环
   int _lastRouteTab = -1;
 
+  /// 累计水平 swipe 距离(commit 47 加)。GestureDetector 不直接提供
+  /// "总拖动距离",需在 onHorizontalDragUpdate 累加 dx
+  double _swipeDx = 0;
+
   /// 4 个 tab 实际渲染的页面(dest 0/1/3/4 直接索引)
   static const _pages = <Widget>[
     HomePage(),
@@ -103,21 +107,9 @@ class _MainShellState extends ConsumerState<MainShell> {
   /// ── (dest 2 是中央 + FAB)
   int _destForTab(int tab) => tab < 2 ? tab : tab + 1;
 
-  /// 处理 tab 切换(NavigationBar onDestinationSelected 入口)
-  void _handleDestSelected(int dest) {
-    // 中央 + 走 push 路由,不切 tab
-    if (dest == 2) {
-      AppHaptics.tap();
-      final shellNav = shellNavigatorKey.currentState;
-      if (shellNav != null && shellNav.canPop()) {
-        shellNav.popUntil((route) => route.isFirst);
-      }
-      context.push('/add');
-      return;
-    }
-
-    final newTab = dest < 2 ? dest : dest - 1;
-    if (newTab == _currentTab) return;
+  /// 处理 tab 切换(NavigationBar onDestinationSelected / 水平 swipe 入口)
+  void switchToTab(int tab) {
+    if (tab < 0 || tab > 3 || tab == _currentTab) return;
 
     // 切 tab 时收掉挂着的 modal(2026-10-11 UAT bug)
     final shellNav = shellNavigatorKey.currentState;
@@ -127,9 +119,24 @@ class _MainShellState extends ConsumerState<MainShell> {
     // 触觉:commit 46 撤掉 — 切 tab 不再 selectionClick,避免打扰
     // (之前用 select 的初衷是 ColorOS O-Haptic 咔哒,但 user 反馈
     // "切换时的震动不需要",停掉)
-    _lastRouteTab = newTab;
-    setState(() => _currentTab = newTab);
-    context.go(_routeFor(newTab));
+    _lastRouteTab = tab;
+    setState(() => _currentTab = tab);
+    context.go(_routeFor(tab));
+  }
+
+  /// 处理 NavigationBar onDestinationSelected 入口。dest 是 5 个 destination
+  /// 的索引(0/1/2/3/4),中央 + 是 dest 2 → push /add 路由,不走 tab 切换
+  void _handleDestSelected(int dest) {
+    if (dest == 2) {
+      AppHaptics.tap();
+      final shellNav = shellNavigatorKey.currentState;
+      if (shellNav != null && shellNav.canPop()) {
+        shellNav.popUntil((route) => route.isFirst);
+      }
+      context.push('/add');
+      return;
+    }
+    switchToTab(dest < 2 ? dest : dest - 1);
   }
 
   @override
@@ -161,49 +168,77 @@ class _MainShellState extends ConsumerState<MainShell> {
       body: Stack(
         children: [
           const Positioned.fill(child: LedgerGridBackground()),
-          // 2026-10-12 (commit 44+46) body 切 tab:
+          // 2026-10-12 (commit 44+46+47) body 切 tab:
+          //   - GestureDetector + LayoutBuilder 监听水平 swipe 触发 switchToTab
+          //     (commit 47 加:commit 40 撤 PageView 时把 swipe 一起撤了,
+          //     user 反馈"现在左右滑动手势不行"。阈值:水平位移 > 18% 屏幕宽
+          //     或 velocity > 280 px/s 即触发)
           //   - AnimatedSwitcher 480ms AppMotion.normal cross-fade
-          //     (commit 46 改:之前 320ms 太快,user 反馈"可以慢一点",
-          //     ColorOS 标准动效节奏 = 480ms)
-          //   - 再叠一层方向感知 SlideTransition,offset = -dir * 0.06
-          //     (屏幕宽 6%)。tap→右:新页从 +0.06(右侧)滑入,旧页向左侧
-          //     滑出;tap→左:镜像。ColorOS 切 tab 的标志性"页面推过去"
-          //   - 进 480ms aquaIn,出 480ms aquaOut,新旧 page 在 Stack
-          //     同时可见(cross-fade)
+          //   - 再叠一层方向感知 SlideTransition,offset = -dir * 0.06(屏宽 6%)
           //   - 触觉:commit 46 撤掉切换震动,保留 FAB 主操作震动
-          //   - 之前 commit 40 撤掉方向感是因为 pill 太丑,现在 pill 也撤了,
-          //     方向感知 slide 留着,符合"丝滑"要求
           Positioned.fill(
-            child: AnimatedSwitcher(
-              duration: AppMotion.normal,
-              reverseDuration: AppMotion.fast,
-              switchInCurve: AppMotion.aquaIn,
-              switchOutCurve: AppMotion.aquaOut,
-              layoutBuilder: (currentChild, previousChildren) {
-                return Stack(
-                  alignment: Alignment.topCenter,
-                  children: <Widget>[
-                    ...previousChildren,
-                    ?currentChild,
-                  ],
+            child: LayoutBuilder(
+              builder: (ctx, constraints) {
+                final screenWidth = constraints.maxWidth;
+                return GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  // 累计水平拖动距离;GestureDetector 不提供"delta 求和",
+                  // 自己 addPostFrameCallback 维护一份 dx 累加
+                  onHorizontalDragStart: (_) {
+                    _swipeDx = 0;
+                  },
+                  onHorizontalDragUpdate: (d) {
+                    _swipeDx += d.delta.dx;
+                  },
+                  onHorizontalDragEnd: (d) {
+                    final velocity = d.primaryVelocity ?? 0;
+                    final pastDistance = _swipeDx.abs() > screenWidth * 0.18;
+                    final pastVelocity = velocity.abs() > 280;
+                    if (pastDistance || pastVelocity) {
+                      // drag 负方向(向左)→ 下一 tab;正方向(向右)→ 上一 tab
+                      final dir = _swipeDx < 0 ? 1 : -1;
+                      final target = (_currentTab + dir).clamp(0, 3);
+                      switchToTab(target);
+                    }
+                    _swipeDx = 0;
+                  },
+                  // AnimatedSwitcher 包 child:tab 切换时左右 slide + fade
+                  child: AnimatedSwitcher(
+                    duration: AppMotion.normal,
+                    reverseDuration: AppMotion.fast,
+                    switchInCurve: AppMotion.aquaIn,
+                    switchOutCurve: AppMotion.aquaOut,
+                    layoutBuilder: (currentChild, previousChildren) {
+                      return Stack(
+                        alignment: Alignment.topCenter,
+                        children: <Widget>[
+                          ...previousChildren,
+                          ?currentChild,
+                        ],
+                      );
+                    },
+                    transitionBuilder: (child, animation) {
+                      // SlideTransition 让新 page 从 ±0.06 横向位移滑入,
+                      // 同时 FadeTransition 让两 page 透明度同步过渡。
+                      final slide = Tween<Offset>(
+                        begin: Offset(-dir * 0.06, 0),
+                        end: Offset.zero,
+                      ).animate(animation);
+                      return SlideTransition(
+                        position: slide,
+                        child: FadeTransition(
+                          opacity: animation,
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: KeyedSubtree(
+                      key: ValueKey('tab-$_currentTab'),
+                      child: _pages[_currentTab],
+                    ),
+                  ),
                 );
               },
-              transitionBuilder: (child, animation) {
-                // SlideTransition 让新 page 从 ±0.06 横向位移滑入,
-                // 同时 FadeTransition 让两 page 透明度同步过渡。
-                final slide = Tween<Offset>(
-                  begin: Offset(-dir * 0.06, 0),
-                  end: Offset.zero,
-                ).animate(animation);
-                return SlideTransition(
-                  position: slide,
-                  child: FadeTransition(opacity: animation, child: child),
-                );
-              },
-              child: KeyedSubtree(
-                key: ValueKey('tab-$_currentTab'),
-                child: _pages[_currentTab],
-              ),
             ),
           ),
         ],
