@@ -79,20 +79,31 @@ class RangeTabs extends ConsumerWidget {
         ),
         child: Row(
           children: [
-            // ── commit 66 (revert v65 top/bottom) ── 共享 pill 滑动
-            //   v65 改成 `top: 0, bottom: 0` 后 user 截图反馈"还是有一点点贴边":
-            //   pill 跟 Container 顶/底紧贴,加上 Container 1px outlineVariant 边框,
-            //   pill 圆角跟 Container 圆角 (brLg=16) 在视觉上"咬住"边界,看起来
-            //   pill 像贴着边,缺少 floating breathing 感。
+            // ── commit 67 ("同心圈"嵌套 pill) ── 共享 pill 滑动
+            //   v66 改成 `top: 2, bottom: 2` 后 user 截图反馈"pill 还是很贴底下的那个框,
+            //   你要调整的是 pill left":
+            //   - 用户要的视觉是 pill 做成"同心圈"嵌套在 Container 里
+            //     (容器是外圆,pill 是内圆,中心对齐,各边留出呼吸空间)
+            //   - 之前 top/bottom 2 + 0 horizontal = pill 跟 container 顶/底有 2px 但
+            //     左右仍然 0 紧贴,视觉上"贴边"主要来自左右无呼吸
             //
-            //   回到 v63 的 `top: 2, bottom: 2`(2px 垂直 inset):
-            //   - 水平 pill width = segWidth 满 segment(user 接受 v63 这个宽度)
-            //   - 垂直 2px 让 pill 跟 Container 边缘有 2px 呼吸空间
-            //   - pill 圆角跟 container 圆角都是 16,inset 2 后变成 pill height = container_height - 4,
-            //     pill 内部圆角弧线跟 container 外圆角弧线错开 2px,visual 上 pill 浮在 container 里
+            //   改成统一 4 边 6px inset:
+            //   - left: isThisMonth ? 6 : segWidth + 6
+            //     (切 tab 时 pill 在两 segment 间滑动 240ms aquaIn,
+            //      inset 6 跟当前选中段同步)
+            //   - top: 6, bottom: 6
+            //   - width: segWidth - 12  (pills 左 inset 6 + 右 inset 6)
+            //   - height = container height - 12
             //
-            //   Stack + AnimatedPositioned 同样保留:LayoutBuilder 算 segWidth 跟内部 Row 2 个
-            //   Expanded 一个 flex 模型(理论上严格对齐)。
+            //   视觉效果:
+            //   - Container 圆角 16,在 (0,0) 到 (W,H)
+            //   - Pill 圆角 16,在 (6,6) 到 (W-6, H-6)
+            //   - 两层 rounded rect 中心对齐 → "同心圈"嵌套视觉
+            //   - Container border 1px outlineVariant 在最外缘,pill bg 在内,
+            //     中间 6px Container bg(浅灰)给 pill 视觉 breathing
+            //
+            //   Stack + AnimatedPositioned 保留:LayoutBuilder 算 segWidth 跟内部 Row 2 个
+            //   Expanded 一个 flex 模型,AnimatedPositioned left 滑动 240ms aquaIn。
             Expanded(
               child: LayoutBuilder(
                 builder: (ctx, c) {
@@ -100,14 +111,14 @@ class RangeTabs extends ConsumerWidget {
                   return Stack(
                     children: [
                       // 滑动 pill —— 在 InkWell 之下,ripple press 时 pill 短时被遮,抬起可见
-                      //   top/bottom 各 2,圆角 brLg=16,跟容器边缘留出 2px 呼吸空间。
+                      //   6px uniform inset,pill 嵌套在 Container 内,跟 container 边缘各 6px 呼吸。
                       AnimatedPositioned(
                         duration: AppMotion.fast,
                         curve: AppMotion.aquaIn,
-                        left: isThisMonth ? 0 : segWidth,
-                        top: 2,
-                        bottom: 2,
-                        width: segWidth,
+                        left: isThisMonth ? 6 : segWidth + 6,
+                        top: 6,
+                        bottom: 6,
+                        width: segWidth - 12,
                         child: DecoratedBox(
                           decoration: BoxDecoration(
                             color: theme.colorScheme.primary.withValues(
