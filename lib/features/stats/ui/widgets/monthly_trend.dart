@@ -299,9 +299,8 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              // commit 73: 24 → 18,让 X label 更靠近 0 baseline,
-              // user 反馈"纵坐标离横坐标太远"是 X label 离 chart 底部空了一截
-              reservedSize: 18,
+              // commit 75: 18 → 14,user 反馈"再近一点"
+              reservedSize: 14,
               interval: 1,
               getTitlesWidget: (v, meta) {
                 final idx = v.toInt();
@@ -317,7 +316,7 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
                     return const SizedBox.shrink();
                   }
                   return Padding(
-                    padding: const EdgeInsets.only(top: 4),
+                    padding: const EdgeInsets.only(top: 1),
                     child: Text(
                       '$day',
                       style: TextStyle(
@@ -329,7 +328,7 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
                 }
                 // monthly bar(12 月)X 轴全标 12 个月
                 return Padding(
-                  padding: const EdgeInsets.only(top: 4),
+                  padding: const EdgeInsets.only(top: 1),
                   child: Text(
                     '${widget.bars[idx].month}月',
                     style: TextStyle(
