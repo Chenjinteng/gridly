@@ -302,13 +302,30 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
                 if (idx < 0 || idx >= widget.bars.length) {
                   return const SizedBox.shrink();
                 }
-                final label = widget.labelKind == BarLabelKind.day
-                    ? '${widget.bars[idx].day}'
-                    : '${widget.bars[idx].month}月';
+                if (widget.labelKind == BarLabelKind.day) {
+                  // daily bar(30 根柱)X 轴只标 1, 5, 10, 15, 20, 25, 30
+                  // 稀疏化,避免小屏 label 重叠
+                  // 2026-10-12 user 反馈"太密了",从全 30 个标签改 7 个
+                  final day = widget.bars[idx].day;
+                  if (day != 1 && day % 5 != 0) {
+                    return const SizedBox.shrink();
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      '$day',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  );
+                }
+                // monthly bar(12 月)X 轴全标 12 个月
                 return Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
-                    label,
+                    '${widget.bars[idx].month}月',
                     style: TextStyle(
                       fontSize: 10,
                       color: scheme.onSurfaceVariant,
