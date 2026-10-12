@@ -54,41 +54,6 @@ class _AssetFormSheetState extends ConsumerState<AssetFormSheet> {
     'swap_horiz',
   ];
 
-  /// 2026-10-13 P6:资产类型从 4 段改 6 段(去'liability',加'investment' / 'benefit' / 'receivable')
-  /// 顺序按日常使用频度:现金 → 投资 → 福利 → 借出 → 不动产 → 其它
-  static const _typeSegments = <ButtonSegment<String>>[
-    ButtonSegment(
-      value: 'cash_flow',
-      label: Text('现金流'),
-      icon: Icon(Icons.account_balance_wallet_rounded, size: 16),
-    ),
-    ButtonSegment(
-      value: 'investment',
-      label: Text('投资'),
-      icon: Icon(Icons.trending_up_rounded, size: 16),
-    ),
-    ButtonSegment(
-      value: 'benefit',
-      label: Text('福利'),
-      icon: Icon(Icons.favorite_rounded, size: 16),
-    ),
-    ButtonSegment(
-      value: 'receivable',
-      label: Text('债权'),
-      icon: Icon(Icons.handshake_rounded, size: 16),
-    ),
-    ButtonSegment(
-      value: 'fixed_asset',
-      label: Text('不动产'),
-      icon: Icon(Icons.home_rounded, size: 16),
-    ),
-    ButtonSegment(
-      value: 'other',
-      label: Text('其它'),
-      icon: Icon(Icons.category_rounded, size: 16),
-    ),
-  ];
-
   /// 16 色调色板 — 跟 CategoryFormSheet 同款,保持视觉统一
   static const _colorOptions = <int>[
     0xFFFB923C, // 浅橙
@@ -237,83 +202,39 @@ class _AssetFormSheetState extends ConsumerState<AssetFormSheet> {
               ),
               const SizedBox(height: AppSpacing.s3),
 
-              // 类型(6 段 SegmentedButton,2026-10-13 P6 改)
-              //   现金流 / 投资 / 福利 / 债权 / 不动产 / 其它
-              //   6 段可能在小屏(360px)挤,showSelectedIcon:false 省 ~24px 给 label
+              // 类型(2026-10-13 P6 第 2 次改:6 段 SegmentedButton 太挤,
+              //   改 picker — 选中的类型显示在一行,点开底部弹 sheet 列 6 选项)
               const Text(
                 '类型',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: AppSpacing.s2),
-              SegmentedButton<String>(
-                segments: _typeSegments,
-                selected: {_type},
-                showSelectedIcon: false,
-                onSelectionChanged: (s) => setState(() => _type = s.first),
+              _TypePickerRow(
+                value: _type,
+                onPick: (v) => setState(() => _type = v),
               ),
               const SizedBox(height: AppSpacing.s4),
 
-              // 2026-10-13 P6 加:是否计入流水开关
-              //   - 默认 true(常规账户)
-              //   - 投资 / 福利 / 债权账户可以关掉
-              //   - 当前只存,流水页 filter 暂不动(等调拨 source/target 设计落地再启用)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.s3,
-                  vertical: AppSpacing.s2,
-                ),
-                decoration: BoxDecoration(
-                  color: _includeInTransactions
-                      ? Theme.of(context).colorScheme.primary
-                            .withValues(alpha: 0.06)
-                      : Theme.of(context).colorScheme.surfaceContainerLow,
-                  borderRadius: AppRadius.brMd,
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      _includeInTransactions
-                          ? Icons.receipt_long_rounded
-                          : Icons.archive_rounded,
-                      size: 20,
-                      color: _includeInTransactions
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: AppSpacing.s3),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            '计入日常流水',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _includeInTransactions
-                                ? '会出现在流水页和日常收支统计'
-                                : '不计入流水(适合投资/福利/债权等账户)',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                            ),
-                          ),
-                        ],
+              // 2026-10-13 P6 第 2 次改:计入日常流水开关
+              //   - 之前是大圆角卡片 + icon + 2 行文字,显得太重
+              //   - 改跟"期初余额"同款紧凑 Row:label 13sp + Switch 在右
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      '计入日常流水',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                    Switch.adaptive(
-                      value: _includeInTransactions,
-                      onChanged: (v) =>
-                          setState(() => _includeInTransactions = v),
-                    ),
-                  ],
-                ),
+                  ),
+                  Switch.adaptive(
+                    value: _includeInTransactions,
+                    onChanged: (v) =>
+                        setState(() => _includeInTransactions = v),
+                  ),
+                ],
               ),
               const SizedBox(height: AppSpacing.s4),
 
@@ -441,6 +362,191 @@ class _AssetFormSheetState extends ConsumerState<AssetFormSheet> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ============================================================================
+// 类型 picker row(2026-10-13 P6 第 2 次改):
+//   - 替代 6 段 SegmentedButton(在小屏挤,2 行 label 难看)
+//   - 当前选中的类型显示在一行(icon + label + 颜色条 + chevron)
+//   - tap → showModalBottomSheet 弹底部 sheet,列 6 个选项(icon + label)
+//   - 选中后 sheet 关闭 + onPick 回调
+// 视觉跟 asset_summary_card 的"6 类配色"对齐
+// ============================================================================
+
+class _TypePickerRow extends StatelessWidget {
+  const _TypePickerRow({required this.value, required this.onPick});
+
+  final String value;
+  final ValueChanged<String> onPick;
+
+  /// 6 段类型配置(顺序按日常查看频度)
+  /// 跟 _AssetFormSheetState._typeSegments / asset_tile / asset_summary_card
+  ///   共用同一份数据,这里独立维护一份是为了 picker 内部 list 用
+  static const _options = <(String, String, IconData)>[
+    ('cash_flow', '现金流', Icons.account_balance_wallet_rounded),
+    ('investment', '投资', Icons.trending_up_rounded),
+    ('benefit', '福利', Icons.favorite_rounded),
+    ('receivable', '债权/借出', Icons.handshake_rounded),
+    ('fixed_asset', '不动产', Icons.home_rounded),
+    ('other', '其它', Icons.category_rounded),
+  ];
+
+  /// 6 段类型配色(跟 asset_summary_card._colorFor 一致)
+  Color _colorFor(String t) {
+    switch (t) {
+      case 'cash_flow':
+        return AppBrand.teal;
+      case 'investment':
+        return AppBrand.gold;
+      case 'benefit':
+        return AppStatus.success;
+      case 'receivable':
+        return AppStatus.warning;
+      case 'fixed_asset':
+        return AppStatus.info;
+      default:
+        return AppGray.g600;
+    }
+  }
+
+  IconData _iconFor(String t) {
+    for (final o in _options) {
+      if (o.$1 == t) return o.$3;
+    }
+    return Icons.category_rounded;
+  }
+
+  String _labelFor(String t) {
+    for (final o in _options) {
+      if (o.$1 == t) return o.$2;
+    }
+    return t;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = _colorFor(value);
+    final icon = _iconFor(value);
+    final label = _labelFor(value);
+    return InkWell(
+      onTap: () => _openPicker(context),
+      borderRadius: AppRadius.brSm,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.s3,
+          vertical: AppSpacing.s3,
+        ),
+        decoration: BoxDecoration(
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+          borderRadius: AppRadius.brSm,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.18),
+                borderRadius: AppRadius.brXs,
+              ),
+              child: Icon(icon, color: color, size: 16),
+            ),
+            const SizedBox(width: AppSpacing.s3),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 20,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openPicker(BuildContext context) {
+    showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      builder: (sheetCtx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.s2),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 把手
+                Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(top: 8, bottom: 12),
+                  decoration: BoxDecoration(
+                    color: AppGray.g400,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppSpacing.s4,
+                    vertical: AppSpacing.s2,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '选择类型',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      TextButton(onPressed: null, child: Text('关闭')),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                for (final (key, label, icon) in _options)
+                  ListTile(
+                    leading: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: _colorFor(key).withValues(alpha: 0.18),
+                        borderRadius: AppRadius.brXs,
+                      ),
+                      child: Icon(icon, color: _colorFor(key), size: 18),
+                    ),
+                    title: Text(label, style: const TextStyle(fontSize: 15)),
+                    trailing: value == key
+                        ? Icon(
+                            Icons.check,
+                            color: Theme.of(sheetCtx).colorScheme.primary,
+                          )
+                        : null,
+                    onTap: () {
+                      Navigator.pop(sheetCtx);
+                      onPick(key);
+                    },
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

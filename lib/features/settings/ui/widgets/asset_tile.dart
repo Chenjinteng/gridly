@@ -46,23 +46,29 @@ class AssetTile extends ConsumerWidget {
     'swap_horiz': Icons.swap_horiz_rounded,
   };
 
-  /// type 名 → 中文标签
+  /// type 名 → 中文标签(2026-10-13 P6:4 段 → 6 段,加投资/福利/债权)
   static const Map<String, String> typeLabels = {
     'cash_flow': '现金流',
+    'investment': '投资',
+    'benefit': '福利',
+    'receivable': '债权/借出',
     'fixed_asset': '不动产',
-    'liability': '负债',
-    'other': '其他',
+    'other': '其它',
   };
 
-  /// type 名 → 配色(跟 asset_summary_card 同源)
+  /// type 名 → 配色(跟 asset_summary_card 同源,2026-10-13 P6 加 3 类)
   static Color colorFor(String type) {
     switch (type) {
       case 'cash_flow':
         return AppBrand.teal;
+      case 'investment':
+        return AppBrand.gold;
+      case 'benefit':
+        return AppStatus.success;
+      case 'receivable':
+        return AppStatus.warning;
       case 'fixed_asset':
         return AppStatus.info;
-      case 'liability':
-        return AppStatus.error;
       default:
         return AppGray.g600;
     }
@@ -127,6 +133,29 @@ class AssetTile extends ConsumerWidget {
                   ),
                 ),
               ),
+              // 2026-10-13 P6 加:includeInTransactions=false 时,显示
+              //   "不计入流水"灰色 chip,user 在资产列表一眼看到
+              if (!asset.includeInTransactions) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppGray.g400.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    '不计入流水',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: AppGray.g600,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(width: 8),
               Text(
                 '¥${Formatters.amount(balance)}',
