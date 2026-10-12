@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app_database.dart';
 import 'repositories/transaction_repository.dart';
 import 'repositories/category_repository.dart';
+import 'repositories/category_budget_repository.dart';
 
 /// Database 单例 Provider
 final databaseProvider = Provider<AppDatabase>((ref) {
@@ -20,4 +21,10 @@ final transactionRepositoryProvider = Provider<TransactionRepository>((ref) {
 /// CategoryRepository Provider
 final categoryRepositoryProvider = Provider<CategoryRepository>((ref) {
   return CategoryRepository(ref.watch(databaseProvider));
+});
+
+/// CategoryBudgetRepository Provider(commit 90 加)
+final categoryBudgetRepositoryProvider =
+    Provider<CategoryBudgetRepository>((ref) {
+  return CategoryBudgetRepository(ref.watch(databaseProvider));
 });
