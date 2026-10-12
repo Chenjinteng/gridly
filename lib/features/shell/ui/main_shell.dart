@@ -4,18 +4,24 @@
 //
 // Stack 底层铺 LedgerGridBackground(16×16 格子纸背景),强化"格子"主题。
 //
-// 2026-10-12 ColorOS Aquamorphic 改造:
-//   - body child 包 PageView(BouncingScrollPhysics),支持左滑右滑手势切 tab
-//   - PageView 4 children:首页 / 流水 / 报表 / 我的(中央 + 是 push 路由,
-//     不在 PageView 内)
-//   - PageController 控制位置;切 nav (0/1/3/4) → animateToPage 对应 pageIndex;
-//       swipe PageView → onPageChanged → context.go 同步路由
-//   - PageView vs AnimatedSwitcher:PageView 的 swipe gesture 是用户主动手势,
-//     navigation 手感更"原生";BouncingScrollPhysics 给 swipe 到边界回弹
-//     (ColorOS Tactile)。
+// 2026-10-12 ColorOS Aquamorphic 改造(commit 40):丝滑 tab 切换
+//   - body:AnimatedSwitcher keyed,带 layoutBuilder Stack cross-fade
+//     ── 之前 ──(commit 36):
+//       PageView + animateToPage(720ms aquaIn)
+//       切换是 horizontal slide,像 PPT 一页一页翻过去
+//     ── 现在 ──:
+//       AnimatedSwitcher 320ms aquaIn 交叉淡入淡出,无水平 slide
+//       切入新 tab 时旧的跟新的同时存在(Stack 同时透明),全新/旧 view 之间
+//       是 cross-fade,ColorOS 标准切 tab 风格
+//   - bottom nav:NavigationBar + 自定义 ColorOS 17 风格 pill 指示器
+//     (AnimatedPositioned 滑行 + easeOutBack 微 overshoot)
+//     NavigationBar 自带的 tonal 指示器 indicatorColor:transparent 关掉,
+//     自绘 pill 替上,更"圆滑有重量"
+//   - tab 切换动效时长 320ms(比 M3 短促的 150ms 长,ColorOS 主动放慢)
+//   - 触觉:select feedback(已在 commit 17 加)
 //
-//   之前 commit 3 用 AnimatedSwitcher + 左右 slide,提供程序化切 tab 的过场;
-//   这次 commit 36 加 PageView,左滑右滑手势支持。仍保留 nav 点击切 tab。
+// 注:PageView swipe-tab 已弃用 — ColorOS 应用从不支持左滑切 tab,那是
+//     iOS 风。需要时再补回(commit 36 加过,但跟 cross-fade 不可叠加)。
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -39,215 +45,228 @@ class MainShell extends ConsumerStatefulWidget {
 }
 
 class _MainShellState extends ConsumerState<MainShell> {
-  /// PageController 控制 PageView 当前页。
-  /// 初始 0(首页)。
-  late final PageController _pageCtrl;
+  /// 4 个 tab 页面的当前索引:0=首页 / 1=流水 / 2=报表 / 3=我的
+  /// 注意:FAB 不在 4 个 tab 内,dest 2 走 push '/add' 路由
+  int _currentTab = 0;
 
-  /// 上一次 tab 切换的目的地 index —— 防止 onPageChanged 跟 nav 点击
-  /// 之间出现重复 context.go() 循环。
-  int? _lastDestIndex;
+  /// 上一次 sync 过的 route tab —— 防 context.go 与 route 同步之间循环
+  int _lastRouteTab = -1;
 
-  @override
-  void initState() {
-    super.initState();
-    _pageCtrl = PageController();
-  }
+  /// 4 个 tab 实际渲染的页面(dest 0/1/3/4 直接索引)
+  static const _pages = <Widget>[
+    HomePage(),
+    LedgerPage(),
+    StatsPage(),
+    SettingsPage(),
+  ];
 
-  @override
-  void dispose() {
-    _pageCtrl.dispose();
-    super.dispose();
-  }
-
-  /// nav destination index (0/1/3/4) → PageView pageIndex (0/1/2/3)
-  /// 中央 + (dest 2) 不映射,走 push 路由。
-  int _pageFromDest(int dest) => dest < 2 ? dest : dest - 1;
-
-  /// PageView pageIndex (0/1/2/3) → nav destination index (0/1/3/4)
-  int _destFromPage(int page) => page < 2 ? page : page + 1;
-
-  /// 从当前路径算 nav destination index,跟 _currentIndex 等价
-  int _currentIndex(BuildContext context) {
+  /// 从 GoRouter 当前路径算出 tab index(0/1/2/3),对不上路由(例如 /add
+  /// modal)时 fallback 1(流水),避免底部 nav 错乱高亮
+  int _tabFromRoute(BuildContext context) {
     final loc = GoRouterState.of(context).uri.path;
-    // 中央"+" 占 destination index 2(空 label),所以 /stats / /settings
-    // 在 destinations 里要 +1(跳开 index 2)
-    // 在 /add(root modal)时不命中任何 tab;fallback 到 1(流水)避免
-    // 底部 nav 高亮错乱。
-    if (loc.startsWith('/add')) return 1;
-    if (loc.startsWith('/edit')) return 1;
     if (loc.startsWith('/home')) return 0;
     if (loc.startsWith('/ledger')) return 1;
-    if (loc.startsWith('/stats')) return 3;
-    if (loc.startsWith('/settings')) return 4;
+    if (loc.startsWith('/stats')) return 2;
+    if (loc.startsWith('/settings')) return 3;
+    // /add、/edit 弹 modal 期间默认高亮流水
+    if (loc.startsWith('/add')) return 1;
+    if (loc.startsWith('/edit')) return 1;
     return 0;
+  }
+
+  /// tab index → router path
+  String _routeFor(int tab) {
+    switch (tab) {
+      case 0:
+        return '/home';
+      case 1:
+        return '/ledger';
+      case 2:
+        return '/stats';
+      case 3:
+      default:
+        return '/settings';
+    }
+  }
+
+  /// NavigationBar 的 destination 索引(0/1/2/3/4),tab index 与之差 1
+  /// ── tab 0=home → dest 0
+  /// ── tab 1=ledger → dest 1
+  /// ── tab 2=stats → dest 3
+  /// ── tab 3=settings → dest 4
+  /// ── (dest 2 是中央 + FAB)
+  int _destForTab(int tab) => tab < 2 ? tab : tab + 1;
+
+  /// 处理 tab 切换(NavigationBar onDestinationSelected 入口)
+  void _handleDestSelected(int dest) {
+    // 中央 + 走 push 路由,不切 tab
+    if (dest == 2) {
+      AppHaptics.tap();
+      final shellNav = shellNavigatorKey.currentState;
+      if (shellNav != null && shellNav.canPop()) {
+        shellNav.popUntil((route) => route.isFirst);
+      }
+      context.push('/add');
+      return;
+    }
+
+    final newTab = dest < 2 ? dest : dest - 1;
+    if (newTab == _currentTab) return;
+
+    // 切 tab 时收掉挂着的 modal(2026-10-11 UAT bug)
+    final shellNav = shellNavigatorKey.currentState;
+    if (shellNav != null && shellNav.canPop()) {
+      shellNav.popUntil((route) => route.isFirst);
+    }
+    // 触觉:标准切 tab 用 select(短促 selectionClick)
+    AppHaptics.select();
+    _lastRouteTab = newTab;
+    setState(() => _currentTab = newTab);
+    context.go(_routeFor(newTab));
   }
 
   @override
   Widget build(BuildContext context) {
-    final currentIndex = _currentIndex(context);
-
-    // URL 路径变化(切路由、deeplink)时,PageView 同步过去
-    //   守卫 _lastDestIndex 防 context.go 触发的 controller.animateToPage
-    //   → onPageChanged → context.go 循环。
-    final expectedPage = _pageFromDest(currentIndex);
-    if (_pageCtrl.hasClients &&
-        _pageCtrl.page?.round() != expectedPage) {
-      // 路由先动,PageView 跟过去(用 jumpToPage 避免再触发 onPageChanged)
-      _pageCtrl.jumpToPage(expectedPage);
+    // 路由 → tab index 同步(deeplink / 外部触发)
+    final routeTab = _tabFromRoute(context);
+    if (routeTab != _lastRouteTab && routeTab != _currentTab) {
+      _lastRouteTab = routeTab;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _currentTab = routeTab);
+      });
+    } else {
+      _lastRouteTab = routeTab;
     }
 
     return Scaffold(
       body: Stack(
         children: [
           const Positioned.fill(child: LedgerGridBackground()),
-          // PageView:4 children,左滑右滑切换。PageView 自身动画已经够"丝滑",
-          // 720ms 的曲线跟之前 AnimatedSwitcher 等价,无需额外 transition。
-          // BouncingScrollPhysics:swipe 到边界 overscroll + 回弹(ColorOS 风)。
+          // 2026-10-12 (commit 40):body 切 tab 用 AnimatedSwitcher cross-fade
+          // ── 之前 ──:PageView + animateToPage → 水平横滑,iOS 风
+          // ── 现在 ──:320ms aquaIn/aquaOut 交叉淡入淡出,完全无水平 slide
+          // layoutBuilder Stack 让 previous children 跟 current child 同时
+          // 渲染,中间没有"空白帧"
           Positioned.fill(
-            child: PageView(
-              controller: _pageCtrl,
-              physics: const BouncingScrollPhysics(),
-              // 不显示 PageView 默认的左右滚动条
-              scrollBehavior: const MaterialScrollBehavior().copyWith(
-                scrollbars: false,
-              ),
-              onPageChanged: (page) {
-                final dest = _destFromPage(page);
-                // /add 或 /edit 期间(PageView user input 不会触发,因为 nav 2
-                // 不在 PageView children 里),忽略
-                if (dest == _lastDestIndex) return;
-                _lastDestIndex = dest;
-                // 触觉:swipe 切 tab 跟点 nav 一致,都用 selectionClick
-                AppHaptics.select();
-                // 路由同步
-                switch (dest) {
-                  case 0:
-                    context.go('/home');
-                  case 1:
-                    context.go('/ledger');
-                  case 3:
-                    context.go('/stats');
-                  case 4:
-                    context.go('/settings');
-                }
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 320),
+              switchInCurve: AppMotion.aquaIn,
+              switchOutCurve: AppMotion.aquaOut,
+              layoutBuilder: (currentChild, previousChildren) {
+                return Stack(
+                  alignment: Alignment.topCenter,
+                  children: <Widget>[
+                    ...previousChildren,
+                    ?currentChild,
+                  ],
+                );
               },
-              // 4 children 顺序对应 dest 0/1/3/4
-              children: const [
-                HomePage(),
-                LedgerPage(),
-                StatsPage(),
-                SettingsPage(),
-              ],
+              transitionBuilder: (child, animation) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+              child: KeyedSubtree(
+                key: ValueKey('tab-$_currentTab'),
+                child: _pages[_currentTab],
+              ),
             ),
           ),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        height: 72,
-        selectedIndex: currentIndex,
-        onDestinationSelected: (i) {
-          // 切 tab 时收掉挂着的 modal sheet:
-          //   showModalBottomSheet 默认 push 到 ShellRoute 自带的 navigator
-          //   (_shellNavigatorKey → 现在已暴露为 shellNavigatorKey)
-          //   context.go() 只换 go_router 配置的 route,Navigator 栈不动,所以
-          //   sheet 会"跨 tab 不消失"(2026-10-11 UAT bug 反复)。
-          //
-          // 不用 Navigator.of(context) 取就近 Navigator — 那值取决于 BuildContext
-          // 的位置,在 onDestinationSelected 回调里不一定拿到 shellNavigatorKey
-          // 那个。直接拿全局 key 的 currentState 准。
-          final shellNav = shellNavigatorKey.currentState;
-          if (shellNav != null && shellNav.canPop()) {
-            shellNav.popUntil((route) => route.isFirst);
-          }
-          // 2026-10-12 ColorOS Tactile Haptics:tab 切换的标志性"咔哒"。
-          // 用 selectionClick 比 lightImpact 更"轻",符合 ColorOS O-Haptic
-          // 设计。中央"+" 按下用 tap(数字键同款,因为是触发操作)。
-          if (i == 2) {
-            AppHaptics.tap();
-          } else {
-            AppHaptics.select();
-          }
-          // 5 个 destination:0=首页 / 1=流水 / 2=中央 "+" / 3=报表 / 4=我的
-          // i==2 推到 root modal;其它先同步 _lastDestIndex(避免 swipe 后
-          // 反向 onPageChanged 触发重复 context.go),再用 PageController
-          // 平滑滚到对应页。
-          switch (i) {
-            case 0:
-              _lastDestIndex = 0;
-              _pageCtrl.animateToPage(
-                _pageFromDest(0),
-                duration: const Duration(milliseconds: 720),
-                curve: AppMotion.aquaIn,
-              );
-              context.go('/home');
-            case 1:
-              _lastDestIndex = 1;
-              _pageCtrl.animateToPage(
-                _pageFromDest(1),
-                duration: const Duration(milliseconds: 720),
-                curve: AppMotion.aquaIn,
-              );
-              context.go('/ledger');
-            case 2:
-              context.push('/add');
-            case 3:
-              _lastDestIndex = 3;
-              _pageCtrl.animateToPage(
-                _pageFromDest(3),
-                duration: const Duration(milliseconds: 720),
-                curve: AppMotion.aquaIn,
-              );
-              context.go('/stats');
-            case 4:
-              _lastDestIndex = 4;
-              _pageCtrl.animateToPage(
-                _pageFromDest(4),
-                duration: const Duration(milliseconds: 720),
-                curve: AppMotion.aquaIn,
-              );
-              context.go('/settings');
-          }
-        },
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        indicatorColor: Colors.transparent,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined, size: 24),
-            selectedIcon: Icon(Icons.dashboard_rounded, size: 24),
-            label: '首页',
-            // NavigationBar 默认把 label 当 tooltip 用,长按/悬停就弹一个
-            // 跟 label 文字完全一样的浮窗(底部 nav 上是冗余噪声)。
-            // tooltip 显式置空字符串关闭。
-            tooltip: '',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.list_alt_outlined, size: 24),
-            selectedIcon: Icon(Icons.list_alt_rounded, size: 24),
-            label: '流水',
-            tooltip: '',
-          ),
-          // 中央"+" 走大色块,THEME.md §6.2
-          NavigationDestination(
-            icon: Padding(
-              padding: EdgeInsets.only(bottom: AppSpacing.s1),
-              child: _CenterFab(),
-            ),
-            label: '',
-            tooltip: '',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.pie_chart_outline, size: 24),
-            selectedIcon: Icon(Icons.pie_chart_rounded, size: 24),
-            label: '报表',
-            tooltip: '',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline, size: 24),
-            selectedIcon: Icon(Icons.person_rounded, size: 24),
-            label: '我的',
-            tooltip: '',
-          ),
-        ],
+      // 2026-10-12 (commit 40):底 nav 自定义 ColorOS 17 pill indicator
+      //   - NavigationBar 内部 indicator(tonal pill) 关掉(indicatorColor: 透明)
+      //   - 上面叠 LayerBuilder + AnimatedPositioned 来自绘 pill
+      //   - easeOutBack 微 overshoot,ColorOS 风格"轻撞击感"
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: LayoutBuilder(
+          builder: (ctx, constraints) {
+            const destCount = 5;
+            const pillW = 64.0;
+            const pillH = 32.0;
+            final slotW = constraints.maxWidth / destCount;
+            // pill 选中 dest(0..4);dest 2 (FAB 选中)时 pill 隐藏
+            final selectedDest = _destForTab(_currentTab);
+            // pill left:slot 中心对齐
+            final pillLeft =
+                selectedDest * slotW + (slotW - pillW) / 2;
+            return SizedBox(
+              height: 72,
+              child: Stack(
+                children: [
+                  NavigationBar(
+                    height: 72,
+                    selectedIndex: selectedDest,
+                    onDestinationSelected: _handleDestSelected,
+                    backgroundColor:
+                        Theme.of(context).colorScheme.surface,
+                    // 关闭 NavigationBar 自带的 tonal pill
+                    indicatorColor: Colors.transparent,
+                    destinations: const [
+                      NavigationDestination(
+                        icon: Icon(Icons.dashboard_outlined, size: 24),
+                        selectedIcon: Icon(Icons.dashboard_rounded, size: 24),
+                        label: '首页',
+                        tooltip: '',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.list_alt_outlined, size: 24),
+                        selectedIcon: Icon(Icons.list_alt_rounded, size: 24),
+                        label: '流水',
+                        tooltip: '',
+                      ),
+                      // 中央"+":大圆角色块
+                      NavigationDestination(
+                        icon: Padding(
+                          padding: EdgeInsets.only(bottom: AppSpacing.s1),
+                          child: _CenterFab(),
+                        ),
+                        label: '',
+                        tooltip: '',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.pie_chart_outline, size: 24),
+                        selectedIcon: Icon(Icons.pie_chart_rounded, size: 24),
+                        label: '报表',
+                        tooltip: '',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.person_outline, size: 24),
+                        selectedIcon: Icon(Icons.person_rounded, size: 24),
+                        label: '我的',
+                        tooltip: '',
+                      ),
+                    ],
+                  ),
+                  // ColorOS 17 风格 pill indicator:
+                  //   - secondaryContainer 实色(更高对比度的"小药丸")
+                  //   - 选中时 fade in(200ms aquaIn),位置滑过去(420ms easeOutBack)
+                  //   - dest 2 (中央 FAB 选中)时整 pill 隐藏
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 420),
+                    curve: Curves.easeOutBack,
+                    left: pillLeft,
+                    top: (72 - pillH) / 2 + 4,
+                    width: pillW,
+                    height: pillH,
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 200),
+                      curve: AppMotion.aquaIn,
+                      opacity: selectedDest == 2 ? 0.0 : 1.0,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .secondaryContainer,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
