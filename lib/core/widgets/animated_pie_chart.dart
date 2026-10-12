@@ -1,17 +1,19 @@
 // lib/core/widgets/animated_pie_chart.dart
-// 圆环 / 仪表盘风格进度环 —— 全部用 CustomPainter 自绘,不用 fl_chart。
+// 圆环 / 仪表盘风格进度环 —— CustomPainter 自绘,扇区端圆角 + 间隙分隔。
 //
-// 2026-10-12 重写语义(第 7 版,commit 50):
-//   - v1-v5 全用 fl_chart,用户反馈"打开瞬间有底色 + 切换卡顿"
-//   - v6 commit 49 改 CustomPainter 自绘 + Color.lerp(transparent → 实色):
-//     没了底色,但 user 反馈\"过程中好像会有色差\"—— Color.lerp 在 ratio=0.5
-//     时颜色半透明,在浅/深背景下被\"洗白\",看起来不像实色
-//   - v7 (本版) 参考 ColorOS 17 健康 App 步数环(同款 Apple Activity Ring
-//     风格) 的做法:
-//       - 实色填充,**没有 alpha 渐变**——颜色从出现瞬间就是满色,彻底
-//         解决色差问题
-//       - 每扇区角度从 0 涨到 full,顺时针连贯扫,8 个扇区依次出现
-//       - 扇区之间留 1.2° 小间隙,既方便肉眼区分段,又不喧宾夺主
+// 2026-10-12 重写语义(第 8 版,commit 51):
+//   - v7 commit 50:fill 路径 + 1.2° 间距,但 radial 切边还是直角的,
+//     视觉上"边界太硬"(user 反馈)
+//   - v8 (本版) 改 stroke + StrokeCap.round —— ColorOS 17 健康 App
+//     步数环(同款 Apple Activity Ring 风)做法:
+//       - 每扇区是一笔弧(stroke)+ 两端 semicircle cap(StrokeCap.round
+//         自动加),形状像"药丸"
+//       - 弧路径在两端各缩 capAngular + 1.2°,让相邻 sector cap 不接触,
+//         留 ~2.4° 可见间隙
+//       - 实色填充,无 alpha 渐变
+//       - sweep 0°→360°,扇区按顺序填充
+//
+// 总时长 2400ms,8 个扇区每个有 ~300ms 完整"长出"过程。
 //
 // 用法
 //   AnimatedPieChart(
@@ -24,16 +26,12 @@
 //
 // 实现要点:
 //   - AnimationController + addPostFrameCallback forward(首次 mount 启动)
-//   - Sweep 从 startDegreeOffset(-90°=12 点)顺时针 0°→360°
-//   - 每扇区累计角度 = cumDeg,sectorEnd = cumDeg + sectorDeg
-//   - 距离 startDegreeOffset 的 sweep 位置:
-//     - sweepRel < sectorStart  → ratio = 0(不画)
-//     - sweepRel > sectorEnd    → ratio = 1(完整)
-//     - 中间                    → ratio = (sweepRel - sectorStart) / sectorDeg
-//   - 实色绘制:`sec.color` 直接给 paint.color,**没有 transparent 渐变**。
-//     ratio 仅控制 angular extent(从 0 涨到 sectorDeg - _kGapDeg)
-//   - 间隙:每扇区在 visual 上两侧各缩 0.6°,既可分辨边界又不破坏连贯感
-//   - duration 2400ms,8 个扇区每个 ~300ms(剔除 1.2° 间隙后完整填充)
+//   - 每扇区 stroke 弧 + 两端圆角 cap(paint.strokeCap = round)
+//   - 弧路径:从 sectorStart+paddingDeg 扫到 sectorEnd-paddingDeg,中间
+//     长度 = sectorDeg - 2*paddingDeg 严格保证 caps 不出 boundary
+//   - paddingDeg = capAngular + 1.2°,capAngular = asin((outer-inner)/2 / midRadius)
+//     弧度化度数;result:相邻 sector 的 caps 各退 1.2°,看到的就是背景间隙
+//   - 顺序出颜色:从 12 点 (-90°) 顺时针,ratio 控制 path length 增长
 //   - key 变化触发 widget 重新 mount → 重画
 import 'dart:math' as math;
 
@@ -72,9 +70,9 @@ class _AnimatedPieChartState extends State<AnimatedPieChart>
   late final AnimationController _ctrl;
   late final Animation<double> _t;
 
-  /// 总动画时长(commit 50,从 v6 2400ms 保持):
-  ///   8 个扇区每个有 ~300ms 独立填充时间,user 能清楚看到"扫到一个,
-  ///   出一个颜色"的先后顺序。aquaIn 阻尼前快后慢,收尾自然减速。
+  /// 总动画时长(commit 51 保持 2400ms):
+  ///   8 个扇区每个 ~300ms,user 能清楚看到"扫到一个,出一个颜色"
+  ///   的顺序。aquaIn 阻尼前快后慢,收尾自然减速。
   static const Duration _kDuration = Duration(milliseconds: 2400);
 
   @override
@@ -115,41 +113,15 @@ class _AnimatedPieChartState extends State<AnimatedPieChart>
   }
 }
 
-/// 自绘 partial annulus path — 给定中心 / 外圈半径 / 内圈半径 / 起始角 /
-/// 扫过角度,返回一个闭合 donut slice 路径。clockwise 顺时针方向。
-Path buildAnnulusPath({
-  required Offset center,
-  required double outer,
-  required double inner,
-  required double startDeg,
-  required double sweepDeg,
-}) {
-  final outerRect = Rect.fromCircle(center: center, radius: outer);
-  final innerRect = Rect.fromCircle(center: center, radius: inner);
-  final startRad = startDeg * math.pi / 180;
-  final sweepRad = sweepDeg * math.pi / 180;
-  final endRad = startRad + sweepRad;
-
-  final startOuter = Offset(
-    center.dx + outer * math.cos(startRad),
-    center.dy + outer * math.sin(startRad),
-  );
-  final endInner = Offset(
-    center.dx + inner * math.cos(endRad),
-    center.dy + inner * math.sin(endRad),
-  );
-
-  final path = Path()..moveTo(startOuter.dx, startOuter.dy);
-  // 外圈顺时针弧
-  path.arcTo(outerRect, startRad, sweepRad, false);
-  // 连线到内圈终点
-  path.lineTo(endInner.dx, endInner.dy);
-  // 内圈逆时针弧回起点
-  path.arcTo(innerRect, endRad, -sweepRad, false);
-  path.close();
-  return path;
-}
-
+/// 自绘 stroke 圆角端 sector —— Apple Activity ring 风。
+///
+/// 每扇区是 stroke + rounded cap:
+///   - 弧路径从 sectorStart + paddingDeg 划到 sectorEnd - paddingDeg
+///   - paddingDeg = capAngular + 1.2°,保证:
+///     - 两端 StrokeCap.round 自动加 cap,cap 圆心在路径端点
+///     - cap 半径 = (outer - inner) / 2;cap angular 范围 ≈ capRadius / midRadius
+///     - 缩小路径让 caps 完全在自己 sector 范围内,不延伸进相邻 sector
+///     - 1.2° 多留隙让 background 在 cap-cap 之间可见 ~2.4°
 class _GaugePainter extends CustomPainter {
   final double sweepProgress;
   final List<PieChartSectionData> sections;
@@ -165,11 +137,10 @@ class _GaugePainter extends CustomPainter {
     required this.startDegreeOffset,
   });
 
-  /// 扇区之间留 1.2° 间隔(两侧各 0.6°)。
-  /// ColorOS 17 健康 App 步数环同款 visual rhythm —— 扇区界限清晰,
-  /// 但间隙小得刚好看到而不是被"切断"。
-  static const double _kGapDeg = 1.2;
-  static const double _kHalfGapDeg = _kGapDeg / 2;
+  /// 扇区间的可见间隙(paddingDeg 的一部分)。
+  /// 1.2° 看着清晰但不过分,跟 round cap 配合效果好。
+  /// 调整这个值改"sector 之间分多开"。
+  static const double _kClearanceDeg = 1.2;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -178,6 +149,14 @@ class _GaugePainter extends CustomPainter {
     final maxOuter = math.min(size.width, size.height) / 2;
     final outer = math.min(outerRadius, maxOuter);
     final inner = math.min(innerRadius, outer - 4);
+    final middleRadius = (outer + inner) / 2;
+    final ringThickness = outer - inner;
+    final capRadius = ringThickness / 2;
+
+    // cap Angular 范围(弧度→度):cap 是 circle,边界在 middleRadius 处
+    // 切线方向最远 +asin(capRadius / middleRadius) 度
+    final capAngularDeg = math.asin(capRadius / middleRadius) * 180 / math.pi;
+    final paddingDeg = capAngularDeg + _kClearanceDeg;
 
     final total = sections.fold<double>(0, (s, e) => s + e.value);
     if (total <= 0) return; // 空数据兜底:什么都不画
@@ -190,7 +169,6 @@ class _GaugePainter extends CustomPainter {
       final sectorStart = cumDeg;
       final sectorEnd = cumDeg + sectorDeg;
 
-      // 距离 startDegreeOffset 的相对 sweep 位置
       final sweepRel = sweepDeg;
 
       double ratio;
@@ -203,25 +181,26 @@ class _GaugePainter extends CustomPainter {
       }
 
       if (ratio > 0) {
-        // 实色填充(不 fade)—— ColorOS 17 Health ring / Apple Activity 风格。
-        // 一旦该扇区被扫到,瞬间就是满色,过程中无色差
+        // Stroke 圆角端(ColorOS 17 Health / Apple Activity 风)
         final paint = Paint()
           ..color = sec.color
-          ..style = PaintingStyle.fill;
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = ringThickness
+          ..strokeCap = StrokeCap.round;
 
-        // 绘制 visual extent = sectorDeg * ratio - gap,
-        // 即使 sectorDeg 很小时 gap 上限也不让它变负
-        final maxDrawSweep = math.max(0.0, sectorDeg - _kGapDeg);
+        // 弧路径从 sectorStart + paddingDeg 到 sectorEnd - paddingDeg
+        // ratio 控制 path 实际长度,使 leading edge 跟 sweep position 走
+        final drawStart = sectorStart + paddingDeg;
+        final maxDrawSweep = math.max(0.0, sectorDeg - 2 * paddingDeg);
         final drawSweep = maxDrawSweep * ratio;
 
         if (drawSweep > 0) {
-          final path = buildAnnulusPath(
-            center: center,
-            outer: outer,
-            inner: inner,
-            startDeg: sectorStart + _kHalfGapDeg,
-            sweepDeg: drawSweep,
-          );
+          final path = Path()
+            ..addArc(
+              Rect.fromCircle(center: center, radius: middleRadius),
+              drawStart * math.pi / 180,
+              drawSweep * math.pi / 180,
+            );
           canvas.drawPath(path, paint);
         }
       }
