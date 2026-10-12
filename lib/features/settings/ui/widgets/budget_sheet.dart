@@ -15,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/providers.dart';
+import '../../../../core/haptics/app_haptics.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -216,274 +217,287 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
           AppSpacing.s4,
           MediaQuery.of(context).viewInsets.bottom + AppSpacing.s4,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 顶部小拉手
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: AppSpacing.s3),
-                decoration: BoxDecoration(
-                  color: AppGray.g400,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const Text(
-              '月度预算',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: AppSpacing.s1),
-            const Text(
-              '设置总额度后可给具体分类配置子额度;未配置分类共享剩余池。',
-              style: TextStyle(fontSize: 12, color: AppGray.g600),
-            ),
-            const SizedBox(height: AppSpacing.s4),
-            // 总额度输入
-            TextField(
-              controller: _totalController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              inputFormatters: [const _AmountInputFormatter()],
-              decoration: const InputDecoration(
-                labelText: '预算总额度',
-                prefixText: '¥ ',
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.s4),
-            // 分类预算列表
-            overviewAsync.when(
-              loading: () => const Padding(
-                padding: EdgeInsets.symmetric(vertical: AppSpacing.s4),
-                child: Center(
-                  child: SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+        // SingleChildScrollView 包裹:键盘弹起 viewInsets.bottom 增加时,
+        //   sheet 可用高度被压缩 → 原来 Column(mainAxisSize.min)固定不可滚动,
+        //   会触发 BOTTOM OVERFLOWED BY N PIXELS 错误。这里允许内容超出时滚动,
+        //   同时保留顶部小拉手(始终可见)和底部按钮跟随滚动。
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 顶部小拉手
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: AppSpacing.s3),
+                  decoration: BoxDecoration(
+                    color: AppGray.g400,
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
               ),
-              error: (e, _) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.s3),
-                child: Text(
-                  '加载分类失败:$e',
-                  style: const TextStyle(color: AppStatus.error),
+              const Text(
+                '月度预算',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: AppSpacing.s1),
+              const Text(
+                '设置总额度后可给具体分类配置子额度;未配置分类共享剩余池。',
+                style: TextStyle(fontSize: 12, color: AppGray.g600),
+              ),
+              const SizedBox(height: AppSpacing.s4),
+              // 总额度输入
+              TextField(
+                controller: _totalController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                inputFormatters: [const _AmountInputFormatter()],
+                decoration: const InputDecoration(
+                  labelText: '预算总额度',
+                  prefixText: '¥ ',
+                  border: OutlineInputBorder(),
+                  isDense: true,
                 ),
               ),
-              data: (overview) {
-                if (!_overviewLoaded) {
-                  _overviewLoaded = true;
-                  // 初始化 _pendingBudgets(从 overview.items 加载现有子额度)
-                  // 不放 initState 因为 initState 时 ref.read overview 还没就绪
-                  for (final item in overview.items) {
-                    if (item.isConfigured) {
-                      _pendingBudgets[item.category.id] = item.amount;
+              const SizedBox(height: AppSpacing.s4),
+              // 分类预算列表
+              overviewAsync.when(
+                loading: () => const Padding(
+                  padding: EdgeInsets.symmetric(vertical: AppSpacing.s4),
+                  child: Center(
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                ),
+                error: (e, _) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.s3),
+                  child: Text(
+                    '加载分类失败:$e',
+                    style: const TextStyle(color: AppStatus.error),
+                  ),
+                ),
+                data: (overview) {
+                  if (!_overviewLoaded) {
+                    _overviewLoaded = true;
+                    // 初始化 _pendingBudgets(从 overview.items 加载现有子额度)
+                    // 不放 initState 因为 initState 时 ref.read overview 还没就绪
+                    for (final item in overview.items) {
+                      if (item.isConfigured) {
+                        _pendingBudgets[item.category.id] = item.amount;
+                      }
                     }
                   }
-                }
-                final total =
-                    double.tryParse(_totalController.text.trim()) ??
-                    overview.totalBudget;
-                final allocated = _totalAllocated(overview.items);
-                final overAllocated = total > 0 && allocated > total;
-                final poolRemaining = (total - allocated).clamp(
-                  0.0,
-                  double.infinity,
-                );
+                  final total =
+                      double.tryParse(_totalController.text.trim()) ??
+                      overview.totalBudget;
+                  final allocated = _totalAllocated(overview.items);
+                  final overAllocated = total > 0 && allocated > total;
+                  final poolRemaining = (total - allocated).clamp(
+                    0.0,
+                    double.infinity,
+                  );
 
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 共享池提示
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.s3,
-                        vertical: AppSpacing.s2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: overAllocated
-                            ? AppStatus.error.withValues(alpha: 0.1)
-                            : Theme.of(context).colorScheme.surfaceContainerLow,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: overAllocated
-                              ? AppStatus.error
-                              : Theme.of(context).colorScheme.outlineVariant,
-                          width: 1,
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 共享池提示
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.s3,
+                          vertical: AppSpacing.s2,
                         ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            overAllocated
-                                ? Icons.warning_amber_rounded
-                                : Icons.account_balance_wallet_outlined,
-                            size: 16,
+                        decoration: BoxDecoration(
+                          color: overAllocated
+                              ? AppStatus.error.withValues(alpha: 0.1)
+                              : Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainerLow,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
                             color: overAllocated
                                 ? AppStatus.error
-                                : AppBrand.teal,
+                                : Theme.of(context).colorScheme.outlineVariant,
+                            width: 1,
                           ),
-                          const SizedBox(width: AppSpacing.s2),
-                          Expanded(
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              overAllocated
+                                  ? Icons.warning_amber_rounded
+                                  : Icons.account_balance_wallet_outlined,
+                              size: 16,
+                              color: overAllocated
+                                  ? AppStatus.error
+                                  : AppBrand.teal,
+                            ),
+                            const SizedBox(width: AppSpacing.s2),
+                            Expanded(
+                              child: Text(
+                                total <= 0
+                                    ? '请先设置总额度'
+                                    : overAllocated
+                                    ? '已分配 ¥${Formatters.amount(allocated)} 超出总额度 ¥${Formatters.amount(total)}'
+                                    : '已分配 ¥${Formatters.amount(allocated)} · 剩余 ¥${Formatters.amount(poolRemaining)} 共享给未配置分类',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: overAllocated
+                                      ? AppStatus.error
+                                      : Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.s3),
+                      // 分类列表 —— 只显示已添加的(按需)
+                      // commit 94 改:之前列表遍历 overview.items(全部分类),
+                      //   user 反馈"分类太多,只需要按需增加我要分配的分类"
+                      //   改为遍历 _pendingBudgets.entries(只显示已添加的),
+                      //   底部"+ 添加分类"按钮按需弹出分类 picker
+                      if (_pendingBudgets.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(
+                            vertical: AppSpacing.s3,
+                          ),
+                          child: Center(
                             child: Text(
-                              total <= 0
-                                  ? '请先设置总额度'
-                                  : overAllocated
-                                  ? '已分配 ¥${Formatters.amount(allocated)} 超出总额度 ¥${Formatters.amount(total)}'
-                                  : '已分配 ¥${Formatters.amount(allocated)} · 剩余 ¥${Formatters.amount(poolRemaining)} 共享给未配置分类',
+                              '未配置子额度 · 点下方"+ 添加分类"按需配置',
                               style: TextStyle(
+                                color: AppGray.g600,
                                 fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: overAllocated
-                                    ? AppStatus.error
-                                    : Theme.of(context)
-                                          .colorScheme
-                                          .onSurfaceVariant,
                               ),
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.s3),
-                    // 分类列表 —— 只显示已添加的(按需)
-                    // commit 94 改:之前列表遍历 overview.items(全部分类),
-                    //   user 反馈"分类太多,只需要按需增加我要分配的分类"
-                    //   改为遍历 _pendingBudgets.entries(只显示已添加的),
-                    //   底部"+ 添加分类"按钮按需弹出分类 picker
-                    if (_pendingBudgets.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: AppSpacing.s3),
-                        child: Center(
-                          child: Text(
-                            '未配置子额度 · 点下方"+ 添加分类"按需配置',
-                            style: TextStyle(color: AppGray.g600, fontSize: 12),
+                        )
+                      else
+                        ..._pendingBudgets.entries.map((entry) {
+                          final catId = entry.key;
+                          // 从 overview 查 Category info
+                          final item = overview.items
+                              .where((i) => i.category.id == catId)
+                              .firstOrNull;
+                          if (item == null) return const SizedBox.shrink();
+                          return _CategoryBudgetRow(
+                            item: item,
+                            effective: _effectiveAmount(item),
+                            configured: _isConfigured(item),
+                            poolRemaining: poolRemaining,
+                            totalBudget: total,
+                            onAdd: () async {
+                              final v = await _askAmount(context, initial: 0);
+                              if (v != null) {
+                                _setCategoryBudget(item.category, v);
+                              }
+                            },
+                            onEdit: () async {
+                              final v = await _askAmount(
+                                context,
+                                initial: _effectiveAmount(item),
+                              );
+                              if (v != null) {
+                                _setCategoryBudget(item.category, v);
+                              }
+                            },
+                            onClear: () => _removeCategory(item.category),
+                          );
+                        }),
+                      // + 添加分类 按钮(只在还有未添加分类时显示)
+                      if (_availableToAddCount(overview) > 0) ...[
+                        const SizedBox(height: AppSpacing.s2),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _saving
+                                ? null
+                                : () => _openCategoryPicker(context, overview),
+                            icon: const Icon(Icons.add, size: 18),
+                            label: Text(
+                              '添加分类(剩 ${_availableToAddCount(overview)} 个可选)',
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: AppRadius.brLg,
+                              ),
+                              foregroundColor: AppBrand.teal,
+                              side: const BorderSide(
+                                color: AppBrand.teal,
+                                width: 1,
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                vertical: AppSpacing.s2,
+                              ),
+                            ),
                           ),
                         ),
-                      )
-                    else
-                      ..._pendingBudgets.entries.map((entry) {
-                        final catId = entry.key;
-                        // 从 overview 查 Category info
-                        final item = overview.items
-                            .where((i) => i.category.id == catId)
-                            .firstOrNull;
-                        if (item == null) return const SizedBox.shrink();
-                        return _CategoryBudgetRow(
-                          item: item,
-                          effective: _effectiveAmount(item),
-                          configured: _isConfigured(item),
-                          poolRemaining: poolRemaining,
-                          totalBudget: total,
-                          onAdd: () async {
-                            final v = await _askAmount(context, initial: 0);
-                            if (v != null) {
-                              _setCategoryBudget(item.category, v);
-                            }
-                          },
-                          onEdit: () async {
-                            final v = await _askAmount(
-                              context,
-                              initial: _effectiveAmount(item),
-                            );
-                            if (v != null) {
-                              _setCategoryBudget(item.category, v);
-                            }
-                          },
-                          onClear: () => _removeCategory(item.category),
-                        );
-                      }),
-                    // + 添加分类 按钮(只在还有未添加分类时显示)
-                    if (_availableToAddCount(overview) > 0) ...[
+                      ],
+                      const SizedBox(height: AppSpacing.s4),
+                      // 保存 / 清除
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: (_saving || overAllocated) ? null : _save,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: isDark
+                                ? AppSecondary.cream
+                                : AppBrand.ink,
+                            foregroundColor: isDark ? AppBrand.ink : null,
+                            padding: const EdgeInsets.symmetric(
+                              vertical: AppSpacing.s3,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: AppRadius.brLg,
+                            ),
+                          ),
+                          child: _saving
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppBrand.gold,
+                                  ),
+                                )
+                              : Text(overAllocated ? '已分配超出总额度' : '保存预算'),
+                        ),
+                      ),
                       const SizedBox(height: AppSpacing.s2),
                       SizedBox(
                         width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: _saving
-                              ? null
-                              : () => _openCategoryPicker(context, overview),
-                          icon: const Icon(Icons.add, size: 18),
-                          label: Text(
-                            '添加分类(剩 ${_availableToAddCount(overview)} 个可选)',
-                          ),
+                        child: OutlinedButton(
+                          onPressed: _saving ? null : _clear,
                           style: OutlinedButton.styleFrom(
                             shape: RoundedRectangleBorder(
                               borderRadius: AppRadius.brLg,
                             ),
-                            foregroundColor: AppBrand.teal,
+                            foregroundColor: AppStatus.error,
                             side: const BorderSide(
-                              color: AppBrand.teal,
+                              color: AppStatus.error,
                               width: 1,
                             ),
                             padding: const EdgeInsets.symmetric(
-                              vertical: AppSpacing.s2,
+                              vertical: AppSpacing.s3,
                             ),
                           ),
+                          child: const Text('清除预算'),
                         ),
                       ),
                     ],
-                    const SizedBox(height: AppSpacing.s4),
-                    // 保存 / 清除
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed: (_saving || overAllocated) ? null : _save,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: isDark
-                              ? AppSecondary.cream
-                              : AppBrand.ink,
-                          foregroundColor: isDark ? AppBrand.ink : null,
-                          padding: const EdgeInsets.symmetric(
-                            vertical: AppSpacing.s3,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: AppRadius.brLg,
-                          ),
-                        ),
-                        child: _saving
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppBrand.gold,
-                                ),
-                              )
-                            : Text(overAllocated ? '已分配超出总额度' : '保存预算'),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.s2),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: _saving ? null : _clear,
-                        style: OutlinedButton.styleFrom(
-                          shape: RoundedRectangleBorder(
-                            borderRadius: AppRadius.brLg,
-                          ),
-                          foregroundColor: AppStatus.error,
-                          side: const BorderSide(
-                            color: AppStatus.error,
-                            width: 1,
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            vertical: AppSpacing.s3,
-                          ),
-                        ),
-                        child: const Text('清除预算'),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ],
+                  );
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -651,13 +665,16 @@ class _CategoryBudgetRow extends StatelessWidget {
   }
 }
 
-/// 金额输入 dialog — 拥有自己的 TextEditingController 生命周期
+/// 金额输入 dialog — 自绘,跟 _DeleteConfirmDialog 同款(ColorOS 风)
 ///
-/// 用 StatefulWidget 包 AlertDialog 是为了把 controller 创建 / 释放跟 dialog
-///   的 element 卸载对齐:controller 在 initState 创建,在 dialog 的 element
-///   dispose 时释放,期间 EditableText(autofocus + 键盘)始终持有有效 controller。
-///   之前在 outer-scope 创建 + showDialog 返回后立即 dispose 的写法,在 keyboard
-///   未完全收起时会撞到 InheritedElement._dependents.isEmpty assertion。
+/// 为什么不用 AlertDialog:Material 默认的 AlertDialog 跟 gridly 卡片化
+///   调性不贴(contentPadding / insetPadding 太系统默认,标题 / 内容 / 按钮
+///   间距跟现有 dialog 不一致)。自绘 Dialog + brLg 圆角 + teal 品牌色头
+///   跟 _DeleteConfirmDialog 完全同款风格。
+///
+/// 为什么 StatefulWidget:controller 由 initState 创建、dispose 释放,
+///   生命周期跟 dialog element 卸载对齐,避免 outer-scope 创建 + 立即 dispose
+///   引起的 InheritedElement._dependents.isEmpty assertion。
 class _AmountDialog extends StatefulWidget {
   const _AmountDialog({required this.initial});
   final double initial;
@@ -685,33 +702,175 @@ class _AmountDialogState extends State<_AmountDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('设置子额度'),
-      content: TextField(
-        controller: _ctrl,
-        autofocus: true,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        inputFormatters: [const _AmountInputFormatter()],
-        decoration: const InputDecoration(
-          labelText: '子额度金额',
-          prefixText: '¥ ',
-          border: OutlineInputBorder(),
-          isDense: true,
+    final theme = Theme.of(context);
+
+    return Dialog(
+      backgroundColor: theme.colorScheme.surface,
+      // 去掉 Material default 蓝色 tint overlay,跟卡片风格一致
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: AppRadius.brLg),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.s4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 头部:teal icon + 标题
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppBrand.teal.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Icon(
+                      Icons.tune_rounded,
+                      color: AppBrand.teal,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.s3),
+                  Expanded(
+                    child: Text(
+                      '设置子额度',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.s4),
+              // 金额输入区:大字号 ¥ + 输入框(卡片化,跟 budget_sheet 风格一致)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.s3,
+                  vertical: AppSpacing.s3,
+                ),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerLow,
+                  borderRadius: AppRadius.brMd,
+                  border: Border.all(
+                    color: AppBrand.teal.withValues(alpha: 0.4),
+                    width: 1.0,
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(right: AppSpacing.s2),
+                      child: Text(
+                        '¥',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w600,
+                          color: AppBrand.teal,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: TextField(
+                        controller: _ctrl,
+                        autofocus: true,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        inputFormatters: [const _AmountInputFormatter()],
+                        // 无边框输入(容器边框已经画了)+ hint 灰底提示
+                        decoration: InputDecoration(
+                          border: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          isCollapsed: true,
+                          contentPadding: EdgeInsets.zero,
+                          hintText: '0',
+                          hintStyle: TextStyle(
+                            color: AppGray.g400,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.s4),
+              // 按钮行:取消(outline) + 确定(filled teal)
+              //   跟 _DeleteConfirmDialog 风格一致(只是 destructive 红改成品牌 teal)
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: AppRadius.brMd,
+                        ),
+                        side: BorderSide(
+                          color: theme.colorScheme.outlineVariant,
+                          width: 1.0,
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      onPressed: () {
+                        AppHaptics.tap();
+                        Navigator.of(context).pop();
+                      },
+                      child: Text(
+                        '取消',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.s2),
+                  Expanded(
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppBrand.teal,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: AppRadius.brMd,
+                        ),
+                      ),
+                      onPressed: () {
+                        AppHaptics.tap();
+                        final v = double.tryParse(_ctrl.text.trim());
+                        if (v != null && v >= 0) {
+                          Navigator.of(context).pop(v);
+                        }
+                      },
+                      child: const Text(
+                        '确定',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: () {
-            final v = double.tryParse(_ctrl.text.trim());
-            if (v != null && v >= 0) Navigator.pop(context, v);
-          },
-          child: const Text('确定'),
-        ),
-      ],
     );
   }
 }
