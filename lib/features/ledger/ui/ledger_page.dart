@@ -95,42 +95,31 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
       barrierColor: Colors.black54,
       transitionDuration: const Duration(milliseconds: 240),
       pageBuilder: (dialogCtx, anim, secAnim) {
-        return Align(
-          alignment: Alignment.topCenter,
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.s2,
-                vertical: AppSpacing.s2,
-              ),
-              child: ClipRRect(
-                borderRadius: AppRadius.brLg,
-                child: Material(
-                  color: theme.colorScheme.surface,
-                  child: _FilterSheet(
-                    searchController: _searchController,
-                    onSearchChanged: (v) =>
-                        ref.read(ledgerSearchQueryProvider.notifier).state = v,
-                    currentType: ref.read(ledgerTypeFilterProvider),
-                    currentMonth: ref.read(ledgerMonthFilterProvider),
-                    currentCategory: ref.read(ledgerCategoryFilterProvider),
-                    currentAsset: ref.read(ledgerAssetFilterProvider),
-                    catsForType: catsForType,
-                    monthKeys: _recentMonthKeys(),
-                    formatMonthKey: _formatMonthKey,
-                    allAssets: allAssets,
-                    onTypeChanged: (v) =>
-                        ref.read(ledgerTypeFilterProvider.notifier).state = v,
-                    onMonthChanged: (v) =>
-                        ref.read(ledgerMonthFilterProvider.notifier).state = v,
-                    onCategoryChanged: (v) =>
-                        ref.read(ledgerCategoryFilterProvider.notifier).state =
-                            v,
-                    onAssetChanged: (v) =>
-                        ref.read(ledgerAssetFilterProvider.notifier).state = v,
-                  ),
-                ),
-              ),
+        // 顶部贴边横幅下拉样式(2026-10-12 P5 follow-up 第 5 次改):
+        //   - 无 Align 居中(占满宽度)
+        //   - 无圆角 / 无 ClipRRect(贴 viewport 顶 + 底部分隔)
+        //   - SafeArea 只留 status bar 顶部 padding
+        return SafeArea(
+          child: Material(
+            color: theme.colorScheme.surface,
+            // _FilterSheet 内部 ConsumerWidget 自己 watch 5 个 provider,
+            // picker sheet 回写后自动 rebuild,chip 状态实时更新
+            child: _FilterSheet(
+              searchController: _searchController,
+              onSearchChanged: (v) =>
+                  ref.read(ledgerSearchQueryProvider.notifier).state = v,
+              catsForType: catsForType,
+              monthKeys: _recentMonthKeys(),
+              formatMonthKey: _formatMonthKey,
+              allAssets: allAssets,
+              onTypeChanged: (v) =>
+                  ref.read(ledgerTypeFilterProvider.notifier).state = v,
+              onMonthChanged: (v) =>
+                  ref.read(ledgerMonthFilterProvider.notifier).state = v,
+              onCategoryChanged: (v) =>
+                  ref.read(ledgerCategoryFilterProvider.notifier).state = v,
+              onAssetChanged: (v) =>
+                  ref.read(ledgerAssetFilterProvider.notifier).state = v,
             ),
           ),
         );
@@ -1002,18 +991,16 @@ class _DaySection extends StatelessWidget {
   }
 }
 
-/// 2026-10-12 P5 follow-up 加:AppBar filter 按钮 → 多维筛选 sheet
-///   - 4 维度 pill:类型 / 月份 / 分类 / 资产,各点开弹对应 picker sheet
-///   - 顶部"筛选"标题 + 关闭按钮,底部"清空"快捷按钮
-///   - 不持有 state,只是 current* + on*Changed 透传,跟 _FilterBar 同模式
-class _FilterSheet extends StatelessWidget {
+/// 2026-10-12 P5 follow-up 第 5 次改:ConsumerWidget 自己 watch providers
+///   - 之前 _FilterSheet 是 StatelessWidget,5 个 current* 通过构造参数传快照
+///   - picker sheet 回写 provider 后,dialog 内 widget 不会 rebuild(chip 状态不刷新)
+///   - 现在内部 watch 5 个 provider,chip active 状态实时更新
+///   - 搜索 TextField controller 仍由 _LedgerPageState 持有,关闭 sheet 再
+///     打开内容还在
+class _FilterSheet extends ConsumerWidget {
   const _FilterSheet({
     required this.searchController,
     required this.onSearchChanged,
-    required this.currentType,
-    required this.currentMonth,
-    required this.currentCategory,
-    required this.currentAsset,
     required this.catsForType,
     required this.monthKeys,
     required this.formatMonthKey,
@@ -1024,15 +1011,8 @@ class _FilterSheet extends StatelessWidget {
     required this.onAssetChanged,
   });
 
-  // 2026-10-12 P5 follow-up 第 2 次改:搜索输入也搬到 sheet 顶部(用户偏好
-  //   "漏斗=高级过滤入口,搜索也进去"),controller 来自 _LedgerPageState,
-  //   关闭 sheet 再打开保留搜索内容;onChanged 直接写 ledgerSearchQueryProvider。
   final TextEditingController searchController;
   final ValueChanged<String> onSearchChanged;
-  final String currentType;
-  final int? currentMonth;
-  final Set<int> currentCategory;
-  final Set<int> currentAsset;
   final List<Category> catsForType;
   final List<int> monthKeys;
   final String Function(int) formatMonthKey;
@@ -1042,15 +1022,16 @@ class _FilterSheet extends StatelessWidget {
   final ValueChanged<Set<int>> onCategoryChanged;
   final ValueChanged<Set<int>> onAssetChanged;
 
-  bool get _hasAnyFilter =>
-      searchController.text.isNotEmpty ||
-      currentType != 'all' ||
-      currentMonth != null ||
-      currentCategory.isNotEmpty ||
-      currentAsset.isNotEmpty;
+  bool _hasAnyFilter(WidgetRef ref) {
+    return searchController.text.isNotEmpty ||
+        ref.watch(ledgerTypeFilterProvider) != 'all' ||
+        ref.watch(ledgerMonthFilterProvider) != null ||
+        ref.watch(ledgerCategoryFilterProvider).isNotEmpty ||
+        ref.watch(ledgerAssetFilterProvider).isNotEmpty;
+  }
 
-  String _typeLabel() {
-    switch (currentType) {
+  String _typeLabel(WidgetRef ref) {
+    switch (ref.watch(ledgerTypeFilterProvider)) {
       case 'expense':
         return '支出';
       case 'income':
@@ -1062,35 +1043,45 @@ class _FilterSheet extends StatelessWidget {
     }
   }
 
-  String _monthLabel() =>
-      currentMonth == null ? '全部' : formatMonthKey(currentMonth!);
+  String _monthLabel(WidgetRef ref) {
+    final m = ref.watch(ledgerMonthFilterProvider);
+    return m == null ? '全部' : formatMonthKey(m);
+  }
 
-  String _categoryLabel() {
-    if (currentCategory.isEmpty) return '全部';
-    if (currentCategory.length == 1) {
-      final id = currentCategory.first;
+  String _categoryLabel(WidgetRef ref) {
+    final cs = ref.watch(ledgerCategoryFilterProvider);
+    if (cs.isEmpty) return '全部';
+    if (cs.length == 1) {
+      final id = cs.first;
       for (final c in catsForType) {
         if (c.id == id) return c.name;
       }
     }
-    return '已选 ${currentCategory.length} 个';
+    return '已选 ${cs.length} 个';
   }
 
-  String _assetLabel() {
-    if (currentAsset.isEmpty) return '全部';
-    if (currentAsset.length == 1) {
-      final id = currentAsset.first;
+  String _assetLabel(WidgetRef ref) {
+    final as = ref.watch(ledgerAssetFilterProvider);
+    if (as.isEmpty) return '全部';
+    if (as.length == 1) {
+      final id = as.first;
       for (final a in allAssets) {
         if (a.id == id) return a.name;
       }
     }
-    return '已选 ${currentAsset.length} 个';
+    return '已选 ${as.length} 个';
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    // 2026-10-12 P5 follow-up 第 5 次改:内部 watch 5 个 provider,picker
+    //   sheet 回写后 chip 自动 rebuild
+    final currentType = ref.watch(ledgerTypeFilterProvider);
+    final currentMonth = ref.watch(ledgerMonthFilterProvider);
+    final currentCategory = ref.watch(ledgerCategoryFilterProvider);
+    final currentAsset = ref.watch(ledgerAssetFilterProvider);
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.only(bottom: AppSpacing.s2),
@@ -1184,39 +1175,48 @@ class _FilterSheet extends StatelessWidget {
                 AppSpacing.s4,
                 AppSpacing.s2,
               ),
-              child: Wrap(
-                spacing: AppSpacing.s2,
-                runSpacing: AppSpacing.s2,
-                children: [
-                  _FilterChip(
-                    icon: Icons.category_outlined,
-                    label: '类型',
-                    value: _typeLabel(),
-                    active: currentType != 'all',
-                    onTap: () => _pickType(context),
-                  ),
-                  _FilterChip(
-                    icon: Icons.calendar_today_outlined,
-                    label: '月份',
-                    value: _monthLabel(),
-                    active: currentMonth != null,
-                    onTap: () => _pickMonth(context),
-                  ),
-                  _FilterChip(
-                    icon: Icons.local_offer_outlined,
-                    label: '分类',
-                    value: _categoryLabel(),
-                    active: currentCategory.isNotEmpty,
-                    onTap: () => _pickCategory(context),
-                  ),
-                  _FilterChip(
-                    icon: Icons.account_balance_wallet_outlined,
-                    label: '资产',
-                    value: _assetLabel(),
-                    active: currentAsset.isNotEmpty,
-                    onTap: () => _pickAsset(context),
-                  ),
-                ],
+              child: SingleChildScrollView(
+                // 2026-10-12 P5 follow-up 第 5 次改:4 chip 用 SingleChildScrollView
+                //   横滚,不再 Wrap(避免窄屏 2+2 居中难看)。
+                //   高度固定 32px(s2+s2),让 sheet 顶部布局更紧凑。
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _FilterChip(
+                      icon: Icons.category_outlined,
+                      label: '类型',
+                      value: _typeLabel(ref),
+                      active: currentType != 'all',
+                      onTap: () => _pickType(context, ref),
+                    ),
+                    const SizedBox(width: AppSpacing.s2),
+                    _FilterChip(
+                      icon: Icons.calendar_today_outlined,
+                      label: '月份',
+                      value: _monthLabel(ref),
+                      active: currentMonth != null,
+                      onTap: () => _pickMonth(context, ref),
+                    ),
+                    const SizedBox(width: AppSpacing.s2),
+                    _FilterChip(
+                      icon: Icons.local_offer_outlined,
+                      label: '分类',
+                      value: _categoryLabel(ref),
+                      active: currentCategory.isNotEmpty,
+                      onTap: () => _pickCategory(context, ref),
+                    ),
+                    const SizedBox(width: AppSpacing.s2),
+                    _FilterChip(
+                      icon: Icons.account_balance_wallet_outlined,
+                      label: '资产',
+                      value: _assetLabel(ref),
+                      active: currentAsset.isNotEmpty,
+                      onTap: () => _pickAsset(context, ref),
+                    ),
+                    const SizedBox(width: AppSpacing.s4),
+                  ],
+                ),
               ),
             ),
             const Divider(height: 1),
@@ -1231,7 +1231,7 @@ class _FilterSheet extends StatelessWidget {
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: _hasAnyFilter
+                  onPressed: _hasAnyFilter(ref)
                       ? () {
                           // 2026-10-12 P5 follow-up 第 2 次改:清空也清搜索 query + controller
                           searchController.clear();
@@ -1263,7 +1263,7 @@ class _FilterSheet extends StatelessWidget {
     );
   }
 
-  Future<void> _pickType(BuildContext context) async {
+  Future<void> _pickType(BuildContext context, WidgetRef ref) async {
     final options = <(Object?, String)>[
       (_allPicked, '全部'),
       ('expense', '支出'),
@@ -1274,7 +1274,7 @@ class _FilterSheet extends StatelessWidget {
       context,
       title: '选择类型',
       options: options,
-      currentValue: currentType,
+      currentValue: ref.read(ledgerTypeFilterProvider),
     );
     if (selected == null || selected is _SheetDismissed) return;
     if (selected is _AllPicked) {
@@ -1284,7 +1284,7 @@ class _FilterSheet extends StatelessWidget {
     onTypeChanged(selected as String);
   }
 
-  Future<void> _pickMonth(BuildContext context) async {
+  Future<void> _pickMonth(BuildContext context, WidgetRef ref) async {
     final options = <(Object?, String)>[
       (_allPicked, '全部'),
       ...monthKeys.map((k) => (k, formatMonthKey(k))),
@@ -1293,7 +1293,7 @@ class _FilterSheet extends StatelessWidget {
       context,
       title: '选择月份',
       options: options,
-      currentValue: currentMonth,
+      currentValue: ref.read(ledgerMonthFilterProvider),
     );
     if (selected == null || selected is _SheetDismissed) return;
     if (selected is _AllPicked) {
@@ -1303,7 +1303,7 @@ class _FilterSheet extends StatelessWidget {
     onMonthChanged(selected as int?);
   }
 
-  Future<void> _pickCategory(BuildContext context) async {
+  Future<void> _pickCategory(BuildContext context, WidgetRef ref) async {
     final selected = await showModalBottomSheet<Set<int>>(
       context: context,
       isScrollControlled: true,
@@ -1313,13 +1313,13 @@ class _FilterSheet extends StatelessWidget {
       ),
       builder: (_) => _MultiSelectCategorySheet(
         categories: catsForType,
-        initial: currentCategory,
+        initial: ref.read(ledgerCategoryFilterProvider),
       ),
     );
     if (selected != null) onCategoryChanged(selected);
   }
 
-  Future<void> _pickAsset(BuildContext context) async {
+  Future<void> _pickAsset(BuildContext context, WidgetRef ref) async {
     if (allAssets.isEmpty) {
       showGridlyBanner(
         context,
@@ -1335,8 +1335,10 @@ class _FilterSheet extends StatelessWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
       ),
-      builder: (_) =>
-          _MultiSelectAssetSheet(assets: allAssets, initial: currentAsset),
+      builder: (_) => _MultiSelectAssetSheet(
+        assets: allAssets,
+        initial: ref.read(ledgerAssetFilterProvider),
+      ),
     );
     if (selected != null) onAssetChanged(selected);
   }
