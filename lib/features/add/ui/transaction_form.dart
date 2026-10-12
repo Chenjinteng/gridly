@@ -16,6 +16,8 @@
 // 当插值(_calc.toString() = "Instance of '_CalcState'"),再把 .display 当字面量
 // 拼在后面,最终 _calc.display 被赋值成 "Instance of '_CalcState'.display"。
 // 正确写法是 '${_calc.display}'(加花括号)。
+import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart' show Value;
@@ -35,11 +37,7 @@ import 'widgets/numpad.dart';
 import 'widgets/type_toggle.dart';
 
 class TransactionForm extends ConsumerStatefulWidget {
-  const TransactionForm({
-    super.key,
-    this.editTransaction,
-    this.onSaved,
-  });
+  const TransactionForm({super.key, this.editTransaction, this.onSaved});
 
   /// 非空 → 编辑模式(预填 + 保存 update)
   /// 为空 → 新增模式(保存 insert)
@@ -53,11 +51,11 @@ class TransactionForm extends ConsumerStatefulWidget {
 }
 
 class _CalcState {
-  String display = '0';           // 当前显示字符串
-  String expression = '';         // 表达式(已计算的部分)
-  double? previousValue;          // 上一个数
-  String? pendingOp;              // 等待中的运算符
-  bool justEvaluated = false;     // 上一次按键是 =
+  String display = '0'; // 当前显示字符串
+  String expression = ''; // 表达式(已计算的部分)
+  double? previousValue; // 上一个数
+  String? pendingOp; // 等待中的运算符
+  bool justEvaluated = false; // 上一次按键是 =
 }
 
 class _TransactionFormState extends ConsumerState<TransactionForm> {
@@ -219,7 +217,8 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       _curr.justEvaluated = true;
       return;
     }
-    _curr.expression = '${_formatNumber(_curr.previousValue!)} ${_curr.pendingOp} ${_formatNumber(cur)} =';
+    _curr.expression =
+        '${_formatNumber(_curr.previousValue!)} ${_curr.pendingOp} ${_formatNumber(cur)} =';
     _curr.display = _formatNumber(result);
     _curr.previousValue = null;
     _curr.pendingOp = null;
@@ -252,25 +251,47 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     }
     final note = _noteController.text.isEmpty ? null : _noteController.text;
     final repo = ref.read(transactionRepositoryProvider);
-    if (_isEdit) {
-      // 编辑:用原 id replace(Drift 的 replace 按主键 update)
-      await repo.update(widget.editTransaction!.copyWith(
-        amount: value,
-        type: _type,
-        categoryId: _categoryId!,
-        occurredAt: _occurredAt,
-        note: Value(note),
-      ));
+    try {
+      if (_isEdit) {
+        // 编辑:用原 id replace(Drift 的 replace 按主键 update)
+        await repo.update(
+          widget.editTransaction!.copyWith(
+            amount: value,
+            type: _type,
+            categoryId: _categoryId!,
+            occurredAt: _occurredAt,
+            note: Value(note),
+          ),
+        );
+        if (!mounted) return;
+        _toast('已更新');
+      } else {
+        await repo.add(
+          amount: value,
+          type: _type,
+          categoryId: _categoryId!,
+          occurredAt: _occurredAt,
+          note: note,
+        );
+      }
+    } catch (e, st) {
+      // 2026-10-12 bug:user 反馈"无法点击保存"
+      //   - 现象:点击保存按钮后,UI 无任何反馈(banner 不显示,流水没保存),
+      //     只有 logcat 一片 E/flutter 栈
+      //   - 根因:drift InsertStatement.insert 抛 SqliteException(FOREIGN KEY /
+      //     NOT NULL / UNIQUE 等约束失败),异常一路冒到 FilledButton 的
+      //     onPressed closure,被 Flutter 框架捕获后打到 logcat,UI 层
+      //     不知道发生了什么,banner 也不显示
+      //   - 修法:包 try-catch
+      //     1) developer.log 写完整 error + stackTrace 到 logcat
+      //        (比 E/flutter 默认 stack 信息更全,方便后续定位)
+      //     2) banner 显示 '保存失败:<exception 消息>'
+      //        让 user 立即看到原因(FOREIGN KEY constraint failed / NOT NULL
+      //        constraint failed / UNIQUE constraint failed ...)
+      developer.log('保存失败', name: 'gridly.save', error: e, stackTrace: st);
       if (!mounted) return;
-      _toast('已更新');
-    } else {
-      await repo.add(
-        amount: value,
-        type: _type,
-        categoryId: _categoryId!,
-        occurredAt: _occurredAt,
-        note: note,
-      );
+      _toast('保存失败:$e');
+      return;
     }
     // 广谱刷新 —— 流水 / 首页 / 报表 / 分类页都同步更新
     refreshAllData(ref);
@@ -331,15 +352,15 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   }
 
   // ============================================================
-// 2026-10-11 UAT 第三次重构 —— 单行操作栏:
-//   顶部:type toggle(支出/收入,很少切换,放最上面)
-//   中部:金额(大字,主视觉)
-//   操作行:[今天][分类][备注][保存] —— 一行内放完,贴近 Numpad,
-//         单手握机时拇指自然覆盖整个 row,不用抬手
-//   底部:Numpad(键盘区域固定)
-//   旧 _metaRow / _datePill / _categoryChip / _saveButton 全部弃用,
-//   单一 _actionRow 替代
-// ============================================================
+  // 2026-10-11 UAT 第三次重构 —— 单行操作栏:
+  //   顶部:type toggle(支出/收入,很少切换,放最上面)
+  //   中部:金额(大字,主视觉)
+  //   操作行:[今天][分类][备注][保存] —— 一行内放完,贴近 Numpad,
+  //         单手握机时拇指自然覆盖整个 row,不用抬手
+  //   底部:Numpad(键盘区域固定)
+  //   旧 _metaRow / _datePill / _categoryChip / _saveButton 全部弃用,
+  //   单一 _actionRow 替代
+  // ============================================================
 
   /// ③两行操作栏(贴近 Numpad,单手拇指可达):
   ///   上行:备注 TextField(占满整行,不再跟其它挤)
@@ -359,7 +380,8 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       }
     });
     final hasCat = sel != null;
-    final isToday = _occurredAt.year == DateTime.now().year &&
+    final isToday =
+        _occurredAt.year == DateTime.now().year &&
         _occurredAt.month == DateTime.now().month &&
         _occurredAt.day == DateTime.now().day;
     return Container(
@@ -372,10 +394,7 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         border: Border(
-          top: BorderSide(
-            color: theme.colorScheme.outlineVariant,
-            width: 0.5,
-          ),
+          top: BorderSide(color: theme.colorScheme.outlineVariant, width: 0.5),
         ),
       ),
       child: Column(
@@ -410,15 +429,17 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
           ),
           const SizedBox(height: AppSpacing.s2),
           // 下行:[日期][分类][保存] —— 2026-10-11 UAT 第四轮反馈:
-//   日期 + 分类 1:1 均分(两个弹性 Expanded 同 flex),
-//   保存按钮固定窄宽(跟之前一致),不强拉成 1/3。
+          //   日期 + 分类 1:1 均分(两个弹性 Expanded 同 flex),
+          //   保存按钮固定窄宽(跟之前一致),不强拉成 1/3。
           Row(
             children: [
               // 1) 日期 pill(均分 1/2)
               Expanded(
                 child: _ActionPill(
                   icon: Icons.calendar_today_rounded,
-                  label: isToday ? '今天' : '${_occurredAt.month}月${_occurredAt.day}日',
+                  label: isToday
+                      ? '今天'
+                      : '${_occurredAt.month}月${_occurredAt.day}日',
                   highlighted: isToday,
                   highlightColor: AppBrand.teal,
                   onTap: _pickDate,
@@ -429,8 +450,7 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
               Expanded(
                 child: _ActionPill(
                   icon: hasCat
-                      ? (CategoryIcons.map[sel!.icon] ??
-                          Icons.category_rounded)
+                      ? (CategoryIcons.map[sel!.icon] ?? Icons.category_rounded)
                       : Icons.category_outlined,
                   label: hasCat ? sel!.name : '选分类',
                   highlighted: hasCat,
@@ -463,10 +483,7 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                   ),
                   child: const Text(
                     '保存',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
                   ),
                 ),
               ),
@@ -593,7 +610,7 @@ class _ActionPill extends StatelessWidget {
     this.highlighted = false,
     this.highlightColor,
     this.iconColorOverride,
-    });
+  });
 
   final IconData icon;
   final String label;
@@ -609,7 +626,8 @@ class _ActionPill extends StatelessWidget {
         ? accent.withValues(alpha: 0.10)
         : theme.colorScheme.surfaceContainerLow;
     final fg = highlighted ? accent : theme.colorScheme.onSurface;
-    final iconColor = iconColorOverride ?? (highlighted ? accent : AppGray.g600);
+    final iconColor =
+        iconColorOverride ?? (highlighted ? accent : AppGray.g600);
     return InkWell(
       borderRadius: AppRadius.brPill,
       onTap: onTap,
@@ -740,11 +758,11 @@ class _CategoryPickerSheet extends ConsumerWidget {
                     padding: const EdgeInsets.all(AppSpacing.s4),
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 4,
-                      mainAxisSpacing: AppSpacing.s2,
-                      crossAxisSpacing: AppSpacing.s2,
-                      childAspectRatio: 0.85,
-                    ),
+                          crossAxisCount: 4,
+                          mainAxisSpacing: AppSpacing.s2,
+                          crossAxisSpacing: AppSpacing.s2,
+                          childAspectRatio: 0.85,
+                        ),
                     itemCount: cats.length,
                     itemBuilder: (context, i) {
                       final c = cats[i];
