@@ -1,11 +1,15 @@
 // lib/features/stats/ui/widgets/budget_overview_chart.dart
 // 预算报表 widget —— stats 页本月维度专用(2026-10-12 commit 93 加)
 //
-// 视觉(commit 95 重构,commit 96 对齐 CategoryPie 风格,commit 98 去重 + 三档颜色):
+// 视觉(commit 95 重构,commit 96 对齐 CategoryPie 风格,commit 98 去重 + 三档颜色,
+//      commit 100 multi-turn 超额圆环 + 数字加载动画):
 //   - 标题栏:本月预算 + 总额(右侧,跟 CategoryPie "共 ¥X" 对等)
-//   - 上半:圆环(已花 / 总额度)+ 右侧图例(已花 / 剩余)
-//     圆环 140x140 + inner 48 / outer 64 + 中心"已花 ¥X"
-//     跟 CategoryPie 视觉完全一致(尺寸、stroke、中心标签/金额顺序)
+//   - 上半:圆环 + 右侧图例(三段:已花 / 超额 / 剩余)
+//     圆环 140x140 + inner 48 / outer 64
+//     **multi-turn 支持**:已花 ≤ 预算时圆环 1 圈;过预算时"已花"占 1 圈,
+//     "超额"继续从 360° 起转 N 圈(N = over / budget),颜色深递(已花 error 红 /
+//     超额 overBudgetDeep 深红)
+//     中心"已花 ¥X":数字 TweenAnimationBuilder 从 0 递增到目标值(1200ms aquaIn)
 //     图例双行:第一行色块 + 名字 + 百分比,第二行(缩进)绝对金额
 //   - 共享池说明(已分配 X · 共享池 Y 给未配置)
 //   - 下半:分类列表 —— 每行 icon + name + 横向柱状图 + 百分比
@@ -16,6 +20,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/motion/app_motion.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -81,20 +86,23 @@ class _BudgetOverviewBody extends StatelessWidget {
   double get _totalSpent =>
       overview.items.fold<double>(0.0, (sum, i) => sum + i.spent);
 
-  /// 进度(0-1,可能 > 1 表示超支)
+  /// 进度比(可能 > 1,表示超额;commit 100 之前 clamp 到 [0,1])
+  ///   - ≤ 1:圆环 1 圈内,已花 + 剩余两段
+  ///   - > 1:圆环 multi-turn,已花占 1 圈 + 超额继续转 N 圈
   double get _progress {
     if (overview.totalBudget <= 0) return 0;
-    return (_totalSpent / overview.totalBudget).clamp(0.0, 1.0);
+    return _totalSpent / overview.totalBudget;
   }
 
-  /// 状态色(进度 < 80% OK,80-100% warning,> 100% over)
-  Color get _stateColor {
-    if (overview.totalBudget <= 0) return AppGray.g400;
-    final p = _totalSpent / overview.totalBudget;
-    if (p < 0.8) return AppBrand.teal;
-    if (p <= 1.0) return AppStatus.warning;
-    return AppStatus.error;
-  }
+  /// 是否已设置预算
+  bool get _hasBudget => overview.totalBudget > 0;
+
+  /// 是否超额(已花 > 预算)
+  bool get _isOver => _hasBudget && _totalSpent > overview.totalBudget;
+
+  /// 超额金额(已花 - 预算,只在超额时 > 0)
+  double get _overSpent =>
+      (_totalSpent - overview.totalBudget).clamp(0.0, double.infinity);
 
   @override
   Widget build(BuildContext context) {
@@ -128,10 +136,15 @@ class _BudgetOverviewBody extends StatelessWidget {
           ),
         ),
         const Divider(height: 1, thickness: 0.5),
-        // 上半:圆环 + 图例(对齐 CategoryPie)
-        //   圆环 140x140 + inner 48 / outer 64(同 CategoryPie)
-        //   中心:小标签("已花") + 大金额(同 CategoryPie "总支出/¥XXX" 顺序)
-        //   右侧:色块 + 名字 + 百分比(图例格式同 CategoryPie)
+        // 上半:圆环 + 图例(multi-turn + 数字加载动画)
+        //   圆环 140x140 + inner 48 / outer 64
+        //   圆环 sections(value = 圈数):
+        //     - 未设置预算: 单段灰 (1 圈)
+        //     - 已花 ≤ 预算: 已花(error 红,0~1 圈) + 剩余(灰,0~1 圈)
+        //     - 已花 > 预算: 已花(error 红,固定 1 圈) + 超额(deep 红,N 圈)
+        //       N = _overSpent / budget(可超过 1,触发 multi-turn)
+        //   中心:小标签 + 大金额(数字 TweenAnimationBuilder 从 0 递增到实际值)
+        //   右侧:图例(已花 / 超额 或 已花 / 剩余 三段)
         Padding(
           padding: const EdgeInsets.all(AppSpacing.s4),
           child: Row(
@@ -144,27 +157,43 @@ class _BudgetOverviewBody extends StatelessWidget {
                   children: [
                     Builder(
                       builder: (_) {
-                        final sections = [
-                          if (hasBudget)
+                        final sections = <PieChartSectionData>[
+                          if (_hasBudget && _isOver)
                             PieChartSectionData(
-                              value: _progress.clamp(0.001, 1.0),
-                              color: _stateColor,
+                              // 已花段:固定 1 圈(error 红)
+                              value: 1.0,
+                              color: AppStatus.error,
                               radius: 18,
                             ),
-                          if (hasBudget && _progress < 1.0)
+                          if (_hasBudget && _isOver)
                             PieChartSectionData(
-                              value: 1.0 - _progress,
+                              // 超额段:N 圈(deep 红)
+                              value: _overSpent / overview.totalBudget,
+                              color: AppSemantic.overBudgetDeep,
+                              radius: 18,
+                            ),
+                          if (_hasBudget && !_isOver && _progress > 0)
+                            PieChartSectionData(
+                              // 已花段:0~1 圈(error 红)
+                              value: _progress.clamp(0.001, 1.0),
+                              color: AppStatus.error,
+                              radius: 18,
+                            ),
+                          if (_hasBudget && !_isOver)
+                            PieChartSectionData(
+                              // 剩余段:0~1 圈(灰)
+                              value: (1.0 - _progress).clamp(0.0, 1.0),
                               color: AppGray.g200,
                               radius: 18,
                             ),
-                          if (!hasBudget)
+                          if (!_hasBudget)
                             PieChartSectionData(
                               value: 1.0,
                               color: AppGray.g200,
                               radius: 18,
                             ),
                         ];
-                        return AnimatedPieChart(
+                        return AnimatedOverBudgetChart(
                           key: pieChartKeyForSections(sections),
                           sections: sections,
                           innerRadius: 48,
@@ -180,14 +209,22 @@ class _BudgetOverviewBody extends StatelessWidget {
                           style: TextStyle(fontSize: 11, color: AppGray.g600),
                         ),
                         const SizedBox(height: 2),
-                        Text(
-                          hasBudget
-                              ? '¥${Formatters.amount(_totalSpent)}'
-                              : '—',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        // 数字加载动画:从 0 递增到实际值(1200ms aquaIn 阻尼)
+                        // ValueKey 让 target 变化时重启,target 不变时保持稳定值
+                        TweenAnimationBuilder<double>(
+                          key: ValueKey('spent-${_totalSpent.round()}'),
+                          tween: Tween(begin: 0.0, end: _totalSpent),
+                          duration: const Duration(milliseconds: 1200),
+                          curve: AppMotion.aquaIn,
+                          builder: (context, value, _) {
+                            return Text(
+                              _hasBudget ? '¥${Formatters.amount(value)}' : '—',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -195,35 +232,48 @@ class _BudgetOverviewBody extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSpacing.s4),
-              // 右侧图例(色块 + 名字 + 百分比,跟 CategoryPie 一致)
+              // 右侧图例(commit 100 加第三段"超额")
+              //   - 未设置预算: 空
+              //   - 已花 ≤ 预算: 已花 + 剩余
+              //   - 已花 > 预算: 已花 + 超额
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _legendRow(
-                      _stateColor,
-                      '已花',
-                      (_progress * 100).toStringAsFixed(0),
-                      Formatters.amount(_totalSpent, withUnit: false),
-                    ),
-                    const SizedBox(height: 4),
-                    _legendRow(
-                      AppGray.g200,
-                      '剩余',
-                      hasBudget
-                          ? ((1 - _progress).clamp(0.0, 1.0) * 100)
-                                .toStringAsFixed(0)
-                          : '0',
-                      hasBudget
-                          ? Formatters.amount(
-                              (overview.totalBudget - _totalSpent).clamp(
-                                0.0,
-                                double.infinity,
-                              ),
-                              withUnit: false,
-                            )
-                          : '0',
-                    ),
+                    if (_hasBudget) ...[
+                      _legendRow(
+                        AppStatus.error,
+                        '已花',
+                        _isOver
+                            ? '100' // 已花占满 100% 预算,不再乘 _progress
+                            : (_progress * 100).toStringAsFixed(0),
+                        Formatters.amount(_totalSpent, withUnit: false),
+                      ),
+                      const SizedBox(height: 4),
+                      if (_isOver)
+                        _legendRow(
+                          AppSemantic.overBudgetDeep,
+                          '超额',
+                          // 超额百分比 = (over / budget) × 100
+                          (_overSpent / overview.totalBudget * 100)
+                              .toStringAsFixed(0),
+                          Formatters.amount(_overSpent, withUnit: false),
+                        )
+                      else
+                        _legendRow(
+                          AppGray.g200,
+                          '剩余',
+                          ((1 - _progress).clamp(0.0, 1.0) * 100)
+                              .toStringAsFixed(0),
+                          Formatters.amount(
+                            (overview.totalBudget - _totalSpent).clamp(
+                              0.0,
+                              double.infinity,
+                            ),
+                            withUnit: false,
+                          ),
+                        ),
+                    ],
                   ],
                 ),
               ),

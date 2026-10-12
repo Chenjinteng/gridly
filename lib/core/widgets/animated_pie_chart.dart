@@ -243,7 +243,205 @@ class _GaugePainter extends CustomPainter {
 /// 计算 sections 的内容 hash,用作 AnimatedPieChart 的 ValueKey。
 /// sections 数据变化 → hash 变化 → widget 重新 mount → 重画。
 Key pieChartKeyForSections(List<PieChartSectionData> sections) {
-  final h = Object.hashAll(
-      sections.map((s) => Object.hash(s.value, s.color)));
+  final h = Object.hashAll(sections.map((s) => Object.hash(s.value, s.color)));
   return ValueKey('pie-$h');
+}
+
+/// 2026-10-12 commit 100 加:支持 multi-turn 的圆环动画(过预算场景)
+///
+/// 跟 [AnimatedPieChart] 的区别:
+///   - AnimatedPieChart 假设 sections 之和 = 1(单圈),`sweepDeg = 0..360°`
+///   - 本 widget 允许 sections 之和 > 1(过预算转多圈),
+///     `sweepDeg = 0..360° × totalTurns`
+///
+///   用法(预算圆环):
+///     已花 ¥10000 → 占 1.0 圈(value = 1.0)
+///     超额 ¥96015 → 占 9.6 圈(value = 9.6)
+///     圆环从 0° 顺时针转:第 1 圈走已花,之后继续走超额,直到转完 10.6 圈
+///
+/// 实现沿用 _GaugePainter 思路,只是 sweepDeg 公式不同;
+/// 为避免影响 AnimatedPieChart 的 shouldRepaint 行为,painter 单独写。
+class AnimatedOverBudgetChart extends StatefulWidget {
+  const AnimatedOverBudgetChart({
+    super.key,
+    required this.sections,
+    this.innerRadius = 48,
+    this.outerRadius = 64,
+    this.startDegreeOffset = -90,
+  });
+
+  /// 数据扇区。**value 是"圈数"** — 例如 1.0 = 1 圈(360°),0.86 = 309.6°
+  final List<PieChartSectionData> sections;
+  final double innerRadius;
+  final double outerRadius;
+  final double startDegreeOffset;
+
+  @override
+  State<AnimatedOverBudgetChart> createState() =>
+      _AnimatedOverBudgetChartState();
+}
+
+class _AnimatedOverBudgetChartState extends State<AnimatedOverBudgetChart>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _t;
+
+  static const Duration _kBaseDuration = Duration(milliseconds: 1200);
+
+  /// 每多 1 圈 +200ms,最多加成 5 圈(封顶 2200ms 防止太长)
+  static const double _kExtraPerTurnMs = 200;
+  static const double _kExtraMaxTurns = 5;
+
+  @override
+  void initState() {
+    super.initState();
+    final totalTurns = _totalTurns();
+    final extraTurns = (totalTurns - 1).clamp(0.0, _kExtraMaxTurns);
+    final ms =
+        _kBaseDuration.inMilliseconds + (extraTurns * _kExtraPerTurnMs).round();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: ms),
+    );
+    _t = CurvedAnimation(parent: _ctrl, curve: AppMotion.aquaIn);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _ctrl.forward();
+    });
+  }
+
+  double _totalTurns() =>
+      widget.sections.fold<double>(0.0, (s, e) => s + e.value);
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final shadowColor = isDark
+        ? Colors.white.withValues(alpha: 0.12)
+        : Colors.black.withValues(alpha: 0.22);
+    return AnimatedBuilder(
+      animation: _t,
+      builder: (context, _) {
+        return CustomPaint(
+          painter: _OverBudgetGaugePainter(
+            sweepProgress: _t.value,
+            sections: widget.sections,
+            innerRadius: widget.innerRadius,
+            outerRadius: widget.outerRadius,
+            startDegreeOffset: widget.startDegreeOffset,
+            shadowColor: shadowColor,
+          ),
+          size: Size.infinite,
+        );
+      },
+    );
+  }
+}
+
+/// 多圈版本的 _GaugePainter。
+///   关键差异:`sweepDeg = sweepProgress * 360 * totalTurns`,
+///   sectorDeg 直接 = sec.value * 360(因为 sec.value 已经是"圈数")。
+class _OverBudgetGaugePainter extends CustomPainter {
+  final double sweepProgress;
+  final List<PieChartSectionData> sections;
+  final double innerRadius;
+  final double outerRadius;
+  final double startDegreeOffset;
+  final Color shadowColor;
+
+  _OverBudgetGaugePainter({
+    required this.sweepProgress,
+    required this.sections,
+    required this.innerRadius,
+    required this.outerRadius,
+    required this.startDegreeOffset,
+    required this.shadowColor,
+  });
+
+  static const double _kClearanceDeg = 1.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final maxOuter = math.min(size.width, size.height) / 2;
+    final outer = math.min(outerRadius, maxOuter);
+    final inner = math.min(innerRadius, outer - 4);
+    final middleRadius = (outer + inner) / 2;
+    final ringThickness = outer - inner;
+
+    final totalTurns = sections.fold<double>(0.0, (s, e) => s + e.value);
+    if (totalTurns <= 0) return;
+
+    // progress 0 → 1 → 扫过 totalTurns 圈
+    final sweepDeg = sweepProgress * 360 * totalTurns;
+    var cumDeg = startDegreeOffset;
+
+    final shadowPaint = Paint()
+      ..color = shadowColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = ringThickness
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 3.5);
+
+    for (final sec in sections) {
+      // sectorDeg 直接由 value(圈数)算出,不再除以 total
+      final sectorDeg = sec.value * 360;
+      final sectorStart = cumDeg;
+      final sectorEnd = cumDeg + sectorDeg;
+
+      double ratio;
+      if (sweepDeg <= sectorStart - startDegreeOffset) {
+        ratio = 0;
+      } else if (sweepDeg >= sectorEnd - startDegreeOffset) {
+        ratio = 1;
+      } else {
+        final denom = (sectorEnd - sectorStart).abs();
+        ratio = denom < 1e-6
+            ? 1.0
+            : (sweepDeg - (sectorStart - startDegreeOffset)) / sectorDeg;
+      }
+
+      if (ratio > 0) {
+        final stroke = Paint()
+          ..color = sec.color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = ringThickness
+          ..strokeCap = StrokeCap.butt;
+
+        final drawStart = sectorStart + _kClearanceDeg;
+        final maxDrawSweep = math.max(0.0, sectorDeg - 2 * _kClearanceDeg);
+        final drawSweep = maxDrawSweep * ratio;
+
+        if (drawSweep > 0) {
+          final path = Path()
+            ..addArc(
+              Rect.fromCircle(center: center, radius: middleRadius),
+              drawStart * math.pi / 180,
+              drawSweep * math.pi / 180,
+            );
+
+          canvas.save();
+          canvas.translate(0, 1.5);
+          canvas.drawPath(path, shadowPaint);
+          canvas.restore();
+
+          canvas.drawPath(path, stroke);
+        }
+      }
+
+      cumDeg += sectorDeg;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_OverBudgetGaugePainter old) =>
+      old.sweepProgress != sweepProgress ||
+      old.sections != sections ||
+      old.innerRadius != innerRadius ||
+      old.outerRadius != outerRadius ||
+      old.startDegreeOffset != startDegreeOffset;
 }
