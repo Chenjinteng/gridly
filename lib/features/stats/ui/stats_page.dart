@@ -74,8 +74,7 @@ class _StatsPageState extends ConsumerState<StatsPage> {
             padding: const EdgeInsets.only(right: AppSpacing.s2),
             child: _CompactViewSegmented(
               current: view,
-              onChange: (v) =>
-                  ref.read(statsViewProvider.notifier).state = v,
+              onChange: (v) => ref.read(statsViewProvider.notifier).state = v,
             ),
           ),
         ],
@@ -113,17 +112,11 @@ class _StatsPageState extends ConsumerState<StatsPage> {
               layoutBuilder: (currentChild, previousChildren) {
                 return Stack(
                   alignment: Alignment.topCenter,
-                  children: <Widget>[
-                    ...previousChildren,
-                    ?currentChild,
-                  ],
+                  children: <Widget>[...previousChildren, ?currentChild],
                 );
               },
               transitionBuilder: (child, animation) {
-                return FadeTransition(
-                  opacity: animation,
-                  child: child,
-                );
+                return FadeTransition(opacity: animation, child: child);
               },
               child: KeyedSubtree(
                 key: ValueKey('view-${view.name}'),
@@ -148,11 +141,13 @@ class _StatsPageState extends ConsumerState<StatsPage> {
     final widgets = <Widget>[];
     var staggerIndex = 0;
     void add(Widget w) {
-      widgets.add(StaggeredFadeIn(
-        index: staggerIndex++,
-        enabled: animateStagger,
-        child: w,
-      ));
+      widgets.add(
+        StaggeredFadeIn(
+          index: staggerIndex++,
+          enabled: animateStagger,
+          child: w,
+        ),
+      );
     }
 
     switch (view) {
@@ -173,25 +168,20 @@ class _StatsPageState extends ConsumerState<StatsPage> {
   }
 }
 
-/// AppBar 右侧的视角选择(ColorOS 16 underline indicator 风格)
+/// AppBar 右侧的视角选择(共享 underline 横条滑动风格)
 ///   - 3 段(支出 / 收入 / 资产),放 AppBar 右侧,跟 title 同一行
-///   - 每段:文字 + 下方固定宽 20px 下划线 indicator
-///   - 选中:文字 onSurface 加粗 + 下划线 primary 色
-///   - 未选中:文字 onSurfaceVariant + 下划线 transparent(同位置,但不可见)
-///   - 切换时下划线 AnimatedContainer 平滑 fade 颜色,240ms aquaIn
-///   - 触觉:selectionClick
+///   - 每段:仅文字(无独立下划线、无 pill bg、无 InkWell ripple 圆角"pill 阴影")
+///   - 选中:文字 onSurface 加粗
+///   - 未选中:文字 onSurfaceVariant
+///   - 切换:共享 underline 横条在 3 段底部滑动,240ms aquaIn(跟 range_tabs 共享 pill
+///     同一思路 — "丝滑切换"= 共 1 根 underline 横条滑动,不是各自 fade)
+///   - 触觉:撤掉(2026-10-12 commit 61)
+///   - 没有 pill / 没有 ripple 圆角"pill 阴影":user 反馈 commit 61 边框 borderRadius:18
+///     看起来像 pill 形阴影,这次撤掉,ripple 改 8(柔但不 pill 形)
 ///
-/// ── 修复 ── (2026-10-12 UAT 截图反馈"title 不见 + 3 段不显示"):
-///   - 下划线绝不能用 `width: selected ? double.infinity : 0`:
-///     Column 在 AppBar actions 这种非约束环境里接到 maxWidth:∞,
-///     直接撞 RenderBox infinite size,整段不渲染。
-///   - 改为固定宽 20(略窄于 14sp 中文 2 字 ≈ 28px),所有段都预留同样
-///     宽度的"下划线槽",颜色淡入就行,3 段底部视觉对齐。
+/// 几何:每段固定 56px(14sp 中文 2 字 + padding 12*2 + 微 buffer),下划线 24px 居中
 class _CompactViewSegmented extends StatelessWidget {
-  const _CompactViewSegmented({
-    required this.current,
-    required this.onChange,
-  });
+  const _CompactViewSegmented({required this.current, required this.onChange});
 
   final StatsView current;
   final ValueChanged<StatsView> onChange;
@@ -202,28 +192,64 @@ class _CompactViewSegmented extends StatelessWidget {
     (StatsView.assets, '资产'),
   ];
 
+  // 几何常量 —— 每段固定 56,underline 横条 24 居中,跟 range_tabs 共享 pill 同思路
+  static const double _segW = 56;
+  static const double _underlineW = 24;
+  static const double _underlineH = 2;
+
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (final (view, label) in _options)
-          _CompactViewSegment(
-            label: label,
-            selected: view == current,
-            onTap: () {
-              if (view == current) return;
-              // 触觉撤掉(commit 61)—— user 反馈"切换 支出/收入/资产 也有震动",
-              // 跟切 tab 一样不再 selectionClick,跟 commit 46 同思路
-              onChange(view);
-            },
+    final theme = Theme.of(context);
+    final currentIdx = _options.indexWhere((o) => o.$1 == current);
+
+    return SizedBox(
+      // padding 8+8 + 14sp text + 4 gap + underline 2 ≈ 36
+      height: 36,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // 3 段文字 row(每段固定 56 wide)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (int i = 0; i < _options.length; i++)
+                SizedBox(
+                  width: _segW,
+                  child: _CompactViewSegment(
+                    label: _options[i].$2,
+                    selected: _options[i].$1 == current,
+                    // onTap 永远调用 onChange;_CompactViewSegment 内部看 selected 决定
+                    // 是否 disable ripple(避免当前段重复点击时的"晃一下")
+                    onTap: () => onChange(_options[i].$1),
+                  ),
+                ),
+            ],
           ),
-      ],
+          // 共享 underline indicator — 240ms aquaIn 在 3 段底部滑动
+          AnimatedPositioned(
+            duration: AppMotion.fast,
+            curve: AppMotion.aquaIn,
+            left: currentIdx * _segW + (_segW - _underlineW) / 2,
+            bottom: 0,
+            width: _underlineW,
+            height: _underlineH,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary,
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-/// 单段 — 文字 + 下方下划线 indicator(ColorOS 16 风格)
+/// 单段 — 仅文字,underline 共享(在父 Stack 上;commit 66 不再自己渲染)
+///   - 选中:文字 onSurface 加粗;InkWell ripple disable(避免当前段重复点击时的"晃一下")
+///   - 未选中:文字 onSurfaceVariant
+///   - ripple 圆角:18(commit 61 太 pill)→ 8(柔但不 pill 形)。
 class _CompactViewSegment extends StatelessWidget {
   const _CompactViewSegment({
     required this.label,
@@ -242,41 +268,24 @@ class _CompactViewSegment extends StatelessWidget {
         ? theme.colorScheme.onSurface
         : theme.colorScheme.onSurfaceVariant;
     return InkWell(
-      onTap: onTap,
-      // ── 修复 ── (commit 59→61):
-      //   - commit 59:不指定 borderRadius 时 InkWell 是直角矩形,user 反馈太生硬
-      //   - commit 61:再圆一点 —— radius 12 → 18,pill 形状更明显
-      borderRadius: BorderRadius.circular(18),
-      // 紧凑:水平 padding 12,垂直 8。AppBar 高度 56,segment 总高 ~36px
-      // (14 字号 + 8 vertical padding + 2 underline + 4 gap)
+      // 选中时 InkWell disable,避免"当前段被点时不响应也起 ripple"的鬼影
+      onTap: selected ? null : onTap,
+      // borderRadius:18 (commit 61) 像 pill 阴影 → user 反馈后改 8,柔但不 pill
+      borderRadius: BorderRadius.circular(8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                color: fg,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-              ),
+        // vertical 8,horizontal 由父 SizedBox(width:56) 给死,此处 0
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Center(
+          child: AnimatedDefaultTextStyle(
+            duration: AppMotion.fast,
+            curve: AppMotion.aquaIn,
+            style: TextStyle(
+              fontSize: 14,
+              color: fg,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
             ),
-            const SizedBox(height: 4),
-            // 下划线 indicator:固定 20px 宽(不取 double.infinity!),颜色淡入
-            AnimatedContainer(
-              duration: AppMotion.fast,
-              curve: AppMotion.aquaIn,
-              height: 2,
-              width: 20,
-              decoration: BoxDecoration(
-                color: selected
-                    ? theme.colorScheme.primary
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(1),
-              ),
-            ),
-          ],
+            child: Text(label),
+          ),
         ),
       ),
     );
