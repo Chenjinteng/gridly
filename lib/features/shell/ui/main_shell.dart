@@ -75,12 +75,17 @@ class _MainShellState extends ConsumerState<MainShell> {
       body: Stack(
         children: [
           const Positioned.fill(child: LedgerGridBackground()),
-          // AnimatedSwitcher 包 child:tab 切换时左右 slide + fade,
+          // AnimatedSwitcher 包 child:tab 切换时左右 slide + fade(有方向感),
           // /add modal 时 fallback 到 1 不触发 slide(模态自己带从底上推)。
+          //
+          // 2026-10-12 修:duration 480ms → 720ms,让 tab 切换过场更明显
+          // (中间有 ~360ms 两 view 都半透明重叠),跟 stats_page cross-fade
+          // 节奏对齐。layoutBuilder Stack 让 previousChildren 跟 currentChild
+          // 同时渲染,避免 sequential fade 的"空白瞬间"。
           Positioned.fill(
             child: AnimatedSwitcher(
-              duration: AppMotion.normal,
-              reverseDuration: AppMotion.fast,
+              duration: const Duration(milliseconds: 720),
+              reverseDuration: const Duration(milliseconds: 720),
               switchInCurve: AppMotion.aquaIn,
               switchOutCurve: AppMotion.aquaOut,
               // 用 pageStorageBucket-style key 维持各 tab 的滚动位置;
