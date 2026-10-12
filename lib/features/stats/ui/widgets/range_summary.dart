@@ -4,6 +4,9 @@
 // 2026-10-12 ColorOS 风数字入场:三个 _Stat 内 Text 改 AnimatedCounter,
 // 首次进入页面 / 切换时间范围时,数字从 0(或旧值)滚动到新值,360ms aquaIn
 // 颜色色 / 进制(万元 mode) 仍由 Formatters 处理。
+//
+// 2026-10-12 P5 commit 加同比箭头:本月维度显示 ▲▼ + 百分比(零除边界 = 绝对值 ±),
+// 本年维度不显示。月度汇总的"变"信息让 user 一眼看到趋势。
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -21,6 +24,8 @@ class RangeSummary extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(statsSummaryProvider);
+    final yoyAsync = ref.watch(monthlyYoYProvider);
+    final yoy = yoyAsync.valueOrNull ?? MonthlyYoY.empty;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
@@ -36,25 +41,30 @@ class RangeSummary extends ConsumerWidget {
         // 黑底卡:重阴影,与月度汇总卡保持一致(dark mode 自动切白阴影)
         boxShadow: CardShadows.dark(context),
       ),
+      // 同比加在 _Stat 里后,Column 变高(3 行:label / number / yoy)。
+      // 分隔线 height:32 不够 → 撤掉硬高度,外层 Row 用 stretch 让分隔线
+      // 跟着列高自适应拉满。
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
             child: _Stat(
-              // 单位标签按值动态切 (元)/(万元) —— Formatters.amount 同步切万
               label: Formatters.labelledUnit('收入', s.income),
               amount: s.income,
               color: AppBrand.gold,
+              yoy: yoy.income,
             ),
           ),
-          Container(width: 1, height: 32, color: AppGray.g600),
+          Container(width: 1, color: AppGray.g600),
           Expanded(
             child: _Stat(
               label: Formatters.labelledUnit('支出', s.expense),
               amount: s.expense,
               color: AppStatus.error,
+              yoy: yoy.expense,
             ),
           ),
-          Container(width: 1, height: 32, color: AppGray.g600),
+          Container(width: 1, color: AppGray.g600),
           Expanded(
             child: _Stat(
               label: Formatters.labelledUnit('结余', s.balance),
@@ -65,6 +75,7 @@ class RangeSummary extends ConsumerWidget {
               //   绿/正 → AppBrand.teal #14B8A6
               //   红/负 → AppStatus.error #EF4444
               color: AppSemantic.balanceFor(s.balance),
+              yoy: yoy.balance,
             ),
           ),
         ],
@@ -78,10 +89,14 @@ class _Stat extends StatelessWidget {
     required this.label,
     required this.amount,
     required this.color,
+    this.yoy,
   });
   final String label;
   final double amount;
   final Color color;
+
+  /// 同比箭头 + 文字(2026-10-12 P5 加),null = 不显示
+  final YoYDelta? yoy;
 
   @override
   Widget build(BuildContext context) {
@@ -118,6 +133,59 @@ class _Stat extends StatelessWidget {
               maxLines: 1,
               softWrap: false,
               overflow: TextOverflow.visible,
+            ),
+          ),
+          // 同比箭头(2026-10-12 P5 加):仅本月维度显示,本年维度 provider 给 MonthlyYoY.empty,
+          // 3 个字段全 null,Badge 渲染 SizedBox.shrink 不占空间。
+          _YoYBadge(yoy: yoy),
+        ],
+      ),
+    );
+  }
+}
+
+/// 同比小徽章:箭头(▲▼ 或 —)+ 文字(百分比 / 绝对值)
+///   - YoYDelta.isUp=true  → ▲ + teal(正方向)
+///   - YoYDelta.isUp=false → ▼ + error(负方向)
+///   - text 是 "0.0%" 时(持平):— + onSurfaceVariant(中性)
+///   - null → SizedBox.shrink(本年维度 / 全 0)
+class _YoYBadge extends StatelessWidget {
+  const _YoYBadge({required this.yoy});
+  final YoYDelta? yoy;
+
+  @override
+  Widget build(BuildContext context) {
+    final y = yoy;
+    if (y == null) return const SizedBox.shrink();
+    // 持平 = "0.0%" 字符串判定(provider 里 pct == 0 时会精确产出 "0.0%")
+    final isFlat = y.text == '0.0%';
+    final Color color;
+    final IconData icon;
+    if (isFlat) {
+      color = Theme.of(context).colorScheme.onSurfaceVariant;
+      icon = Icons.remove_rounded;
+    } else if (y.isUp) {
+      color = AppBrand.teal;
+      icon = Icons.arrow_drop_up_rounded;
+    } else {
+      color = AppStatus.error;
+      icon = Icons.arrow_drop_down_rounded;
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 1),
+          Text(
+            y.text,
+            style: TextStyle(
+              fontSize: 11,
+              color: color,
+              fontWeight: FontWeight.w500,
+              height: 1.0,
             ),
           ),
         ],

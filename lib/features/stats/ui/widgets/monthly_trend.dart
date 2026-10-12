@@ -34,7 +34,8 @@ class MonthlyTrendChart extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final range = ref.watch(statsRangeProvider);
     return Container(
-      // 跟 Top 10 / CategoryPie / IncomePie 同卡片风格(surface + 1px 边框 + shadow)
+      // 跟 Top 10 / CategoryPie 同卡片风格(surface + 1px 边框 + shadow)
+      // 2026-10-12 P5:IncomePie 删了,注释里去掉
       margin: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
       padding: const EdgeInsets.all(AppSpacing.s4),
       decoration: BoxDecoration(

@@ -8,9 +8,9 @@
 // 下拉刷新:广谱 invalidate 所有依赖 provider(流水 / 月度汇总 / 分类)
 //
 // 视角路由:
-//   expense → CategoryPie + TopExpenses + MonthlyTrendChart
-//   income  → IncomePie(2026-10-12 user:"收暂时先只给一个圆环,别的还没想好要放什么报表")
+//   expense → CategoryPie + TopExpenses + MonthlyTrendChart(+ thisMonth: BudgetOverviewChart)
 //   assets  → 占位(2026-10-11 资产功能预留)
+// 2026-10-12 P5 commit 简化:删 income 段(2 段:收支 / 资产),IncomePie 文件同步删
 //
 // 2026-10-12 报表 widget 错峰入场(用户反馈"想有类似流水的那种往上抬"):
 // _viewContent 内每个非 SizedBox widget 包 StaggeredFadeIn,首次 mount 时按
@@ -27,7 +27,6 @@ import '../../../core/utils/refresh_providers.dart';
 import '../../../core/widgets/staggered_fade_in.dart';
 import 'widgets/category_pie.dart';
 import 'widgets/budget_overview_chart.dart';
-import 'widgets/income_pie.dart';
 import 'widgets/monthly_trend.dart';
 import 'widgets/range_summary.dart';
 import 'widgets/range_tabs.dart';
@@ -181,8 +180,6 @@ class _StatsPageState extends ConsumerState<StatsPage> {
           widgets.add(const SizedBox(height: AppSpacing.s3));
         }
         add(const MonthlyTrendChart());
-      case StatsView.income:
-        add(const IncomePie());
       case StatsView.assets:
         add(const _AssetsPlaceholder());
     }
@@ -209,12 +206,11 @@ class _CompactViewSegmented extends StatelessWidget {
   final ValueChanged<StatsView> onChange;
 
   static const _options = <(StatsView, String)>[
-    (StatsView.expense, '支出'),
-    (StatsView.income, '收入'),
+    (StatsView.expense, '收支'),
     (StatsView.assets, '资产'),
   ];
 
-  // 几何常量 —— 每段固定 56,underline 横条 24 居中,跟 range_tabs 共享 pill 同思路
+  // 几何常量 —— 2 段后每段固定 56,underline 横条 24 居中,跟 range_tabs 共享 pill 同思路
   static const double _segW = 56;
   static const double _underlineW = 24;
   static const double _underlineH = 2;

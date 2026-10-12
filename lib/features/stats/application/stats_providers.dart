@@ -5,22 +5,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/providers.dart';
+import '../../../core/utils/formatters.dart';
 import '../../ledger/application/transactions_providers.dart';
 
 /// 2026-10-11 redesign:去 "全部" 段(默认行为 = 本月,无需"全部"显式选择)
 enum StatsRange { thisMonth, thisYear }
 
 /// 报表的"视角"——按内容维度切,跟时间维度 (StatsRange) 正交
-///   expense → 支出视角(现有 CategoryPie + TopExpenses + MonthlyTrend)
-///   income  → 收入视角(用户 2026-10-11 UAT:要看收入分布;镜像 CategoryPie)
+///   expense → 收支视角(CategoryPie + TopExpenses + MonthlyTrend + BudgetOverview)
 ///   assets  → 资产视角(2026-10-11 预留;页面内容先留空等后续)
-enum StatsView { expense, income, assets }
+/// 2026-10-12 P5 commit 简化:删 income 段(收入结构简单,不需要独立视角;收入分布
+/// 跟支出视角合在一起,通过分类饼图 type filter 区分)。
+enum StatsView { expense, assets }
 
 final statsRangeProvider = StateProvider<StatsRange>(
   (_) => StatsRange.thisMonth,
 );
 
-/// 当前报表视角(支出 / 收入 / 资产)
+/// 当前报表视角(收支 / 资产)
 final statsViewProvider = StateProvider<StatsView>((_) => StatsView.expense);
 
 /// 自定义月份(仅 StatsRange.thisMonth 时生效)
@@ -116,43 +118,6 @@ final expenseByCategoryProvider = FutureProvider<List<CategoryExpense>>((
   final byCat = <int, double>{};
   for (final t in txs) {
     if (t.type == 'expense') {
-      byCat[t.categoryId] = (byCat[t.categoryId] ?? 0) + t.amount;
-    }
-  }
-  final out = <CategoryExpense>[];
-  for (final e in byCat.entries) {
-    Category? c;
-    for (final cc in cats) {
-      if (cc.id == e.key) {
-        c = cc;
-        break;
-      }
-    }
-    out.add(
-      CategoryExpense(
-        categoryId: e.key,
-        name: c?.name ?? '未分类',
-        color: c?.color ?? 0xFFA1A1AA,
-        amount: e.value,
-      ),
-    );
-  }
-  out.sort((a, b) => b.amount.compareTo(a.amount));
-  return out;
-});
-
-/// 收入按分类汇总(从大到小)—— IncomePie 用
-/// 跟 expenseByCategoryProvider 同形,只把 type 过滤从 expense 换 income,
-/// 复用 CategoryExpense(类名历史遗留,但 amount/name/color 维度对两者一致)
-final incomeByCategoryProvider = FutureProvider<List<CategoryExpense>>((
-  ref,
-) async {
-  final txs = await ref.watch(statsTransactionsProvider.future);
-  final cats = await ref.watch(allCategoriesProvider.future);
-  if (cats.isEmpty) return const [];
-  final byCat = <int, double>{};
-  for (final t in txs) {
-    if (t.type == 'income') {
       byCat[t.categoryId] = (byCat[t.categoryId] ?? 0) + t.amount;
     }
   }
@@ -302,30 +267,110 @@ class YearlyExpense {
   final double expense;
 }
 
-final yearlyExpenseTrendProvider =
-    FutureProvider<List<YearlyExpense>>((ref) async {
+final yearlyExpenseTrendProvider = FutureProvider<List<YearlyExpense>>((
+  ref,
+) async {
   // 取本年的"自定义年份"(statsCustomYearProvider)或当前年
-  final year =
-      ref.watch(statsCustomYearProvider) ?? DateTime.now().year;
+  final year = ref.watch(statsCustomYearProvider) ?? DateTime.now().year;
   final db = ref.watch(databaseProvider);
   final start = DateTime(year, 1, 1);
   final end = DateTime(year + 1, 1, 1).subtract(const Duration(seconds: 1));
 
-  final txs = await (db.select(db.transactions)
-        ..where((t) =>
-            t.occurredAt.isBetweenValues(start, end) &
-            t.type.equals('expense')))
-      .get();
+  final txs =
+      await (db.select(db.transactions)..where(
+            (t) =>
+                t.occurredAt.isBetweenValues(start, end) &
+                t.type.equals('expense'),
+          ))
+          .get();
 
   final byMonth = <int, double>{};
   for (final t in txs) {
-    byMonth[t.occurredAt.month] =
-        (byMonth[t.occurredAt.month] ?? 0) + t.amount;
+    byMonth[t.occurredAt.month] = (byMonth[t.occurredAt.month] ?? 0) + t.amount;
   }
 
   // 强制 12 行(1..12 月),没数据的月 expense = 0
   return List.generate(
     12,
     (i) => YearlyExpense(month: i + 1, expense: byMonth[i + 1] ?? 0),
+  );
+});
+
+/// 2026-10-12 P5 commit 加:同比箭头 + 百分比(本月 vs 上月)
+///   - 只在 StatsRange.thisMonth 时计算,本年维度 return MonthlyYoY.empty()
+///   - 3 个字段(收入/支出/结余)各自 null = 不显示同比(curr / prev 都为 0)
+///   - 上月为 0 时用绝对值(±¥X.XX),不为零时用百分比(+X.X%)
+///
+/// 边界:
+///   - 本月 1 月 → 上月 = 去年 12 月(DateTime(y, m-1, 1) 自动跨年)
+///   - 上月 0 + 本月 0 → null(全 0 没意义)
+///   - 上月 0 + 本月非 0 → 绝对值 ±¥X.XX,isUp 按本月正负
+class YoYDelta {
+  const YoYDelta({required this.isUp, required this.text});
+
+  /// 趋势方向:true = 上升(本月上月多 / 绝对值正),false = 下降
+  final bool isUp;
+
+  /// 显示文本:百分比("+12.5%"/"-3.2%")或绝对值("±¥100")
+  final String text;
+}
+
+class MonthlyYoY {
+  const MonthlyYoY({this.income, this.expense, this.balance});
+  final YoYDelta? income;
+  final YoYDelta? expense;
+  final YoYDelta? balance;
+
+  static const empty = MonthlyYoY();
+}
+
+final monthlyYoYProvider = FutureProvider<MonthlyYoY>((ref) async {
+  final range = ref.watch(statsRangeProvider);
+  if (range != StatsRange.thisMonth) {
+    // 本年维度没有"同比上一整年"概念(commit 73 已弃用 yearly YoY)
+    return MonthlyYoY.empty;
+  }
+  final w = ref.watch(statsWindowProvider);
+  // 上月窗口:本月 1 日前推 1 秒 → 上月最后一天 → 推到上月 1 日
+  final prevEnd = w.start.subtract(const Duration(seconds: 1));
+  final prevStart = DateTime(prevEnd.year, prevEnd.month, 1);
+
+  final db = ref.watch(databaseProvider);
+  Future<StatsSummary> summary(DateTime start, DateTime end) async {
+    final txs = await (db.select(
+      db.transactions,
+    )..where((t) => t.occurredAt.isBetweenValues(start, end))).get();
+    double income = 0, expense = 0;
+    for (final t in txs) {
+      if (t.type == 'income') income += t.amount;
+      if (t.type == 'expense') expense += t.amount;
+    }
+    return StatsSummary(income: income, expense: expense);
+  }
+
+  final curr = await summary(w.start, w.end);
+  final prev = await summary(prevStart, prevEnd);
+
+  YoYDelta? yoy(double a, double b) {
+    if (a == 0 && b == 0) return null;
+    if (b == 0) {
+      // 上月 0 → 绝对值差(走百分比会让显示 "Infinity%",不可读)
+      final diff = a.abs();
+      return YoYDelta(
+        isUp: a > 0,
+        text: '±¥${Formatters.amount(diff, withUnit: false)}',
+      );
+    }
+    final pct = (a - b) / b * 100;
+    return YoYDelta(
+      isUp: pct > 0,
+      text: '${pct > 0 ? '+' : ''}${pct.toStringAsFixed(1)}%',
+    );
+  }
+
+  return MonthlyYoY(
+    income: yoy(curr.income, prev.income),
+    expense: yoy(curr.expense, prev.expense),
+    balance: yoy(curr.balance, prev.balance),
   );
 });
