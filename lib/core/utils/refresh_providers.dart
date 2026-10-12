@@ -23,6 +23,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/ledger/application/transactions_providers.dart';
 import '../../features/stats/application/stats_providers.dart';
+import 'asset_balance_provider.dart';
 import 'budget_provider.dart';
 
 void refreshAllData(WidgetRef ref) {
@@ -52,4 +53,10 @@ void refreshAllData(WidgetRef ref) {
   ref.invalidate(categoryBudgetsForMonthProvider);
   ref.invalidate(categoryBudgetUsageForMonthProvider);
   ref.invalidate(budgetOverviewForMonthProvider);
+  // 2026-10-12 commit 110 加:流水变动影响资产 currentBalance
+  //   - add / update / delete 一笔 expense 或 income → 那个账户余额变
+  //   - balance 类型流水(动资产但不算月度收支)也算变动 → 必加 invalidate
+  ref.invalidate(assetBalancesProvider);
+  ref.invalidate(assetBalanceProvider);
+  ref.invalidate(assetTotalsProvider);
 }

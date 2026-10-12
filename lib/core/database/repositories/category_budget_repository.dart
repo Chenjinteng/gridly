@@ -6,6 +6,7 @@
 //   - 共享剩余池逻辑在 UI 层算,Repository 只负责存读
 //   - 业务规则(已配置总额度不能超过月度总额度)在 BudgetSheet UI 层校验
 import 'package:drift/drift.dart';
+
 import '../app_database.dart';
 
 class CategoryBudgetRepository {
@@ -15,9 +16,9 @@ class CategoryBudgetRepository {
   /// 取某年某月所有分类的子额度
   /// 返回 `Map<categoryId, amount>`,不在 Map 里的分类 = 没配置子额度
   Future<Map<int, double>> byMonth(int year, int month) async {
-    final rows = await (_db.select(_db.categoryBudgets)
-          ..where((b) => b.year.equals(year) & b.month.equals(month)))
-        .get();
+    final rows = await (_db.select(
+      _db.categoryBudgets,
+    )..where((b) => b.year.equals(year) & b.month.equals(month))).get();
     return {for (final b in rows) b.categoryId: b.amount};
   }
 
@@ -29,15 +30,19 @@ class CategoryBudgetRepository {
     required int month,
     required double amount,
   }) async {
-    final existing = await (_db.select(_db.categoryBudgets)
-          ..where((b) =>
-              b.categoryId.equals(categoryId) &
-              b.year.equals(year) &
-              b.month.equals(month)))
-        .getSingleOrNull();
+    final existing =
+        await (_db.select(_db.categoryBudgets)..where(
+              (b) =>
+                  b.categoryId.equals(categoryId) &
+                  b.year.equals(year) &
+                  b.month.equals(month),
+            ))
+            .getSingleOrNull();
 
     if (existing == null) {
-      await _db.into(_db.categoryBudgets).insert(
+      await _db
+          .into(_db.categoryBudgets)
+          .insert(
             CategoryBudgetsCompanion.insert(
               categoryId: categoryId,
               year: year,
@@ -46,9 +51,9 @@ class CategoryBudgetRepository {
             ),
           );
     } else {
-      await (_db.update(_db.categoryBudgets)
-            ..where((b) => b.id.equals(existing.id)))
-          .write(
+      await (_db.update(
+        _db.categoryBudgets,
+      )..where((b) => b.id.equals(existing.id))).write(
         CategoryBudgetsCompanion(
           amount: Value(amount),
           updatedAt: Value(DateTime.now()),
@@ -64,11 +69,12 @@ class CategoryBudgetRepository {
     required int year,
     required int month,
   }) async {
-    await (_db.delete(_db.categoryBudgets)
-          ..where((b) =>
+    await (_db.delete(_db.categoryBudgets)..where(
+          (b) =>
               b.categoryId.equals(categoryId) &
               b.year.equals(year) &
-              b.month.equals(month)))
+              b.month.equals(month),
+        ))
         .go();
   }
 }

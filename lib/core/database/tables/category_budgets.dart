@@ -23,14 +23,12 @@ class CategoryBudgets extends Table {
   IntColumn get year => integer()();
   IntColumn get month => integer()();
   RealColumn get amount => real()();
-  DateTimeColumn get createdAt =>
-      dateTime().withDefault(currentDateAndTime)();
-  DateTimeColumn get updatedAt =>
-      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 
   /// 同一分类同月只能有一条预算(否则多个子额度逻辑混乱)
   @override
   List<Set<Column>> get uniqueKeys => [
-        {categoryId, year, month},
-      ];
+    {categoryId, year, month},
+  ];
 }

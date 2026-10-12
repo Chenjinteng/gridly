@@ -16,30 +16,31 @@ import 'package:gridly/core/database/app_database.dart';
 import 'package:gridly/features/ledger/application/transactions_providers.dart';
 import 'package:gridly/features/ledger/ui/widgets/transaction_tile.dart';
 
-/// 测试用 Transaction
+/// 测试用 Transaction(2026-10-12 commit 110 加 accountId:测试占账户 1 = "现金")
 Transaction _tx({int id = 1}) => Transaction(
-      id: id,
-      amount: 24.0,
-      type: 'expense',
-      categoryId: 1,
-      occurredAt: DateTime(2026, 10, 8),
-      note: '明仔记',
-      createdAt: DateTime(2026, 10, 8),
-      updatedAt: DateTime(2026, 10, 8),
-    );
+  id: id,
+  amount: 24.0,
+  type: 'expense',
+  categoryId: 1,
+  occurredAt: DateTime(2026, 10, 8),
+  note: '明仔记',
+  accountId: 1,
+  createdAt: DateTime(2026, 10, 8),
+  updatedAt: DateTime(2026, 10, 8),
+);
 
 /// 测试用 Category
 Category _cat({int id = 1, String type = 'expense'}) => Category(
-      id: id,
-      name: '正餐支出',
-      icon: 'restaurant',
-      color: 0xFF6B8E23,
-      type: type,
-      isSystem: true,
-      sortOrder: 0,
-      createdAt: DateTime(2026, 10, 1),
-      updatedAt: DateTime(2026, 10, 1),
-    );
+  id: id,
+  name: '正餐支出',
+  icon: 'restaurant',
+  color: 0xFF6B8E23,
+  type: type,
+  isSystem: true,
+  sortOrder: 0,
+  createdAt: DateTime(2026, 10, 1),
+  updatedAt: DateTime(2026, 10, 1),
+);
 
 /// 包装:ProviderScope(monkey-patch allCategoriesProvider) + MaterialApp + Scaffold(body)
 Widget _harness(Widget child) {
@@ -48,11 +49,7 @@ Widget _harness(Widget child) {
       // TransactionTile.render 读这个 provider;mock 成同步值,避免拖动时数据库 race
       allCategoriesProvider.overrideWith((ref) async => [_cat()]),
     ],
-    child: MaterialApp(
-      home: Scaffold(
-        body: child,
-      ),
-    ),
+    child: MaterialApp(home: Scaffold(body: child)),
   );
 }
 
@@ -71,7 +68,12 @@ double _offsetOf(WidgetTester tester, Finder tileFinder) {
 void main() {
   // 容器宽度给 360,足以让 152px 的按钮组有地方显示
   setUp(() async {
-    TestWidgetsFlutterBinding.ensureInitialized().platformDispatcher.views.first.devicePixelRatio = 1.0;
+    TestWidgetsFlutterBinding.ensureInitialized()
+            .platformDispatcher
+            .views
+            .first
+            .devicePixelRatio =
+        1.0;
   });
 
   testWidgets('左滑超过阈值后释放 → snap 打开,offset 收敛到 -156', (tester) async {
@@ -84,7 +86,7 @@ void main() {
 
     // 拖动 -200px(大于 _kSnapThreshold=40,会触发 snap 到 -156)
     await tester.drag(find.byType(TransactionTile), const Offset(-200, 0));
-    await tester.pumpAndSettle();  // 等动画结束
+    await tester.pumpAndSettle(); // 等动画结束
 
     expect(_offsetOf(tester, find.byType(TransactionTile)), -156);
   });
@@ -140,8 +142,11 @@ void main() {
     // 注意:必须用超过 kTouchSlop(~13px)的位移,否则 GestureDetector 会判为 tap → _close() → 弹回 0
     await tester.drag(find.byType(TransactionTile), const Offset(-60, 0));
     await tester.pumpAndSettle();
-    expect(_offsetOf(tester, find.byType(TransactionTile)), -156,
-        reason: 'snap 动画被中断后,后续 drag 触发的 snap 应能稳定到 -156');
+    expect(
+      _offsetOf(tester, find.byType(TransactionTile)),
+      -156,
+      reason: 'snap 动画被中断后,后续 drag 触发的 snap 应能稳定到 -156',
+    );
   });
 
   testWidgets('快速重复打开/关闭多次,状态正常收敛', (tester) async {
@@ -152,27 +157,35 @@ void main() {
     for (var i = 0; i < 5; i++) {
       await tester.drag(find.byType(TransactionTile), const Offset(-200, 0));
       await tester.pumpAndSettle();
-      expect(_offsetOf(tester, find.byType(TransactionTile)), -156,
-          reason: '第 $i 次打开后应 snap 到 -156');
+      expect(
+        _offsetOf(tester, find.byType(TransactionTile)),
+        -156,
+        reason: '第 $i 次打开后应 snap 到 -156',
+      );
 
       await tester.tap(find.byType(TransactionTile));
       await tester.pumpAndSettle();
-      expect(_offsetOf(tester, find.byType(TransactionTile)), 0,
-          reason: '第 $i 次点击关闭后应回到 0');
+      expect(
+        _offsetOf(tester, find.byType(TransactionTile)),
+        0,
+        reason: '第 $i 次点击关闭后应回到 0',
+      );
     }
   });
 
   testWidgets('多条流水分别滑动,各自的 _offset 互不影响', (tester) async {
     await tester.binding.setSurfaceSize(const Size(360, 700));
-    await tester.pumpWidget(_harness(
-      ListView(
-        children: [
-          TransactionTile(key: ValueKey('tx-1'), transaction: _tx(id: 1)),
-          TransactionTile(key: ValueKey('tx-2'), transaction: _tx(id: 2)),
-          TransactionTile(key: ValueKey('tx-3'), transaction: _tx(id: 3)),
-        ],
+    await tester.pumpWidget(
+      _harness(
+        ListView(
+          children: [
+            TransactionTile(key: ValueKey('tx-1'), transaction: _tx(id: 1)),
+            TransactionTile(key: ValueKey('tx-2'), transaction: _tx(id: 2)),
+            TransactionTile(key: ValueKey('tx-3'), transaction: _tx(id: 3)),
+          ],
+        ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
 
     final allTiles = find.byType(TransactionTile);
@@ -192,7 +205,11 @@ void main() {
 
     expect(_offsetOf(tester, allTiles.at(0)), 0);
     expect(_offsetOf(tester, allTiles.at(1)), -156, reason: '第二条应保持打开状态');
-    expect(_offsetOf(tester, allTiles.at(2)), -156, reason: '第三条也应 snap 到 -156');
+    expect(
+      _offsetOf(tester, allTiles.at(2)),
+      -156,
+      reason: '第三条也应 snap 到 -156',
+    );
 
     // 关闭第三条
     await tester.tap(allTiles.at(2));
@@ -228,9 +245,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(_offsetOf(tester, find.byType(TransactionTile)), -156);
     // afterDrag 应在合理范围(midOffset 附近,但可能已被 drag 进一步推)
-    expect(afterDrag, lessThanOrEqualTo(midOffset),
-        reason: '第二次 drag 应让 _offset 不超过 midOffset(动画已中断,drag 累加)');
-    expect(afterDrag, greaterThanOrEqualTo(-156),
-        reason: '_offset 不应越过 _kOpenOffset');
+    expect(
+      afterDrag,
+      lessThanOrEqualTo(midOffset),
+      reason: '第二次 drag 应让 _offset 不超过 midOffset(动画已中断,drag 累加)',
+    );
+    expect(
+      afterDrag,
+      greaterThanOrEqualTo(-156),
+      reason: '_offset 不应越过 _kOpenOffset',
+    );
   });
 }

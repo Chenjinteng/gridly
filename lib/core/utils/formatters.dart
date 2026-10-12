@@ -86,12 +86,10 @@ class Formatters {
   /// 配合 `amount` 用:返回当前 amount 对应单位,用于 label 拼 "(元)/(万元)"
   /// 例:`Formatters.labelledUnit('收入', 9999)` → "收入(元)"
   ///    `Formatters.labelledUnit('年收入', 1500000)` → "年收入(万元)"
-  static String unit(double v) =>
-      v.abs() >= wanThreshold ? '万元' : '元';
+  static String unit(double v) => v.abs() >= wanThreshold ? '万元' : '元';
 
   /// 快捷 label + unit 拼接。"收入(元)" / "支出(万元)"
-  static String labelledUnit(String label, double v) =>
-      '$label(${unit(v)})';
+  static String labelledUnit(String label, double v) => '$label(${unit(v)})';
 
   /// 流水按日分组的标题:"12月3日 周二"
   static String dayHeader(DateTime d) {

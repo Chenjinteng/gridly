@@ -1,7 +1,9 @@
 // lib/core/database/providers.dart
 // Riverpod Provider:Database / Repository 注入
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'app_database.dart';
+import 'repositories/asset_repository.dart';
 import 'repositories/transaction_repository.dart';
 import 'repositories/category_repository.dart';
 import 'repositories/category_budget_repository.dart';
@@ -24,7 +26,13 @@ final categoryRepositoryProvider = Provider<CategoryRepository>((ref) {
 });
 
 /// CategoryBudgetRepository Provider(commit 90 加)
-final categoryBudgetRepositoryProvider =
-    Provider<CategoryBudgetRepository>((ref) {
+final categoryBudgetRepositoryProvider = Provider<CategoryBudgetRepository>((
+  ref,
+) {
   return CategoryBudgetRepository(ref.watch(databaseProvider));
+});
+
+/// AssetRepository Provider(commit 110 加)
+final assetRepositoryProvider = Provider<AssetRepository>((ref) {
+  return AssetRepository(ref.watch(databaseProvider));
 });

@@ -113,17 +113,18 @@ class _GridlyBannerOverlayState extends State<_GridlyBannerOverlay>
 
     _fade = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween<double>(begin: 0, end: 1)
-            .chain(CurveTween(curve: AppMotion.aquaIn)),
+        tween: Tween<double>(
+          begin: 0,
+          end: 1,
+        ).chain(CurveTween(curve: AppMotion.aquaIn)),
         weight: entryMs,
       ),
+      TweenSequenceItem(tween: ConstantTween<double>(1), weight: holdMs),
       TweenSequenceItem(
-        tween: ConstantTween<double>(1),
-        weight: holdMs,
-      ),
-      TweenSequenceItem(
-        tween: Tween<double>(begin: 1, end: 0)
-            .chain(CurveTween(curve: AppMotion.aquaOut)),
+        tween: Tween<double>(
+          begin: 1,
+          end: 0,
+        ).chain(CurveTween(curve: AppMotion.aquaOut)),
         weight: exitMs,
       ),
     ]).animate(_ctrl);
@@ -160,7 +161,8 @@ class _GridlyBannerOverlayState extends State<_GridlyBannerOverlay>
   }
 
   ({Color accent, Color bg, Color fg, IconData icon, Color border}) _resolve(
-      ThemeData theme) {
+    ThemeData theme,
+  ) {
     // 2026-10-11 UAT 反馈:之前 banner 用 AppBrand.ink 纯黑 + cream 米白,
     // 跟 gridly 主题脱节。改成主题色:
     //   bg     → surfaceContainerHigh(轻微抬升,跟卡片视觉一致)
@@ -215,17 +217,12 @@ class _GridlyBannerOverlayState extends State<_GridlyBannerOverlay>
             child: Material(
               color: Colors.transparent,
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.s4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
                 child: Container(
                   decoration: BoxDecoration(
                     color: scheme.bg,
                     borderRadius: AppRadius.brLg,
-                    border: Border.all(
-                      color: scheme.border,
-                      width: 0.5,
-                    ),
+                    border: Border.all(color: scheme.border, width: 0.5),
                     boxShadow: [
                       // 2026-10-11 UAT:改成 theme 色后阴影也跟着用主题的 shadowColor,
                       // 不再硬编码 black.withValues(...)。light mode 阴影柔和,
@@ -245,11 +242,7 @@ class _GridlyBannerOverlayState extends State<_GridlyBannerOverlay>
                       ),
                       child: Row(
                         children: [
-                          Icon(
-                            scheme.icon,
-                            size: 18,
-                            color: scheme.accent,
-                          ),
+                          Icon(scheme.icon, size: 18, color: scheme.accent),
                           const SizedBox(width: AppSpacing.s2),
                           Expanded(
                             child: Text(

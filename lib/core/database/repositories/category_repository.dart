@@ -2,6 +2,7 @@
 // 分类 Repository —— 业务层唯一接触 Category DAO 的地方
 // App 首次启动时,seed 默认分类
 import 'package:drift/drift.dart';
+
 import '../app_database.dart';
 import '../../../shared/constants/default_categories.dart';
 
@@ -11,10 +12,11 @@ class CategoryRepository {
 
   /// App 启动:seed 默认分类(只在空表时执行)
   Future<void> seedDefaultsIfEmpty() async {
-    final count = await (_db.selectOnly(_db.categories)
-          ..addColumns([_db.categories.id.count()]))
-        .map((row) => row.read(_db.categories.id.count())!)
-        .getSingle();
+    final count =
+        await (_db.selectOnly(_db.categories)
+              ..addColumns([_db.categories.id.count()]))
+            .map((row) => row.read(_db.categories.id.count())!)
+            .getSingle();
     if (count > 0) return;
 
     await _db.batch((batch) {
@@ -29,9 +31,9 @@ class CategoryRepository {
 
   /// 全部分类(按 sortOrder 升序)
   Future<List<Category>> all() {
-    return (_db.select(_db.categories)
-          ..orderBy([(c) => OrderingTerm.asc(c.sortOrder)]))
-        .get();
+    return (_db.select(
+      _db.categories,
+    )..orderBy([(c) => OrderingTerm.asc(c.sortOrder)])).get();
   }
 
   /// 按 type 取
@@ -50,7 +52,9 @@ class CategoryRepository {
     required String type,
     int sortOrder = 0,
   }) {
-    return _db.into(_db.categories).insert(
+    return _db
+        .into(_db.categories)
+        .insert(
           CategoriesCompanion.insert(
             name: name,
             icon: icon,
