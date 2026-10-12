@@ -42,10 +42,10 @@ class RangeSummary extends ConsumerWidget {
         boxShadow: CardShadows.dark(context),
       ),
       // 同比加在 _Stat 里后,Column 变高(3 行:label / number / yoy)。
-      // 分隔线 height:32 不够 → 撤掉硬高度,外层 Row 用 stretch 让分隔线
-      // 跟着列高自适应拉满。
+      // 分隔线高度硬编码 32(不要 stretch — ListView 无限高度 + Row.stretch +
+      // 无 height 子项会触发 BoxConstraints forces an infinite height 异常,
+      // 整个 RangeSummary 抛错 → 报表页全空白)
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
             child: _Stat(
@@ -55,7 +55,7 @@ class RangeSummary extends ConsumerWidget {
               yoy: yoy.income,
             ),
           ),
-          Container(width: 1, color: AppGray.g600),
+          Container(width: 1, height: 32, color: AppGray.g600),
           Expanded(
             child: _Stat(
               label: Formatters.labelledUnit('支出', s.expense),
@@ -64,7 +64,7 @@ class RangeSummary extends ConsumerWidget {
               yoy: yoy.expense,
             ),
           ),
-          Container(width: 1, color: AppGray.g600),
+          Container(width: 1, height: 32, color: AppGray.g600),
           Expanded(
             child: _Stat(
               label: Formatters.labelledUnit('结余', s.balance),
