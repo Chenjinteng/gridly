@@ -94,16 +94,16 @@ class _StatsPageState extends ConsumerState<StatsPage> {
             // 视角特定内容 — 包 AnimatedSwitcher cross-fade,切视角(支出/收入/资产)时
             // 新旧 view 同时存在(Stack 同时透明),完全无缝过渡。
             //
-            // 2026-10-12 修(第 5 次迭代):
-            //   - 之前 v1+v2:旧 fade out 完成才接着淡入新 view,有"空白瞬间",感觉卡
-            //   - v3:加 layoutBuilder Stack cross-fade,新旧同时存在,无空白
-            //   - v4:duration 680ms,过场太快,用户感觉不到"淡入淡出"的过场
-            //   - v5(本版):duration 加到 1100ms,让 fade in/out 中间有 ~550ms
-            //     两 view 都半透明的重叠区,过场节奏明显;StaggerGrow 同步
-            //     拉到 1300ms,色块在 fade in 中后段长完,避免"已经画完但
-            //     fade 还没结束"的不协调
+            // 2026-10-12 修(第 6 次迭代):
+            //   - 之前 v5:duration 1100ms + cross-fade Stack,中间 ~550ms
+            //     两 view 都半透明重叠,user 反馈"页面消失的太慢,重叠了"
+            //   - v6(本版):duration 500ms,保留 cross-fade 但重叠窗口
+            //     缩到 ~250ms,既保留 ColorOS 水波过场感,又不再"两个
+            //     view 糊在一起"的长时间叠加
+            //   - StaggeredFadeIn 360ms 不动,它只在首次 mount 触发一次,
+            //     view 切换时不重放,跟 AnimatedSwitcher 节奏无冲突
             AnimatedSwitcher(
-              duration: const Duration(milliseconds: 1100),
+              duration: const Duration(milliseconds: 500),
               switchInCurve: AppMotion.aquaIn,
               switchOutCurve: AppMotion.aquaOut,
               // cross-fade:Stack 让 previous children 跟 current child 同时
