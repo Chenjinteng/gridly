@@ -40,7 +40,9 @@ class LedgerPage extends ConsumerStatefulWidget {
 
 class _LedgerPageState extends ConsumerState<LedgerPage> {
   final _searchController = TextEditingController();
-  bool _searching = false;
+  // 搜索状态(2026-10-12 P5 follow-up 第 2 次改):搜索输入搬到 _FilterSheet 顶部,
+  //   不再切 AppBar title;controller 仍由 _LedgerPageState 持有(关闭 sheet
+  //   后再次打开保留搜索内容);searching 标志由 ledgerSearchQueryProvider 推导。
 
   /// 2026-10-12 ColorOS 列表错峰 fade-in:
   ///   - false:首次 build 阶段,所有 tile 走 _StaggeredTile 动画分支,
@@ -65,19 +67,19 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
     super.dispose();
   }
 
-  void _toggleSearch() {
-    setState(() {
-      _searching = !_searching;
-      if (!_searching) {
-        _searchController.clear();
-        ref.read(ledgerSearchQueryProvider.notifier).state = '';
-      }
-    });
+  // 2026-10-12 P5 follow-up 第 2 次改:_toggleSearch 删除,搜索/清空逻辑搬到
+  //   _FilterSheet 内的搜索 TextField + 底部"清空筛选"按钮。
+  bool _anyFilterActive(WidgetRef ref) {
+    return ref.watch(ledgerTypeFilterProvider) != 'all' ||
+        ref.watch(ledgerMonthFilterProvider) != null ||
+        ref.watch(ledgerCategoryFilterProvider).isNotEmpty ||
+        ref.watch(ledgerAssetFilterProvider).isNotEmpty ||
+        ref.watch(ledgerSearchQueryProvider).isNotEmpty;
   }
 
-  /// 2026-10-12 P5 follow-up 加:打开多维筛选 sheet
-  ///   - 包含 4 维度:类型(单选)、月份(单选)、分类(多选)、资产(多选)
-  ///   - filter bar 主行不动,资产筛选取这里
+  /// 2026-10-12 P5 follow-up 第 2 次改:打开"搜索 + 筛选"sheet
+  ///   - 顶部搜索框(搜备注 / 分类)+ 4 维度 pill
+  ///   - AppBar 只留 filter_alt 一个入口,合并搜索避免两个按钮拥挤
   void _openFilterSheet({
     required List<Asset> allAssets,
     required List<Category> catsForType,
@@ -90,6 +92,9 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
       ),
       builder: (sheetCtx) => _FilterSheet(
+        searchController: _searchController,
+        onSearchChanged: (v) =>
+            ref.read(ledgerSearchQueryProvider.notifier).state = v,
         currentType: ref.read(ledgerTypeFilterProvider),
         currentMonth: ref.read(ledgerMonthFilterProvider),
         currentCategory: ref.read(ledgerCategoryFilterProvider),
@@ -141,9 +146,10 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
     final monthFilter = ref.watch(ledgerMonthFilterProvider);
     final categoryFilter = ref.watch(ledgerCategoryFilterProvider);
     // 2026-10-12 P5 follow-up 加回:资产 filter(默认空,不参与过滤)
-    final assetFilter = ref.watch(ledgerAssetFilterProvider);
     // 资产列表(给 AppBar filter sheet 用)— 提前 watch
     final allAssetsAsync = ref.watch(allAssetsProvider);
+    // 搜索 query(用于 _EmptyState 显示"没找到匹配的"提示)
+    final searchQuery = ref.watch(ledgerSearchQueryProvider);
 
     final catsForType = typeFilter == 'all'
         ? allCats
@@ -151,28 +157,18 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: _searching
-            ? TextField(
-                controller: _searchController,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  hintText: '搜备注 / 分类',
-                  border: InputBorder.none,
-                  hintStyle: TextStyle(color: AppGray.g400),
-                ),
-                style: const TextStyle(fontSize: 16),
-                onChanged: (v) =>
-                    ref.read(ledgerSearchQueryProvider.notifier).state = v,
-              )
-            : const Text('流水'),
+        // 2026-10-12 P5 follow-up 第 2 次改:搜索 + 过滤合并到 AppBar filter_alt 图标
+        //   - 搜索输入框搬到 _FilterSheet 顶部(用户偏好"同操作只保留一个入口")
+        //   - 标题固定 '流水',不再切 search field
+        title: const Text('流水'),
         actions: [
           // 2026-10-12 P5 follow-up 加:AppBar 右上角 filter 按钮
-          //   弹多维筛选 sheet(类型 / 月份 / 分类 / 资产),filter bar 主行不动
+          //   弹多维筛选 sheet:搜索 + 类型 / 月份 / 分类 / 资产
           //   icon 在有任意筛选激活时 tint primary 色,user 一眼看到"在筛选中"
           IconButton(
             icon: Icon(
               Icons.filter_alt_rounded,
-              color: assetFilter.isNotEmpty
+              color: _anyFilterActive(ref)
                   ? Theme.of(context).colorScheme.primary
                   : null,
             ),
@@ -180,10 +176,6 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
               allAssets: allAssetsAsync.valueOrNull ?? const [],
               catsForType: catsForType,
             ),
-          ),
-          IconButton(
-            icon: Icon(_searching ? Icons.close : Icons.search),
-            onPressed: _toggleSearch,
           ),
         ],
       ),
@@ -232,7 +224,7 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
                         physics: const AlwaysScrollableScrollPhysics(),
                         children: [
                           const SizedBox(height: 120),
-                          _EmptyState(searching: _searching),
+                          _EmptyState(searching: searchQuery.isNotEmpty),
                         ],
                       );
                     }
@@ -984,6 +976,8 @@ class _DaySection extends StatelessWidget {
 ///   - 不持有 state,只是 current* + on*Changed 透传,跟 _FilterBar 同模式
 class _FilterSheet extends StatelessWidget {
   const _FilterSheet({
+    required this.searchController,
+    required this.onSearchChanged,
     required this.currentType,
     required this.currentMonth,
     required this.currentCategory,
@@ -998,6 +992,11 @@ class _FilterSheet extends StatelessWidget {
     required this.onAssetChanged,
   });
 
+  // 2026-10-12 P5 follow-up 第 2 次改:搜索输入也搬到 sheet 顶部(用户偏好
+  //   "漏斗=高级过滤入口,搜索也进去"),controller 来自 _LedgerPageState,
+  //   关闭 sheet 再打开保留搜索内容;onChanged 直接写 ledgerSearchQueryProvider。
+  final TextEditingController searchController;
+  final ValueChanged<String> onSearchChanged;
   final String currentType;
   final int? currentMonth;
   final Set<int> currentCategory;
@@ -1012,6 +1011,7 @@ class _FilterSheet extends StatelessWidget {
   final ValueChanged<Set<int>> onAssetChanged;
 
   bool get _hasAnyFilter =>
+      searchController.text.isNotEmpty ||
       currentType != 'all' ||
       currentMonth != null ||
       currentCategory.isNotEmpty ||
@@ -1073,6 +1073,64 @@ class _FilterSheet extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppGray.g400,
                 borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // 搜索框(2026-10-12 P5 follow-up 第 2 次改:从 AppBar 搬到 sheet 顶部,
+            //   AppBar 只留 filter_alt 一个入口)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.s4,
+                AppSpacing.s2,
+                AppSpacing.s4,
+                AppSpacing.s2,
+              ),
+              child: TextField(
+                controller: searchController,
+                onChanged: onSearchChanged,
+                decoration: InputDecoration(
+                  hintText: '搜备注 / 分类',
+                  hintStyle: const TextStyle(color: AppGray.g400, fontSize: 14),
+                  prefixIcon: const Icon(
+                    Icons.search_rounded,
+                    size: 18,
+                    color: AppGray.g600,
+                  ),
+                  // 输入框清除按钮(右侧 ✕)— 仅在有文字时显示
+                  suffixIcon: searchController.text.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            size: 16,
+                            color: AppGray.g600,
+                          ),
+                          onPressed: () {
+                            searchController.clear();
+                            onSearchChanged('');
+                          },
+                        ),
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.s2,
+                    vertical: AppSpacing.s2,
+                  ),
+                  filled: true,
+                  fillColor: theme.colorScheme.surfaceContainerLow,
+                  border: OutlineInputBorder(
+                    borderRadius: AppRadius.brMd,
+                    borderSide: BorderSide(
+                      color: theme.colorScheme.outlineVariant,
+                      width: 0.5,
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: AppRadius.brMd,
+                    borderSide: BorderSide(
+                      color: theme.colorScheme.outlineVariant,
+                      width: 0.5,
+                    ),
+                  ),
+                ),
               ),
             ),
             // 标题行
@@ -1149,6 +1207,9 @@ class _FilterSheet extends StatelessWidget {
                 child: FilledButton(
                   onPressed: _hasAnyFilter
                       ? () {
+                          // 2026-10-12 P5 follow-up 第 2 次改:清空也清搜索 query + controller
+                          searchController.clear();
+                          onSearchChanged('');
                           onTypeChanged('all');
                           onMonthChanged(null);
                           onCategoryChanged(<int>{});
