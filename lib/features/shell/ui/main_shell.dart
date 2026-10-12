@@ -5,14 +5,15 @@
 // Stack 底层铺 LedgerGridBackground(16×16 格子纸背景),强化"格子"主题。
 //
 // 2026-10-12 ColorOS Aquamorphic 改造(commit 40):丝滑 tab 切换
-//   - body:AnimatedSwitcher keyed,带 layoutBuilder Stack cross-fade
-//     ── 之前 ──(commit 36):
-//       PageView + animateToPage(720ms aquaIn)
-//       切换是 horizontal slide,像 PPT 一页一页翻过去
-//     ── 现在 ──:
-//       AnimatedSwitcher 320ms aquaIn 交叉淡入淡出,无水平 slide
-//       切入新 tab 时旧的跟新的同时存在(Stack 同时透明),全新/旧 view 之间
-//       是 cross-fade,ColorOS 标准切 tab 风格
+//   - body:AnimatedSwitcher keyed + 方向感知 SlideTransition
+//     ── commit 36 ──:PageView + animateToPage(720ms aquaIn)横滑,iOS 风
+//     ── commit 40 ──:纯 AnimatedSwitcher 320ms cross-fade,无水平位移,
+//                     但 user 反馈"页面切换还是生硬"
+//     ── commit 43 ──:撤掉 pill,只靠 icon + label 改色标识
+//     ── commit 44 (本版)──:cross-fade 上加方向感知 slide,offset = -dir*0.06
+//                     tap→右:新页从 +0.06(右侧)滑入,旧页向左侧滑出
+//                     tap→左:新页从 -0.06(左侧)滑入,旧页向右侧滑出
+//                     ColorOS 切 tab 的标志性"页面推过去"
 //   - bottom nav:NavigationBar 直接靠默认 selectIndIcon + 金 label 颜色做
 //     选区标识,不叠自定义 pill(commit 41-42 两版 pill 都撞视觉,撤掉)
 //   - tab 切换动效时长 320ms(比 M3 短促的 150ms 长,ColorOS 主动放慢)
@@ -46,6 +47,13 @@ class _MainShellState extends ConsumerState<MainShell> {
   /// 4 个 tab 页面的当前索引:0=首页 / 1=流水 / 2=报表 / 3=我的
   /// 注意:FAB 不在 4 个 tab 内,dest 2 走 push '/add' 路由
   int _currentTab = 0;
+
+  /// 上一次 build 的 tab index —— 用于计算 slide 方向。
+  /// 初始 0(首页);从 modal 进/出不算 tab slide。
+  int _prevTab = 0;
+
+  /// 上一次 build 是不是 modal 路由(/add 等)
+  bool _wasOnModal = false;
 
   /// 上一次 sync 过的 route tab —— 防 context.go 与 route 同步之间循环
   int _lastRouteTab = -1;
@@ -136,15 +144,30 @@ class _MainShellState extends ConsumerState<MainShell> {
       _lastRouteTab = routeTab;
     }
 
+    // ── 方向感知 slide ── (commit 44,参考 aecec3f 那版):
+    // 只在 tab 之间切换算方向(+1 / -1),modal 进/出不算 tab slide,
+    // 因为 modal 自己带从底上推动画,叠加会抖。
+    int dir = 0;
+    final locForDir = GoRouterState.of(context).uri.path;
+    final onModalNow = locForDir.startsWith('/add') || locForDir.startsWith('/edit');
+    if (!_wasOnModal && !onModalNow) {
+      dir = _currentTab > _prevTab ? 1 : (_currentTab < _prevTab ? -1 : 0);
+    }
+    _prevTab = _currentTab;
+    _wasOnModal = onModalNow;
+
     return Scaffold(
       body: Stack(
         children: [
           const Positioned.fill(child: LedgerGridBackground()),
-          // 2026-10-12 (commit 40):body 切 tab 用 AnimatedSwitcher cross-fade
-          // ── 之前 ──:PageView + animateToPage → 水平横滑,iOS 风
-          // ── 现在 ──:320ms aquaIn/aquaOut 交叉淡入淡出,完全无水平 slide
-          // layoutBuilder Stack 让 previous children 跟 current child 同时
-          // 渲染,中间没有"空白帧"
+          // 2026-10-12 (commit 44) body 切 tab:
+          //   - AnimatedSwitcher 320ms cross-fade(aquaIn / aquaOut)
+          //   - 再叠一层方向感知 SlideTransition,offset = -dir * 0.06
+          //     (屏幕宽 6%)。tap→右:新页从 +0.06(右侧)滑入,旧页向左侧
+          //     滑出;tap→左:镜像。ColorOS 切 tab 的标志性"页面推过去"
+          //   - 进 320ms 跟随 previous 在 Stack 同时可见(cross-fade)
+          //   - 之前 commit 40 撤掉方向感是因为 pill 太丑,现在 pill 也撤了,
+          //     方向感知 slide 留着,符合"丝滑"要求
           Positioned.fill(
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 320),
@@ -160,7 +183,16 @@ class _MainShellState extends ConsumerState<MainShell> {
                 );
               },
               transitionBuilder: (child, animation) {
-                return FadeTransition(opacity: animation, child: child);
+                // SlideTransition 让新 page 从 ±0.06 横向位移滑入,
+                // 同时 FadeTransition 让两 page 透明度同步过渡。
+                final slide = Tween<Offset>(
+                  begin: Offset(-dir * 0.06, 0),
+                  end: Offset.zero,
+                ).animate(animation);
+                return SlideTransition(
+                  position: slide,
+                  child: FadeTransition(opacity: animation, child: child),
+                );
               },
               child: KeyedSubtree(
                 key: ValueKey('tab-$_currentTab'),
