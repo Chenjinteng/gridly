@@ -21,7 +21,6 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/motion/app_motion.dart';
-import '../../../core/haptics/app_haptics.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/refresh_providers.dart';
@@ -214,7 +213,8 @@ class _CompactViewSegmented extends StatelessWidget {
             selected: view == current,
             onTap: () {
               if (view == current) return;
-              AppHaptics.select();
+              // 触觉撤掉(commit 61)—— user 反馈"切换 支出/收入/资产 也有震动",
+              // 跟切 tab 一样不再 selectionClick,跟 commit 46 同思路
               onChange(view);
             },
           ),
@@ -243,12 +243,10 @@ class _CompactViewSegment extends StatelessWidget {
         : theme.colorScheme.onSurfaceVariant;
     return InkWell(
       onTap: onTap,
-      // ── 修复 ── (commit 59, user 反馈"直角矩形,太生硬"):
-      //   不指定 borderRadius 时 InkWell 的 ripple/highlight 是直角矩形
-      //   (Material 默认 shape)。手动给圆角让 ripple 软一些,segment 周围
-      //   看起来不像"贴了张方纸"
-      //   - radius 12:跟 segment 高度匹配,~pill 形状(比 hard-corner 柔和)
-      borderRadius: BorderRadius.circular(12),
+      // ── 修复 ── (commit 59→61):
+      //   - commit 59:不指定 borderRadius 时 InkWell 是直角矩形,user 反馈太生硬
+      //   - commit 61:再圆一点 —— radius 12 → 18,pill 形状更明显
+      borderRadius: BorderRadius.circular(18),
       // 紧凑:水平 padding 12,垂直 8。AppBar 高度 56,segment 总高 ~36px
       // (14 字号 + 8 vertical padding + 2 underline + 4 gap)
       child: Padding(
