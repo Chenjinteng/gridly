@@ -47,9 +47,9 @@ class RangeTabs extends ConsumerWidget {
     //   custom 是其他月                          → "X 年 X 月"
     final monthLabel = isThisMonth
         ? (custom == null ||
-                (custom.year == now.year && custom.month == now.month)
-            ? '本月'
-            : '${custom.year} 年 ${custom.month} 月')
+                  (custom.year == now.year && custom.month == now.month)
+              ? '本月'
+              : '${custom.year} 年 ${custom.month} 月')
         : '本月';
 
     // 本年段 label:同 monthLabel 对称归一化
@@ -58,101 +58,103 @@ class RangeTabs extends ConsumerWidget {
     //   customYear 是其他年         → "X 年"
     final yearLabel = isThisYear
         ? (customYear == null || customYear == now.year
-            ? '本年'
-            : '$customYear 年')
+              ? '本年'
+              : '$customYear 年')
         : '本年';
 
     // 清除按钮启用条件:custom 存在且 ≠ 当前(月份或年份维度任一为非当前都算)
-    final hasMonthFilter = custom != null &&
+    final hasMonthFilter =
+        custom != null &&
         (custom.year != now.year || custom.month != now.month);
     final hasYearFilter = customYear != null && customYear != now.year;
     final filterActive = hasMonthFilter || hasYearFilter;
+    final theme = Theme.of(context);
 
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.s4),
       child: Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerLow,
+          color: theme.colorScheme.surfaceContainerLow,
           borderRadius: AppRadius.brLg,
         ),
         child: Row(
           children: [
-            // ── commit 62 ── 共享 pill 滑动
-            //   2 个 segment 各自的 AnimatedContainer bg 撤掉,改成 Stack
-            //   单一 pill (primary @ 0.12 alpha),AnimatedPositioned left 在
-            //   两 segment 之间水平滑动 240ms aquaIn。
+            // ── commit 64 ── 共享 pill 滑动 (重写)
+            //   v62 用 LayoutBuilder.c.maxWidth/2 算 segWidth 喂 AnimatedPositioned,
+            //   user 截图反馈"左右都有 2-3px 留白 + 看起来不在居中",Stack + AnimatedPositioned
+            //   跟内部 Row 的 render box 在 sub-pixel rounding 上对不齐。
+            //   改 Positioned.fill + AnimatedAlign(widthFactor:0.5, heightFactor:1.0):
+            //   pill 直接表达"Stack 半宽 × 全高",跟内部 Row 2 个 Expanded 用同一个 flex
+            //   模型,几何 100% 一致,不存在亚像素 gap。AnimatedAlign 在 Alignment.centerLeft/
+            //   centerRight 间 240ms aquaIn 插值,pill 滑动;切到任一 tab,pill 圆角跟
+            //   container brLg 圆角完全重合(pill = Stack 满宽 × 满高)。
             Expanded(
-              child: LayoutBuilder(
-                builder: (ctx, c) {
-                  final segWidth = c.maxWidth / 2;
-                  final themeInner = Theme.of(context);
-                  return Stack(
-                    children: [
-                      // 滑动 pill —— 在 InkWell 之下,ripple press 时短时被遮,
-                      // 抬起后 pill 仍可见
-                      // ── commit 63 (user "pill 比之前窄,上下/左 padding 拥挤"):
-                      //   pill 宽度 = segWidth(满 segment,不再 horizontal padding
-                      //   削 8px);top/bottom 各留 2px 让 pill 圆角跟 container
-                      //   圆角不重叠;视觉上跟之前 per-segment bg 等宽
-                      AnimatedPositioned(
-                        duration: AppMotion.fast,
-                        curve: AppMotion.aquaIn,
-                        left: isThisMonth ? 0 : segWidth,
-                        top: 2,
-                        bottom: 2,
-                        width: segWidth,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: themeInner.colorScheme.primary
-                                .withValues(alpha: 0.12),
-                            borderRadius: AppRadius.brLg,
+              child: Stack(
+                children: [
+                  // 滑动 pill —— 在 InkWell 之下,ripple press 时 pill 短时被遮,抬起可见
+                  //   widthFactor:0.5 → pill 始终是 Stack 宽度的 1/2(跟内部
+                  //   Row 2 个 Expanded 的几何模型完全一致)
+                  //   heightFactor:1.0 → pill 始终是 Stack 全高(跟 segment 等高,
+                  //   圆角跟 container 的 brLg 在 Stack 边框完美重合)
+                  Positioned.fill(
+                    child: AnimatedAlign(
+                      duration: AppMotion.fast,
+                      curve: AppMotion.aquaIn,
+                      alignment: isThisMonth
+                          ? Alignment.centerLeft
+                          : Alignment.centerRight,
+                      widthFactor: 0.5,
+                      heightFactor: 1.0,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary.withValues(
+                            alpha: 0.12,
                           ),
+                          borderRadius: AppRadius.brLg,
                         ),
                       ),
-                      // 2 个 segment 本体(text + chevron,无背景,只是文字和 ripple)
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _RangeSegment(
-                              label: monthLabel,
-                              selected: isThisMonth,
-                              onTap: () {
-                                if (range == StatsRange.thisMonth) {
-                                  // 已在该段 → 弹月份 picker,tap 反馈
-                                  AppHaptics.tap();
-                                  _pickMonth(context, ref, custom);
-                                } else {
-                                  // 切到该段 → select 反馈
-                                  AppHaptics.select();
-                                  ref
-                                      .read(statsRangeProvider.notifier)
-                                      .state = StatsRange.thisMonth;
-                                }
-                              },
-                            ),
-                          ),
-                          Expanded(
-                            child: _RangeSegment(
-                              label: yearLabel,
-                              selected: isThisYear,
-                              onTap: () {
-                                if (range == StatsRange.thisYear) {
-                                  AppHaptics.tap();
-                                  _pickYear(context, ref, customYear);
-                                } else {
-                                  AppHaptics.select();
-                                  ref
-                                      .read(statsRangeProvider.notifier)
-                                      .state = StatsRange.thisYear;
-                                }
-                              },
-                            ),
-                          ),
-                        ],
+                    ),
+                  ),
+                  // 2 个 segment 本体(text + chevron,无背景,只是文字和 ripple)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _RangeSegment(
+                          label: monthLabel,
+                          selected: isThisMonth,
+                          onTap: () {
+                            if (range == StatsRange.thisMonth) {
+                              // 已在该段 → 弹月份 picker,tap 反馈
+                              AppHaptics.tap();
+                              _pickMonth(context, ref, custom);
+                            } else {
+                              // 切到该段 → select 反馈
+                              AppHaptics.select();
+                              ref.read(statsRangeProvider.notifier).state =
+                                  StatsRange.thisMonth;
+                            }
+                          },
+                        ),
+                      ),
+                      Expanded(
+                        child: _RangeSegment(
+                          label: yearLabel,
+                          selected: isThisYear,
+                          onTap: () {
+                            if (range == StatsRange.thisYear) {
+                              AppHaptics.tap();
+                              _pickYear(context, ref, customYear);
+                            } else {
+                              AppHaptics.select();
+                              ref.read(statsRangeProvider.notifier).state =
+                                  StatsRange.thisYear;
+                            }
+                          },
+                        ),
                       ),
                     ],
-                  );
-                },
+                  ),
+                ],
               ),
             ),
             // 清除按钮:filterActive 时启用,清 month + 清 year + 回到 thisMonth
@@ -163,12 +165,8 @@ class RangeTabs extends ConsumerWidget {
                   ? () {
                       // 清筛选是个"重置"动作,success(中量)反馈
                       AppHaptics.success();
-                      ref
-                          .read(statsCustomMonthProvider.notifier)
-                          .state = null;
-                      ref
-                          .read(statsCustomYearProvider.notifier)
-                          .state = null;
+                      ref.read(statsCustomMonthProvider.notifier).state = null;
+                      ref.read(statsCustomYearProvider.notifier).state = null;
                       ref.read(statsRangeProvider.notifier).state =
                           StatsRange.thisMonth;
                     }
@@ -273,8 +271,7 @@ class _RangeSegment extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 13,
                     color: fg,
-                    fontWeight:
-                        selected ? FontWeight.w700 : FontWeight.w500,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                   ),
                   child: Text(
                     label,
@@ -288,11 +285,7 @@ class _RangeSegment extends StatelessWidget {
             // chevron 提示"点了会下拉",跟 segment 行为一致
             // (切月/切年 / 切视角 chevron 视觉一致)
             const SizedBox(width: 2),
-            Icon(
-              Icons.expand_more_rounded,
-              size: 14,
-              color: fg,
-            ),
+            Icon(Icons.expand_more_rounded, size: 14, color: fg),
           ],
         ),
       ),
@@ -407,10 +400,10 @@ class _MonthPickerSheetState extends State<_MonthPickerSheet> {
                     TextButton.icon(
                       icon: const Icon(Icons.today_rounded, size: 16),
                       label: const Text('回到本月'),
-                      onPressed: () => Navigator.pop(
-                        context,
-                        (year: widget.anchorYear, month: widget.anchorMonth),
-                      ),
+                      onPressed: () => Navigator.pop(context, (
+                        year: widget.anchorYear,
+                        month: widget.anchorMonth,
+                      )),
                     ),
                   TextButton(
                     onPressed: () => Navigator.pop(context),
@@ -469,17 +462,14 @@ class _MonthPickerSheetState extends State<_MonthPickerSheet> {
                 itemCount: 12,
                 itemBuilder: (_, i) {
                   final m = i + 1;
-                  final isSelected = _year == widget.currentYear &&
-                      m == widget.currentMonth;
+                  final isSelected =
+                      _year == widget.currentYear && m == widget.currentMonth;
                   final disabled = _isFuture(_year, m);
                   return InkWell(
                     borderRadius: AppRadius.brMd,
                     onTap: disabled
                         ? null
-                        : () => Navigator.pop(
-                              context,
-                              (year: _year, month: m),
-                            ),
+                        : () => Navigator.pop(context, (year: _year, month: m)),
                     child: Container(
                       decoration: BoxDecoration(
                         color: isSelected
@@ -504,8 +494,8 @@ class _MonthPickerSheetState extends State<_MonthPickerSheet> {
                           color: disabled
                               ? theme.colorScheme.outlineVariant
                               : (isSelected
-                                  ? theme.colorScheme.primary
-                                  : theme.colorScheme.onSurface),
+                                    ? theme.colorScheme.primary
+                                    : theme.colorScheme.onSurface),
                         ),
                       ),
                     ),
@@ -525,10 +515,7 @@ class _MonthPickerSheetState extends State<_MonthPickerSheet> {
 /// 比月份 picker 简单:没有"年 + 月"双维度,只显示 6 年(够普通人覆盖),
 /// cellAspectRatio 比月份更宽(2.4 vs 1.6),因为年份只是 4 位数文字,占空更少
 class _YearPickerSheet extends StatefulWidget {
-  const _YearPickerSheet({
-    required this.currentYear,
-    required this.anchorYear,
-  });
+  const _YearPickerSheet({required this.currentYear, required this.anchorYear});
   final int currentYear;
   final int anchorYear;
 
@@ -584,7 +571,8 @@ class _YearPickerSheetState extends State<_YearPickerSheet> {
                     TextButton.icon(
                       icon: const Icon(Icons.today_rounded, size: 16),
                       label: const Text('回到本年'),
-                      onPressed: () => Navigator.pop(context, widget.anchorYear),
+                      onPressed: () =>
+                          Navigator.pop(context, widget.anchorYear),
                     ),
                   TextButton(
                     onPressed: () => Navigator.pop(context),
