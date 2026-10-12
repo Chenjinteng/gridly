@@ -1133,57 +1133,51 @@ class _FilterSheet extends StatelessWidget {
                 ),
               ),
             ),
-            // 标题行
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.s4,
-                vertical: AppSpacing.s2,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    '筛选',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('关闭'),
-                  ),
-                ],
+            // 标题行(2026-10-12 P5 follow-up 第 3 次改:删掉'筛选'标题,只剩 ✕
+            //   关闭按钮在右上角,再省 1 行高度)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('关闭'),
               ),
             ),
-            const Divider(height: 1),
-            // 4 个维度 pill(类型 / 月份 / 分类 / 资产)
+            // 4 维度 chip 横排(2026-10-12 P5 follow-up 第 3 次改):
+            //   user 反馈'一个条件占一行,弹窗太大' → 改成 Wrap 横向排,
+            //   窄屏自动换行 1-2 行,整体 sheet 高度大幅压缩
             Padding(
-              padding: const EdgeInsets.all(AppSpacing.s4),
-              child: Column(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.s4,
+                AppSpacing.s2,
+                AppSpacing.s4,
+                AppSpacing.s2,
+              ),
+              child: Wrap(
+                spacing: AppSpacing.s2,
+                runSpacing: AppSpacing.s2,
                 children: [
-                  _FilterSheetField(
+                  _FilterChip(
                     icon: Icons.category_outlined,
                     label: '类型',
                     value: _typeLabel(),
                     active: currentType != 'all',
                     onTap: () => _pickType(context),
                   ),
-                  const SizedBox(height: AppSpacing.s2),
-                  _FilterSheetField(
+                  _FilterChip(
                     icon: Icons.calendar_today_outlined,
                     label: '月份',
                     value: _monthLabel(),
                     active: currentMonth != null,
                     onTap: () => _pickMonth(context),
                   ),
-                  const SizedBox(height: AppSpacing.s2),
-                  _FilterSheetField(
+                  _FilterChip(
                     icon: Icons.local_offer_outlined,
                     label: '分类',
                     value: _categoryLabel(),
                     active: currentCategory.isNotEmpty,
                     onTap: () => _pickCategory(context),
                   ),
-                  const SizedBox(height: AppSpacing.s2),
-                  _FilterSheetField(
+                  _FilterChip(
                     icon: Icons.account_balance_wallet_outlined,
                     label: '资产',
                     value: _assetLabel(),
@@ -1317,8 +1311,12 @@ class _FilterSheet extends StatelessWidget {
 }
 
 /// sheet 内的单行筛选维度 pill(icon + label + value + 激活态)
-class _FilterSheetField extends StatelessWidget {
-  const _FilterSheetField({
+/// 2026-10-12 P5 follow-up 第 3 次改:紧凑横向 chip(替代原 _FilterSheetField 单行满宽版)
+///   - 单行布局:icon + label + value + chevron_down(替换 chevron_right 表示"下拉弹 picker")
+///   - padding 横向 s2 + 纵向 s2(原 s3 + s3),高度约 32px
+///   - 用 Wrap 在 sheet 里横排,4 维度窄屏自动换 1-2 行,避免 sheet 过高
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
     required this.icon,
     required this.label,
     required this.value,
@@ -1336,17 +1334,17 @@ class _FilterSheetField extends StatelessWidget {
     final theme = Theme.of(context);
     return InkWell(
       onTap: onTap,
-      borderRadius: AppRadius.brMd,
+      borderRadius: AppRadius.brSm,
       child: Container(
         padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.s3,
-          vertical: AppSpacing.s3,
+          horizontal: AppSpacing.s2,
+          vertical: AppSpacing.s2,
         ),
         decoration: BoxDecoration(
           color: active
               ? theme.colorScheme.primary.withValues(alpha: 0.08)
               : theme.colorScheme.surfaceContainerLow,
-          borderRadius: AppRadius.brMd,
+          borderRadius: AppRadius.brSm,
           border: Border.all(
             color: active
                 ? theme.colorScheme.primary.withValues(alpha: 0.4)
@@ -1355,42 +1353,36 @@ class _FilterSheetField extends StatelessWidget {
           ),
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               icon,
-              size: 18,
+              size: 14,
               color: active
                   ? theme.colorScheme.primary
                   : theme.colorScheme.onSurfaceVariant,
             ),
-            const SizedBox(width: AppSpacing.s3),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    value,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: active
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurfaceVariant,
               ),
             ),
+            const SizedBox(width: 4),
+            Text(
+              value,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(width: 2),
             Icon(
-              Icons.chevron_right_rounded,
-              size: 20,
+              Icons.keyboard_arrow_down_rounded,
+              size: 16,
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ],
