@@ -35,11 +35,13 @@ class AssetSummaryCard extends ConsumerWidget {
     final assets = assetsAsync.valueOrNull ?? const <Asset>[];
     final balances = balancesAsync.valueOrNull ?? const <int, double>{};
 
-    // 按 type 汇总 currentBalance(负债用绝对值显示)
+    // 按 type 汇总 currentBalance(2026-10-13 P6:4 段 → 6 段)
     final byType = <String, double>{
       'cash_flow': 0.0,
+      'investment': 0.0,
+      'benefit': 0.0,
+      'receivable': 0.0,
       'fixed_asset': 0.0,
-      'liability': 0.0,
       'other': 0.0,
     };
     for (final a in assets) {
@@ -47,7 +49,7 @@ class AssetSummaryCard extends ConsumerWidget {
       byType[a.type] = (byType[a.type] ?? 0.0) + bal;
     }
 
-    // 总资产:4 类之和(负债不抵消,P4 会切"净资产 = 现金+不动产-负债")
+    // 总资产:6 类之和(全部相加,不做正负抵消;后期可切"净资产 = 现金+投资+福利+债权+不动产-负债")
     final totalAll = byType.values.fold<double>(0.0, (s, v) => s + v);
 
     return Container(
@@ -92,12 +94,33 @@ class AssetSummaryCard extends ConsumerWidget {
           const SizedBox(height: AppSpacing.s3),
           const Divider(height: 1, color: AppGray.g600),
           const SizedBox(height: AppSpacing.s3),
-          // 4 大类汇总
+          // 2026-10-13 P6:6 大类汇总(顺序按日常查看频度)
           _TypeRow(
             type: 'cash_flow',
             icon: Icons.account_balance_wallet_rounded,
             label: '现金流',
             amount: byType['cash_flow'] ?? 0,
+          ),
+          const SizedBox(height: AppSpacing.s2),
+          _TypeRow(
+            type: 'investment',
+            icon: Icons.trending_up_rounded,
+            label: '投资',
+            amount: byType['investment'] ?? 0,
+          ),
+          const SizedBox(height: AppSpacing.s2),
+          _TypeRow(
+            type: 'benefit',
+            icon: Icons.favorite_rounded,
+            label: '福利',
+            amount: byType['benefit'] ?? 0,
+          ),
+          const SizedBox(height: AppSpacing.s2),
+          _TypeRow(
+            type: 'receivable',
+            icon: Icons.handshake_rounded,
+            label: '债权/借出',
+            amount: byType['receivable'] ?? 0,
           ),
           const SizedBox(height: AppSpacing.s2),
           _TypeRow(
@@ -108,16 +131,9 @@ class AssetSummaryCard extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.s2),
           _TypeRow(
-            type: 'liability',
-            icon: Icons.credit_card_rounded,
-            label: '负债',
-            amount: byType['liability'] ?? 0,
-          ),
-          const SizedBox(height: AppSpacing.s2),
-          _TypeRow(
             type: 'other',
             icon: Icons.category_rounded,
-            label: '其他',
+            label: '其它',
             amount: byType['other'] ?? 0,
           ),
         ],
@@ -138,19 +154,25 @@ class _TypeRow extends StatelessWidget {
   final String label;
   final double amount;
 
-  /// 4 大类配色(2026-10-12 P2 加):
+  /// 6 大类配色(2026-10-13 P6 加):
   ///   - cash_flow    → teal(品牌色,流动)
-  ///   - fixed_asset  → info 蓝(稳定资产)
-  ///   - liability    → error 红(警示)
+  ///   - investment   → gold(升值)
+  ///   - benefit      → pink(福利关怀)
+  ///   - receivable   → orange(待回收)
+  ///   - fixed_asset  → info 蓝(稳定)
   ///   - other        → gray600(中性)
   Color _colorFor(String t) {
     switch (t) {
       case 'cash_flow':
         return AppBrand.teal;
+      case 'investment':
+        return AppBrand.gold;
+      case 'benefit':
+        return AppStatus.success;
+      case 'receivable':
+        return AppStatus.warning;
       case 'fixed_asset':
         return AppStatus.info;
-      case 'liability':
-        return AppStatus.error;
       default:
         return AppGray.g600;
     }

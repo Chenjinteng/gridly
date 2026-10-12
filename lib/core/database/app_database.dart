@@ -28,7 +28,7 @@ class AppDatabase extends _$AppDatabase {
   //   - 新设备安装走 onCreate 的 createAll() + seedDefaultsIfEmpty
   //   - 这里"没数据"约束下,不需要老数据回填(commit 110 P1 默认场景)
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -59,6 +59,12 @@ class AppDatabase extends _$AppDatabase {
             );
           }
         });
+      }
+      // 3 → 4:assets 加 includeInTransactions 列(默认 true)
+      //   2026-10-13 P6 user 决定资产分类 4 → 6 段,并在 form 里加'是否计入流水'开关
+      //   老账户默认 includeInTransactions = true(全部计入日常流水,行为不变)
+      if (from < 4) {
+        await m.addColumn(assets, assets.includeInTransactions);
       }
     },
     beforeOpen: (details) async {

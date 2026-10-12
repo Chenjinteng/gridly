@@ -1,20 +1,37 @@
 // lib/core/database/tables/assets.dart
 // 资产/账户表(2026-10-12 P1 加,commit 110)
-//   - type 字段 4 段 enum(cash_flow / fixed_asset / liability / other)
+//   - type 字段 6 段 enum:
+//     'cash_flow' | 'investment' | 'benefit' | 'receivable' |
+//     'fixed_asset' | 'other'
 //   - name 字段 free text(具体账户名)
 //   - initialBalance 持久化,currentBalance 读时实时算
 //   - displayOrder 排序字段
+// 2026-10-13 P6 改:
+//   - type 4 段 → 6 段(去掉'liability',加'investment' / 'benefit' / 'receivable')
+//   - 加 includeInTransactions:BoolColumn,默认 true
+//     - true = 计入日常流水(银行卡/钱包/现金)
+//     - false = 不计入(投资/福利/债权等"非日常"资产)
+//     - 当前只存,filter 暂不动(等调拨 source/target 设计落地再启用过滤)
 import 'package:drift/drift.dart';
 
 class Assets extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text().withLength(min: 1, max: 24)();
-  // 4 段 enum: 'cash_flow' | 'fixed_asset' | 'liability' | 'other'
+  // 6 段 enum:
+  //   'cash_flow'     现金流(银行卡/钱包/现金)
+  //   'investment'    投资(余额宝/基金/股票)
+  //   'benefit'       福利(社保/公积金)
+  //   'receivable'    债权/借出(外借给别人)
+  //   'fixed_asset'   不动产(房/车)
+  //   'other'         其它(兜底)
   TextColumn get type => text()();
   TextColumn get icon =>
       text().withDefault(const Constant('account_balance_wallet'))();
   IntColumn get color => integer().withDefault(const Constant(0xFF14B8A6))();
   RealColumn get initialBalance => real().withDefault(const Constant(0.0))();
+  // 2026-10-13 P6 加:开关位,默认 true(老数据全部默认计入流水)
+  BoolColumn get includeInTransactions =>
+      boolean().withDefault(const Constant(true))();
   IntColumn get displayOrder => integer().withDefault(const Constant(0))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();

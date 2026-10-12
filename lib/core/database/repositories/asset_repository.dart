@@ -63,12 +63,14 @@ class AssetRepository {
   }
 
   /// 新增
+  /// 2026-10-13 P6:加 includeInTransactions 参数(true = 计入日常流水 / false = 投资/福利/债权等)
   Future<int> create({
     required String name,
     required String type,
     String icon = 'account_balance_wallet',
     int color = 0xFF14B8A6,
     double initialBalance = 0.0,
+    bool includeInTransactions = true,
     int displayOrder = 0,
   }) {
     return _db
@@ -80,6 +82,8 @@ class AssetRepository {
             icon: Value(icon),
             color: Value(color),
             initialBalance: Value(initialBalance),
+            // 显式 Value() 包,即使默认值也是 true,迁移过来的老数据这条会是默认值
+            includeInTransactions: Value(includeInTransactions),
             displayOrder: Value(displayOrder),
           ),
         );

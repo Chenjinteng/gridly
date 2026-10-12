@@ -36,6 +36,9 @@ class _AssetFormSheetState extends ConsumerState<AssetFormSheet> {
   late String _type;
   late String _icon;
   late int _color;
+  // 2026-10-13 P6 加:资产是否计入日常流水开关(true = 显示在流水页,默认开)
+  // 投资 / 福利 / 债权等"非日常"资产,user 关掉它,后面做调拨/理财报表时启用 filter
+  late bool _includeInTransactions;
   bool _saving = false;
 
   /// 8 个资产相关 icon(2026-10-12 P2 收敛到 8 个常用,跟 asset_tile.icons 共享映射)
@@ -49,6 +52,41 @@ class _AssetFormSheetState extends ConsumerState<AssetFormSheet> {
     'home',
     'directions_car',
     'swap_horiz',
+  ];
+
+  /// 2026-10-13 P6:资产类型从 4 段改 6 段(去'liability',加'investment' / 'benefit' / 'receivable')
+  /// 顺序按日常使用频度:现金 → 投资 → 福利 → 借出 → 不动产 → 其它
+  static const _typeSegments = <ButtonSegment<String>>[
+    ButtonSegment(
+      value: 'cash_flow',
+      label: Text('现金流'),
+      icon: Icon(Icons.account_balance_wallet_rounded, size: 16),
+    ),
+    ButtonSegment(
+      value: 'investment',
+      label: Text('投资'),
+      icon: Icon(Icons.trending_up_rounded, size: 16),
+    ),
+    ButtonSegment(
+      value: 'benefit',
+      label: Text('福利'),
+      icon: Icon(Icons.favorite_rounded, size: 16),
+    ),
+    ButtonSegment(
+      value: 'receivable',
+      label: Text('债权'),
+      icon: Icon(Icons.handshake_rounded, size: 16),
+    ),
+    ButtonSegment(
+      value: 'fixed_asset',
+      label: Text('不动产'),
+      icon: Icon(Icons.home_rounded, size: 16),
+    ),
+    ButtonSegment(
+      value: 'other',
+      label: Text('其它'),
+      icon: Icon(Icons.category_rounded, size: 16),
+    ),
   ];
 
   /// 16 色调色板 — 跟 CategoryFormSheet 同款,保持视觉统一
@@ -84,6 +122,8 @@ class _AssetFormSheetState extends ConsumerState<AssetFormSheet> {
     _type = a?.type ?? 'cash_flow';
     _icon = a?.icon ?? 'account_balance_wallet';
     _color = a?.color ?? 0xFF14B8A6; // AppBrand.teal 默认
+    // 2026-10-13 P6:老数据可能没有这个字段(默认值兜底 true)
+    _includeInTransactions = a?.includeInTransactions ?? true;
   }
 
   @override
@@ -119,6 +159,7 @@ class _AssetFormSheetState extends ConsumerState<AssetFormSheet> {
           icon: _icon,
           color: _color,
           initialBalance: balance,
+          includeInTransactions: _includeInTransactions,
         );
       } else {
         await repo.update(
@@ -128,6 +169,7 @@ class _AssetFormSheetState extends ConsumerState<AssetFormSheet> {
             icon: _icon,
             color: _color,
             initialBalance: balance,
+            includeInTransactions: _includeInTransactions,
           ),
         );
       }
@@ -195,37 +237,83 @@ class _AssetFormSheetState extends ConsumerState<AssetFormSheet> {
               ),
               const SizedBox(height: AppSpacing.s3),
 
-              // 类型(4 段 SegmentedButton)
+              // 类型(6 段 SegmentedButton,2026-10-13 P6 改)
+              //   现金流 / 投资 / 福利 / 债权 / 不动产 / 其它
+              //   6 段可能在小屏(360px)挤,showSelectedIcon:false 省 ~24px 给 label
               const Text(
                 '类型',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: AppSpacing.s2),
               SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(
-                    value: 'cash_flow',
-                    label: Text('现金流'),
-                    icon: Icon(Icons.account_balance_wallet_rounded, size: 16),
-                  ),
-                  ButtonSegment(
-                    value: 'fixed_asset',
-                    label: Text('不动产'),
-                    icon: Icon(Icons.home_rounded, size: 16),
-                  ),
-                  ButtonSegment(
-                    value: 'liability',
-                    label: Text('负债'),
-                    icon: Icon(Icons.credit_card_rounded, size: 16),
-                  ),
-                  ButtonSegment(
-                    value: 'other',
-                    label: Text('其他'),
-                    icon: Icon(Icons.category_rounded, size: 16),
-                  ),
-                ],
+                segments: _typeSegments,
                 selected: {_type},
+                showSelectedIcon: false,
                 onSelectionChanged: (s) => setState(() => _type = s.first),
+              ),
+              const SizedBox(height: AppSpacing.s4),
+
+              // 2026-10-13 P6 加:是否计入流水开关
+              //   - 默认 true(常规账户)
+              //   - 投资 / 福利 / 债权账户可以关掉
+              //   - 当前只存,流水页 filter 暂不动(等调拨 source/target 设计落地再启用)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.s3,
+                  vertical: AppSpacing.s2,
+                ),
+                decoration: BoxDecoration(
+                  color: _includeInTransactions
+                      ? Theme.of(context).colorScheme.primary
+                            .withValues(alpha: 0.06)
+                      : Theme.of(context).colorScheme.surfaceContainerLow,
+                  borderRadius: AppRadius.brMd,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _includeInTransactions
+                          ? Icons.receipt_long_rounded
+                          : Icons.archive_rounded,
+                      size: 20,
+                      color: _includeInTransactions
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: AppSpacing.s3),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '计入日常流水',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _includeInTransactions
+                                ? '会出现在流水页和日常收支统计'
+                                : '不计入流水(适合投资/福利/债权等账户)',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch.adaptive(
+                      value: _includeInTransactions,
+                      onChanged: (v) =>
+                          setState(() => _includeInTransactions = v),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: AppSpacing.s4),
 

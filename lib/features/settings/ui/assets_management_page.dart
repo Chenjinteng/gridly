@@ -44,9 +44,13 @@ class AssetsManagementPage extends ConsumerWidget {
       ),
       body: assetsAsync.when(
         data: (assets) {
+          // 2026-10-13 P6:4 段 → 6 段分组(去'负债',加'投资/福利/债权')
+          // 顺序按日常查看频度排:现金流 → 投资 → 福利 → 债权 → 不动产 → 其它
           final cash = assets.where((a) => a.type == 'cash_flow').toList();
+          final invest = assets.where((a) => a.type == 'investment').toList();
+          final benefit = assets.where((a) => a.type == 'benefit').toList();
+          final recv = assets.where((a) => a.type == 'receivable').toList();
           final fixed = assets.where((a) => a.type == 'fixed_asset').toList();
-          final liab = assets.where((a) => a.type == 'liability').toList();
           final other = assets.where((a) => a.type == 'other').toList();
           return ListView(
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.s3),
@@ -60,6 +64,27 @@ class AssetsManagementPage extends ConsumerWidget {
                   onEdit: (a) => _showForm(context, a),
                   onDelete: (a) => _confirmDelete(context, ref, a),
                 ),
+              if (invest.isNotEmpty)
+                _Group(
+                  title: '投资',
+                  items: invest,
+                  onEdit: (a) => _showForm(context, a),
+                  onDelete: (a) => _confirmDelete(context, ref, a),
+                ),
+              if (benefit.isNotEmpty)
+                _Group(
+                  title: '福利',
+                  items: benefit,
+                  onEdit: (a) => _showForm(context, a),
+                  onDelete: (a) => _confirmDelete(context, ref, a),
+                ),
+              if (recv.isNotEmpty)
+                _Group(
+                  title: '债权/借出',
+                  items: recv,
+                  onEdit: (a) => _showForm(context, a),
+                  onDelete: (a) => _confirmDelete(context, ref, a),
+                ),
               if (fixed.isNotEmpty)
                 _Group(
                   title: '不动产',
@@ -67,16 +92,9 @@ class AssetsManagementPage extends ConsumerWidget {
                   onEdit: (a) => _showForm(context, a),
                   onDelete: (a) => _confirmDelete(context, ref, a),
                 ),
-              if (liab.isNotEmpty)
-                _Group(
-                  title: '负债',
-                  items: liab,
-                  onEdit: (a) => _showForm(context, a),
-                  onDelete: (a) => _confirmDelete(context, ref, a),
-                ),
               if (other.isNotEmpty)
                 _Group(
-                  title: '其他',
+                  title: '其它',
                   items: other,
                   onEdit: (a) => _showForm(context, a),
                   onDelete: (a) => _confirmDelete(context, ref, a),

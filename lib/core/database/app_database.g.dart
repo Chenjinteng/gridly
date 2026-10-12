@@ -1602,6 +1602,21 @@ class $AssetsTable extends Assets with TableInfo<$AssetsTable, Asset> {
     requiredDuringInsert: false,
     defaultValue: const Constant(0.0),
   );
+  static const VerificationMeta _includeInTransactionsMeta =
+      const VerificationMeta('includeInTransactions');
+  @override
+  late final GeneratedColumn<bool> includeInTransactions =
+      GeneratedColumn<bool>(
+        'include_in_transactions',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("include_in_transactions" IN (0, 1))',
+        ),
+        defaultValue: const Constant(true),
+      );
   static const VerificationMeta _displayOrderMeta = const VerificationMeta(
     'displayOrder',
   );
@@ -1646,6 +1661,7 @@ class $AssetsTable extends Assets with TableInfo<$AssetsTable, Asset> {
     icon,
     color,
     initialBalance,
+    includeInTransactions,
     displayOrder,
     createdAt,
     updatedAt,
@@ -1699,6 +1715,15 @@ class $AssetsTable extends Assets with TableInfo<$AssetsTable, Asset> {
         initialBalance.isAcceptableOrUnknown(
           data['initial_balance']!,
           _initialBalanceMeta,
+        ),
+      );
+    }
+    if (data.containsKey('include_in_transactions')) {
+      context.handle(
+        _includeInTransactionsMeta,
+        includeInTransactions.isAcceptableOrUnknown(
+          data['include_in_transactions']!,
+          _includeInTransactionsMeta,
         ),
       );
     }
@@ -1756,6 +1781,10 @@ class $AssetsTable extends Assets with TableInfo<$AssetsTable, Asset> {
         DriftSqlType.double,
         data['${effectivePrefix}initial_balance'],
       )!,
+      includeInTransactions: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}include_in_transactions'],
+      )!,
       displayOrder: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}display_order'],
@@ -1784,6 +1813,7 @@ class Asset extends DataClass implements Insertable<Asset> {
   final String icon;
   final int color;
   final double initialBalance;
+  final bool includeInTransactions;
   final int displayOrder;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -1794,6 +1824,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     required this.icon,
     required this.color,
     required this.initialBalance,
+    required this.includeInTransactions,
     required this.displayOrder,
     required this.createdAt,
     required this.updatedAt,
@@ -1807,6 +1838,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     map['icon'] = Variable<String>(icon);
     map['color'] = Variable<int>(color);
     map['initial_balance'] = Variable<double>(initialBalance);
+    map['include_in_transactions'] = Variable<bool>(includeInTransactions);
     map['display_order'] = Variable<int>(displayOrder);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -1821,6 +1853,7 @@ class Asset extends DataClass implements Insertable<Asset> {
       icon: Value(icon),
       color: Value(color),
       initialBalance: Value(initialBalance),
+      includeInTransactions: Value(includeInTransactions),
       displayOrder: Value(displayOrder),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
@@ -1839,6 +1872,9 @@ class Asset extends DataClass implements Insertable<Asset> {
       icon: serializer.fromJson<String>(json['icon']),
       color: serializer.fromJson<int>(json['color']),
       initialBalance: serializer.fromJson<double>(json['initialBalance']),
+      includeInTransactions: serializer.fromJson<bool>(
+        json['includeInTransactions'],
+      ),
       displayOrder: serializer.fromJson<int>(json['displayOrder']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -1854,6 +1890,7 @@ class Asset extends DataClass implements Insertable<Asset> {
       'icon': serializer.toJson<String>(icon),
       'color': serializer.toJson<int>(color),
       'initialBalance': serializer.toJson<double>(initialBalance),
+      'includeInTransactions': serializer.toJson<bool>(includeInTransactions),
       'displayOrder': serializer.toJson<int>(displayOrder),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -1867,6 +1904,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     String? icon,
     int? color,
     double? initialBalance,
+    bool? includeInTransactions,
     int? displayOrder,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -1877,6 +1915,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     icon: icon ?? this.icon,
     color: color ?? this.color,
     initialBalance: initialBalance ?? this.initialBalance,
+    includeInTransactions: includeInTransactions ?? this.includeInTransactions,
     displayOrder: displayOrder ?? this.displayOrder,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -1891,6 +1930,9 @@ class Asset extends DataClass implements Insertable<Asset> {
       initialBalance: data.initialBalance.present
           ? data.initialBalance.value
           : this.initialBalance,
+      includeInTransactions: data.includeInTransactions.present
+          ? data.includeInTransactions.value
+          : this.includeInTransactions,
       displayOrder: data.displayOrder.present
           ? data.displayOrder.value
           : this.displayOrder,
@@ -1908,6 +1950,7 @@ class Asset extends DataClass implements Insertable<Asset> {
           ..write('icon: $icon, ')
           ..write('color: $color, ')
           ..write('initialBalance: $initialBalance, ')
+          ..write('includeInTransactions: $includeInTransactions, ')
           ..write('displayOrder: $displayOrder, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -1923,6 +1966,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     icon,
     color,
     initialBalance,
+    includeInTransactions,
     displayOrder,
     createdAt,
     updatedAt,
@@ -1937,6 +1981,7 @@ class Asset extends DataClass implements Insertable<Asset> {
           other.icon == this.icon &&
           other.color == this.color &&
           other.initialBalance == this.initialBalance &&
+          other.includeInTransactions == this.includeInTransactions &&
           other.displayOrder == this.displayOrder &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -1949,6 +1994,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
   final Value<String> icon;
   final Value<int> color;
   final Value<double> initialBalance;
+  final Value<bool> includeInTransactions;
   final Value<int> displayOrder;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
@@ -1959,6 +2005,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     this.icon = const Value.absent(),
     this.color = const Value.absent(),
     this.initialBalance = const Value.absent(),
+    this.includeInTransactions = const Value.absent(),
     this.displayOrder = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -1970,6 +2017,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     this.icon = const Value.absent(),
     this.color = const Value.absent(),
     this.initialBalance = const Value.absent(),
+    this.includeInTransactions = const Value.absent(),
     this.displayOrder = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -1982,6 +2030,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     Expression<String>? icon,
     Expression<int>? color,
     Expression<double>? initialBalance,
+    Expression<bool>? includeInTransactions,
     Expression<int>? displayOrder,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -1993,6 +2042,8 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
       if (icon != null) 'icon': icon,
       if (color != null) 'color': color,
       if (initialBalance != null) 'initial_balance': initialBalance,
+      if (includeInTransactions != null)
+        'include_in_transactions': includeInTransactions,
       if (displayOrder != null) 'display_order': displayOrder,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -2006,6 +2057,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     Value<String>? icon,
     Value<int>? color,
     Value<double>? initialBalance,
+    Value<bool>? includeInTransactions,
     Value<int>? displayOrder,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
@@ -2017,6 +2069,8 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
       icon: icon ?? this.icon,
       color: color ?? this.color,
       initialBalance: initialBalance ?? this.initialBalance,
+      includeInTransactions:
+          includeInTransactions ?? this.includeInTransactions,
       displayOrder: displayOrder ?? this.displayOrder,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -2044,6 +2098,11 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     if (initialBalance.present) {
       map['initial_balance'] = Variable<double>(initialBalance.value);
     }
+    if (includeInTransactions.present) {
+      map['include_in_transactions'] = Variable<bool>(
+        includeInTransactions.value,
+      );
+    }
     if (displayOrder.present) {
       map['display_order'] = Variable<int>(displayOrder.value);
     }
@@ -2065,6 +2124,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
           ..write('icon: $icon, ')
           ..write('color: $color, ')
           ..write('initialBalance: $initialBalance, ')
+          ..write('includeInTransactions: $includeInTransactions, ')
           ..write('displayOrder: $displayOrder, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -2094,28 +2154,30 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   ];
 }
 
-typedef $$CategoriesTableCreateCompanionBuilder = CategoriesCompanion Function({
-  Value<int> id,
-  required String name,
-  required String icon,
-  required int color,
-  required String type,
-  Value<bool> isSystem,
-  Value<int> sortOrder,
-  Value<DateTime> createdAt,
-  Value<DateTime> updatedAt,
-});
-typedef $$CategoriesTableUpdateCompanionBuilder = CategoriesCompanion Function({
-  Value<int> id,
-  Value<String> name,
-  Value<String> icon,
-  Value<int> color,
-  Value<String> type,
-  Value<bool> isSystem,
-  Value<int> sortOrder,
-  Value<DateTime> createdAt,
-  Value<DateTime> updatedAt,
-});
+typedef $$CategoriesTableCreateCompanionBuilder =
+    CategoriesCompanion Function({
+      Value<int> id,
+      required String name,
+      required String icon,
+      required int color,
+      required String type,
+      Value<bool> isSystem,
+      Value<int> sortOrder,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+    });
+typedef $$CategoriesTableUpdateCompanionBuilder =
+    CategoriesCompanion Function({
+      Value<int> id,
+      Value<String> name,
+      Value<String> icon,
+      Value<int> color,
+      Value<String> type,
+      Value<bool> isSystem,
+      Value<int> sortOrder,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+    });
 
 class $$CategoriesTableFilterComposer
     extends Composer<_$AppDatabase, $CategoriesTable> {
@@ -2870,28 +2932,32 @@ typedef $$CategoryBudgetsTableProcessedTableManager =
       CategoryBudget,
       PrefetchHooks Function()
     >;
-typedef $$AssetsTableCreateCompanionBuilder = AssetsCompanion Function({
-  Value<int> id,
-  required String name,
-  required String type,
-  Value<String> icon,
-  Value<int> color,
-  Value<double> initialBalance,
-  Value<int> displayOrder,
-  Value<DateTime> createdAt,
-  Value<DateTime> updatedAt,
-});
-typedef $$AssetsTableUpdateCompanionBuilder = AssetsCompanion Function({
-  Value<int> id,
-  Value<String> name,
-  Value<String> type,
-  Value<String> icon,
-  Value<int> color,
-  Value<double> initialBalance,
-  Value<int> displayOrder,
-  Value<DateTime> createdAt,
-  Value<DateTime> updatedAt,
-});
+typedef $$AssetsTableCreateCompanionBuilder =
+    AssetsCompanion Function({
+      Value<int> id,
+      required String name,
+      required String type,
+      Value<String> icon,
+      Value<int> color,
+      Value<double> initialBalance,
+      Value<bool> includeInTransactions,
+      Value<int> displayOrder,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+    });
+typedef $$AssetsTableUpdateCompanionBuilder =
+    AssetsCompanion Function({
+      Value<int> id,
+      Value<String> name,
+      Value<String> type,
+      Value<String> icon,
+      Value<int> color,
+      Value<double> initialBalance,
+      Value<bool> includeInTransactions,
+      Value<int> displayOrder,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+    });
 
 class $$AssetsTableFilterComposer
     extends Composer<_$AppDatabase, $AssetsTable> {
@@ -2929,6 +2995,11 @@ class $$AssetsTableFilterComposer
 
   ColumnFilters<double> get initialBalance => $composableBuilder(
     column: $table.initialBalance,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get includeInTransactions => $composableBuilder(
+    column: $table.includeInTransactions,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2987,6 +3058,11 @@ class $$AssetsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get includeInTransactions => $composableBuilder(
+    column: $table.includeInTransactions,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get displayOrder => $composableBuilder(
     column: $table.displayOrder,
     builder: (column) => ColumnOrderings(column),
@@ -3029,6 +3105,11 @@ class $$AssetsTableAnnotationComposer
 
   GeneratedColumn<double> get initialBalance => $composableBuilder(
     column: $table.initialBalance,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get includeInTransactions => $composableBuilder(
+    column: $table.includeInTransactions,
     builder: (column) => column,
   );
 
@@ -3078,6 +3159,7 @@ class $$AssetsTableTableManager
                 Value<String> icon = const Value.absent(),
                 Value<int> color = const Value.absent(),
                 Value<double> initialBalance = const Value.absent(),
+                Value<bool> includeInTransactions = const Value.absent(),
                 Value<int> displayOrder = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -3088,6 +3170,7 @@ class $$AssetsTableTableManager
                 icon: icon,
                 color: color,
                 initialBalance: initialBalance,
+                includeInTransactions: includeInTransactions,
                 displayOrder: displayOrder,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -3100,6 +3183,7 @@ class $$AssetsTableTableManager
                 Value<String> icon = const Value.absent(),
                 Value<int> color = const Value.absent(),
                 Value<double> initialBalance = const Value.absent(),
+                Value<bool> includeInTransactions = const Value.absent(),
                 Value<int> displayOrder = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -3110,6 +3194,7 @@ class $$AssetsTableTableManager
                 icon: icon,
                 color: color,
                 initialBalance: initialBalance,
+                includeInTransactions: includeInTransactions,
                 displayOrder: displayOrder,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
