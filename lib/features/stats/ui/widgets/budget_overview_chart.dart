@@ -1,10 +1,13 @@
 // lib/features/stats/ui/widgets/budget_overview_chart.dart
 // 预算报表 widget —— stats 页本月维度专用(2026-10-12 commit 93 加)
 //
-// 视觉(commit 95 重构):
-//   - 上半:圆环(已花 / 总额度)用 AnimatedPieChart(跟 CategoryPie 一样的
-//     自绘 stroke + 1.0° 间隙 + 800ms aquaIn swap)+ 中心数字(剩余)
-//   - 中部:共享池说明(已分配 X · 剩余 Y 给未配置)
+// 视觉(commit 95 重构,commit 96 对齐 CategoryPie 风格):
+//   - 标题栏:本月预算 + 总额(右侧,跟 CategoryPie "共 ¥X" 对等)
+//   - 上半:圆环(已花 / 总额度)+ 右侧图例(已花 / 剩余 百分比)
+//     圆环 140x140 + inner 48 / outer 64 + 中心"已花 ¥X"
+//     跟 CategoryPie 视觉完全一致(尺寸、stroke、中心标签/金额顺序、图例格式)
+//   - 中部一行:状态(已用 X% / 快超了 / 已超,彩色)+ 剩余/总额(灰)
+//   - 共享池说明(已分配 X · 共享池 Y 给未配置)
 //   - 下半:分类列表 —— 每行 icon + name + 横向柱状图 + 数字
 //     (已花 / 子额度),不用直接给数字,用 bar 表示
 //
@@ -133,19 +136,20 @@ class _BudgetOverviewBody extends StatelessWidget {
           ),
         ),
         const Divider(height: 1, thickness: 0.5),
-        // 上半:圆环 + 数字 + 状态(commit 95 改用 AnimatedPieChart 跟 CategoryPie 一致)
+        // 上半:圆环 + 图例(对齐 CategoryPie)
+        //   圆环 140x140 + inner 48 / outer 64(同 CategoryPie)
+        //   中心:小标签("已花") + 大金额(同 CategoryPie "总支出/¥XXX" 顺序)
+        //   右侧:色块 + 名字 + 百分比(图例格式同 CategoryPie)
         Padding(
           padding: const EdgeInsets.all(AppSpacing.s4),
           child: Row(
             children: [
               SizedBox(
-                width: 120,
-                height: 120,
+                width: 140,
+                height: 140,
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    // AnimatedPieChart 自绘 stroke + 1.0° 间隙 + 800ms aquaIn swap,
-                    // 跟 CategoryPie 完全一致
                     Builder(
                       builder: (_) {
                         final sections = [
@@ -171,38 +175,26 @@ class _BudgetOverviewBody extends StatelessWidget {
                         return AnimatedPieChart(
                           key: pieChartKeyForSections(sections),
                           sections: sections,
-                          innerRadius: 38,
-                          outerRadius: 52,
+                          innerRadius: 48,
+                          outerRadius: 64,
                         );
                       },
                     ),
                     Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (hasBudget)
-                          Text(
-                            '¥${Formatters.amount((overview.totalBudget - _totalSpent).clamp(0.0, double.infinity), withUnit: false)}',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: _stateColor,
-                            ),
-                          )
-                        else
-                          const Text(
-                            '—',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: AppGray.g400,
-                            ),
-                          ),
+                        const Text(
+                          '已花',
+                          style: TextStyle(fontSize: 11, color: AppGray.g600),
+                        ),
                         const SizedBox(height: 2),
                         Text(
-                          hasBudget ? '剩余' : '未设置',
+                          hasBudget
+                              ? '¥${Formatters.amount(_totalSpent)}'
+                              : '—',
                           style: const TextStyle(
-                            fontSize: 10,
-                            color: AppGray.g600,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ],
@@ -211,26 +203,24 @@ class _BudgetOverviewBody extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSpacing.s4),
+              // 右侧图例(色块 + 名字 + 百分比,跟 CategoryPie 一致)
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      _stateLabel,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: _stateColor,
-                      ),
+                    _legendRow(
+                      _stateColor,
+                      '已花',
+                      (_progress * 100).toStringAsFixed(0),
                     ),
-                    const SizedBox(height: AppSpacing.s2),
-                    _kvRow('已花', '¥${Formatters.amount(_totalSpent)}'),
-                    const SizedBox(height: AppSpacing.s1),
-                    _kvRow(
+                    const SizedBox(height: 4),
+                    _legendRow(
+                      AppGray.g200,
                       '剩余',
                       hasBudget
-                          ? '¥${Formatters.amount((overview.totalBudget - _totalSpent).clamp(0.0, double.infinity))}'
-                          : '—',
+                          ? ((1 - _progress).clamp(0.0, 1.0) * 100)
+                                .toStringAsFixed(0)
+                          : '0',
                     ),
                   ],
                 ),
@@ -238,6 +228,36 @@ class _BudgetOverviewBody extends StatelessWidget {
             ],
           ),
         ),
+        // 中部一行:状态(彩色) + 剩余/总额(辅助信息)
+        if (hasBudget)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.s4,
+              0,
+              AppSpacing.s4,
+              AppSpacing.s3,
+            ),
+            child: Row(
+              children: [
+                Text(
+                  _stateLabel,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: _stateColor,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '剩余 ¥${Formatters.amount((overview.totalBudget - _totalSpent).clamp(0.0, double.infinity), withUnit: false)} / 总额 ¥${Formatters.amount(overview.totalBudget, withUnit: false)}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
         // 共享池说明
         if (hasBudget)
           Padding(
@@ -320,24 +340,40 @@ class _BudgetOverviewBody extends StatelessWidget {
     );
   }
 
-  Widget _kvRow(String k, String v) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 32,
-          child: Text(
-            k,
-            style: const TextStyle(fontSize: 11, color: AppGray.g600),
+  /// 图例行:色块 + 名字 + 百分比
+  ///   跟 CategoryPie 的图例行视觉一致
+  Widget _legendRow(Color color, String name, String pct) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(2),
+            ),
           ),
-        ),
-        Expanded(
-          child: Text(
-            v,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-            overflow: TextOverflow.ellipsis,
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              name,
+              style: const TextStyle(fontSize: 13),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-        ),
-      ],
+          Text(
+            '$pct%',
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppGray.g600,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
