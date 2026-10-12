@@ -90,21 +90,22 @@ class RangeTabs extends ConsumerWidget {
                     children: [
                       // 滑动 pill —— 在 InkWell 之下,ripple press 时短时被遮,
                       // 抬起后 pill 仍可见
+                      // ── commit 63 (user "pill 比之前窄,上下/左 padding 拥挤"):
+                      //   pill 宽度 = segWidth(满 segment,不再 horizontal padding
+                      //   削 8px);top/bottom 各留 2px 让 pill 圆角跟 container
+                      //   圆角不重叠;视觉上跟之前 per-segment bg 等宽
                       AnimatedPositioned(
                         duration: AppMotion.fast,
                         curve: AppMotion.aquaIn,
                         left: isThisMonth ? 0 : segWidth,
-                        top: 4,
-                        bottom: 4,
+                        top: 2,
+                        bottom: 2,
                         width: segWidth,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: themeInner.colorScheme.primary
-                                  .withValues(alpha: 0.12),
-                              borderRadius: AppRadius.brLg,
-                            ),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: themeInner.colorScheme.primary
+                                .withValues(alpha: 0.12),
+                            borderRadius: AppRadius.brLg,
                           ),
                         ),
                       ),
