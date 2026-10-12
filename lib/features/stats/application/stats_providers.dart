@@ -16,8 +16,9 @@ enum StatsRange { thisMonth, thisYear }
 ///   assets  → 资产视角(2026-10-11 预留;页面内容先留空等后续)
 enum StatsView { expense, income, assets }
 
-final statsRangeProvider =
-    StateProvider<StatsRange>((_) => StatsRange.thisMonth);
+final statsRangeProvider = StateProvider<StatsRange>(
+  (_) => StatsRange.thisMonth,
+);
 
 /// 当前报表视角(支出 / 收入 / 资产)
 final statsViewProvider = StateProvider<StatsView>((_) => StatsView.expense);
@@ -60,7 +61,9 @@ final statsWindowProvider = Provider<StatsTimeWindow>((ref) {
 });
 
 /// 当前时间窗内的全部流水
-final statsTransactionsProvider = FutureProvider<List<Transaction>>((ref) async {
+final statsTransactionsProvider = FutureProvider<List<Transaction>>((
+  ref,
+) async {
   final w = ref.watch(statsWindowProvider);
   final db = ref.watch(databaseProvider);
   return (db.select(db.transactions)
@@ -104,8 +107,9 @@ class CategoryExpense {
 }
 
 /// 支出按分类汇总(从大到小)
-final expenseByCategoryProvider =
-    FutureProvider<List<CategoryExpense>>((ref) async {
+final expenseByCategoryProvider = FutureProvider<List<CategoryExpense>>((
+  ref,
+) async {
   final txs = await ref.watch(statsTransactionsProvider.future);
   final cats = await ref.watch(allCategoriesProvider.future);
   if (cats.isEmpty) return const [];
@@ -124,12 +128,14 @@ final expenseByCategoryProvider =
         break;
       }
     }
-    out.add(CategoryExpense(
-      categoryId: e.key,
-      name: c?.name ?? '未分类',
-      color: c?.color ?? 0xFFA1A1AA,
-      amount: e.value,
-    ));
+    out.add(
+      CategoryExpense(
+        categoryId: e.key,
+        name: c?.name ?? '未分类',
+        color: c?.color ?? 0xFFA1A1AA,
+        amount: e.value,
+      ),
+    );
   }
   out.sort((a, b) => b.amount.compareTo(a.amount));
   return out;
@@ -138,8 +144,9 @@ final expenseByCategoryProvider =
 /// 收入按分类汇总(从大到小)—— IncomePie 用
 /// 跟 expenseByCategoryProvider 同形,只把 type 过滤从 expense 换 income,
 /// 复用 CategoryExpense(类名历史遗留,但 amount/name/color 维度对两者一致)
-final incomeByCategoryProvider =
-    FutureProvider<List<CategoryExpense>>((ref) async {
+final incomeByCategoryProvider = FutureProvider<List<CategoryExpense>>((
+  ref,
+) async {
   final txs = await ref.watch(statsTransactionsProvider.future);
   final cats = await ref.watch(allCategoriesProvider.future);
   if (cats.isEmpty) return const [];
@@ -158,12 +165,14 @@ final incomeByCategoryProvider =
         break;
       }
     }
-    out.add(CategoryExpense(
-      categoryId: e.key,
-      name: c?.name ?? '未分类',
-      color: c?.color ?? 0xFFA1A1AA,
-      amount: e.value,
-    ));
+    out.add(
+      CategoryExpense(
+        categoryId: e.key,
+        name: c?.name ?? '未分类',
+        color: c?.color ?? 0xFFA1A1AA,
+        amount: e.value,
+      ),
+    );
   }
   out.sort((a, b) => b.amount.compareTo(a.amount));
   return out;
@@ -174,9 +183,11 @@ final topExpensesProvider = FutureProvider<List<Transaction>>((ref) async {
   final w = ref.watch(statsWindowProvider);
   final db = ref.watch(databaseProvider);
   return (db.select(db.transactions)
-        ..where((t) =>
-            t.occurredAt.isBetweenValues(w.start, w.end) &
-            t.type.equals('expense'))
+        ..where(
+          (t) =>
+              t.occurredAt.isBetweenValues(w.start, w.end) &
+              t.type.equals('expense'),
+        )
         ..orderBy([(t) => OrderingTerm.desc(t.amount)])
         ..limit(10))
       .get();
@@ -195,19 +206,62 @@ class MonthlyTrend {
   final double expense;
 }
 
+/// 每日支出聚合(用于本月维度的"按天柱状图")
+/// 2026-10-12 加(commit 73 配套):
+///   statsRange = thisMonth 时,MonthlyTrendChart 内部改用这个 provider 看 daily bar。
+///   范围:statsWindowProvider.start 至 statsWindowProvider.end 之间所有支出,
+///   按 day-of-month 聚合成 `List<DailyExpense>`,day 从 1 到当月最后一天。
+///   当月有支出(days 1..today)直接算;未来天(days today+1..lastDay)默认 0。
+class DailyExpense {
+  const DailyExpense({required this.day, required this.expense});
+  final int day;
+  final double expense;
+}
+
+final dailyExpenseTrendProvider = FutureProvider<List<DailyExpense>>((
+  ref,
+) async {
+  final w = ref.watch(statsWindowProvider);
+  final db = ref.watch(databaseProvider);
+  final txs =
+      await (db.select(db.transactions)..where(
+            (t) =>
+                t.occurredAt.isBetweenValues(w.start, w.end) &
+                t.type.equals('expense'),
+          ))
+          .get();
+
+  // 按 day-of-month 聚合(假设 statsWindowProvider 在 thisMonth 模式时
+  // w.start.month == w.end.month,所有 tx 同月,day 取 occurredAt.day)
+  final byDay = <int, double>{};
+  for (final t in txs) {
+    byDay[t.occurredAt.day] = (byDay[t.occurredAt.day] ?? 0) + t.amount;
+  }
+
+  // 当月总天数:DateTime(y, m+1, 0).day 是 month m 的最后一天
+  final lastDay = DateTime(w.start.year, w.start.month + 1, 0).day;
+
+  final out = <DailyExpense>[];
+  for (var i = 1; i <= lastDay; i++) {
+    out.add(DailyExpense(day: i, expense: byDay[i] ?? 0));
+  }
+  return out;
+});
+
 /// 过去 12 个月(含本月)的收入/支出趋势
 final monthlyTrendProvider = FutureProvider<List<MonthlyTrend>>((ref) async {
   final db = ref.watch(databaseProvider);
   final now = DateTime.now();
   final start = DateTime(now.year, now.month - 11, 1);
-  final txs = await (db.select(db.transactions)
-        ..where((t) => t.occurredAt.isBiggerOrEqualValue(start)))
-      .get();
+  final txs = await (db.select(
+    db.transactions,
+  )..where((t) => t.occurredAt.isBiggerOrEqualValue(start))).get();
 
   final byMonth = <String, MonthlyTrend>{};
   for (final t in txs) {
     final key = '${t.occurredAt.year}-${t.occurredAt.month}';
-    final cur = byMonth[key] ??
+    final cur =
+        byMonth[key] ??
         MonthlyTrend(
           year: t.occurredAt.year,
           month: t.occurredAt.month,
@@ -228,8 +282,10 @@ final monthlyTrendProvider = FutureProvider<List<MonthlyTrend>>((ref) async {
   for (int i = 0; i < 12; i++) {
     final m = DateTime(now.year, now.month - 11 + i, 1);
     final key = '${m.year}-${m.month}';
-    out.add(byMonth[key] ??
-        MonthlyTrend(year: m.year, month: m.month, income: 0, expense: 0));
+    out.add(
+      byMonth[key] ??
+          MonthlyTrend(year: m.year, month: m.month, income: 0, expense: 0),
+    );
   }
   return out;
 });

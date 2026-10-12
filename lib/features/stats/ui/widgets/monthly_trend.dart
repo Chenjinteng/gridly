@@ -1,9 +1,14 @@
 // lib/features/stats/ui/widgets/monthly_trend.dart
-// 过去 12 个月 收入/支出 折线图
+// 时间趋势卡片 —— 根据 statsRange 自动切换数据源 + 图表类型:
+//   thisMonth → 按天支出柱状图(_DailyExpenseBarChart,看 dailyExpenseTrendProvider)
+//   thisYear  → 12 月柱状图(_MonthlyBarChart,看 monthlyTrendProvider,收入/支出各一柱)
 //
-// 2026-10-12 ColorOS 曲线入场:折线首次出现时从左往右"画"出来,800ms aquaIn。
-// 实现:把 LineChart 包在 _AnimatedLineChart 里,内部 ClipRect 按 _ctrl.value
-// 推进 reveal(0 → full width)。视觉上是"线在生长",而不是"全部出现"。
+// 2026-10-12 redesign (commit 72):
+//   user "近 12 月趋势"反馈:
+//     - 本月维度不需要这个 12 月折线图 → 换按天柱状图(本月每天支出)
+//     - 本年维度才显示 12 个月柱状图(去掉折线,改成柱状)
+//   旧实现是单一 LineChart + 固定过去 12 月数据(不看 range),改成分支 + BarChart。
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,111 +20,45 @@ import '../../../../core/theme/card_shadows.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../application/stats_providers.dart';
 
+/// 时间趋势卡片容器 —— 看 statsRange 自动切换 widget:
+///   thisMonth → _DailyExpenseBarChart
+///   thisYear  → _MonthlyBarChart
+///
+/// 容器 widget 的 padding / 卡片边框 / 阴影 / 标题结构不变,只换内部图表。
+/// 标题根据 range 切换文案("本月每日支出" / "近 12 月趋势")
 class MonthlyTrendChart extends ConsumerWidget {
   const MonthlyTrendChart({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final trendAsync = ref.watch(monthlyTrendProvider);
+    final range = ref.watch(statsRangeProvider);
     return Container(
-      // 2026-10-12 修 margin 不一致:
-      // 之前用 EdgeInsets.all(s4)(四周 16px),跟其他 widget 顶部/底部
-      // 无 margin 的策略不同,导致跟上面 Top 10 间距 12+16=28px,比
-      // Top 10 ↔ CategoryPie 的 12px 大一倍。改成对称 horizontal,
-      // 跟 CategoryPie / TopExpenses 保持一致,间距由 stats_page 的
-      // SizedBox(height: s3) 统一控制(12px)。
+      // 跟 Top 10 / CategoryPie / IncomePie 同卡片风格(surface + 1px 边框 + shadow)
       margin: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
       padding: const EdgeInsets.all(AppSpacing.s4),
       decoration: BoxDecoration(
-        // 跟 Top 10 / CategoryPie / IncomePie 同色 = theme.colorScheme.surface
-        // 之前用了 surfaceContainerLow,在卡片堆叠里显得"凹"进去一层;
-        // 2026-10-11 UAT:"底色跟上面 Top 10 不一样"
         color: Theme.of(context).colorScheme.surface,
         borderRadius: AppRadius.brLg,
         border: Border.all(
           color: Theme.of(context).colorScheme.outlineVariant,
-          width: 1.0, // 全卡片统一:0.5 → 1.0
+          width: 1.0,
         ),
         boxShadow: CardShadows.light(context),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '近 12 月趋势',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          Text(
+            range == StatsRange.thisMonth ? '本月每日支出' : '近 12 月趋势',
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: AppSpacing.s3),
-          trendAsync.when(
-            data: (data) {
-              if (data.every((d) => d.income == 0 && d.expense == 0)) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.s6),
-                  child: Center(
-                    child: Text(
-                      '近 12 月暂无数据',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                );
-              }
-              // 单图 Y 轴单位策略:整图要么全走"元"、要么全走"万",不混排。
-              //   maxVal < wanThreshold → 整轴走元(保留精度,"50,000.00" 跟 cell 一致)
-              //   maxVal ≥ wanThreshold → 整轴强制走万 mode(否则会出 "150.00万 / 50,000.00 / 0.00"
-              //                  这种跨阈值混排,视觉割裂)
-              // 0 baseline 在大图里显示成 "0.00万" 是为了跟其他 tick 同单位模式,
-              // "看起来怪但一致" 比"自然切但割裂"优先。
-              final maxVal = data
-                  .map((d) =>
-                      d.income > d.expense ? d.income : d.expense)
-                  .fold<double>(0, (a, b) => a > b ? a : b);
-              // 2026-10-11 UAT 反馈:之前 maxY = maxVal * 1.15 时,fl_chart
-              // 把 345,004.60 当成一个 tick 显示在纵坐标,看起来很丑。改成
-              // "1/2/5 × 10^n" 模式挑一个整档 interval,maxY 圆整到下一档,
-              // 这样 tick 是 0/100k/200k/300k/400k 这种整数,数据点 300k
-              // 跟 top tick 400k 之间自然留一档空隙。
-              final niceInterval = _pickNiceInterval(maxVal);
-              final maxY = maxVal == 0 ? 1.0 : (maxVal / niceInterval).ceil() * niceInterval;
-              final chartNeedsWan = maxVal >= Formatters.wanThreshold;
-              // 2026-10-12 改:chart 顶部 8px 留白 + 高度 192(原 200)。
-// 之前 0 baseline 几乎贴底部 X 轴,跟 X 标签 0 重叠。给 chart 上方
-// 8px padding 后,0 baseline 在视觉上"中线偏下",有呼吸感;
-// chart 内容区仍是 192px,数据点比例不变。
-return Padding(
-                padding: const EdgeInsets.only(top: AppSpacing.s2),
-                child: SizedBox(
-                  height: 192,
-                  child: _AnimatedLineChart(
-                    data: data,
-                    maxY: maxY,
-                    niceInterval: niceInterval,
-                    chartNeedsWan: chartNeedsWan,
-                  ),
-                ),
-              );
-            },
-            loading: () => const Padding(
-              padding: EdgeInsets.symmetric(vertical: AppSpacing.s6),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (e, _) => Padding(
-              padding: const EdgeInsets.all(AppSpacing.s3),
-              child: Text(
-                '加载失败:$e',
-                style: const TextStyle(color: AppStatus.error),
-              ),
-            ),
-          ),
-          const SizedBox(height: AppSpacing.s2),
-          Row(
-            children: const [
-              _LegendDot(color: AppBrand.gold, label: '收入'),
-              SizedBox(width: AppSpacing.s3),
-              _LegendDot(color: AppStatus.error, label: '支出'),
-            ],
+          // 用 SizedBox + 192px 高度统一,BarChart 自适应高度(底部 X labels 占一些)。
+          SizedBox(
+            height: 192,
+            child: range == StatsRange.thisMonth
+                ? const _DailyExpenseBarChart()
+                : const _MonthlyBarChart(),
           ),
         ],
       ),
@@ -127,90 +66,148 @@ return Padding(
   }
 }
 
-/// 2026-10-01 加:按"1/2/5 × 10^n"模式挑一个整档 interval。
-/// 让 Y 轴 tick 落在整数档位(0/100k/200k...),不会出现 "345,004.60"
-/// 这种 maxY 实际值;同时 maxY 圆整到下一档,顶部自然留一档空隙,
-/// 数据点不再叠 top label。
-double _pickNiceInterval(double maxVal) {
-  if (maxVal <= 0) return 1;
-  // 数量级(10^n):maxVal 的整数位数 - 1
-  final magnitude = _pow10((maxVal.abs().toString().split('.').first.length) - 1);
-  // 候选:1×、2×、5× 乘以 magnitude
-  final candidates = <double>[magnitude, 2 * magnitude, 5 * magnitude];
-  // 选能让 [0..maxVal] 区间内刚好有 3-4 个 tick 的最小档(留 1 档顶部空隙)
-  for (final c in candidates) {
-    final tickCount = maxVal / c;
-    if (tickCount <= 4) return c;
-  }
-  return candidates.last;
-}
-
-double _pow10(int n) {
-  double r = 1;
-  for (var i = 0; i < n; i++) {
-    r *= 10;
-  }
-  return r;
-}
-
-class _LegendDot extends StatelessWidget {
-  const _LegendDot({required this.color, required this.label});
-  final Color color;
-  final String label;
+/// 本月每日支出柱状图(thisMonth 用)
+class _DailyExpenseBarChart extends ConsumerWidget {
+  const _DailyExpenseBarChart();
 
   @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(2),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final dailyAsync = ref.watch(dailyExpenseTrendProvider);
+    return dailyAsync.when(
+      data: (data) {
+        if (data.every((d) => d.expense == 0)) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.s6),
+            child: Center(
+              child: Text(
+                '本月暂无支出',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          );
+        }
+        // 同 niceInterval 逻辑:避免 345.23 这种带小数的 tick label
+        final maxVal = data
+            .map((d) => d.expense)
+            .fold<double>(0, (a, b) => a > b ? a : b);
+        final niceInterval = _pickNiceInterval(maxVal);
+        final maxY = maxVal == 0
+            ? 1.0
+            : (maxVal / niceInterval).ceil() * niceInterval;
+        final chartNeedsWan = maxVal >= Formatters.wanThreshold;
+        return Padding(
+          padding: const EdgeInsets.only(top: AppSpacing.s2),
+          child: _AnimatedBarChart(
+            bars: data,
+            maxY: maxY,
+            niceInterval: niceInterval,
+            chartNeedsWan: chartNeedsWan,
+            color: AppStatus.error,
+            labelKind: BarLabelKind.day, // X label 是日期
           ),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          // dark mode 适配:用 onSurfaceVariant 替代 AppGray.g600
-          style: TextStyle(
-            fontSize: 11,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ],
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Padding(
+        padding: const EdgeInsets.all(AppSpacing.s3),
+        child: Text('加载失败:$e', style: const TextStyle(color: AppStatus.error)),
+      ),
     );
   }
 }
 
-/// 2026-10-12 ColorOS 曲线入场:折线图从左往右"画"出来。
+/// 近 12 月柱状图(thisYear 用)—— 一月一根柱,revenue 跟 expense 并排 grouped
+class _MonthlyBarChart extends ConsumerWidget {
+  const _MonthlyBarChart();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final trendAsync = ref.watch(monthlyTrendProvider);
+    return trendAsync.when(
+      data: (data) {
+        if (data.every((d) => d.income == 0 && d.expense == 0)) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: AppSpacing.s6),
+            child: Center(
+              child: Text(
+                '近 12 月暂无数据',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          );
+        }
+        final maxVal = data
+            .map((d) => d.income > d.expense ? d.income : d.expense)
+            .fold<double>(0, (a, b) => a > b ? a : b);
+        final niceInterval = _pickNiceInterval(maxVal);
+        final maxY = maxVal == 0
+            ? 1.0
+            : (maxVal / niceInterval).ceil() * niceInterval;
+        final chartNeedsWan = maxVal >= Formatters.wanThreshold;
+        return Padding(
+          padding: const EdgeInsets.only(top: AppSpacing.s2),
+          child: _AnimatedBarChart(
+            bars: data,
+            maxY: maxY,
+            niceInterval: niceInterval,
+            chartNeedsWan: chartNeedsWan,
+            color: AppStatus.error,
+            labelKind: BarLabelKind.month, // X label 是月份
+          ),
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Padding(
+        padding: const EdgeInsets.all(AppSpacing.s3),
+        child: Text('加载失败:$e', style: const TextStyle(color: AppStatus.error)),
+      ),
+    );
+  }
+}
+
+/// Bar label 类型:日期(本月每日柱状图用)还是月份(近 12 月柱状图用)
+enum BarLabelKind { day, month }
+
+/// 入场柱子 —— 从底部往上"长"起来,nice tween 480ms aquaIn。
 ///
-/// 实现
-///   - 内部 AnimationController 800ms aquaIn,从 0 走到 1
-///   - ClipRect 用 _LeftRevealClipper 按 _ctrl.value 控制 reveal 宽度
-///   - 视觉:折线 + dot + 阴影 area 一起 reveal,不是"全部出现"
-///   - 切月份 / 视角时 monthlyTrendProvider 重建 → _AnimatedLineChart 重建
-///     → 重新 forward 入场(数据变化时曲线再"画"一次)
-class _AnimatedLineChart extends StatefulWidget {
-  const _AnimatedLineChart({
-    required this.data,
+/// 实现:
+///   - 内部 AnimationController 480ms aquaIn,从 0 走到 1
+///   - 用 _BarGrowCustomPainter 把 BarChart 重画,BarChartRodData 的
+///     toY 用 lerp(0, target, _ctrl.value) 做"长高"
+///   - 但是 fl_chart 的 BarChart 不直接暴露 BarChartRodData.toY 的 lerp 入口,
+///     改用整体 AnimationBuilder 包 BarChart,让 chart 容器整体 fade in(400ms)
+///     + 同步用一个 _BarGrowthWidget 在 chart 上 overlay 模拟柱子从下往上的
+///     蒙版 reveal(用 progress 0→1 提升 reveal 高度)。
+///
+/// 简化:不做 column-grow 蒙版,用整体 fade-in + chart 自带的入场动画即可。
+class _AnimatedBarChart extends StatefulWidget {
+  const _AnimatedBarChart({
+    required this.bars,
     required this.maxY,
     required this.niceInterval,
     required this.chartNeedsWan,
+    required this.color,
+    required this.labelKind,
   });
 
-  final List<MonthlyTrend> data;
+  final List bars;
   final double maxY;
   final double niceInterval;
   final bool chartNeedsWan;
+  final Color color;
+  final BarLabelKind labelKind;
 
   @override
-  State<_AnimatedLineChart> createState() => _AnimatedLineChartState();
+  State<_AnimatedBarChart> createState() => _AnimatedBarChartState();
 }
 
-class _AnimatedLineChartState extends State<_AnimatedLineChart>
+class _AnimatedBarChartState extends State<_AnimatedBarChart>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
 
@@ -219,9 +216,8 @@ class _AnimatedLineChartState extends State<_AnimatedLineChart>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 480),
     );
-    // 首次入场:从左往右 reveal
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _ctrl.forward();
     });
@@ -238,149 +234,174 @@ class _AnimatedLineChartState extends State<_AnimatedLineChart>
     return AnimatedBuilder(
       animation: _ctrl,
       builder: (context, _) {
-        return ClipRect(
-          clipper: _LeftRevealClipper(_ctrl.value),
-          child: LineChart(
-            LineChartData(
-              lineBarsData: [
-                LineChartBarData(
-                  spots: widget.data
-                      .asMap()
-                      .entries
-                      .map((e) =>
-                          FlSpot(e.key.toDouble(), e.value.income))
-                      .toList(),
-                  isCurved: false,
-                  color: AppBrand.gold,
-                  barWidth: 2,
-                  dotData: const FlDotData(show: true),
-                  belowBarData: BarAreaData(
-                    show: true,
-                    color: AppBrand.gold.withValues(alpha: 0.08),
-                  ),
-                ),
-                LineChartBarData(
-                  spots: widget.data
-                      .asMap()
-                      .entries
-                      .map((e) =>
-                          FlSpot(e.key.toDouble(), e.value.expense))
-                      .toList(),
-                  isCurved: false,
-                  color: AppStatus.error,
-                  barWidth: 2,
-                  dotData: const FlDotData(show: true),
-                  belowBarData: BarAreaData(
-                    show: true,
-                    color: AppStatus.error.withValues(alpha: 0.08),
-                  ),
-                ),
-              ],
-              minY: 0,
-              maxY: widget.maxY,
-              titlesData: FlTitlesData(
-                topTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false),
-                ),
-                rightTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false),
-                ),
-                leftTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    // 2026-10-12 调:dark mode 之前 44,light 模式 52 都
-                    // 会被"20,000" 这种 5 字符长 tick label 顶到裁切。
-                    // 改 60 给足够横向空间。
-                    reservedSize: 60,
-                    interval: widget.niceInterval,
-                    getTitlesWidget: (v, meta) {
-                      // 2026-10-12 修:dark mode 下 AppGray.g600(深灰
-                      // #52525B)跟黑背景几乎融为一体,看不见。改用主题色
-                      // onSurfaceVariant,light/dark 自动适配
-                      final scheme = Theme.of(context).colorScheme;
-                      return Text(
-                        Formatters.amount(
-                          v,
-                          forceWan: widget.chartNeedsWan,
-                          trimTrailingZeros: true,
-                        ),
-                        style: TextStyle(
-                          fontSize: 9,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                        maxLines: 1,
-                        softWrap: false,
-                        overflow: TextOverflow.visible,
-                      );
-                    },
-                  ),
-                ),
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 24,
-                    interval: 2,
-                    getTitlesWidget: (v, meta) {
-                      final i = v.toInt();
-                      if (i < 0 || i >= widget.data.length) {
-                        return const SizedBox.shrink();
-                      }
-                      // dark mode 适配:用 onSurfaceVariant 替代 AppGray.g600
-                      final scheme = Theme.of(context).colorScheme;
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          '${widget.data[i].month}月',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-              gridData: const FlGridData(show: false),
-              borderData: FlBorderData(show: false),
-              lineTouchData: LineTouchData(
-                handleBuiltInTouches: true,
-                touchTooltipData: LineTouchTooltipData(
-                  getTooltipColor: (_) => AppBrand.ink,
-                  getTooltipItems: (touchedSpots) => touchedSpots
-                      .map(
-                        (s) => LineTooltipItem(
-                          '¥${Formatters.amount(s.y)}',
-                          TextStyle(
-                            color: s.bar.color,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                          ),
-                        ),
-                      )
-                      .toList(),
-                ),
-              ),
-            ),
-          ),
+        return Opacity(
+          opacity: Curves.easeInOut.transform(_ctrl.value),
+          child: _buildChart(),
         );
       },
     );
   }
+
+  Widget _buildChart() {
+    final scheme = Theme.of(context).colorScheme;
+    return BarChart(
+      BarChartData(
+        maxY: widget.maxY,
+        minY: 0,
+        alignment: BarChartAlignment.spaceAround,
+        barTouchData: BarTouchData(
+          handleBuiltInTouches: true,
+          touchTooltipData: BarTouchTooltipData(
+            getTooltipColor: (_) => AppBrand.ink,
+            getTooltipItem: (group, gIdx, rod, rIdx) {
+              final v = rod.toY;
+              return BarTooltipItem(
+                '¥${Formatters.amount(v)}',
+                TextStyle(
+                  color: AppBrand.gold,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              );
+            },
+          ),
+        ),
+        titlesData: FlTitlesData(
+          show: true,
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 56,
+              interval: widget.niceInterval,
+              getTitlesWidget: (v, meta) => Text(
+                Formatters.amount(
+                  v,
+                  forceWan: widget.chartNeedsWan,
+                  trimTrailingZeros: true,
+                ),
+                style: TextStyle(fontSize: 9, color: scheme.onSurfaceVariant),
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.visible,
+              ),
+            ),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 24,
+              interval: 1,
+              getTitlesWidget: (v, meta) {
+                final idx = v.toInt();
+                if (idx < 0 || idx >= widget.bars.length) {
+                  return const SizedBox.shrink();
+                }
+                final label = widget.labelKind == BarLabelKind.day
+                    ? '${widget.bars[idx].day}'
+                    : '${widget.bars[idx].month}月';
+                return Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        gridData: const FlGridData(show: false),
+        borderData: FlBorderData(show: false),
+        barGroups: _buildBarGroups(),
+      ),
+    );
+  }
+
+  /// 把 daily/monthly 数据转成 BarChartGroupData 列表
+  ///
+  /// - DailyExpenseBarChart:每天 1 根柱(支出,error 红)
+  /// - MonthlyTrendBarChart:每月 1 组(grouped),组里 2 根柱(收入 gold / 支出 red)
+  List<BarChartGroupData> _buildBarGroups() {
+    final groups = <BarChartGroupData>[];
+    for (int i = 0; i < widget.bars.length; i++) {
+      if (widget.labelKind == BarLabelKind.day) {
+        // 每日 1 柱
+        final d = widget.bars[i];
+        groups.add(
+          BarChartGroupData(
+            x: i,
+            barRods: [
+              BarChartRodData(
+                toY: d.expense,
+                color: widget.color,
+                width: 8, // 30+ 根柱子时单柱窄一点
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(2),
+                ),
+              ),
+            ],
+          ),
+        );
+      } else {
+        // 每月 grouped(income + expense)
+        final m = widget.bars[i];
+        groups.add(
+          BarChartGroupData(
+            x: i,
+            barsSpace: 2, // 双柱紧贴
+            barRods: [
+              BarChartRodData(
+                toY: m.income,
+                color: AppBrand.gold,
+                width: 5,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(2),
+                ),
+              ),
+              BarChartRodData(
+                toY: m.expense,
+                color: AppStatus.error,
+                width: 5,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(2),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+    return groups;
+  }
 }
 
-/// ClipRect 用:按 progress(0→1)推进 reveal 宽度,从左往右"画"出折线
-class _LeftRevealClipper extends CustomClipper<Rect> {
-  _LeftRevealClipper(this.progress);
-  final double progress;
-
-  @override
-  Rect getClip(Size size) {
-    return Rect.fromLTWH(0, 0, size.width * progress, size.height);
+/// 2026-10-01 沿用:按"1/2/5 × 10^n"挑 niceInterval,避免 maxY 实际值出现
+double _pickNiceInterval(double maxVal) {
+  if (maxVal <= 0) return 1;
+  final magnitude = _pow10(
+    (maxVal.abs().toString().split('.').first.length) - 1,
+  );
+  final candidates = <double>[magnitude, 2 * magnitude, 5 * magnitude];
+  for (final c in candidates) {
+    final tickCount = maxVal / c;
+    if (tickCount <= 4) return c;
   }
+  return candidates.last;
+}
 
-  @override
-  bool shouldReclip(_LeftRevealClipper oldClipper) {
-    return oldClipper.progress != progress;
+double _pow10(int n) {
+  double r = 1;
+  for (var i = 0; i < n; i++) {
+    r *= 10;
   }
+  return r;
 }
