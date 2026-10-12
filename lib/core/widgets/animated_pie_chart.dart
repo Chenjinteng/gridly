@@ -68,10 +68,10 @@ class _AnimatedPieChartState extends State<AnimatedPieChart>
   late final AnimationController _ctrl;
   late final Animation<double> _t;
 
-  /// 总动画时长(commit 54 保持 2400ms):
-  ///   8 个扇区每个 ~300ms 独立填充时间,user 能清楚看到"扫到一个,
-  ///   出一个颜色"的顺序。aquaIn 阻尼前快后慢,收尾自然减速。
-  static const Duration _kDuration = Duration(milliseconds: 2400);
+  /// 总动画时长(commit 56 加快:2400ms → 1800ms)
+  ///   user 反馈"到后面有点慢",缩 25% 让收尾更利落
+  ///   8 个扇区每个 ~225ms 独立填充,顺序依然清楚,aquaIn 阻尼前快后慢保留
+  static const Duration _kDuration = Duration(milliseconds: 1800);
 
   @override
   void initState() {
