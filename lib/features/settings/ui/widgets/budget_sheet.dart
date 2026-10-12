@@ -86,6 +86,52 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
     });
   }
 
+  /// 从已添加列表移除某分类(同时清除 pending 标记)
+  void _removeCategory(Category category) {
+    setState(() {
+      _pendingBudgets.remove(category.id);
+    });
+  }
+
+  /// 计算还能添加几个分类(总支出分类 - 已添加)
+  int _availableToAddCount(BudgetOverview overview) {
+    return overview.items
+        .where((i) => !_pendingBudgets.containsKey(i.category.id))
+        .length;
+  }
+
+  /// 弹分类 picker(只显示未添加的)→ 选一个 → 弹 amount 输入 → 加入列表
+  Future<void> _openCategoryPicker(
+    BuildContext context,
+    BudgetOverview overview,
+  ) async {
+    // 未添加的分类
+    final available = overview.items
+        .where((i) => !_pendingBudgets.containsKey(i.category.id))
+        .map((i) => i.category)
+        .toList();
+    if (available.isEmpty) return;
+
+    final picked = await showModalBottomSheet<Category>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      builder: (ctx) => _BudgetCategoryPickerSheet(categories: available),
+    );
+    if (picked == null) return;
+    // context.mounted 检查 BuildContext(Flutter 3.7+ 新 API)替代 mounted 检查
+    if (!context.mounted) return;
+
+    // 选完分类后,弹 amount 输入
+    final amount = await _askAmount(context, initial: 0);
+    if (amount == null) return;
+    if (!context.mounted) return;
+
+    setState(() {
+      _pendingBudgets[picked.id] = amount > 0 ? amount : 0;
+    });
+  }
+
   /// 提交所有变更
   Future<void> _save() async {
     final total = double.tryParse(_totalController.text.trim()) ?? 0;
@@ -334,42 +380,82 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
                       ),
                     ),
                     const SizedBox(height: AppSpacing.s3),
-                    // 分类列表
-                    ConstrainedBox(
-                      // 限制分类列表高度,太多分类时 sheet 内部滚动
-                      constraints: const BoxConstraints(maxHeight: 320),
-                      child: ListView.separated(
-                        shrinkWrap: true,
-                        itemCount: overview.items.length,
-                        separatorBuilder: (_, _) => const Divider(height: 1),
-                        itemBuilder: (ctx, i) {
-                          final item = overview.items[i];
-                          return _CategoryBudgetRow(
-                            item: item,
-                            effective: _effectiveAmount(item),
-                            configured: _isConfigured(item),
-                            poolRemaining: poolRemaining,
-                            totalBudget: total,
-                            onAdd: () async {
-                              final v = await _askAmount(context, initial: 0);
-                              if (v != null) {
-                                _setCategoryBudget(item.category, v);
-                              }
-                            },
-                            onEdit: () async {
-                              final v = await _askAmount(
-                                context,
-                                initial: _effectiveAmount(item),
-                              );
-                              if (v != null) {
-                                _setCategoryBudget(item.category, v);
-                              }
-                            },
-                            onClear: () => _setCategoryBudget(item.category, 0),
-                          );
-                        },
+                    // 分类列表 —— 只显示已添加的(按需)
+                    // commit 94 改:之前列表遍历 overview.items(全部分类),
+                    //   user 反馈"分类太多,只需要按需增加我要分配的分类"
+                    //   改为遍历 _pendingBudgets.entries(只显示已添加的),
+                    //   底部"+ 添加分类"按钮按需弹出分类 picker
+                    if (_pendingBudgets.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: AppSpacing.s3),
+                        child: Center(
+                          child: Text(
+                            '未配置子额度 · 点下方"+ 添加分类"按需配置',
+                            style: TextStyle(color: AppGray.g600, fontSize: 12),
+                          ),
+                        ),
+                      )
+                    else
+                      ..._pendingBudgets.entries.map((entry) {
+                        final catId = entry.key;
+                        // 从 overview 查 Category info
+                        final item = overview.items
+                            .where((i) => i.category.id == catId)
+                            .firstOrNull;
+                        if (item == null) return const SizedBox.shrink();
+                        return _CategoryBudgetRow(
+                          item: item,
+                          effective: _effectiveAmount(item),
+                          configured: _isConfigured(item),
+                          poolRemaining: poolRemaining,
+                          totalBudget: total,
+                          onAdd: () async {
+                            final v = await _askAmount(context, initial: 0);
+                            if (v != null) {
+                              _setCategoryBudget(item.category, v);
+                            }
+                          },
+                          onEdit: () async {
+                            final v = await _askAmount(
+                              context,
+                              initial: _effectiveAmount(item),
+                            );
+                            if (v != null) {
+                              _setCategoryBudget(item.category, v);
+                            }
+                          },
+                          onClear: () => _removeCategory(item.category),
+                        );
+                      }),
+                    // + 添加分类 按钮(只在还有未添加分类时显示)
+                    if (_availableToAddCount(overview) > 0) ...[
+                      const SizedBox(height: AppSpacing.s2),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _saving
+                              ? null
+                              : () => _openCategoryPicker(context, overview),
+                          icon: const Icon(Icons.add, size: 18),
+                          label: Text(
+                            '添加分类(剩 ${_availableToAddCount(overview)} 个可选)',
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: AppRadius.brLg,
+                            ),
+                            foregroundColor: AppBrand.teal,
+                            side: const BorderSide(
+                              color: AppBrand.teal,
+                              width: 1,
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: AppSpacing.s2,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                     const SizedBox(height: AppSpacing.s4),
                     // 保存 / 清除
                     SizedBox(
@@ -621,5 +707,90 @@ class _AmountInputFormatter extends TextInputFormatter {
       if (fracLen > _maxFractionDigits) return oldValue;
     }
     return newValue;
+  }
+}
+
+/// 分类 picker(只显示未添加的支出分类)
+///   commit 94 加:从 BudgetSheet 弹,选完回到 BudgetSheet 弹 amount 输入
+class _BudgetCategoryPickerSheet extends StatelessWidget {
+  const _BudgetCategoryPickerSheet({required this.categories});
+
+  final List<Category> categories;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.s3),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 拉手
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: AppSpacing.s3),
+                decoration: BoxDecoration(
+                  color: AppGray.g400,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: AppSpacing.s4,
+                vertical: AppSpacing.s2,
+              ),
+              child: Text(
+                '选择要分配额度的分类',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.s2),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 360),
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: categories.length,
+                itemBuilder: (ctx, i) {
+                  final c = categories[i];
+                  return InkWell(
+                    onTap: () => Navigator.pop(context, c),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.s4,
+                        vertical: AppSpacing.s3,
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: Color(c.color).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              CategoryIcons.map[c.icon] ??
+                                  Icons.category_rounded,
+                              size: 18,
+                              color: Color(c.color),
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.s3),
+                          Text(c.name, style: const TextStyle(fontSize: 14)),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

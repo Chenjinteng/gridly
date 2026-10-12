@@ -218,7 +218,10 @@ class _BudgetOverviewBody extends StatelessWidget {
               ),
             ),
           ),
-        // 分类列表
+        // 分类列表 —— commit 94 改:只显示已配置子额度的分类
+        //   之前显示全部分类(15-17 个),user 反馈太多
+        //   改 overview.configuredItems(只显示已配置的),
+        //   未配置分类的共享池信息已在中部提示,不需要每个都列出来
         const Divider(height: 1, thickness: 0.5),
         Padding(
           padding: const EdgeInsets.symmetric(
@@ -233,24 +236,24 @@ class _BudgetOverviewBody extends StatelessWidget {
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               ),
               Text(
-                '${overview.configuredItems.length} 已配 · ${overview.unconfiguredItems.length} 共享',
+                '已配 ${overview.configuredItems.length}',
                 style: const TextStyle(fontSize: 11, color: AppGray.g600),
               ),
             ],
           ),
         ),
-        if (overview.items.isEmpty)
+        if (overview.configuredItems.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: AppSpacing.s4),
             child: Center(
               child: Text(
-                '暂无支出分类',
-                style: TextStyle(color: AppGray.g600, fontSize: 13),
+                '未配置分类子额度',
+                style: TextStyle(color: AppGray.g600, fontSize: 12),
               ),
             ),
           )
         else
-          ...overview.items.map(
+          ...overview.configuredItems.map(
             (item) => _CategoryBudgetItemRow(
               item: item,
               poolRemaining: overview.poolRemaining,
