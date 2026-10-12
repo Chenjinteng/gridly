@@ -1,7 +1,7 @@
 // lib/features/stats/ui/widgets/monthly_trend.dart
 // 时间趋势卡片 —— 根据 statsRange 自动切换数据源 + 图表类型:
 //   thisMonth → 按天支出柱状图(_DailyExpenseBarChart,看 dailyExpenseTrendProvider)
-//   thisYear  → 12 月柱状图(_MonthlyBarChart,看 monthlyTrendProvider,收入/支出各一柱)
+//   thisYear  → 当年 1-12 月支出柱状图(_MonthlyBarChart,看 yearlyExpenseTrendProvider,单柱)
 //
 // 2026-10-12 redesign (commit 72):
 //   user "近 12 月趋势"反馈:
@@ -119,21 +119,24 @@ class _DailyExpenseBarChart extends ConsumerWidget {
   }
 }
 
-/// 近 12 月柱状图(thisYear 用)—— 一月一根柱,revenue 跟 expense 并排 grouped
+/// 当年 1-12 月支出柱状图(thisYear 用)—— 一月一根柱,只显示支出
+/// 2026-10-12 commit 78 改:之前用 monthlyTrendProvider(近 12 月 + income/expense),
+/// user 反馈"本年不要近 12 个月"+"只需要支出" → 改用 yearlyExpenseTrendProvider,
+/// 只算 expense(单柱,不再有 income 维度)
 class _MonthlyBarChart extends ConsumerWidget {
   const _MonthlyBarChart();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final trendAsync = ref.watch(monthlyTrendProvider);
+    final trendAsync = ref.watch(yearlyExpenseTrendProvider);
     return trendAsync.when(
       data: (data) {
-        if (data.every((d) => d.income == 0 && d.expense == 0)) {
+        if (data.every((d) => d.expense == 0)) {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: AppSpacing.s6),
             child: Center(
               child: Text(
-                '近 12 月暂无数据',
+                '本年暂无支出',
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                   fontSize: 13,
@@ -143,7 +146,7 @@ class _MonthlyBarChart extends ConsumerWidget {
           );
         }
         final maxVal = data
-            .map((d) => d.income > d.expense ? d.income : d.expense)
+            .map((d) => d.expense)
             .fold<double>(0, (a, b) => a > b ? a : b);
         final niceInterval = _pickNiceInterval(maxVal);
         final maxY = maxVal == 0
@@ -410,7 +413,7 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
   /// 把 daily/monthly 数据转成 BarChartGroupData 列表
   ///
   /// - DailyExpenseBarChart:每天 1 根柱(支出,error 红)
-  /// - MonthlyTrendBarChart:每月 1 组(grouped),组里 2 根柱(收入 gold / 支出 red)
+  /// - MonthlyTrendBarChart:每月 1 根柱(支出,error 红;commit 78 改:之前是 grouped 双柱 income+expense)
   List<BarChartGroupData> _buildBarGroups() {
     final groups = <BarChartGroupData>[];
     for (int i = 0; i < widget.bars.length; i++) {
@@ -435,24 +438,18 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
           ),
         );
       } else {
-        // 每月 grouped(income + expense)
+        // 每月 1 柱(支出 only)—— commit 78 改
+        //   之前返 2 根 grouped rod(income gold + expense red),
+        //   user 反馈"本年只需要支出,为什么还会有红黄两条柱子的"
+        //   → 改单 expense rod(红),不再有 income 维度
         final m = widget.bars[i];
         groups.add(
           BarChartGroupData(
             x: i,
-            barsSpace: 2, // 双柱紧贴
             barRods: [
               BarChartRodData(
-                toY: m.income,
-                color: AppBrand.gold,
-                width: 5,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(2),
-                ),
-              ),
-              BarChartRodData(
                 toY: m.expense,
-                color: AppStatus.error,
+                color: widget.color,
                 width: 5,
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(2),

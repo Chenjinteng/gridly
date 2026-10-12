@@ -289,3 +289,43 @@ final monthlyTrendProvider = FutureProvider<List<MonthlyTrend>>((ref) async {
   }
   return out;
 });
+
+/// 当年 1-12 月的支出趋势(本年维度柱状图用)
+/// 2026-10-12 加(commit 78):user 反馈"本年不要近 12 个月,只要当年 1-12 月"
+/// + "只需要支出,为什么还会有红黄两条柱子的"
+///   - 之前 monthlyTrendProvider 返 12 月数据但含 income,本年维度 BarChart 显示
+///     grouped 双柱(红支出 + 金收入)
+///   - 改为只算支出,返 12 行(1..12 月),不再有 income 维度
+class YearlyExpense {
+  const YearlyExpense({required this.month, required this.expense});
+  final int month;
+  final double expense;
+}
+
+final yearlyExpenseTrendProvider =
+    FutureProvider<List<YearlyExpense>>((ref) async {
+  // 取本年的"自定义年份"(statsCustomYearProvider)或当前年
+  final year =
+      ref.watch(statsCustomYearProvider) ?? DateTime.now().year;
+  final db = ref.watch(databaseProvider);
+  final start = DateTime(year, 1, 1);
+  final end = DateTime(year + 1, 1, 1).subtract(const Duration(seconds: 1));
+
+  final txs = await (db.select(db.transactions)
+        ..where((t) =>
+            t.occurredAt.isBetweenValues(start, end) &
+            t.type.equals('expense')))
+      .get();
+
+  final byMonth = <int, double>{};
+  for (final t in txs) {
+    byMonth[t.occurredAt.month] =
+        (byMonth[t.occurredAt.month] ?? 0) + t.amount;
+  }
+
+  // 强制 12 行(1..12 月),没数据的月 expense = 0
+  return List.generate(
+    12,
+    (i) => YearlyExpense(month: i + 1, expense: byMonth[i + 1] ?? 0),
+  );
+});
