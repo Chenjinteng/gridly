@@ -211,6 +211,10 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
 
+  /// 当前 touch 的 group 索引(0..bars.length-1);null = 没有 touch
+  /// commit 77 加:extraLinesData.verticalLines 需要这个 index 画虚线 + 顶部 label
+  int? _touchedGroupIdx;
+
   @override
   void initState() {
     super.initState();
@@ -227,6 +231,32 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
   void dispose() {
     _ctrl.dispose();
     super.dispose();
+  }
+
+  /// 处理 barChart touch:
+  ///   - onTouchDown / onTouchMove:更新 _touchedGroupIdx 触发虚线 + label
+  ///   - onPanEnd / onPanCancel:清空,虚线 + label 消失
+  void _onTouch(FlTouchEvent event, BarTouchResponse? response) {
+    if (event is FlPanEndEvent || event is FlPanCancelEvent) {
+      if (_touchedGroupIdx != null) {
+        setState(() => _touchedGroupIdx = null);
+      }
+      return;
+    }
+    final idx = response?.spot?.touchedBarGroupIndex;
+    if (idx != null && idx != _touchedGroupIdx) {
+      setState(() => _touchedGroupIdx = idx);
+    }
+  }
+
+  /// 把当前 touch 的 group index 转成"日期/月"文字
+  String? _touchedLabel() {
+    final idx = _touchedGroupIdx;
+    if (idx == null || idx < 0 || idx >= widget.bars.length) return null;
+    if (widget.labelKind == BarLabelKind.day) {
+      return '${widget.bars[idx].day}日';
+    }
+    return '${widget.bars[idx].month}月';
   }
 
   @override
@@ -255,6 +285,9 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
         groupsSpace: 4,
         barTouchData: BarTouchData(
           handleBuiltInTouches: true,
+          // commit 77:加 touchCallback,记录 touch 的 group index 给 extraLinesData 用
+          touchCallback: _onTouch,
+          // 保留金额 tooltip(用户要求"金额的显示保持现在的")
           touchTooltipData: BarTouchTooltipData(
             getTooltipColor: (_) => AppBrand.ink,
             getTooltipItem: (group, gIdx, rod, rIdx) {
@@ -269,6 +302,32 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
               );
             },
           ),
+        ),
+        // commit 77 加:选中柱子时画虚线 + 顶部 label 日期
+        //   - dashArray [4, 3] 虚线(4px 实线 + 3px 空白)
+        //   - label 顶部:显示"X日" 或 "X月"
+        //   - 颜色用 onSurfaceVariant(对比适中,不在 primary 抢眼)
+        extraLinesData: ExtraLinesData(
+          verticalLines: [
+            if (_touchedGroupIdx != null)
+              VerticalLine(
+                x: _touchedGroupIdx!.toDouble(),
+                color: scheme.onSurfaceVariant,
+                strokeWidth: 1,
+                dashArray: const [4, 3],
+                label: VerticalLineLabel(
+                  show: true,
+                  alignment: Alignment.topCenter,
+                  padding: const EdgeInsets.only(bottom: 4),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurface,
+                  ),
+                  labelResolver: (_) => _touchedLabel() ?? '',
+                ),
+              ),
+          ],
         ),
         titlesData: FlTitlesData(
           show: true,
