@@ -202,14 +202,16 @@ class _AssetFormSheetState extends ConsumerState<AssetFormSheet> {
               ),
               const SizedBox(height: AppSpacing.s3),
 
-              // 类型(2026-10-13 P6 第 2 次改:6 段 SegmentedButton 太挤,
-              //   改 picker — 选中的类型显示在一行,点开底部弹 sheet 列 6 选项)
+              // 类型(2026-10-13 P6 第 3 次改:2 列 × 3 行卡片网格,直接选
+              //   - 之前 picker 弹底部 sheet → user 来回 2 步,过载
+              //   - 现在 6 个卡片全显示,点哪张选哪张,选中卡片有 primary tint
+              //   - ColorOS 风格:卡片化外观,看得见所有选项
               const Text(
                 '类型',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: AppSpacing.s2),
-              _TypePickerRow(
+              _TypeCardGrid(
                 value: _type,
                 onPick: (v) => setState(() => _type = v),
               ),
@@ -374,16 +376,22 @@ class _AssetFormSheetState extends ConsumerState<AssetFormSheet> {
 //   - 选中后 sheet 关闭 + onPick 回调
 // 视觉跟 asset_summary_card 的"6 类配色"对齐
 // ============================================================================
+// 类型卡片网格(2026-10-13 P6 第 3 次改):
+//   - 替代 _TypePickerRow(弹底部 sheet 单选)
+//   - 2 列 × 3 行 = 6 卡片,所有选项直接可见,点哪张选哪张
+//   - 选中卡片:primary tint 背景 + border
+//   - 未选卡片:浅 surface 背景 + outline border
+//   - ColorOS 风格:外观切换卡片,看得见 6 个选项
+// ============================================================================
 
-class _TypePickerRow extends StatelessWidget {
-  const _TypePickerRow({required this.value, required this.onPick});
+class _TypeCardGrid extends StatelessWidget {
+  const _TypeCardGrid({required this.value, required this.onPick});
 
   final String value;
   final ValueChanged<String> onPick;
 
   /// 6 段类型配置(顺序按日常查看频度)
-  /// 跟 _AssetFormSheetState._typeSegments / asset_tile / asset_summary_card
-  ///   共用同一份数据,这里独立维护一份是为了 picker 内部 list 用
+  /// 跟 asset_tile / asset_summary_card 共用同一份数据
   static const _options = <(String, String, IconData)>[
     ('cash_flow', '现金流', Icons.account_balance_wallet_rounded),
     ('investment', '投资', Icons.trending_up_rounded),
@@ -393,8 +401,8 @@ class _TypePickerRow extends StatelessWidget {
     ('other', '其它', Icons.category_rounded),
   ];
 
-  /// 6 段类型配色(跟 asset_summary_card._colorFor 一致)
-  Color _colorFor(String t) {
+  /// 6 段类型配色(跟 asset_summary_card._colorFor / asset_tile.colorFor 一致)
+  static Color _colorFor(String t) {
     switch (t) {
       case 'cash_flow':
         return AppBrand.teal;
@@ -411,142 +419,97 @@ class _TypePickerRow extends StatelessWidget {
     }
   }
 
-  IconData _iconFor(String t) {
-    for (final o in _options) {
-      if (o.$1 == t) return o.$3;
-    }
-    return Icons.category_rounded;
+  @override
+  Widget build(BuildContext context) {
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: AppSpacing.s2,
+      crossAxisSpacing: AppSpacing.s2,
+      // childAspectRatio:宽度:高度 ≈ 1.5(每张卡片比宽 1.5 倍高,适合 icon + label)
+      childAspectRatio: 1.5,
+      children: [
+        for (final (key, label, icon) in _options)
+          _TypeCard(
+            key: ValueKey('type-card-$key'),
+            typeKey: key,
+            label: label,
+            icon: icon,
+            selected: value == key,
+            color: _colorFor(key),
+            onTap: () => onPick(key),
+          ),
+      ],
+    );
   }
+}
 
-  String _labelFor(String t) {
-    for (final o in _options) {
-      if (o.$1 == t) return o.$2;
-    }
-    return t;
-  }
+/// 单个类型卡片(2 列网格中的 1 张)
+class _TypeCard extends StatelessWidget {
+  const _TypeCard({
+    super.key,
+    required this.typeKey,
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String typeKey;
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final Color color;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = _colorFor(value);
-    final icon = _iconFor(value);
-    final label = _labelFor(value);
     return InkWell(
-      onTap: () => _openPicker(context),
-      borderRadius: AppRadius.brSm,
+      onTap: onTap,
+      borderRadius: AppRadius.brMd,
       child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.s3,
-          vertical: AppSpacing.s3,
-        ),
         decoration: BoxDecoration(
-          border: Border.all(color: theme.colorScheme.outlineVariant),
-          borderRadius: AppRadius.brSm,
+          color: selected
+              ? color.withValues(alpha: 0.12)
+              : theme.colorScheme.surfaceContainerLow,
+          borderRadius: AppRadius.brMd,
+          border: Border.all(
+            color: selected ? color : theme.colorScheme.outlineVariant,
+            width: selected ? 1.5 : 1.0,
+          ),
         ),
-        child: Row(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 28,
-              height: 28,
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.18),
                 borderRadius: AppRadius.brXs,
               ),
-              child: Icon(icon, color: color, size: 16),
+              child: Icon(icon, color: color, size: 18),
             ),
-            const SizedBox(width: AppSpacing.s3),
-            Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
+            const SizedBox(height: AppSpacing.s2),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                color: selected ? color : theme.colorScheme.onSurface,
               ),
-            ),
-            Icon(
-              Icons.chevron_right_rounded,
-              size: 20,
-              color: theme.colorScheme.onSurfaceVariant,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
       ),
     );
   }
-
-  void _openPicker(BuildContext context) {
-    showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
-      ),
-      builder: (sheetCtx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.s2),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // 把手
-                Container(
-                  width: 36,
-                  height: 4,
-                  margin: const EdgeInsets.only(top: 8, bottom: 12),
-                  decoration: BoxDecoration(
-                    color: AppGray.g400,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: AppSpacing.s4,
-                    vertical: AppSpacing.s2,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '选择类型',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      TextButton(onPressed: null, child: Text('关闭')),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-                for (final (key, label, icon) in _options)
-                  ListTile(
-                    leading: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: _colorFor(key).withValues(alpha: 0.18),
-                        borderRadius: AppRadius.brXs,
-                      ),
-                      child: Icon(icon, color: _colorFor(key), size: 18),
-                    ),
-                    title: Text(label, style: const TextStyle(fontSize: 15)),
-                    trailing: value == key
-                        ? Icon(
-                            Icons.check,
-                            color: Theme.of(sheetCtx).colorScheme.primary,
-                          )
-                        : null,
-                    onTap: () {
-                      Navigator.pop(sheetCtx);
-                      onPick(key);
-                    },
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
 }
+
+// 旧 _TypePickerRow 类已删(2026-10-13 P6 第 3 次改,用 _TypeCardGrid 替代)

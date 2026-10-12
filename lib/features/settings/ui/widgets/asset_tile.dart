@@ -109,9 +109,33 @@ class AssetTile extends ConsumerWidget {
             size: 18,
           ),
         ),
-        title: Text(
-          asset.name,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                asset.name,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            // 2026-10-13 P6 加:includeInTransactions=false 时,标题右侧加
+            //   小 archive icon 提示(替代之前挤一行的"不计入流水" chip,
+            //   解决 30px overflow 问题)
+            if (!asset.includeInTransactions) ...[
+              const SizedBox(width: 6),
+              Tooltip(
+                message: '不计入流水',
+                child: Icon(
+                  Icons.archive_outlined,
+                  size: 14,
+                  color: AppGray.g600,
+                ),
+              ),
+            ],
+          ],
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 2),
@@ -133,29 +157,6 @@ class AssetTile extends ConsumerWidget {
                   ),
                 ),
               ),
-              // 2026-10-13 P6 加:includeInTransactions=false 时,显示
-              //   "不计入流水"灰色 chip,user 在资产列表一眼看到
-              if (!asset.includeInTransactions) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 1,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppGray.g400.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Text(
-                    '不计入流水',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: AppGray.g600,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
               const SizedBox(width: 8),
               Text(
                 '¥${Formatters.amount(balance)}',
