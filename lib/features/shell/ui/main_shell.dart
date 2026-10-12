@@ -181,8 +181,17 @@ class _MainShellState extends ConsumerState<MainShell> {
         child: LayoutBuilder(
           builder: (ctx, constraints) {
             const destCount = 5;
-            const pillW = 64.0;
-            const pillH = 32.0;
+            // ── pill 几何 ── (2026-10-12 commit 41 修):
+            //   之前 pillW=64 pillH=32 top=22 → pill 占据 slot 中部,
+            //   跟旁边的中央 FAB(56x56)同高,视觉撞;还把"首页/流水/..."
+            //   label 推到底部只剩 18px 看着挤。
+            //   ColorOS 17 真正底部 nav 风格:细长药丸,只框 icon,
+            //   不碰 label。
+            //   现在 pillW=56 pillH=28 top=14 → 紧贴 icon 区,
+            //   顶部 14,底部 42,label 在 50-72 完整露出。
+            const pillW = 56.0;
+            const pillH = 28.0;
+            const pillTop = 14.0;
             final slotW = constraints.maxWidth / destCount;
             // pill 选中 dest(0..4);dest 2 (FAB 选中)时 pill 隐藏
             final selectedDest = _destForTab(_currentTab);
@@ -238,14 +247,14 @@ class _MainShellState extends ConsumerState<MainShell> {
                     ],
                   ),
                   // ColorOS 17 风格 pill indicator:
-                  //   - secondaryContainer 实色(更高对比度的"小药丸")
+                  //   - secondaryContainer 实色 pill(更柔的 cream 色)
                   //   - 选中时 fade in(200ms aquaIn),位置滑过去(420ms easeOutBack)
                   //   - dest 2 (中央 FAB 选中)时整 pill 隐藏
                   AnimatedPositioned(
                     duration: const Duration(milliseconds: 420),
                     curve: Curves.easeOutBack,
                     left: pillLeft,
-                    top: (72 - pillH) / 2 + 4,
+                    top: pillTop,
                     width: pillW,
                     height: pillH,
                     child: AnimatedOpacity(
@@ -257,7 +266,7 @@ class _MainShellState extends ConsumerState<MainShell> {
                           color: Theme.of(context)
                               .colorScheme
                               .secondaryContainer,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(14),
                         ),
                       ),
                     ),
