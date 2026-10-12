@@ -54,15 +54,19 @@ class _AnimatedPieChartState extends State<AnimatedPieChart>
   late final AnimationController _ctrl;
   late final Animation<double> _t;
 
-  /// 总动画时长。stagger(60ms*i) + 单扇区长完(500ms) ≈ 900ms。
-  static const Duration _kDuration = Duration(milliseconds: 900);
+  /// 总动画时长(2026-10-12 调):配合 AnimatedSwitcher 1100ms fade,
+  /// 让色条在 fade in 中后段长完(~80% 时已经画完)。1300ms 比 900ms 慢,
+  /// 用户能清楚看到每个色条从 0 涨到目标的"蠕动"过程。
+  /// 8 扇区总错峰:7 * 0.07 ≈ 490ms + 单扇区 0.6(780ms)= 1270ms,接近 1300ms。
+  static const Duration _kDuration = Duration(milliseconds: 1300);
 
   /// 扇区之间错峰延迟(归一化 0~1,基于 _kDuration)
-  /// 8 扇区总错峰 = 7 * 0.067 ≈ 470ms
-  static const double _kStaggerStep = 0.067;
+  /// 7 个间隔 × 0.07 ≈ 490ms,8 扇区错峰总时长
+  static const double _kStaggerStep = 0.07;
 
   /// 单个扇区从 0 长到目标 value 用的归一化时长
-  static const double _kSectorDuration = 0.5;
+  /// 0.6(780ms)比 0.5 更慢,色条"长出来"过程更明显
+  static const double _kSectorDuration = 0.6;
 
   @override
   void initState() {
