@@ -185,48 +185,20 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
   }
 
   /// 弹 number input → 返回 amount;取消返回 null
+  ///
+  /// 实现细节:dialog 用独立的 StatefulWidget [_AmountDialog],controller 由
+  ///   它自己 initState 创建 / dispose 释放。避免 outer-scope 创建 controller
+  ///   + showDialog 返回后立即 dispose 引起的 _dependents.isEmpty assertion:
+  ///   EditableText(autofocus + 键盘未完全收起)还在用 controller 时被 dispose
+  ///   会触发 InheritedElement 的 dependents 清理竞态。
   Future<double?> _askAmount(
     BuildContext context, {
     required double initial,
   }) async {
-    final ctrl = TextEditingController(
-      text: initial > 0 ? initial.toStringAsFixed(0) : '',
-    );
-    final result = await showDialog<double>(
+    return showDialog<double>(
       context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          title: const Text('设置子额度'),
-          content: TextField(
-            controller: ctrl,
-            autofocus: true,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [const _AmountInputFormatter()],
-            decoration: const InputDecoration(
-              labelText: '子额度金额',
-              prefixText: '¥ ',
-              border: OutlineInputBorder(),
-              isDense: true,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final v = double.tryParse(ctrl.text.trim());
-                if (v != null && v >= 0) Navigator.pop(ctx, v);
-              },
-              child: const Text('确定'),
-            ),
-          ],
-        );
-      },
+      builder: (ctx) => _AmountDialog(initial: initial),
     );
-    ctrl.dispose();
-    return result;
   }
 
   @override
@@ -675,6 +647,71 @@ class _CategoryBudgetRow extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// 金额输入 dialog — 拥有自己的 TextEditingController 生命周期
+///
+/// 用 StatefulWidget 包 AlertDialog 是为了把 controller 创建 / 释放跟 dialog
+///   的 element 卸载对齐:controller 在 initState 创建,在 dialog 的 element
+///   dispose 时释放,期间 EditableText(autofocus + 键盘)始终持有有效 controller。
+///   之前在 outer-scope 创建 + showDialog 返回后立即 dispose 的写法,在 keyboard
+///   未完全收起时会撞到 InheritedElement._dependents.isEmpty assertion。
+class _AmountDialog extends StatefulWidget {
+  const _AmountDialog({required this.initial});
+  final double initial;
+
+  @override
+  State<_AmountDialog> createState() => _AmountDialogState();
+}
+
+class _AmountDialogState extends State<_AmountDialog> {
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(
+      text: widget.initial > 0 ? widget.initial.toStringAsFixed(0) : '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('设置子额度'),
+      content: TextField(
+        controller: _ctrl,
+        autofocus: true,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        inputFormatters: [const _AmountInputFormatter()],
+        decoration: const InputDecoration(
+          labelText: '子额度金额',
+          prefixText: '¥ ',
+          border: OutlineInputBorder(),
+          isDense: true,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final v = double.tryParse(_ctrl.text.trim());
+            if (v != null && v >= 0) Navigator.pop(context, v);
+          },
+          child: const Text('确定'),
+        ),
+      ],
     );
   }
 }
