@@ -1,15 +1,18 @@
 // lib/core/router/app_router.dart
 // go_router 配置 —— 包含 P3+ 子路由(分类管理等)
 //
-// 路由过渡(2026-10-12 ColorOS Aquamorphic 改造):
+// 路由过渡(2026-10-12 ColorOS Aquamorphic 改造,commit 107 改):
 //   - /  splash:NoTransition(开场主屏,过渡是 splash 自己处理)
 //   - /home /ledger /stats /settings (ShellRoute 内):NoTransitionPage
 //     —— tab 切换的"方向感"在 MainShell 的 AnimatedSwitcher 里实现,
 //     不在路由层做(否则双层动画叠加看着抖)
 //   - /add /edit/:id (root modal):CustomTransitionPage 从底部 480ms 上推
 //     + fade,符合"记一笔"全屏 sheet 体感,不是硬 slide-from-bottom
-//   - /settings/categories /settings/about (push 子页):fade + 微微上推
-//     24px,720ms aquaIn —— 比 M3 默认 transition 慢且有"重量感"
+//   - /settings/categories /settings/about /settings/budget (push 子页):
+//     slide-up 24px + fade,normal 480ms aquaIn(commit 107 改 slow→normal)
+//     + fade 用 Interval(0.0, 0.4) 在前 40% 时间完成 —— 解决"淡入看到
+//     背景残影"问题(原来 slow 680ms + 全程 fade 透明度渐变,过程中能
+//     看到底下 home 页内容残影)
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,6 +33,38 @@ import '../motion/app_motion.dart';
 final _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 // 2026-10-11 暴露:MainShell.onDestinationSelected 用它显式 popUntil 切 tab 时
 // 关闭挂着的 modal sheet(navigatorOf(context) 找的 Navigator 不一定就是这个)
+
+/// commit 107 加:统一 push 子页过渡(slide + fade,normal 480ms)
+///   - slide:0.06 → 0 垂直(24px 上推),全程 480ms aquaIn
+///   - fade:Interval(0.0, 0.4) 前 40% 时间完成 0→1,后段时间维持 1
+///     (消除"淡入看到背景残影"问题 —— slide 仍跑完全程保留 Aquamorphic 慢感)
+CustomTransitionPage<void> _pushSubPage({
+  required LocalKey key,
+  required Widget child,
+}) {
+  return CustomTransitionPage<void>(
+    key: key,
+    transitionDuration: AppMotion.normal,
+    reverseTransitionDuration: AppMotion.normal,
+    child: child,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      return SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.06),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(parent: animation, curve: AppMotion.aquaIn)),
+        child: FadeTransition(
+          opacity: CurvedAnimation(
+            parent: animation,
+            curve: const Interval(0.0, 0.4, curve: AppMotion.aquaIn),
+          ),
+          child: child,
+        ),
+      );
+    },
+  );
+}
+
 final shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -162,65 +197,23 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       // Tab 外的子页面(在 root navigator 栈上,不全屏被 Shell 覆盖)
-      // 过渡:fade + 微微上推 24px,720ms aquaIn —— 比 M3 默认 transition
-      // 慢且有"重量感",不要用 CupertinoPageTransitionsBuilder 那套 iOS slide。
+      // 过渡(commit 107 改):_pushSubPage helper(slide + fade,normal 480ms)
+      //   解决"淡入看到背景残影"问题(原 slow 680ms 全程 fade 透明度渐变)
       GoRoute(
         path: '/settings/categories',
         name: 'categoryManagement',
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) => CustomTransitionPage(
+        pageBuilder: (context, state) => _pushSubPage(
           key: state.pageKey,
-          transitionDuration: AppMotion.slow,
-          reverseTransitionDuration: AppMotion.normal,
           child: const CategoryManagementPage(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return SlideTransition(
-              position:
-                  Tween<Offset>(
-                    begin: const Offset(0, 0.06),
-                    end: Offset.zero,
-                  ).animate(
-                    CurvedAnimation(parent: animation, curve: AppMotion.aquaIn),
-                  ),
-              child: FadeTransition(
-                opacity: CurvedAnimation(
-                  parent: animation,
-                  curve: AppMotion.aquaIn,
-                ),
-                child: child,
-              ),
-            );
-          },
         ),
       ),
       GoRoute(
         path: '/settings/about',
         name: 'about',
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) => CustomTransitionPage(
-          key: state.pageKey,
-          transitionDuration: AppMotion.slow,
-          reverseTransitionDuration: AppMotion.normal,
-          child: const AboutPage(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return SlideTransition(
-              position:
-                  Tween<Offset>(
-                    begin: const Offset(0, 0.06),
-                    end: Offset.zero,
-                  ).animate(
-                    CurvedAnimation(parent: animation, curve: AppMotion.aquaIn),
-                  ),
-              child: FadeTransition(
-                opacity: CurvedAnimation(
-                  parent: animation,
-                  curve: AppMotion.aquaIn,
-                ),
-                child: child,
-              ),
-            );
-          },
-        ),
+        pageBuilder: (context, state) =>
+            _pushSubPage(key: state.pageKey, child: const AboutPage()),
       ),
       // commit 106 加:月度预算配置全屏路由
       //   之前用 showModalBottomSheet(BudgetSheet),user 反馈还有掉帧
@@ -229,29 +222,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/settings/budget',
         name: 'budgetManagement',
         parentNavigatorKey: _rootNavigatorKey,
-        pageBuilder: (context, state) => CustomTransitionPage(
+        pageBuilder: (context, state) => _pushSubPage(
           key: state.pageKey,
-          transitionDuration: AppMotion.slow,
-          reverseTransitionDuration: AppMotion.normal,
           child: const BudgetManagementPage(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return SlideTransition(
-              position:
-                  Tween<Offset>(
-                    begin: const Offset(0, 0.06),
-                    end: Offset.zero,
-                  ).animate(
-                    CurvedAnimation(parent: animation, curve: AppMotion.aquaIn),
-                  ),
-              child: FadeTransition(
-                opacity: CurvedAnimation(
-                  parent: animation,
-                  curve: AppMotion.aquaIn,
-                ),
-                child: child,
-              ),
-            );
-          },
         ),
       ),
     ],
