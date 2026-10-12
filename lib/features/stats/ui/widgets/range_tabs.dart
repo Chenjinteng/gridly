@@ -79,20 +79,20 @@ class RangeTabs extends ConsumerWidget {
         ),
         child: Row(
           children: [
-            // ── commit 65 (revert + improve 64) ── 共享 pill 滑动
-            //   v64 试过 Positioned.fill + AnimatedAlign(widthFactor:0.5, heightFactor:1.0),
-            //   但 AnimatedAlign 对 leaf DecoratedBox 不强制 widthFactor — child layout 用
-            //   `constraints.loosen()`,DecoratedBox 拿到 loose constraints 后挑 constraints.biggest
-            //   (= Stack 全宽 × 全高),导致 pill 实际撑满整个 Stack,看不出"半边"选区,
-            //   user 反馈"pill 都没有了,直接就看不到"。
+            // ── commit 66 (revert v65 top/bottom) ── 共享 pill 滑动
+            //   v65 改成 `top: 0, bottom: 0` 后 user 截图反馈"还是有一点点贴边":
+            //   pill 跟 Container 顶/底紧贴,加上 Container 1px outlineVariant 边框,
+            //   pill 圆角跟 Container 圆角 (brLg=16) 在视觉上"咬住"边界,看起来
+            //   pill 像贴着边,缺少 floating breathing 感。
             //
-            //   退回 v63 的 LayoutBuilder + AnimatedPositioned 方案,但:
-            //   - top/bottom 从 v63 的 2 改成 0(pill 全高,圆角跟 container 圆角在 segment 边界完全重合)
-            //   - 不再 horizontal Padding wrap(避免 pill 比 segment 窄)
-            //   - width: segWidth = c.maxWidth / 2(跟内部 Row 2 个 Expanded 一个 flex 模型)
+            //   回到 v63 的 `top: 2, bottom: 2`(2px 垂直 inset):
+            //   - 水平 pill width = segWidth 满 segment(user 接受 v63 这个宽度)
+            //   - 垂直 2px 让 pill 跟 Container 边缘有 2px 呼吸空间
+            //   - pill 圆角跟 container 圆角都是 16,inset 2 后变成 pill height = container_height - 4,
+            //     pill 内部圆角弧线跟 container 外圆角弧线错开 2px,visual 上 pill 浮在 container 里
             //
-            //   v63 反馈过 "2-3px 留白" — Stack + AnimatedPositioned 的 render box 跟 Row
-            //   在 sub-pixel 上有微小漂移。这次先回旧路,如果还是不对齐再换方案。
+            //   Stack + AnimatedPositioned 同样保留:LayoutBuilder 算 segWidth 跟内部 Row 2 个
+            //   Expanded 一个 flex 模型(理论上严格对齐)。
             Expanded(
               child: LayoutBuilder(
                 builder: (ctx, c) {
@@ -100,14 +100,13 @@ class RangeTabs extends ConsumerWidget {
                   return Stack(
                     children: [
                       // 滑动 pill —— 在 InkWell 之下,ripple press 时 pill 短时被遮,抬起可见
-                      //   width = segWidth (满 segment 宽),top/bottom = 0 (满 segment 高),
-                      //   圆角跟 container brLg 完全重合(都是 16)。
+                      //   top/bottom 各 2,圆角 brLg=16,跟容器边缘留出 2px 呼吸空间。
                       AnimatedPositioned(
                         duration: AppMotion.fast,
                         curve: AppMotion.aquaIn,
                         left: isThisMonth ? 0 : segWidth,
-                        top: 0,
-                        bottom: 0,
+                        top: 2,
+                        bottom: 2,
                         width: segWidth,
                         child: DecoratedBox(
                           decoration: BoxDecoration(
