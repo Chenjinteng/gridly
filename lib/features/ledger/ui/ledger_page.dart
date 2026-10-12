@@ -95,31 +95,37 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
       barrierColor: Colors.black54,
       transitionDuration: const Duration(milliseconds: 240),
       pageBuilder: (dialogCtx, anim, secAnim) {
-        // 顶部贴边横幅下拉样式(2026-10-12 P5 follow-up 第 5 次改):
-        //   - 无 Align 居中(占满宽度)
-        //   - 无圆角 / 无 ClipRRect(贴 viewport 顶 + 底部分隔)
-        //   - SafeArea 只留 status bar 顶部 padding
-        return SafeArea(
-          child: Material(
-            color: theme.colorScheme.surface,
-            // _FilterSheet 内部 ConsumerWidget 自己 watch 5 个 provider,
-            // picker sheet 回写后自动 rebuild,chip 状态实时更新
-            child: _FilterSheet(
-              searchController: _searchController,
-              onSearchChanged: (v) =>
-                  ref.read(ledgerSearchQueryProvider.notifier).state = v,
-              catsForType: catsForType,
-              monthKeys: _recentMonthKeys(),
-              formatMonthKey: _formatMonthKey,
-              allAssets: allAssets,
-              onTypeChanged: (v) =>
-                  ref.read(ledgerTypeFilterProvider.notifier).state = v,
-              onMonthChanged: (v) =>
-                  ref.read(ledgerMonthFilterProvider.notifier).state = v,
-              onCategoryChanged: (v) =>
-                  ref.read(ledgerCategoryFilterProvider.notifier).state = v,
-              onAssetChanged: (v) =>
-                  ref.read(ledgerAssetFilterProvider.notifier).state = v,
+        // 顶部下拉样式(2026-10-12 P5 follow-up 第 6 次改):
+        //   - Align(topCenter) + IntrinsicHeight:让 sheet 高度自适应内容,
+        //     不再占满整个屏幕(之前 Material 默认 fill 导致底部大片空白)
+        //   - SafeArea(top):留 status bar + chip indicator 空间
+        //   - Material 铺底给 chip InkWell 提供 ancestor
+        return Align(
+          alignment: Alignment.topCenter,
+          child: SafeArea(
+            top: true,
+            bottom: false,
+            child: IntrinsicHeight(
+              child: Material(
+                color: theme.colorScheme.surface,
+                child: _FilterSheet(
+                  searchController: _searchController,
+                  onSearchChanged: (v) =>
+                      ref.read(ledgerSearchQueryProvider.notifier).state = v,
+                  catsForType: catsForType,
+                  monthKeys: _recentMonthKeys(),
+                  formatMonthKey: _formatMonthKey,
+                  allAssets: allAssets,
+                  onTypeChanged: (v) =>
+                      ref.read(ledgerTypeFilterProvider.notifier).state = v,
+                  onMonthChanged: (v) =>
+                      ref.read(ledgerMonthFilterProvider.notifier).state = v,
+                  onCategoryChanged: (v) =>
+                      ref.read(ledgerCategoryFilterProvider.notifier).state = v,
+                  onAssetChanged: (v) =>
+                      ref.read(ledgerAssetFilterProvider.notifier).state = v,
+                ),
+              ),
             ),
           ),
         );
@@ -490,93 +496,110 @@ Future<Object?> _showSingleSelectSheet<T>(
   required List<(Object?, String)> options,
   required T currentValue,
 }) {
-  return showModalBottomSheet<Object?>(
+  // 2026-10-12 P5 follow-up 第 6 次改:showModalBottomSheet → showGeneralDialog
+  //   顶部下拉样式,跟 _FilterSheet / 多选 picker 风格统一
+  final theme = Theme.of(context);
+  return showGeneralDialog<Object?>(
     context: context,
-    backgroundColor: Theme.of(context).colorScheme.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
-    ),
-    builder: (ctx) {
-      final theme = Theme.of(ctx);
-      return SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.s2),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(top: 8, bottom: 12),
-                decoration: BoxDecoration(
-                  color: AppGray.g400,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.s4,
-                  vertical: AppSpacing.s2,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, _sheetDismissed),
-                      child: const Text('关闭'),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: options.length,
-                  itemBuilder: (_, i) {
-                    final (value, label) = options[i];
-                    // 选中态判断:value 是 _allPicked 且 currentValue 是 null
-                    final selected =
-                        (value is _AllPicked && currentValue == null) ||
-                        (value == currentValue);
-                    return InkWell(
-                      onTap: () => Navigator.pop(ctx, value),
-                      child: Padding(
+    barrierDismissible: true,
+    barrierLabel: title,
+    barrierColor: Colors.black54,
+    transitionDuration: const Duration(milliseconds: 240),
+    pageBuilder: (dialogCtx, anim, secAnim) {
+      final innerTheme = Theme.of(dialogCtx);
+      return Align(
+        alignment: Alignment.topCenter,
+        child: SafeArea(
+          top: true,
+          bottom: false,
+          child: FractionallySizedBox(
+            heightFactor: 0.4,
+            child: Material(
+              color: theme.colorScheme.surface,
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.s2),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: AppSpacing.s4,
-                          vertical: AppSpacing.s3,
+                          vertical: AppSpacing.s2,
                         ),
                         child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Expanded(
-                              child: Text(
-                                label,
-                                style: const TextStyle(fontSize: 15),
+                            Text(
+                              title,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                            if (selected)
-                              Icon(
-                                Icons.check,
-                                size: 20,
-                                color: theme.colorScheme.primary,
-                              ),
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.pop(dialogCtx, _sheetDismissed),
+                              child: const Text('关闭'),
+                            ),
                           ],
                         ),
                       ),
-                    );
-                  },
+                      const Divider(height: 1),
+                      Flexible(
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: options.length,
+                          itemBuilder: (_, i) {
+                            final (value, label) = options[i];
+                            // 选中态判断:value 是 _allPicked 且 currentValue 是 null
+                            final selected =
+                                (value is _AllPicked && currentValue == null) ||
+                                (value == currentValue);
+                            return InkWell(
+                              onTap: () => Navigator.pop(dialogCtx, value),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.s4,
+                                  vertical: AppSpacing.s3,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        label,
+                                        style: const TextStyle(fontSize: 15),
+                                      ),
+                                    ),
+                                    if (selected)
+                                      Icon(
+                                        Icons.check,
+                                        size: 20,
+                                        color: innerTheme.colorScheme.primary,
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ],
+            ),
           ),
         ),
+      );
+    },
+    transitionBuilder: (ctx, anim, secAnim, child) {
+      return SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, -1),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(parent: anim, curve: AppMotion.aquaIn)),
+        child: child,
       );
     },
   );
@@ -1304,14 +1327,11 @@ class _FilterSheet extends ConsumerWidget {
   }
 
   Future<void> _pickCategory(BuildContext context, WidgetRef ref) async {
-    final selected = await showModalBottomSheet<Set<int>>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
-      ),
-      builder: (_) => _MultiSelectCategorySheet(
+    final selected = await _openPickerTopSheet<Set<int>>(
+      context,
+      title: '选择分类',
+      initialSize: 0.6,
+      builder: () => _MultiSelectCategorySheet(
         categories: catsForType,
         initial: ref.read(ledgerCategoryFilterProvider),
       ),
@@ -1328,19 +1348,61 @@ class _FilterSheet extends ConsumerWidget {
       );
       return;
     }
-    final selected = await showModalBottomSheet<Set<int>>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
-      ),
-      builder: (_) => _MultiSelectAssetSheet(
+    final selected = await _openPickerTopSheet<Set<int>>(
+      context,
+      title: '选择账户',
+      initialSize: 0.6,
+      builder: () => _MultiSelectAssetSheet(
         assets: allAssets,
         initial: ref.read(ledgerAssetFilterProvider),
       ),
     );
     if (selected != null) onAssetChanged(selected);
+  }
+
+  /// 2026-10-12 P5 follow-up 第 6 次改:统一 picker sheet 顶部下拉样式
+  ///   - showGeneralDialog + SlideTransition from top,跟 _FilterSheet 风格一致
+  ///   - initialSize 控制最大高度比例(0.0-1.0)
+  ///   - 返回 null = dismiss / 用户关闭,返回非 null = 用户确定
+  Future<T?> _openPickerTopSheet<T>(
+    BuildContext context, {
+    required String title,
+    required double initialSize,
+    required Widget Function() builder,
+  }) {
+    final theme = Theme.of(context);
+    return showGeneralDialog<T>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: title,
+      barrierColor: Colors.black54,
+      transitionDuration: const Duration(milliseconds: 240),
+      pageBuilder: (dialogCtx, anim, secAnim) {
+        return Align(
+          alignment: Alignment.topCenter,
+          child: SafeArea(
+            top: true,
+            bottom: false,
+            child: FractionallySizedBox(
+              heightFactor: initialSize,
+              child: Material(
+                color: theme.colorScheme.surface,
+                child: builder(),
+              ),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (ctx, anim, secAnim, child) {
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, -1),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(parent: anim, curve: AppMotion.aquaIn)),
+          child: child,
+        );
+      },
+    );
   }
 }
 
