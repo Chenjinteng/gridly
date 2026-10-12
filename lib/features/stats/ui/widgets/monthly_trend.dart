@@ -332,45 +332,118 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
     super.dispose();
   }
 
-  /// 处理 barChart touch:
-  ///   - commit 85 改:用 `!event.isInterestedForInteractions` 作为清空 trigger,
-  ///     覆盖所有"手指 / 鼠标离开"事件
-  ///     - FlPanEndEvent / FlPanCancelEvent(pan 结束 / 取消)
-  ///     - FlTapUpEvent / FlTapCancelEvent(tap 抬起 / tap 取消)
-  ///     - FlLongPressEnd(长按结束)
-  ///     - FlPointerExitEvent(鼠标移出 chart 边界)
-  ///   - 之前只清 FlPanEnd/FlPanCancel,tap 抬起不会触发 → 虚线卡在柱上不消失
-  ///   - 其它 event(FlPanDown / FlPanStart / FlPanUpdate / FlTapDown / FlLongPressStart):
-  ///     更新 _touchedGroupIdx + _touchedOffset + _touchedValue(给 overlay tooltip 用)
-  void _onTouch(FlTouchEvent event, BarTouchResponse? response) {
-    if (!event.isInterestedForInteractions) {
-      // "手指 / 鼠标离开"事件:清掉虚线 + label + tooltip overlay
-      if (_touchedGroupIdx != null ||
-          _touchedOffset != null ||
-          _touchedValue != null) {
-        setState(() {
-          _touchedGroupIdx = null;
-          _touchedOffset = null;
-          _touchedValue = null;
-        });
-      }
-      return;
-    }
-    final spot = response?.spot;
-    final idx = spot?.touchedBarGroupIndex;
-    final off = spot?.offset;
-    final val = spot?.touchedRodData.toY;
-    if (idx != null &&
-        off != null &&
-        (idx != _touchedGroupIdx ||
-            off != _touchedOffset ||
-            val != _touchedValue)) {
+  /// commit 89 改:用 Flutter 原生 Listener 替代 fl_chart 的 touchCallback
+  ///
+  /// 根因:user 反馈"虚线拖动要先 hold 一小段时间才能拖动,选中柱后立即
+  /// 拖动会失效"
+  ///   - fl_chart BarChart 内部用 Flutter PanGestureRecognizer(看
+  ///     fl_chart render_base_chart.dart line 53),默认有 `kTouchSlop`
+  ///     (~18 logical px)延迟:pointer 移动超过这个距离才触发 pan start,
+  ///     之后才触发 pan update
+  ///   - 所以 user tap 选中柱 → hold 一会儿不动 → 开始拖 → 前 ~18 logical
+  ///     px 虚线不动(没 FlPanUpdateEvent)→ user 感受到"拖动有延迟"
+  ///
+  /// 修法:
+  ///   - 用 Flutter 原生 Listener widget(直接收 raw PointerEvent,不走
+  ///     GestureRecognizer arena,无 touch slop 延迟)
+  ///   - onPointerDown / onPointerMove:pointer 任何距离移动都触发,自
+  ///     算最近柱 group index + 算 offset + 拿 expense 值,更新 state
+  ///   - onPointerUp / onPointerCancel:清空 state
+  ///   - Listener 不依赖 fl_chart 的 touchCallback(BarChartData 不再设
+  ///     touchCallback),BarChart 自己继续走内部 handleBuiltInTouches
+  ///     (但 tooltip 已 commit 87 禁用,不影响)
+  ///
+  /// 副作用:
+  ///   - 不依赖 fl_chart 算 spot,自己算 group center,精度更高(fl_chart
+  ///     touchExtraThreshold 默认 4 太松,commit 87 改 8,我自算精度可控)
+  ///   - 不再受 LongPressGestureRecognizer 干扰(pointer hold 也不会被
+  ///     长按 claim 抢走 pan 触发权)
+  void _onPointerDown(PointerDownEvent event, double chartWidth) {
+    final idx = _findNearestBarGroup(event.localPosition, chartWidth);
+    if (idx == null) return;
+    final center = _groupCenterInner(idx, chartWidth);
+    setState(() {
+      _touchedGroupIdx = idx;
+      _touchedOffset = Offset(center, event.localPosition.dy);
+      _touchedValue = widget.bars[idx].expense;
+    });
+  }
+
+  void _onPointerMove(PointerMoveEvent event, double chartWidth) {
+    final idx = _findNearestBarGroup(event.localPosition, chartWidth);
+    if (idx == null) return;
+    // 如果已经在同一根柱,跳过 setState 减少重建
+    if (idx == _touchedGroupIdx) return;
+    final center = _groupCenterInner(idx, chartWidth);
+    setState(() {
+      _touchedGroupIdx = idx;
+      _touchedOffset = Offset(center, event.localPosition.dy);
+      _touchedValue = widget.bars[idx].expense;
+    });
+  }
+
+  void _onPointerEnd() {
+    if (_touchedGroupIdx != null ||
+        _touchedOffset != null ||
+        _touchedValue != null) {
       setState(() {
-        _touchedGroupIdx = idx;
-        _touchedOffset = off;
-        _touchedValue = val;
+        _touchedGroupIdx = null;
+        _touchedOffset = null;
+        _touchedValue = null;
       });
     }
+  }
+
+  /// 找 pointer localPosition 最近的 bar group index(BarChartLeaf 内坐标)
+  ///   - localPosition 是 Listener(Stack) 内坐标,即 BarChart widget 坐标
+  ///   - 减 _leftReservedSize 转 BarChartLeaf 内坐标
+  ///   - 用 BarChartAlignment.spaceBetween 算法(跟 _buildBarGroups 一致):
+  ///     group 0 center = barWidth/2
+  ///     group i center = barWidth/2 + i*(barWidth + eachSpace)
+  ///   - 找 dx 距离最近的 group
+  int? _findNearestBarGroup(Offset localPosition, double chartWidth) {
+    final n = widget.bars.length;
+    if (n == 0) return null;
+    const barWidth = 5.0;
+    final innerWidth = chartWidth - _leftReservedSize;
+    if (innerWidth <= 0) return null;
+
+    // pointer 在 Y 轴 label 区域(leftReservedSize 内)→ fallback 最近
+    final innerDx = localPosition.dx - _leftReservedSize;
+    if (innerDx < 0) return 0;
+
+    // spaceBetween:每柱 width 5 + 组间 groupsSpace 4,均分剩余空间
+    final sumBarsWidth = n * barWidth;
+    final eachSpace = sumBarsWidth >= innerWidth
+        ? 0.0
+        : (innerWidth - sumBarsWidth) / (n - 1);
+
+    double bestCenter = barWidth / 2;
+    int bestIdx = 0;
+    double bestDist = (innerDx - bestCenter).abs();
+    for (int i = 1; i < n; i++) {
+      final center = barWidth / 2 + i * (barWidth + eachSpace);
+      final dist = (innerDx - center).abs();
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestIdx = i;
+        bestCenter = center;
+      }
+    }
+    return bestIdx;
+  }
+
+  /// 算 group i 的中心 x(BarChartLeaf 内坐标),给 _touchedOffset.dx 用
+  double _groupCenterInner(int idx, double chartWidth) {
+    final n = widget.bars.length;
+    const barWidth = 5.0;
+    final innerWidth = chartWidth - _leftReservedSize;
+    if (innerWidth <= 0 || n == 0) return 0;
+    final sumBarsWidth = n * barWidth;
+    final eachSpace = sumBarsWidth >= innerWidth
+        ? 0.0
+        : (innerWidth - sumBarsWidth) / (n - 1);
+    return barWidth / 2 + idx * (barWidth + eachSpace);
   }
 
   /// 把当前 touch 的 group index 转成"日期/月"文字
@@ -392,7 +465,28 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
           opacity: Curves.easeInOut.transform(_ctrl.value),
           // commit 86 加:GlobalKey 给最外层,让 _checkInView 拿 RenderBox
           // 检测 widget 在 scroll viewport 内的位置
-          child: KeyedSubtree(key: _chartKey, child: _buildChart()),
+          child: KeyedSubtree(
+            key: _chartKey,
+            // commit 89 加:LayoutBuilder + Listener 包 Stack
+            //   - LayoutBuilder 给 Listener 提供 chartWidth(给
+            //     _findNearestBarGroup 用)
+            //   - Listener 直接收 PointerEvent(无 touch slop 延迟,
+            //     跟 fl_chart 内部 PanGestureRecognizer 的 ~18 logical px
+            //     延迟无关),自算最近柱更新 state
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final chartWidth = constraints.maxWidth;
+                return Listener(
+                  behavior: HitTestBehavior.translucent,
+                  onPointerDown: (e) => _onPointerDown(e, chartWidth),
+                  onPointerMove: (e) => _onPointerMove(e, chartWidth),
+                  onPointerUp: (_) => _onPointerEnd(),
+                  onPointerCancel: (_) => _onPointerEnd(),
+                  child: _buildChart(),
+                );
+              },
+            ),
+          ),
         );
       },
     );
@@ -422,26 +516,15 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
             groupsSpace: 4,
             barTouchData: BarTouchData(
               handleBuiltInTouches: true,
-              // commit 79 改:touchCallback 改成记 BarTouchedSpot.offset.dx
-              // (BarChart 内局部像素坐标)给 overlay 用。之前 commit 77 用
-              // group index + extraLinesData.verticalLines,但 BarChart 不画
-              // verticalLines(issue #1149),所以虚线根本没渲染。
-              touchCallback: _onTouch,
-              // commit 87 改:
-              //   - touchTooltipData 显式禁用 fl_chart 内置 tooltip
-              //     (getTooltipItem 返回 null 触发不渲染)
-              //     之前 commit 85 直接移除整个 touchTooltipData,导致
-              //     BarChart 仍用默认 BarTouchTooltipData(空 getTooltipItem)
-              //     渲染了一个灰色空 tooltip,跟 overlay tooltip 同时显示
-              //     → user 截图出现两个金额(灰色 fl_chart 内置 tooltip +
-              //     黑色 overlay tooltip)
-              //   - touchExtraThreshold 加大到 horizontal: 8
-              //     30 根 5px 柱子在窄屏上每柱中心间距 ≈ 9.5px,
-              //     默认 threshold all 4 让柱间空白处 pan 移动不会切换柱
-              //     → user 反馈"靠点击选取不友好,想滑动跟随"
-              //     加大到 horizontal: 8 后任何 x 位置都能命中最近柱,
-              //     FlPanUpdateEvent 触发 _onTouch 更新虚线/label/tooltip
-              //     → 横滑手指虚线跟着移动到最近柱
+              // commit 89 改:touchCallback 改 null
+              //   - 不再用 fl_chart 的 touchCallback(它走 PanGestureRecognizer,
+              //     有 kTouchSlop ~18 logical px 延迟)
+              //   - 改用 Flutter 原生 Listener widget 直接收 PointerEvent
+              //     (无 touch slop,pointer 任何距离移动都触发 onPointerMove)
+              //   - 自算最近柱 group index + offset,更新 state
+              //   - 保留 handleBuiltInTouches: BarChart 内部仍然处理
+              //     _showingTouchedTooltips,但 tooltip 已 commit 87 禁用
+              //     (getTooltipItem 返回 null),不影响视觉
               touchTooltipData: BarTouchTooltipData(
                 getTooltipItem: (_, _, _, _) => null,
               ),
