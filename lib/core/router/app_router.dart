@@ -34,18 +34,21 @@ final _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 // 2026-10-11 暴露:MainShell.onDestinationSelected 用它显式 popUntil 切 tab 时
 // 关闭挂着的 modal sheet(navigatorOf(context) 找的 Navigator 不一定就是这个)
 
-/// commit 107 加:统一 push 子页过渡(slide + fade,normal 480ms)
-///   - slide:0.06 → 0 垂直(24px 上推),全程 480ms aquaIn
-///   - fade:Interval(0.0, 0.4) 前 40% 时间完成 0→1,后段时间维持 1
-///     (消除"淡入看到背景残影"问题 —— slide 仍跑完全程保留 Aquamorphic 慢感)
+/// commit 108 加:统一 push 子页过渡(slide + fade,360ms)
+///   - 之前(commit 107)用 normal 480ms + Interval(0.0, 0.4),user 反馈
+///     "淡入淡出太慢,跟 enter 一样配置"——reverse 也 480ms + Interval(0.0, 0.4)
+///     在 aquaIn 曲线前段慢感下,reverse 仍觉得拖
+///   - 改 360ms + Interval(0.0, 0.3) — 紧凑、reverse 跟 enter 一致配置
+///     fade 前 30% 时间完成(108ms),slide 仍跑完全程保留 aquaIn 重量感
 CustomTransitionPage<void> _pushSubPage({
   required LocalKey key,
   required Widget child,
 }) {
   return CustomTransitionPage<void>(
     key: key,
-    transitionDuration: AppMotion.normal,
-    reverseTransitionDuration: AppMotion.normal,
+    // commit 108 改:enter 跟 reverse 同步,360ms
+    transitionDuration: const Duration(milliseconds: 360),
+    reverseTransitionDuration: const Duration(milliseconds: 360),
     child: child,
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
       return SlideTransition(
@@ -56,7 +59,7 @@ CustomTransitionPage<void> _pushSubPage({
         child: FadeTransition(
           opacity: CurvedAnimation(
             parent: animation,
-            curve: const Interval(0.0, 0.4, curve: AppMotion.aquaIn),
+            curve: const Interval(0.0, 0.3, curve: AppMotion.aquaIn),
           ),
           child: child,
         ),
