@@ -26,6 +26,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/refresh_providers.dart';
 import '../../../core/widgets/staggered_fade_in.dart';
 import 'widgets/category_pie.dart';
+import 'widgets/budget_overview_chart.dart';
 import 'widgets/income_pie.dart';
 import 'widgets/monthly_trend.dart';
 import 'widgets/range_summary.dart';
@@ -170,6 +171,13 @@ class _StatsPageState extends ConsumerState<StatsPage> {
       case StatsView.expense:
         add(const CategoryPie());
         widgets.add(const SizedBox(height: AppSpacing.s3));
+        // 2026-10-12 commit 93 加:预算报表
+        //   - 仅本月维度显示(本年维度是 12 月趋势,跟月度预算无关)
+        //   - 位置:CategoryPie 后、TopExpenses 前(逻辑顺序:概览 → 预算 → Top)
+        if (ref.watch(statsRangeProvider) == StatsRange.thisMonth) {
+          add(const BudgetOverviewChart());
+          widgets.add(const SizedBox(height: AppSpacing.s3));
+        }
         add(const TopExpenses());
         widgets.add(const SizedBox(height: AppSpacing.s3));
         add(const MonthlyTrendChart());

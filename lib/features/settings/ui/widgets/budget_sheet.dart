@@ -352,16 +352,18 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
                             totalBudget: total,
                             onAdd: () async {
                               final v = await _askAmount(context, initial: 0);
-                              if (v != null)
+                              if (v != null) {
                                 _setCategoryBudget(item.category, v);
+                              }
                             },
                             onEdit: () async {
                               final v = await _askAmount(
                                 context,
                                 initial: _effectiveAmount(item),
                               );
-                              if (v != null)
+                              if (v != null) {
                                 _setCategoryBudget(item.category, v);
+                              }
                             },
                             onClear: () => _setCategoryBudget(item.category, 0),
                           );
