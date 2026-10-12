@@ -14,7 +14,6 @@ import '../../../core/utils/asset_balance_provider.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/gridly_banner.dart';
 import '../../../core/utils/refresh_providers.dart';
-import '../../../core/motion/app_motion.dart';
 import '../application/transactions_providers.dart';
 import 'widgets/transaction_tile.dart';
 
@@ -464,116 +463,106 @@ class _FilterBar extends ConsumerWidget {
 ///   - _AllPicked → 用户明确点"全部"(要 reset 到默认值)
 ///   - 其他 value → 用户点了某个具体选项
 /// 选项用 `Object?` 而非 T,因为"全部"用 sentinel 不能跟 T 类型混
+///
+/// 2026-10-13 revert:showGeneralDialog → showModalBottomSheet
+///   user UAT 反馈'顶部下拉还是不喜欢,改回去以前的版本'——回退 2df4d7b。
+///   - 沿用 3f4a6e0 的底部 modal sheet 写法
+///   - backgroundColor + shape 提供表面色 + 顶部圆角
+///   - Material 默认从下滑入
 Future<Object?> _showSingleSelectSheet<T>(
   BuildContext context, {
   required String title,
   required List<(Object?, String)> options,
   required T currentValue,
 }) {
-  // 2026-10-12 P5 follow-up 第 6 次改:showModalBottomSheet → showGeneralDialog
-  //   顶部下拉样式,跟 _FilterSheet / 多选 picker 风格统一
-  final theme = Theme.of(context);
-  return showGeneralDialog<Object?>(
+  return showModalBottomSheet<Object?>(
     context: context,
-    barrierDismissible: true,
-    barrierLabel: title,
-    barrierColor: Colors.black54,
-    transitionDuration: const Duration(milliseconds: 240),
-    pageBuilder: (dialogCtx, anim, secAnim) {
-      final innerTheme = Theme.of(dialogCtx);
-      return Align(
-        alignment: Alignment.topCenter,
-        child: SafeArea(
-          top: true,
-          bottom: false,
-          child: FractionallySizedBox(
-            heightFactor: 0.4,
-            child: Material(
-              color: theme.colorScheme.surface,
-              child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: AppSpacing.s2),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Padding(
+    backgroundColor: Theme.of(context).colorScheme.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+    ),
+    builder: (ctx) {
+      final theme = Theme.of(ctx);
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: AppSpacing.s2),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 把手
+              Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(top: 8, bottom: 12),
+                decoration: BoxDecoration(
+                  color: AppGray.g400,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.s4,
+                  vertical: AppSpacing.s2,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, _sheetDismissed),
+                      child: const Text('关闭'),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: options.length,
+                  itemBuilder: (_, i) {
+                    final (value, label) = options[i];
+                    // 选中态判断:value 是 _allPicked 且 currentValue 是 null
+                    final selected =
+                        (value is _AllPicked && currentValue == null) ||
+                        (value == currentValue);
+                    return InkWell(
+                      onTap: () => Navigator.pop(ctx, value),
+                      child: Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: AppSpacing.s4,
-                          vertical: AppSpacing.s2,
+                          vertical: AppSpacing.s3,
                         ),
                         child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              title,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
+                            Expanded(
+                              child: Text(
+                                label,
+                                style: const TextStyle(fontSize: 15),
                               ),
                             ),
-                            TextButton(
-                              onPressed: () =>
-                                  Navigator.pop(dialogCtx, _sheetDismissed),
-                              child: const Text('关闭'),
-                            ),
+                            if (selected)
+                              Icon(
+                                Icons.check,
+                                size: 20,
+                                color: theme.colorScheme.primary,
+                              ),
                           ],
                         ),
                       ),
-                      const Divider(height: 1),
-                      Flexible(
-                        child: ListView.builder(
-                          shrinkWrap: true,
-                          itemCount: options.length,
-                          itemBuilder: (_, i) {
-                            final (value, label) = options[i];
-                            // 选中态判断:value 是 _allPicked 且 currentValue 是 null
-                            final selected =
-                                (value is _AllPicked && currentValue == null) ||
-                                (value == currentValue);
-                            return InkWell(
-                              onTap: () => Navigator.pop(dialogCtx, value),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: AppSpacing.s4,
-                                  vertical: AppSpacing.s3,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        label,
-                                        style: const TextStyle(fontSize: 15),
-                                      ),
-                                    ),
-                                    if (selected)
-                                      Icon(
-                                        Icons.check,
-                                        size: 20,
-                                        color: innerTheme.colorScheme.primary,
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ),
-            ),
+            ],
           ),
         ),
-      );
-    },
-    transitionBuilder: (ctx, anim, secAnim, child) {
-      return SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, -1),
-          end: Offset.zero,
-        ).animate(CurvedAnimation(parent: anim, curve: AppMotion.aquaIn)),
-        child: child,
       );
     },
   );
@@ -1305,11 +1294,16 @@ class _FilterSheet extends ConsumerWidget {
   }
 
   Future<void> _pickCategory(BuildContext context, WidgetRef ref) async {
-    final selected = await _openPickerTopSheet<Set<int>>(
-      context,
-      title: '选择分类',
-      initialSize: 0.6,
-      builder: () => _MultiSelectCategorySheet(
+    // 2026-10-13 revert:showGeneralDialog → showModalBottomSheet
+    //   沿用 3f4a6e0 的 inline 写法,isScrollControlled 让 sheet 高度自适应。
+    final selected = await showModalBottomSheet<Set<int>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      builder: (_) => _MultiSelectCategorySheet(
         categories: catsForType,
         initial: ref.read(ledgerCategoryFilterProvider),
       ),
@@ -1326,61 +1320,20 @@ class _FilterSheet extends ConsumerWidget {
       );
       return;
     }
-    final selected = await _openPickerTopSheet<Set<int>>(
-      context,
-      title: '选择账户',
-      initialSize: 0.6,
-      builder: () => _MultiSelectAssetSheet(
+    // 2026-10-13 revert:showGeneralDialog → showModalBottomSheet(同上)
+    final selected = await showModalBottomSheet<Set<int>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      builder: (_) => _MultiSelectAssetSheet(
         assets: allAssets,
         initial: ref.read(ledgerAssetFilterProvider),
       ),
     );
     if (selected != null) onAssetChanged(selected);
-  }
-
-  /// 2026-10-12 P5 follow-up 第 6 次改:统一 picker sheet 顶部下拉样式
-  ///   - showGeneralDialog + SlideTransition from top,跟 _FilterSheet 风格一致
-  ///   - initialSize 控制最大高度比例(0.0-1.0)
-  ///   - 返回 null = dismiss / 用户关闭,返回非 null = 用户确定
-  Future<T?> _openPickerTopSheet<T>(
-    BuildContext context, {
-    required String title,
-    required double initialSize,
-    required Widget Function() builder,
-  }) {
-    final theme = Theme.of(context);
-    return showGeneralDialog<T>(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: title,
-      barrierColor: Colors.black54,
-      transitionDuration: const Duration(milliseconds: 240),
-      pageBuilder: (dialogCtx, anim, secAnim) {
-        return Align(
-          alignment: Alignment.topCenter,
-          child: SafeArea(
-            top: true,
-            bottom: false,
-            child: FractionallySizedBox(
-              heightFactor: initialSize,
-              child: Material(
-                color: theme.colorScheme.surface,
-                child: builder(),
-              ),
-            ),
-          ),
-        );
-      },
-      transitionBuilder: (ctx, anim, secAnim, child) {
-        return SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(0, -1),
-            end: Offset.zero,
-          ).animate(CurvedAnimation(parent: anim, curve: AppMotion.aquaIn)),
-          child: child,
-        );
-      },
-    );
   }
 }
 
