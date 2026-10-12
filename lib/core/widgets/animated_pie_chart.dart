@@ -160,24 +160,20 @@ class _GaugePainter extends CustomPainter {
     final middleRadius = (outer + inner) / 2;
     final ringThickness = outer - inner;
 
-    // ── 1. 整圈投影(在 sectors 之下)给立体感 ──
-    // 单圈 blur + 下移 1.5px,sector 间隙处隐约透出投影,
-    // 看得到环轮廓"悬浮"在卡片上但不糊 sector 边界
-    final shadowPaint = Paint()
-      ..color = shadowColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = ringThickness
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 3.5);
-    canvas.save();
-    canvas.translate(0, 1.5);
-    canvas.drawCircle(center, middleRadius, shadowPaint);
-    canvas.restore();
-
     final total = sections.fold<double>(0, (s, e) => s + e.value);
     if (total <= 0) return; // 空数据兜底:什么都不画
 
     final sweepDeg = sweepProgress * 360;
     var cumDeg = startDegreeOffset;
+
+    // Shadow paint 提到循环外:不依赖 sector 颜色,只跟 ring / shadow 有关。
+    // 每个 sector 走自己的"先画自身 drawn 部分的 shadow,再画 stroke"流程,
+    // 这样 sweep = 0 时 shadow 完全不存在,sweep 推进时 shadow 跟着 sector 一起出。
+    final shadowPaint = Paint()
+      ..color = shadowColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = ringThickness
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 3.5);
 
     for (final sec in sections) {
       final sectorDeg = sec.value / total * 360;
@@ -216,6 +212,17 @@ class _GaugePainter extends CustomPainter {
               drawStart * math.pi / 180,
               drawSweep * math.pi / 180,
             );
+
+          // 1. 阴影(每个 sector 自己带 —— 只画 drawn 部分,跟 sweep 走)
+          //   commit 60 修复:之前整圈一次性画 shadow 在 sectors 之下,
+          //   sweep = 0 时已经有完整阴影显示。现在按 sector 拆开,sweep = 0
+          //   时啥都没有,sweep 推进时阴影跟着 sector 一起出现
+          canvas.save();
+          canvas.translate(0, 1.5);
+          canvas.drawPath(path, shadowPaint);
+          canvas.restore();
+
+          // 2. 主弧(stroke 平端)—— 在自身 shadow 之上
           canvas.drawPath(path, stroke);
         }
       }
