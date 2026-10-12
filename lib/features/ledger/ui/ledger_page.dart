@@ -95,15 +95,16 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
       barrierColor: Colors.black54,
       transitionDuration: const Duration(milliseconds: 240),
       pageBuilder: (dialogCtx, anim, secAnim) {
-        // 顶部下拉样式(2026-10-12 P5 follow-up 第 6 次改):
-        //   - Align(topCenter) + IntrinsicHeight:让 sheet 高度自适应内容,
-        //     不再占满整个屏幕(之前 Material 默认 fill 导致底部大片空白)
-        //   - SafeArea(top):留 status bar + chip indicator 空间
+        // 顶部下拉样式(2026-10-13 P6 第 1 次改:ColorOS 风格贴 status bar):
+        //   - Align(topCenter) + IntrinsicHeight:让 sheet 高度自适应内容
+        //   - SafeArea(top: false):sheet 顶点对齐屏幕 0,搜索框跟 status bar 视觉贴近
+        //     (上一版 SafeArea(top:true) + _FilterSheet 内嵌套 SafeArea 重复加 status bar
+        //      padding,导致顶部空隙过大)
         //   - Material 铺底给 chip InkWell 提供 ancestor
         return Align(
           alignment: Alignment.topCenter,
           child: SafeArea(
-            top: true,
+            top: false,
             bottom: false,
             child: IntrinsicHeight(
               child: Material(
@@ -1105,28 +1106,34 @@ class _FilterSheet extends ConsumerWidget {
     final currentMonth = ref.watch(ledgerMonthFilterProvider);
     final currentCategory = ref.watch(ledgerCategoryFilterProvider);
     final currentAsset = ref.watch(ledgerAssetFilterProvider);
+    // 2026-10-13 P6:内部 SafeArea 只保 bottom(防小白条),top 由搜索框自己
+    //   用 MediaQuery.padding.top + 8 视觉缓冲。配合 pageBuilder SafeArea(top:false),
+    //   sheet 顶部贴 viewport 0,搜索框紧跟 status bar(ColorOS 顶部 banner 风格)。
     return SafeArea(
+      top: false,
+      bottom: true,
       child: Padding(
         padding: const EdgeInsets.only(bottom: AppSpacing.s2),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 把手
+            // 把手(2026-10-13 P6:跟搜索框一起往顶部移,把搜索框推到 status bar 附近)
             Container(
               width: 36,
               height: 4,
-              margin: const EdgeInsets.only(top: 8, bottom: 12),
+              margin: const EdgeInsets.only(top: 12, bottom: 8),
               decoration: BoxDecoration(
                 color: AppGray.g400,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
             // 搜索框(2026-10-12 P5 follow-up 第 2 次改:从 AppBar 搬到 sheet 顶部,
-            //   AppBar 只留 filter_alt 一个入口)
+            //   AppBar 只留 filter_alt 一个入口。
+            //   2026-10-13 P6:top padding 加 MediaQuery.padding.top 让搜索框紧贴 status bar)
             Padding(
-              padding: const EdgeInsets.fromLTRB(
+              padding: EdgeInsets.fromLTRB(
                 AppSpacing.s4,
-                AppSpacing.s2,
+                MediaQuery.of(context).padding.top + AppSpacing.s2,
                 AppSpacing.s4,
                 AppSpacing.s2,
               ),
