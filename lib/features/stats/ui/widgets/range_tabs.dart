@@ -79,82 +79,87 @@ class RangeTabs extends ConsumerWidget {
         ),
         child: Row(
           children: [
-            // ── commit 64 ── 共享 pill 滑动 (重写)
-            //   v62 用 LayoutBuilder.c.maxWidth/2 算 segWidth 喂 AnimatedPositioned,
-            //   user 截图反馈"左右都有 2-3px 留白 + 看起来不在居中",Stack + AnimatedPositioned
-            //   跟内部 Row 的 render box 在 sub-pixel rounding 上对不齐。
-            //   改 Positioned.fill + AnimatedAlign(widthFactor:0.5, heightFactor:1.0):
-            //   pill 直接表达"Stack 半宽 × 全高",跟内部 Row 2 个 Expanded 用同一个 flex
-            //   模型,几何 100% 一致,不存在亚像素 gap。AnimatedAlign 在 Alignment.centerLeft/
-            //   centerRight 间 240ms aquaIn 插值,pill 滑动;切到任一 tab,pill 圆角跟
-            //   container brLg 圆角完全重合(pill = Stack 满宽 × 满高)。
+            // ── commit 65 (revert + improve 64) ── 共享 pill 滑动
+            //   v64 试过 Positioned.fill + AnimatedAlign(widthFactor:0.5, heightFactor:1.0),
+            //   但 AnimatedAlign 对 leaf DecoratedBox 不强制 widthFactor — child layout 用
+            //   `constraints.loosen()`,DecoratedBox 拿到 loose constraints 后挑 constraints.biggest
+            //   (= Stack 全宽 × 全高),导致 pill 实际撑满整个 Stack,看不出"半边"选区,
+            //   user 反馈"pill 都没有了,直接就看不到"。
+            //
+            //   退回 v63 的 LayoutBuilder + AnimatedPositioned 方案,但:
+            //   - top/bottom 从 v63 的 2 改成 0(pill 全高,圆角跟 container 圆角在 segment 边界完全重合)
+            //   - 不再 horizontal Padding wrap(避免 pill 比 segment 窄)
+            //   - width: segWidth = c.maxWidth / 2(跟内部 Row 2 个 Expanded 一个 flex 模型)
+            //
+            //   v63 反馈过 "2-3px 留白" — Stack + AnimatedPositioned 的 render box 跟 Row
+            //   在 sub-pixel 上有微小漂移。这次先回旧路,如果还是不对齐再换方案。
             Expanded(
-              child: Stack(
-                children: [
-                  // 滑动 pill —— 在 InkWell 之下,ripple press 时 pill 短时被遮,抬起可见
-                  //   widthFactor:0.5 → pill 始终是 Stack 宽度的 1/2(跟内部
-                  //   Row 2 个 Expanded 的几何模型完全一致)
-                  //   heightFactor:1.0 → pill 始终是 Stack 全高(跟 segment 等高,
-                  //   圆角跟 container 的 brLg 在 Stack 边框完美重合)
-                  Positioned.fill(
-                    child: AnimatedAlign(
-                      duration: AppMotion.fast,
-                      curve: AppMotion.aquaIn,
-                      alignment: isThisMonth
-                          ? Alignment.centerLeft
-                          : Alignment.centerRight,
-                      widthFactor: 0.5,
-                      heightFactor: 1.0,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primary.withValues(
-                            alpha: 0.12,
-                          ),
-                          borderRadius: AppRadius.brLg,
-                        ),
-                      ),
-                    ),
-                  ),
-                  // 2 个 segment 本体(text + chevron,无背景,只是文字和 ripple)
-                  Row(
+              child: LayoutBuilder(
+                builder: (ctx, c) {
+                  final segWidth = c.maxWidth / 2;
+                  return Stack(
                     children: [
-                      Expanded(
-                        child: _RangeSegment(
-                          label: monthLabel,
-                          selected: isThisMonth,
-                          onTap: () {
-                            if (range == StatsRange.thisMonth) {
-                              // 已在该段 → 弹月份 picker,tap 反馈
-                              AppHaptics.tap();
-                              _pickMonth(context, ref, custom);
-                            } else {
-                              // 切到该段 → select 反馈
-                              AppHaptics.select();
-                              ref.read(statsRangeProvider.notifier).state =
-                                  StatsRange.thisMonth;
-                            }
-                          },
+                      // 滑动 pill —— 在 InkWell 之下,ripple press 时 pill 短时被遮,抬起可见
+                      //   width = segWidth (满 segment 宽),top/bottom = 0 (满 segment 高),
+                      //   圆角跟 container brLg 完全重合(都是 16)。
+                      AnimatedPositioned(
+                        duration: AppMotion.fast,
+                        curve: AppMotion.aquaIn,
+                        left: isThisMonth ? 0 : segWidth,
+                        top: 0,
+                        bottom: 0,
+                        width: segWidth,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary.withValues(
+                              alpha: 0.12,
+                            ),
+                            borderRadius: AppRadius.brLg,
+                          ),
                         ),
                       ),
-                      Expanded(
-                        child: _RangeSegment(
-                          label: yearLabel,
-                          selected: isThisYear,
-                          onTap: () {
-                            if (range == StatsRange.thisYear) {
-                              AppHaptics.tap();
-                              _pickYear(context, ref, customYear);
-                            } else {
-                              AppHaptics.select();
-                              ref.read(statsRangeProvider.notifier).state =
-                                  StatsRange.thisYear;
-                            }
-                          },
-                        ),
+                      // 2 个 segment 本体(text + chevron,无背景,只是文字和 ripple)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _RangeSegment(
+                              label: monthLabel,
+                              selected: isThisMonth,
+                              onTap: () {
+                                if (range == StatsRange.thisMonth) {
+                                  // 已在该段 → 弹月份 picker,tap 反馈
+                                  AppHaptics.tap();
+                                  _pickMonth(context, ref, custom);
+                                } else {
+                                  // 切到该段 → select 反馈
+                                  AppHaptics.select();
+                                  ref.read(statsRangeProvider.notifier).state =
+                                      StatsRange.thisMonth;
+                                }
+                              },
+                            ),
+                          ),
+                          Expanded(
+                            child: _RangeSegment(
+                              label: yearLabel,
+                              selected: isThisYear,
+                              onTap: () {
+                                if (range == StatsRange.thisYear) {
+                                  AppHaptics.tap();
+                                  _pickYear(context, ref, customYear);
+                                } else {
+                                  AppHaptics.select();
+                                  ref.read(statsRangeProvider.notifier).state =
+                                      StatsRange.thisYear;
+                                }
+                              },
+                            ),
+                          ),
+                        ],
                       ),
                     ],
-                  ),
-                ],
+                  );
+                },
               ),
             ),
             // 清除按钮:filterActive 时启用,清 month + 清 year + 回到 thisMonth
