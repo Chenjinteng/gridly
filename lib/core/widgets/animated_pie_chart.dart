@@ -113,15 +113,18 @@ class _AnimatedPieChartState extends State<AnimatedPieChart>
   }
 }
 
-/// 自绘 stroke 圆角端 sector —— Apple Activity ring 风。
+/// 自绘 stroke + 软化端 sector —— 解决"两色块衔接不自然"问题。
 ///
-/// 每扇区是 stroke + rounded cap:
-///   - 弧路径从 sectorStart + paddingDeg 划到 sectorEnd - paddingDeg
-///   - paddingDeg = capAngular + 1.2°,保证:
-///     - 两端 StrokeCap.round 自动加 cap,cap 圆心在路径端点
-///     - cap 半径 = (outer - inner) / 2;cap angular 范围 ≈ capRadius / midRadius
-///     - 缩小路径让 caps 完全在自己 sector 范围内,不延伸进相邻 sector
-///     - 1.2° 多留隙让 background 在 cap-cap 之间可见 ~2.4°
+/// 之前 v8 用 StrokeCap.round 自动加 full semicircle cap,radius = ringThickness/2。
+/// 用户反馈\"圆角太圆, 两个色块的衔接不自然\" —— 两个 full cap 接触像两颗药丸
+/// 贴一起,颜色边界粗暴。
+///
+/// v9 (本版):
+///   - StrokeCap.butt:端点是平面切,不是圆球,根本避免 pill cap 突起
+///   - 手动画小圆点(soft cap)在两个路径端点上,radius = ringThickness/4,
+///     比 pill cap 小一半,只起"软化切边"作用,不抢戏
+///   - 弧路径从 sectorStart 到 sectorEnd(平端对接),对端小圆点软化
+///   - 1.0° 可见间隙让相邻 sector 间有清晰背景分割,不再"两球贴一起"
 class _GaugePainter extends CustomPainter {
   final double sweepProgress;
   final List<PieChartSectionData> sections;
@@ -137,11 +140,13 @@ class _GaugePainter extends CustomPainter {
     required this.startDegreeOffset,
   });
 
-  /// 扇区间的可见间隙(paddingDeg 的一部分)。
-  /// 0.8° 是 v8 commit 51 的 1.2° 减下来 —— user 反馈"圆角端太圆",
-  /// 改薄环厚度从 18 → 12(内圈 46 → 52)的同时把可见间距也收紧一点,
-  /// 让 caps 不会过分突出
-  static const double _kClearanceDeg = 0.8;
+  /// 扇区间的可见间隙(总 paddingDeg 的一部分)
+  static const double _kClearanceDeg = 1.0;
+
+  /// 端点软化小圆点半径相对环厚度的比例
+  /// 0.25 = ringThickness/4,比 full cap(radius = ringThickness/2)小一半
+  /// 看起来像"软切边"而不是"药丸"
+  static const double _kSoftCapRatio = 0.25;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -152,12 +157,7 @@ class _GaugePainter extends CustomPainter {
     final inner = math.min(innerRadius, outer - 4);
     final middleRadius = (outer + inner) / 2;
     final ringThickness = outer - inner;
-    final capRadius = ringThickness / 2;
-
-    // cap Angular 范围(弧度→度):cap 是 circle,边界在 middleRadius 处
-    // 切线方向最远 +asin(capRadius / middleRadius) 度
-    final capAngularDeg = math.asin(capRadius / middleRadius) * 180 / math.pi;
-    final paddingDeg = capAngularDeg + _kClearanceDeg;
+    final softCapRadius = ringThickness * _kSoftCapRatio;
 
     final total = sections.fold<double>(0, (s, e) => s + e.value);
     if (total <= 0) return; // 空数据兜底:什么都不画
@@ -182,27 +182,59 @@ class _GaugePainter extends CustomPainter {
       }
 
       if (ratio > 0) {
-        // Stroke 圆角端(ColorOS 17 Health / Apple Activity 风)
-        final paint = Paint()
+        // StrokeCap.butt + 小圆点 —— 根本避免 pill cap
+        final stroke = Paint()
           ..color = sec.color
           ..style = PaintingStyle.stroke
           ..strokeWidth = ringThickness
-          ..strokeCap = StrokeCap.round;
+          ..strokeCap = StrokeCap.butt;
 
-        // 弧路径从 sectorStart + paddingDeg 到 sectorEnd - paddingDeg
+        // 弧路径从 sectorStart + clearanceDeg 到 sectorEnd - clearanceDeg
         // ratio 控制 path 实际长度,使 leading edge 跟 sweep position 走
-        final drawStart = sectorStart + paddingDeg;
-        final maxDrawSweep = math.max(0.0, sectorDeg - 2 * paddingDeg);
+        final drawStart = sectorStart + _kClearanceDeg;
+        final maxDrawSweep = math.max(0.0, sectorDeg - 2 * _kClearanceDeg);
         final drawSweep = maxDrawSweep * ratio;
 
         if (drawSweep > 0) {
+          final startRad = drawStart * math.pi / 180;
+          final endRad = (drawStart + drawSweep) * math.pi / 180;
+
+          // 1. 主弧(平端)
           final path = Path()
             ..addArc(
               Rect.fromCircle(center: center, radius: middleRadius),
-              drawStart * math.pi / 180,
+              startRad,
               drawSweep * math.pi / 180,
             );
-          canvas.drawPath(path, paint);
+          canvas.drawPath(path, stroke);
+
+          // 2. 两个端点小圆点(软化切边,不是 pill cap)
+          // ratio < 1 时只画起点的 cap(leading edge 在 path 末端,不画)
+          final capPaint = Paint()
+            ..color = sec.color
+            ..style = PaintingStyle.fill;
+
+          // 起点 cap (trailing edge)
+          canvas.drawCircle(
+            Offset(
+              center.dx + middleRadius * math.cos(startRad),
+              center.dy + middleRadius * math.sin(startRad),
+            ),
+            softCapRadius,
+            capPaint,
+          );
+
+          // 终点 cap (leading edge) —— 只在 ratio >= 1 时画
+          if (ratio >= 1.0) {
+            canvas.drawCircle(
+              Offset(
+                center.dx + middleRadius * math.cos(endRad),
+                center.dy + middleRadius * math.sin(endRad),
+              ),
+              softCapRadius,
+              capPaint,
+            );
+          }
         }
       }
 
