@@ -11,6 +11,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/card_shadows.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/aqua_switch.dart';
 import '../../../core/widgets/gridly_mark.dart';
 import '../../../core/theme/theme_mode_provider.dart';
 import '../../../core/utils/budget_provider.dart';
@@ -62,7 +63,7 @@ class SettingsPage extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-Container(
+                  Container(
                     width: 56,
                     height: 56,
                     decoration: BoxDecoration(
@@ -155,10 +156,7 @@ Container(
                         RadioListTile<ThemeMode>(
                           value: ThemeMode.light,
                           title: Text('浅色'),
-                          secondary: Icon(
-                            Icons.light_mode_outlined,
-                            size: 18,
-                          ),
+                          secondary: Icon(Icons.light_mode_outlined, size: 18),
                           dense: true,
                           visualDensity: VisualDensity.compact,
                           contentPadding: EdgeInsets.zero,
@@ -166,10 +164,7 @@ Container(
                         RadioListTile<ThemeMode>(
                           value: ThemeMode.dark,
                           title: Text('深色'),
-                          secondary: Icon(
-                            Icons.dark_mode_outlined,
-                            size: 18,
-                          ),
+                          secondary: Icon(Icons.dark_mode_outlined, size: 18),
                           dense: true,
                           visualDensity: VisualDensity.compact,
                           contentPadding: EdgeInsets.zero,
@@ -193,12 +188,10 @@ Container(
             ),
             title: const Text('显示金额', style: TextStyle(fontSize: 14)),
             subtitle: Text(
-              amountVisible
-                  ? '首页 / 流水 / 预算的金额正常显示'
-                  : '全部金额以 •••••• 遮挡,防偷窥',
+              amountVisible ? '首页 / 流水 / 预算的金额正常显示' : '全部金额以 •••••• 遮挡,防偷窥',
               style: const TextStyle(fontSize: 11, color: AppGray.g600),
             ),
-            trailing: Switch(
+            trailing: AquaSwitch(
               value: amountVisible,
               onChanged: (v) =>
                   ref.read(amountVisibilityProvider.notifier).set(v),
@@ -290,7 +283,9 @@ class _BudgetTile extends ConsumerWidget {
           isScrollControlled: true,
           backgroundColor: Theme.of(context).colorScheme.surface,
           shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(AppRadius.xl),
+            ),
           ),
           builder: (_) => const BudgetSheet(),
         );
