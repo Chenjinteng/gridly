@@ -215,8 +215,15 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
   late final AnimationController _ctrl;
 
   /// 当前 touch 的 group 索引(0..bars.length-1);null = 没有 touch
-  /// commit 77 加:extraLinesData.verticalLines 需要这个 index 画虚线 + 顶部 label
+  /// commit 79 改:之前 commit 77 用 extraLinesData.verticalLines + VerticalLineLabel,
+  /// 但 fl_chart 0.69 BarChart 完全不渲染 verticalLines(注释里写"Vertical lines
+  /// will not be painted if received",issue #1149),导致虚线和顶部 label 在
+  /// commit 78 user 截图里完全看不到。
+  /// → 改用 Stack overlay 在 BarChart 上叠 CustomPaint 画 dashed line +
+  /// Positioned label,_touchedOffset 记 BarChart 内局部像素 x 位置(来自
+  /// BarTouchedSpot.offset.dx),label 通过 _touchedLabel() 从 group index 反查日期/月。
   int? _touchedGroupIdx;
+  Offset? _touchedOffset;
 
   @override
   void initState() {
@@ -237,18 +244,29 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
   }
 
   /// 处理 barChart touch:
-  ///   - onTouchDown / onTouchMove:更新 _touchedGroupIdx 触发虚线 + label
+  ///   - onTouchDown / onTouchMove:更新 _touchedGroupIdx + _touchedOffset
+  ///     触发虚线 + label overlay
   ///   - onPanEnd / onPanCancel:清空,虚线 + label 消失
   void _onTouch(FlTouchEvent event, BarTouchResponse? response) {
     if (event is FlPanEndEvent || event is FlPanCancelEvent) {
-      if (_touchedGroupIdx != null) {
-        setState(() => _touchedGroupIdx = null);
+      if (_touchedGroupIdx != null || _touchedOffset != null) {
+        setState(() {
+          _touchedGroupIdx = null;
+          _touchedOffset = null;
+        });
       }
       return;
     }
-    final idx = response?.spot?.touchedBarGroupIndex;
-    if (idx != null && idx != _touchedGroupIdx) {
-      setState(() => _touchedGroupIdx = idx);
+    final spot = response?.spot;
+    final idx = spot?.touchedBarGroupIndex;
+    final off = spot?.offset;
+    if (idx != null &&
+        off != null &&
+        (idx != _touchedGroupIdx || off != _touchedOffset)) {
+      setState(() {
+        _touchedGroupIdx = idx;
+        _touchedOffset = off;
+      });
     }
   }
 
@@ -277,136 +295,164 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
 
   Widget _buildChart() {
     final scheme = Theme.of(context).colorScheme;
-    return BarChart(
-      BarChartData(
-        maxY: widget.maxY,
-        minY: 0,
-        // daily 30 根柱,BarChartAlignment.spaceAround 默认会把柱挨在一起;
-        // 改 spaceBetween + groupsSpace 4 让每根柱之间有 4px 留白,看起来"呼吸"
-        // 2026-10-12 user 反馈"柱与柱之间没有间隔",commit 73 加
-        alignment: BarChartAlignment.spaceBetween,
-        groupsSpace: 4,
-        barTouchData: BarTouchData(
-          handleBuiltInTouches: true,
-          // commit 77:加 touchCallback,记录 touch 的 group index 给 extraLinesData 用
-          touchCallback: _onTouch,
-          // 保留金额 tooltip(用户要求"金额的显示保持现在的")
-          touchTooltipData: BarTouchTooltipData(
-            getTooltipColor: (_) => AppBrand.ink,
-            getTooltipItem: (group, gIdx, rod, rIdx) {
-              final v = rod.toY;
-              return BarTooltipItem(
-                '¥${Formatters.amount(v)}',
-                TextStyle(
-                  color: AppBrand.gold,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
+    return Stack(
+      // commit 79 改:BarChart 不渲染 verticalLines,改用 overlay 在 BarChart
+      // 上叠 dashed line + label。Clip.none 让 label 在最左/最右柱时能溢出
+      // BarChart widget 边界而不被裁掉。
+      clipBehavior: Clip.none,
+      children: [
+        BarChart(
+          BarChartData(
+            maxY: widget.maxY,
+            minY: 0,
+            // daily 30 根柱,BarChartAlignment.spaceAround 默认会把柱挨在一起;
+            // 改 spaceBetween + groupsSpace 4 让每根柱之间有 4px 留白,看起来"呼吸"
+            // 2026-10-12 user 反馈"柱与柱之间没有间隔",commit 73 加
+            alignment: BarChartAlignment.spaceBetween,
+            groupsSpace: 4,
+            barTouchData: BarTouchData(
+              handleBuiltInTouches: true,
+              // commit 79 改:touchCallback 改成记 BarTouchedSpot.offset.dx
+              // (BarChart 内局部像素坐标)给 overlay 用。之前 commit 77 用
+              // group index + extraLinesData.verticalLines,但 BarChart 不画
+              // verticalLines(issue #1149),所以虚线根本没渲染。
+              touchCallback: _onTouch,
+              // 保留金额 tooltip(用户要求"金额的显示保持现在的")
+              touchTooltipData: BarTouchTooltipData(
+                getTooltipColor: (_) => AppBrand.ink,
+                getTooltipItem: (group, gIdx, rod, rIdx) {
+                  final v = rod.toY;
+                  return BarTooltipItem(
+                    '¥${Formatters.amount(v)}',
+                    TextStyle(
+                      color: AppBrand.gold,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  );
+                },
+              ),
+            ),
+            titlesData: FlTitlesData(
+              show: true,
+              topTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+              rightTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+              leftTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: 56,
+                  interval: widget.niceInterval,
+                  getTitlesWidget: (v, meta) => Text(
+                    Formatters.amount(
+                      v,
+                      forceWan: widget.chartNeedsWan,
+                      trimTrailingZeros: true,
+                    ),
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.visible,
+                  ),
                 ),
-              );
-            },
+              ),
+              bottomTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  // commit 75: 18 → 14,user 反馈"再近一点"
+                  reservedSize: 14,
+                  interval: 1,
+                  getTitlesWidget: (v, meta) {
+                    final idx = v.toInt();
+                    if (idx < 0 || idx >= widget.bars.length) {
+                      return const SizedBox.shrink();
+                    }
+                    if (widget.labelKind == BarLabelKind.day) {
+                      // daily bar(30 根柱)X 轴只标 1, 5, 10, 15, 20, 25, 30
+                      // 稀疏化,避免小屏 label 重叠
+                      // 2026-10-12 user 反馈"太密了",从全 30 个标签改 7 个
+                      final day = widget.bars[idx].day;
+                      if (day != 1 && day % 5 != 0) {
+                        return const SizedBox.shrink();
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 1),
+                        child: Text(
+                          '$day',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      );
+                    }
+                    // monthly bar(12 月)X 轴全标 12 个月
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 1),
+                      child: Text(
+                        '${widget.bars[idx].month}月',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+            gridData: const FlGridData(show: false),
+            borderData: FlBorderData(show: false),
+            barGroups: _buildBarGroups(),
           ),
         ),
-        // commit 77 加:选中柱子时画虚线 + 顶部 label 日期
-        //   - dashArray [4, 3] 虚线(4px 实线 + 3px 空白)
-        //   - label 顶部:显示"X日" 或 "X月"
-        //   - 颜色用 onSurfaceVariant(对比适中,不在 primary 抢眼)
-        extraLinesData: ExtraLinesData(
-          verticalLines: [
-            if (_touchedGroupIdx != null)
-              VerticalLine(
-                x: _touchedGroupIdx!.toDouble(),
-                color: scheme.onSurfaceVariant,
-                strokeWidth: 1,
-                dashArray: const [4, 3],
-                label: VerticalLineLabel(
-                  show: true,
-                  alignment: Alignment.topCenter,
-                  padding: const EdgeInsets.only(bottom: 4),
+        // commit 79 加:touch 选柱时,顶部画虚线 + "X日/X月" label
+        //   - 虚线:_DashedLinePainter 自定义 painter,[4,3] dashArray,贯穿 chart 高度
+        //   - label:Surface 背景卡片,边框 + 居中文字
+        //   - 位置:用 BarTouchedSpot.offset.dx(BarChart 内局部像素 x)
+        if (_touchedOffset != null) ...[
+          Positioned(
+            // 1.5px 虚线居中在 offset.dx
+            left: _touchedOffset!.dx - 0.75,
+            top: 0,
+            bottom: 0,
+            width: 1.5,
+            child: CustomPaint(
+              painter: _DashedLinePainter(color: scheme.onSurfaceVariant),
+            ),
+          ),
+          Positioned(
+            // 56px 宽 label,left = dx - 28 居中
+            left: _touchedOffset!.dx - 28,
+            top: 0,
+            width: 56,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: scheme.surface,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: scheme.outlineVariant, width: 0.5),
+                ),
+                child: Text(
+                  _touchedLabel() ?? '',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                     color: scheme.onSurface,
                   ),
-                  labelResolver: (_) => _touchedLabel() ?? '',
                 ),
-              ),
-          ],
-        ),
-        titlesData: FlTitlesData(
-          show: true,
-          topTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          rightTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 56,
-              interval: widget.niceInterval,
-              getTitlesWidget: (v, meta) => Text(
-                Formatters.amount(
-                  v,
-                  forceWan: widget.chartNeedsWan,
-                  trimTrailingZeros: true,
-                ),
-                style: TextStyle(fontSize: 9, color: scheme.onSurfaceVariant),
-                maxLines: 1,
-                softWrap: false,
-                overflow: TextOverflow.visible,
               ),
             ),
           ),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              // commit 75: 18 → 14,user 反馈"再近一点"
-              reservedSize: 14,
-              interval: 1,
-              getTitlesWidget: (v, meta) {
-                final idx = v.toInt();
-                if (idx < 0 || idx >= widget.bars.length) {
-                  return const SizedBox.shrink();
-                }
-                if (widget.labelKind == BarLabelKind.day) {
-                  // daily bar(30 根柱)X 轴只标 1, 5, 10, 15, 20, 25, 30
-                  // 稀疏化,避免小屏 label 重叠
-                  // 2026-10-12 user 反馈"太密了",从全 30 个标签改 7 个
-                  final day = widget.bars[idx].day;
-                  if (day != 1 && day % 5 != 0) {
-                    return const SizedBox.shrink();
-                  }
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 1),
-                    child: Text(
-                      '$day',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
-                  );
-                }
-                // monthly bar(12 月)X 轴全标 12 个月
-                return Padding(
-                  padding: const EdgeInsets.only(top: 1),
-                  child: Text(
-                    '${widget.bars[idx].month}月',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-        gridData: const FlGridData(show: false),
-        borderData: FlBorderData(show: false),
-        barGroups: _buildBarGroups(),
-      ),
+        ],
+      ],
     );
   }
 
@@ -462,6 +508,40 @@ class _AnimatedBarChartState extends State<_AnimatedBarChart>
     }
     return groups;
   }
+}
+
+/// 垂直虚线 CustomPainter —— commit 79 加,BarChart 不渲染 verticalLines 后的 overlay 替代。
+///
+/// - 1.5px strokeWidth,4px 实线 + 3px 空白循环,贯穿 CustomPaint 整个高度
+/// - Positioned 控位置(left: offset.dx - 0.75 让线居中),大小由外层给
+class _DashedLinePainter extends CustomPainter {
+  const _DashedLinePainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.butt;
+    const dashLen = 4.0;
+    const gapLen = 3.0;
+    double y = 0;
+    while (y < size.height) {
+      // drawLine 的 x 用 size.width / 2(线很细,1.5px,正好居中)
+      canvas.drawLine(
+        Offset(size.width / 2, y),
+        Offset(size.width / 2, y + dashLen),
+        paint,
+      );
+      y += dashLen + gapLen;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedLinePainter oldDelegate) =>
+      oldDelegate.color != color;
 }
 
 /// 2026-10-01 沿用:按"1/2/5 × 10^n"挑 niceInterval,避免 maxY 实际值出现
