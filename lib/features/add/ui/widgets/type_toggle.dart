@@ -23,7 +23,6 @@ import 'package:flutter/material.dart';
 import '../../../../core/motion/app_motion.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
-import '../../../../core/theme/app_spacing.dart';
 
 class TypeToggle extends StatelessWidget {
   const TypeToggle({
@@ -125,9 +124,12 @@ class TypeToggle extends StatelessWidget {
 /// 单段 tab —— 只是文字 + icon,选中态背景由父级 Stack 的共享 pill 提供。
 /// 文字色:每段用对应语义色,选中 w700,未选 onSurfaceVariant 灰
 ///
-/// 2026-10-13 P7 UAT 改:Row 用 mainAxisSize.max(默认),让 mainAxisAlignment.center
-///   把 icon+gap+text 真正居中(之前 mainAxisSize.min 把 Row 缩到内容宽,视觉上
-///   "内容居中"但 pill bg 宽度大于内容 → 内容看起来偏左)
+/// 2026-10-13 P7 UAT 改(2 轮):
+///   - 第 1 轮:Row 去掉 mainAxisSize.min,让 mainAxisAlignment.center 在全宽内居中
+///   - 第 2 轮:再加 Center 包 Row 真正做"双向居中"—— 之前内容纵向偏上 7px
+///     (Padding 没 alignment 参数,默认把 child 放左上,加上 vertical padding 8,
+///      child Row 在 32px padding 区内 top-left,视觉上 pill bg 下方 7px 空白更大)
+///     改后 Center 拿到全屏约束,把 Row 在 segment 内 vertical center 居中
 class _Segment extends StatelessWidget {
   const _Segment({
     required this.label,
@@ -151,12 +153,17 @@ class _Segment extends StatelessWidget {
       //   ripple 半径跟着 pill bg 走,视觉上 ripple 像 pill 内部高光
       borderRadius: AppRadius.brPill,
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppSpacing.s2),
+      // 2026-10-13 P7 UAT 第 2 轮改:用 Center 替代 Padding
+      //   - Center 给 child 松约束(max size = InkWell 全宽),
+      //     child Row mainAxisSize 默认 max → Row 占满 segment 全宽,
+      //     mainAxisAlignment.center 把 icon+gap+text 横向居中
+      //   - Center 自身在 InkWell 内垂直 + 水平居中 → Row 双向居中
+      //   - 去掉 vertical padding 8:之前 Padding 没 alignment,
+      //     child 默认放左上 → 内容偏上 7px;改 Center 后垂直居中自然
+      child: Center(
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          // 去掉 mainAxisSize.min,让 Row 占满 InkWell 全宽,
-          //   mainAxisAlignment.center 才会真正把 icon+text 居中
+          mainAxisSize: MainAxisSize.max, // 占满 segment 全宽,center 才有意义
           children: [
             Icon(
               icon,
