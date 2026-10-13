@@ -104,26 +104,46 @@ class TransactionTile extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        cat?.name ?? '未分类',
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
+                      // 2026-10-14 P18 改:分类名 + 备注 inline 到 1 行
+                      //   之前:有备注时 tile 内 2 行文字(分类名 / 备注)+ 账户 badge = 拉高
+                      //   现在:始终 1 行内容 + 1 行账户 badge = tile 高度统一
+                      //   样式:分类名 15sp 黑色 + 中间 '·' 灰色 + 备注 15sp onSurfaceVariant
+                      //   整行 maxLines:1 ellipsis,长备注从右往左截断
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: cat?.name ?? '未分类',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w500,
+                                // 分类名主色,走 M3 主题 onSurface(深色 / 浅色模式自适应)
+                                color: theme.colorScheme.onSurface,
+                              ),
+                            ),
+                            if (transaction.note != null &&
+                                transaction.note!.isNotEmpty) ...[
+                              TextSpan(
+                                text: ' · ',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: theme.colorScheme.outline,
+                                ),
+                              ),
+                              TextSpan(
+                                text: transaction.note,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      if (transaction.note != null &&
-                          transaction.note!.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          transaction.note!,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
                       // 2026-10-12 P3 commit:流水 tile 下方追加"账户 chip"
                       //   - 小尺寸 11px,onSurfaceVariant 色
                       //   - 显示账户名 + 小 icon(角标,asset 配色)
