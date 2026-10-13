@@ -96,23 +96,8 @@ class AssetTile extends ConsumerWidget {
     'other': '其它',
   };
 
-  /// type 名 → 配色(跟 asset_summary_card 同源,2026-10-13 P6 加 3 类)
-  static Color colorFor(String type) {
-    switch (type) {
-      case 'cash_flow':
-        return AppBrand.teal;
-      case 'investment':
-        return AppBrand.gold;
-      case 'benefit':
-        return AppStatus.success;
-      case 'receivable':
-        return AppStatus.warning;
-      case 'fixed_asset':
-        return AppStatus.info;
-      default:
-        return AppGray.g600;
-    }
-  }
+  /// 2026-10-14 P18:type 名 → 段色统一走 AppSegment(集中管理)
+  static Color colorFor(String type) => AppSegment.colorFor(type);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

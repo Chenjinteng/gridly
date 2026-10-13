@@ -155,29 +155,8 @@ class _TypeRow extends StatelessWidget {
   final String label;
   final double amount;
 
-  /// 6 大类配色(2026-10-13 P6 加):
-  ///   - cash_flow    → teal(品牌色,流动)
-  ///   - investment   → gold(升值)
-  ///   - benefit      → pink(福利关怀)
-  ///   - receivable   → orange(待回收)
-  ///   - fixed_asset  → info 蓝(稳定)
-  ///   - other        → gray600(中性)
-  Color _colorFor(String t) {
-    switch (t) {
-      case 'cash_flow':
-        return AppBrand.teal;
-      case 'investment':
-        return AppBrand.gold;
-      case 'benefit':
-        return AppStatus.success;
-      case 'receivable':
-        return AppStatus.warning;
-      case 'fixed_asset':
-        return AppStatus.info;
-      default:
-        return AppGray.g600;
-    }
-  }
+  /// 2026-10-14 P18:6 段配色统一走 AppSegment(集中管理,跨页一致)
+  Color _colorFor(String t) => AppSegment.colorFor(t);
 
   @override
   Widget build(BuildContext context) {
