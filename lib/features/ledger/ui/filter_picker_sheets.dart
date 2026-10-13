@@ -8,6 +8,8 @@
 //   - SheetDismissed sentinel — barrier dismiss / "关闭"按钮(没操作)用
 //   - AllPicked sentinel — 用户明确点"全部"项(等价 reset 到默认值)用
 //   - showSingleSelectSheet<T> — 单选 list(类型 / 月份),用底部 modal sheet
+//     2026-10-13 P10 加"显示全部" FilledButton 底部快捷键,匹配 MultiSelect
+//     同款视觉;tap = 选 AllPicked + dismiss(caller 已处理 AllPicked → reset)
 //   - MultiSelectCategorySheet — 多选 list(分类),DraggableScrollableSheet
 //   - MultiSelectAssetSheet — 多选 list(账户),DraggableScrollableSheet
 import 'package:flutter/material.dart';
@@ -54,6 +56,7 @@ Future<Object?> showSingleSelectSheet<T>(
     ),
     builder: (ctx) {
       final theme = Theme.of(ctx);
+      final isDark = theme.brightness == Brightness.dark;
       return SafeArea(
         child: Padding(
           padding: const EdgeInsets.only(bottom: AppSpacing.s2),
@@ -129,6 +132,44 @@ Future<Object?> showSingleSelectSheet<T>(
                       ),
                     );
                   },
+                ),
+              ),
+              const Divider(height: 1),
+              // 2026-10-13 P10 加:"显示全部"快捷键 — 单选列表无需"清空",
+              //   但要保留底部 FilledButton 跟 MultiSelect 同款视觉
+              //   tap → pop AllPicked → caller 已 handle(等价 reset 到默认值)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.s4,
+                  AppSpacing.s3,
+                  AppSpacing.s4,
+                  AppSpacing.s3,
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(ctx, allPicked),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: isDark
+                          ? AppSecondary.cream
+                          : AppBrand.ink,
+                      foregroundColor: isDark ? AppBrand.ink : null,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: AppSpacing.s3,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: AppRadius.brLg,
+                      ),
+                    ),
+                    child: const Text(
+                      '显示全部',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],
