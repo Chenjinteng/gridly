@@ -41,19 +41,19 @@ class TransactionTile extends ConsumerWidget {
           }
         }
         final color = cat == null ? AppGray.g400 : Color(cat.color);
-        // 2026-10-14 P18 改:统一 3 色方案
-        //   - 支出(type='expense')→ 红(AppStatus.error #EF4444)
-        //   - 收入(type='income')→ 主题黄(AppBrand.gold #F5BC1F)
-        //     包括 cash_flow 收入 + 投资收益(投资 record 走 type='income' 单账户)
-        //   - 其它(type='balance')→ 主题青(AppBrand.teal #14B8A6)
-        //     包括现金调拨 + 投资投入 + 投资调拨
-        //   user 反馈:'支出红 / 收入黄 / 其它青' 统一,不需要按账户色动态
-        //   (上一版 4204eca 走 isInvestmentRecord+asset.color 太花,user 改主意)
-        final amountColor = switch (transaction.type) {
-          'income' => AppBrand.gold, // 收入:主题黄
-          'expense' => AppStatus.error, // 支出:红
-          _ => AppBrand.teal, // 其它(调拨/投资 record):主题青
-        };
+        // 2026-10-14 P18:流水金额色 = accountId 对应资产段色
+        //   - 跟 _AccountBadge icon 色统一(都按 asset.type 段色)
+        //   - 跨页视觉一致:流水页 + 资产页 6 段色用同一 token
+        //   - prefix 仍按 transaction.type 分(+/-/空)区分收入/支出/调拨
+        //   - user 反馈:'流水颜色保持一致,不然不够好看'
+        // 2026-10-14:asset.type 走 AppSegment,asset 找不到时 fallback 用 transaction.type 段
+        final txAssetAsync = ref.watch(
+          assetByIdProvider(transaction.accountId),
+        );
+        final txAsset = txAssetAsync.valueOrNull;
+        final accountType =
+            txAsset?.type ?? _fallbackAccountType(transaction.type);
+        final amountColor = AppSegment.colorFor(accountType);
         // 2026-10-12 P3 commit:balance 流水不显示 ± prefix
         //   (调拨可正可负,跟"支出=负 / 收入=正"的语义不同)
         final showPrefix = transaction.type != 'balance';
@@ -226,6 +226,14 @@ class TransactionTile extends ConsumerWidget {
   void _onEditRequested(BuildContext context) {
     context.push('/edit/${transaction.id}');
   }
+
+  /// 2026-10-14 P18:asset 还没加载或找不到时,根据 transaction.type 推断 fallback 段
+  ///   - expense/income/balance 多数是 cash_flow(日常流水/工资/调拨)
+  ///   - 投资 record 走 type='income'/'balance',但 fallback 仍是 cash_flow(暂态)
+  ///     asset loaded 后会变正确段色
+  static String _fallbackAccountType(String txType) {
+    return 'cash_flow'; // 多数流水属 cash_flow 段
+  }
 }
 
 /// 2026-10-12 P3 commit 加:流水 tile 下的资产角标(单行 11px 小字 + icon)
@@ -273,7 +281,9 @@ class _AccountBadge extends ConsumerWidget {
         overflow: TextOverflow.ellipsis,
       );
     }
-    final color = Color(asset.color);
+    // 2026-10-14 P18:icon 色从账户自选 asset.color 改资产段色(asset.type 走 AppSegment)
+    //   跟流水金额色统一,跨页视觉一致
+    final color = AppSegment.colorFor(asset.type);
     // 2026-10-14 P18 修:外层 Row 2 已给 _AccountBadge 剩余空间,内部不要用
     //   Flexible(会被外层 Expanded 挤压成 0,asset name 看不见)。
     //   改成 mainAxisSize.min + ConstrainedBox 给文字 maxWidth,Icon 固定 12,文字自然 ellipsis
