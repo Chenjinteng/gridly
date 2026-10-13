@@ -202,10 +202,10 @@ class _AssetFormSheetState extends ConsumerState<AssetFormSheet> {
               ),
               const SizedBox(height: AppSpacing.s3),
 
-              // 类型(2026-10-13 P6 第 4 次改:单列垂直 list + radio
-              //   - 2 列 × 3 行卡片 grid 太大,user 反馈"这就是一个选项,不需要搞这么大"
-              //   - 改 ColorOS 系统"选择默认浏览器"同款:每行 icon + name + radio 单选圈
-              //   - 行高紧凑(56-64px),看得见 6 个选项但不过载
+              // 类型(2026-10-13 P6 第 5 次改:外层大圆角 card + 单列 radio
+              //   - 第 4 版的 ListView + Divider 散开,user 反馈"用圆角矩形更柔和"
+              //   - 改 ColorOS 14 Aquamorphic Card-Styled Layout 标准
+              //   - 6 行包裹在 1 个 16px 圆角大 card 内,选中行 tint 0.10
               const Text(
                 '类型',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
@@ -390,6 +390,14 @@ class _AssetFormSheetState extends ConsumerState<AssetFormSheet> {
 //   - 选中行:type 配色 0.12 底色 + radio 实心
 //   - 未选行:surfaceContainerLow 底色 + radio 空心
 // ============================================================================
+// 类型单选 card(2026-10-13 P6 第 5 次改):
+//   - user UAT:类型选择区用圆角矩形更柔和,看 ColorOS 14 Aquamorphic 标准
+//   - ColorOS Card-Styled Layout:整组 6 行包裹在 1 个大圆角 card 内
+//   - 外层 16px 圆角矩形(brLg) + 1px outlineVariant + surfaceContainerLow 底色
+//   - clipBehavior 让选中行 tint 在圆角处被正确裁剪
+//   - 内 6 行 Material + InkWell 紧贴,行间 1px outlineVariant hairline (alpha 0.35, indent 56)
+//   - 选中行:type 配色 0.10 整行 tint(被外层圆角裁剪)
+// ============================================================================
 
 class _TypeRadioList extends StatelessWidget {
   const _TypeRadioList({required this.value, required this.onPick});
@@ -429,31 +437,38 @@ class _TypeRadioList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.zero,
-      itemCount: _options.length,
-      separatorBuilder: (_, _) => Divider(
-        height: 1,
-        thickness: 1,
-        color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-        indent: AppSpacing.s4,
-        endIndent: AppSpacing.s4,
+    // 外层大圆角矩形 card(ColorOS 14 Aquamorphic Card-Styled Layout)
+    // - 16px 圆角(brLg) + 1px outlineVariant + surfaceContainerLow 底色
+    // - clipBehavior 让选中行的 tint 底色在圆角处被正确裁剪
+    // - 内 6 行紧贴 Column,行间 1px outlineVariant hairline (indent 56 = icon 32 + padding 24)
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: AppRadius.brLg,
+        border: Border.all(color: theme.colorScheme.outlineVariant, width: 1),
       ),
-      itemBuilder: (context, i) {
-        final (key, label, icon) = _options[i];
-        final selected = value == key;
-        final color = _colorFor(key);
-        return _TypeRadioRow(
-          typeKey: key,
-          label: label,
-          icon: icon,
-          selected: selected,
-          color: color,
-          onTap: () => onPick(key),
-        );
-      },
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < _options.length; i++) ...[
+            if (i > 0)
+              Container(
+                height: 1,
+                margin: const EdgeInsets.only(left: 56),
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
+              ),
+            _TypeRadioRow(
+              typeKey: _options[i].$1,
+              label: _options[i].$2,
+              icon: _options[i].$3,
+              selected: value == _options[i].$1,
+              color: _colorFor(_options[i].$1),
+              onTap: () => onPick(_options[i].$1),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -481,43 +496,45 @@ class _TypeRadioRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        height: 56,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s3),
-        decoration: BoxDecoration(
-          color: selected
-              ? color.withValues(alpha: 0.10)
-              : theme.colorScheme.surfaceContainerLow,
-        ),
-        child: Row(
-          children: [
-            // icon chip(32px 圆形,左对齐)
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.18),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 18),
-            ),
-            const SizedBox(width: AppSpacing.s3),
-            // label(主标)
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                  color: selected ? color : theme.colorScheme.onSurface,
+    // 选中行:整行底色 type tint 0.10(被外层 card 圆角裁剪)
+    // 未选行:透明(继承外层 card 的 surfaceContainerLow)
+    return Material(
+      color: selected ? color.withValues(alpha: 0.10) : Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          height: 56,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s3),
+            child: Row(
+              children: [
+                // icon chip(32px 圆形,Aquamorphic 圆滑水珠感)
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.18),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: color, size: 18),
                 ),
-              ),
+                const SizedBox(width: AppSpacing.s3),
+                // label(主标)
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                      color: selected ? color : theme.colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+                // radio(右对齐,自定义外观贴合 type 配色)
+                _TypeRadio(selected: selected, color: color),
+              ],
             ),
-            // radio(右对齐,自定义外观贴合 type 配色)
-            _TypeRadio(selected: selected, color: color),
-          ],
+          ),
         ),
       ),
     );
