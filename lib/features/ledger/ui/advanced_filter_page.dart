@@ -569,7 +569,11 @@ class _CheckboxOptionList<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: 320),
+      // 2026-10-13 P13 UAT 改:320 → 240
+      //   user:"类型就4个,不要超过这个地方" — 展开区高度对齐 4-5 项
+      //   (类型列表 3 项,实际不滚;月份/分类/资产 长 list 内部滑动可见全部)
+      //   旧 320 让 8 项分类的 兼职 只露 5px 不可点 → user 反馈"会选择不到"
+      constraints: const BoxConstraints(maxHeight: 240),
       child: SingleChildScrollView(
         padding: const EdgeInsets.only(bottom: AppSpacing.s2),
         child: Column(
@@ -622,7 +626,8 @@ class _CheckboxCategoryList extends StatelessWidget {
       );
     }
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: 320),
+      // 2026-10-13 P13 UAT 改:320 → 240,理由同 _CheckboxOptionList
+      constraints: const BoxConstraints(maxHeight: 240),
       child: SingleChildScrollView(
         padding: const EdgeInsets.only(bottom: AppSpacing.s2),
         child: Column(
@@ -676,7 +681,8 @@ class _CheckboxAssetList extends StatelessWidget {
       );
     }
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: 320),
+      // 2026-10-13 P13 UAT 改:320 → 240,理由同 _CheckboxOptionList
+      constraints: const BoxConstraints(maxHeight: 240),
       child: SingleChildScrollView(
         padding: const EdgeInsets.only(bottom: AppSpacing.s2),
         child: Column(
