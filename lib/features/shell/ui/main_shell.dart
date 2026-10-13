@@ -360,6 +360,13 @@ class _MainShellState extends ConsumerState<MainShell> {
           // 关掉自带的 tonal pill(就是 M3 那个"小药丸"背景);
           // 我们只靠 icon + label 颜色变化表示选区
           indicatorColor: Colors.transparent,
+          // 2026-10-13 P7 UAT:label 全局字号 11(默认 12)
+          //   - 中央 + 提示语 "长按+ 记其它资产" 8 字 + 加号,在 72dp slot 默认 12sp
+          //     会截断或换行
+          //   - 11sp 能 fit 一行,4 个 2 字标签(首页/流水/报表/我的) 仍清晰
+          labelTextStyle: WidgetStateProperty.all(
+            const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+          ),
           // 2026-10-13 P6:destinations list 不能再 const(中央 + 接受 closure)
           //   - 其它 4 个 destination 仍保留 const NavigationDestination(...) 内部,
           //     但 list literal 整体需要去掉 const 才能混 _CenterFab(onLongPress: ...)
@@ -380,12 +387,16 @@ class _MainShellState extends ConsumerState<MainShell> {
             // 2026-10-13 P6:长按 0.4s 弹 Speed Dial(5 小圆选 type),短按走默认 cash_flow
             //   - onTap:NavigationBar → onDestinationSelected → _handleDestSelected → _pushAdd
             //   - onLongPress:_CenterFab 内部 GestureDetector → _openSpeedDial
+            // 2026-10-13 P7:NavigationDestination label 加提示文案"长按+ 记其它资产"
+            //   - user UAT:"在底下的+号增加一句提示" → 放 NavigationBar label 槽(已确认)
+            //   - 字色用 onSurfaceVariant 灰(非选中态),跟其它 4 个未选 tab label 一致
+            //   - 字号 11sp 略小于默认 12sp,8 个字符 + 加号在 72dp slot 内 fit 一行不截断
             NavigationDestination(
               icon: Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.s1),
                 child: _CenterFab(onLongPress: _openSpeedDial),
               ),
-              label: '',
+              label: '长按+ 记其它资产',
               tooltip: '',
             ),
             const NavigationDestination(
