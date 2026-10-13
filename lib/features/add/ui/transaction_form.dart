@@ -1607,16 +1607,28 @@ class _AccountPickerSheet extends ConsumerWidget {
     }
   }
 
+  /// 2026-10-14 P18:Bug2 _typeLabel 补全 6 段翻译
+  ///   之前只识别 cash_flow / fixed_asset / liability,其它 3 段(investment / benefit /
+  ///   receivable / other)全 fallback 到'其他',导致选账户 picker 显示账户 type 标签错
+  ///   (基金/黄金/保险都标'其他',实际是 investment 类型)
   String _typeLabel(String t) {
     switch (t) {
       case 'cash_flow':
         return '现金流';
+      case 'investment':
+        return '投资';
+      case 'benefit':
+        return '福利';
+      case 'receivable':
+        return '债权';
       case 'fixed_asset':
         return '不动产';
+      case 'other':
+        return '其他';
       case 'liability':
         return '负债';
       default:
-        return '其他';
+        return t; // 未知值原样返回,避免 silent fallback 掩盖新 type
     }
   }
 }
