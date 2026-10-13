@@ -44,6 +44,8 @@ class TransactionForm extends ConsumerStatefulWidget {
     this.editTransaction,
     this.onSaved,
     this.preselectedAssetType,
+    this.allowBalance = true,
+    this.accountTypeFilter,
   });
 
   /// 非空 → 编辑模式(预填 + 保存 update)
@@ -57,6 +59,17 @@ class TransactionForm extends ConsumerStatefulWidget {
   /// - null 或 'cash_flow' → 取 cash_flow 段第 1 个账户作 accountId
   /// - 其他 → 取对应 type 段第 1 个账户作 accountId
   final String? preselectedAssetType;
+
+  /// 2026-10-13 P6 UAT 改:是否显示"调拨"段
+  ///   - 短按路径(老版):false,只显示 支出/收入
+  ///   - 长按路径(目前):true,保留 3 段
+  final bool allowBalance;
+
+  /// 2026-10-13 P6 UAT 改:账户选择 sheet 按该 type 过滤(allAssets)
+  ///   - 短按 'cash_flow' → 只显示 cash_flow 账户
+  ///   - 长按 'investment' → 只显示 investment 账户
+  ///   - null → 不过滤(显示所有)
+  final String? accountTypeFilter;
 
   @override
   ConsumerState<TransactionForm> createState() => _TransactionFormState();
@@ -615,6 +628,10 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   /// 2026-10-12 P3 commit 加:账户选择 bottom sheet
   ///   - 类似 _openCategoryPicker,弹 modal sheet 显示所有账户列表
   ///   - 选完 → setState(_accountId) + pop
+  /// 2026-10-13 P6 UAT 改:传 accountTypeFilter 给 sheet
+  ///   - 短按 'cash_flow' → 只显示 cash_flow 账户
+  ///   - 长按 'investment' → 只显示 investment 账户
+  ///   - null → 不过滤,显示所有账户
   void _openAccountPicker() {
     showModalBottomSheet<void>(
       context: context,
@@ -625,6 +642,7 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       ),
       builder: (_) => _AccountPickerSheet(
         selected: _accountId,
+        accountTypeFilter: widget.accountTypeFilter,
         onSelect: (id) {
           setState(() => _accountId = id);
           Navigator.of(context).pop();
@@ -691,6 +709,9 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // ① type toggle(支出/收入,顶部居中)
+                  //   2026-10-13 P6:allowBalance=false 时隐藏"调拨"段
+                  //   - 短按路径(老版,默认 cash_flow):allowBalance=false → 2 段
+                  //   - 长按路径(目前保留):allowBalance=true → 3 段
                   Align(
                     alignment: Alignment.center,
                     child: TypeToggle(
@@ -699,6 +720,7 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                         _type = v;
                         _categoryId = null;
                       }),
+                      allowBalance: widget.allowBalance,
                     ),
                   ),
                   const SizedBox(height: AppSpacing.s3),
@@ -965,9 +987,19 @@ class _CategoryPickerSheet extends ConsumerWidget {
 ///   - 选中态:左侧 / 整行高亮 + check icon
 ///   - 空态:引导用户去"我的"建账户
 class _AccountPickerSheet extends ConsumerWidget {
-  const _AccountPickerSheet({required this.selected, required this.onSelect});
+  const _AccountPickerSheet({
+    required this.selected,
+    required this.onSelect,
+    this.accountTypeFilter,
+  });
   final int? selected;
   final ValueChanged<int> onSelect;
+
+  /// 2026-10-13 P6 UAT 改:按 type 过滤账户
+  ///   - 'cash_flow' → 只显示 cash_flow 账户
+  ///   - 'investment' → 只显示 investment 账户
+  ///   - null → 不过滤,显示所有账户
+  final String? accountTypeFilter;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -983,154 +1015,166 @@ class _AccountPickerSheet extends ConsumerWidget {
           padding: const EdgeInsets.all(AppSpacing.s4),
           child: Center(child: Text('加载失败:$e')),
         ),
-        data: (assets) => Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.only(top: 8, bottom: 12),
-              decoration: BoxDecoration(
-                color: AppGray.g400,
-                borderRadius: BorderRadius.circular(2),
+        data: (assets) {
+          // 2026-10-13 P6 UAT 改:按 accountTypeFilter 过滤
+          final filtered = accountTypeFilter == null
+              ? assets
+              : assets.where((a) => a.type == accountTypeFilter).toList();
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(top: 8, bottom: 12),
+                decoration: BoxDecoration(
+                  color: AppGray.g400,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.s4,
-                0,
-                AppSpacing.s4,
-                AppSpacing.s2,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.s4,
+                  0,
+                  AppSpacing.s4,
+                  AppSpacing.s2,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      '选账户',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      '${filtered.length} 个',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    '选账户',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              if (filtered.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.s4,
+                    AppSpacing.s4,
+                    AppSpacing.s4,
+                    AppSpacing.s5,
                   ),
-                  Text(
-                    '${assets.length} 个',
+                  child: Text(
+                    '还没有账户,请先到"我的 > 资产"新建',
                     style: TextStyle(
                       fontSize: 13,
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                ],
-              ),
-            ),
-            if (assets.isEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.s4,
-                  AppSpacing.s4,
-                  AppSpacing.s4,
-                  AppSpacing.s5,
-                ),
-                child: Text(
-                  '还没有账户,请先到"我的 > 资产"新建',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              )
-            else
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: assets.length,
-                  itemBuilder: (_, i) {
-                    final a = assets[i];
-                    final isSelected = a.id == selected;
-                    final color = Color(a.color);
-                    final balanceAsync = ref.watch(assetBalanceProvider(a.id));
-                    final balance = balanceAsync.valueOrNull ?? 0.0;
-                    return InkWell(
-                      onTap: () => onSelect(a.id),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.s4,
-                          vertical: AppSpacing.s3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? color.withValues(alpha: 0.10)
-                              : Colors.transparent,
-                          border: Border(
-                            bottom: BorderSide(
-                              color: theme.colorScheme.outlineVariant,
-                              width: 0.5,
+                )
+              else
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: filtered.length,
+                    itemBuilder: (_, i) {
+                      final a = filtered[i];
+                      final isSelected = a.id == selected;
+                      final color = Color(a.color);
+                      final balanceAsync = ref.watch(
+                        assetBalanceProvider(a.id),
+                      );
+                      final balance = balanceAsync.valueOrNull ?? 0.0;
+                      return InkWell(
+                        onTap: () => onSelect(a.id),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.s4,
+                            vertical: AppSpacing.s3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? color.withValues(alpha: 0.10)
+                                : Colors.transparent,
+                            border: Border(
+                              bottom: BorderSide(
+                                color: theme.colorScheme.outlineVariant,
+                                width: 0.5,
+                              ),
                             ),
                           ),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: color.withValues(alpha: 0.12),
-                                borderRadius: AppRadius.brXs,
-                                border: Border.all(
-                                  color: color.withValues(alpha: 0.3),
-                                  width: 0.5,
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  color: color.withValues(alpha: 0.12),
+                                  borderRadius: AppRadius.brXs,
+                                  border: Border.all(
+                                    color: color.withValues(alpha: 0.3),
+                                    width: 0.5,
+                                  ),
+                                ),
+                                child: Icon(
+                                  _iconForAsset(a.icon),
+                                  color: color,
+                                  size: 18,
                                 ),
                               ),
-                              child: Icon(
-                                _iconForAsset(a.icon),
-                                color: color,
-                                size: 18,
-                              ),
-                            ),
-                            const SizedBox(width: AppSpacing.s3),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    a.name,
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w500,
+                              const SizedBox(width: AppSpacing.s3),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      a.name,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    _typeLabel(a.type),
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: theme.colorScheme.onSurfaceVariant,
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _typeLabel(a.type),
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color:
+                                            theme.colorScheme.onSurfaceVariant,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                            Text(
-                              '¥${Formatters.amount(balance)}',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: AppSemantic.balanceFor(balance),
+                              Text(
+                                '¥${Formatters.amount(balance)}',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppSemantic.balanceFor(balance),
+                                ),
                               ),
-                            ),
-                            if (isSelected) ...[
-                              const SizedBox(width: 8),
-                              Icon(
-                                Icons.check_circle_rounded,
-                                size: 18,
-                                color: color,
-                              ),
+                              if (isSelected) ...[
+                                const SizedBox(width: 8),
+                                Icon(
+                                  Icons.check_circle_rounded,
+                                  size: 18,
+                                  color: color,
+                                ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
-              ),
-          ],
-        ),
+            ],
+          );
+        },
       ),
     );
   }

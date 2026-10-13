@@ -17,6 +17,8 @@ class AddTransactionPage extends StatelessWidget {
     super.key,
     this.editTransaction,
     this.preselectedAssetType,
+    this.allowBalance,
+    this.accountTypeFilter,
   });
 
   /// 编辑模式:保留以兼容路由 /add?edit=xxx(目前主要走 sheet,这里极少用)
@@ -28,8 +30,30 @@ class AddTransactionPage extends StatelessWidget {
   /// - null → 走原 cash_flow 兼容
   final String? preselectedAssetType;
 
+  /// 2026-10-13 P6 UAT 改:是否显示"调拨"段
+  /// - null → 默认按 preselectedAssetType 推导:
+  ///   - 短按 cash_flow 路径:false(老版,无调拨)
+  ///   - 长按 5 段路径:true(保留 3 段,后续精细化时再调整)
+  /// - 非 null → 用 caller 的值
+  final bool? allowBalance;
+
+  /// 2026-10-13 P6 UAT 改:账户 sheet 按 type 过滤
+  /// - null → 不过滤(显示所有)
+  /// - 'cash_flow' → 只显示 cash_flow 账户
+  /// - 'investment' → 只显示 investment 账户
+  final String? accountTypeFilter;
+
   @override
   Widget build(BuildContext context) {
+    // 2026-10-13 P6 UAT:按 preselectedAssetType 推导 allowBalance 默认值
+    //   - null 或 'cash_flow'(短按):allowBalance=false(老版,无调拨)
+    //   - 其他 5 段(长按):allowBalance=true(保留 3 段,后续再调)
+    final effectiveAllowBalance =
+        allowBalance ??
+        (preselectedAssetType == null || preselectedAssetType == 'cash_flow'
+            ? false
+            : true);
+
     return Scaffold(
       // resizeToAvoidBottomInset: false → 系统键盘弹起时不重排 body,
       // 底部的 Numpad 整段留在原位,**被键盘盖住**(这是用户期望行为:
@@ -51,6 +75,9 @@ class AddTransactionPage extends StatelessWidget {
       body: TransactionForm(
         editTransaction: editTransaction,
         preselectedAssetType: preselectedAssetType,
+        // 2026-10-13 P6 UAT:传 allowBalance + accountTypeFilter 给 form
+        allowBalance: effectiveAllowBalance,
+        accountTypeFilter: accountTypeFilter,
         // 保存后也 pop(新增 / 编辑统一处理)
         onSaved: () => context.pop(),
       ),
