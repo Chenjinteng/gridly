@@ -1,9 +1,19 @@
 // lib/features/shell/ui/speed_dial_list_popup.dart
 // Speed Dial List Popup —— "输入法长按字母浮出变体"风格
 //   - 长按中央 + 0.4s,从 + 圆位置**往上**弹一个 5 行的 list popup
-//   - 拖动选 row(onPanUpdate 跟手),松手 = 选中;拖回中心 = 取消
+//   - 拖动选 row(onPointerMove 跟手),松手 = 选中;手指不在 popup 内 = 取消
 //   - 极轻 scrim(alpha 0.15),不重遮
 //   - 弹簧弹出(spring scale + opacity,400ms aquaIn)
+//
+// 2026-10-13 P6 commit 第 8 次改(2026-10-13 12:09 UAT:"长按弹 popup,
+//   手指不离开屏幕滑动选择对应项,这时候不行"):
+//   - 之前用 GestureDetector 监听 onPanStart/Update/End 失败:
+//     _CenterFab.onLongPress 触发后,gesture arena 已被 LongPressRecognizer
+//     claim 完,Overlay 顶层的 GestureDetector 收不到 pointer move events,
+//     所以手指滑动时 popup 内 row 不能跟手高亮 → 用户只能"抬手 dismiss"
+//   - 改成 Listener 直接监听 pointer events,绕过 gesture arena
+//   - PointerMove 实时算 hovered row(跟手);抬手时若在某 row 上 = onSelected,
+//     否则 onDismiss
 //
 // 2026-10-13 P6 commit 第 5 次改(2026-10-13 11:53 UAT):
 //   - 之前 Speed Dial Radial Menu(5 圆围绕 + 圆 180° 弧)有 2 个根本问题:
@@ -109,19 +119,30 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
     super.dispose();
   }
 
-  void _onPanStart(DragStartDetails d) => _updateHover(d.localPosition);
-  void _onPanUpdate(DragUpdateDetails d) => _updateHover(d.localPosition);
+  /// 2026-10-13 P6 第 8 次改(2026-10-13 12:09 UAT:"长按弹 popup,
+  ///   手指不离开屏幕滑动选择对应项"):
+  ///   - 之前用 GestureDetector 监听 onPanStart/Update/End 失败:
+  ///     _CenterFab.onLongPress 触发后,gesture arena 已被 LongPressRecognizer
+  ///     claim 完,Overlay 顶层的 GestureDetector 收不到 pointer move events,
+  ///     所以手指滑动时 popup 内 row 不能跟手高亮(用户描述"这时候不行")
+  ///   - 改成 Listener 直接监听 pointer events,**绕过 gesture arena**,
+  ///     pointer up 时 hit-tested Listener 都能收到。
+  ///   - PointerMove 自动算 hovered row(跟手),松手即选中;
+  ///     抬手时不在任何 row 上 = dismiss。
+  void _onPointerDown(PointerDownEvent e) => _updateHover(e.localPosition);
+  void _onPointerMove(PointerMoveEvent e) => _updateHover(e.localPosition);
 
-  void _onPanEnd(DragEndDetails d) {
+  /// PointerUp — 抬手决定 onSelected 还是 onDismiss
+  ///   - 在 popup 内某 row 上 = onSelected
+  ///   - 在 popup 外 / 中心取消区 = onDismiss(走默认 cash_flow)
+  void _onPointerUp(PointerUpEvent e) {
+    _updateHover(e.localPosition);
     if (_hoveredIndex != null) {
       widget.onSelected(widget.items[_hoveredIndex!]);
     } else {
       widget.onDismiss();
     }
   }
-
-  /// 短按:用户 tap 空白(包括 scrim)就 dismiss
-  void _onTap() => widget.onDismiss();
 
   /// 根据手指位置算"当前激活的 row index"
   /// - 如果手指在 popup 矩形内:算 row index
@@ -198,13 +219,15 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
                 },
               ),
             ),
-            // 顶层 pan detector 接收拖动 / tap
+            // 2026-10-13 P6 第 8 次改:Listener(非 GestureDetector)
+            //   监听 pointer events,绕过 gesture arena,
+            //   让 _CenterFab 长按 claim 之后,后续 pointer move / up
+            //   能正常被这里收到 → row 跟手 + 松手即选中
             Positioned.fill(
-              child: GestureDetector(
-                onPanStart: _onPanStart,
-                onPanUpdate: _onPanUpdate,
-                onPanEnd: _onPanEnd,
-                onTap: _onTap,
+              child: Listener(
+                onPointerDown: _onPointerDown,
+                onPointerMove: _onPointerMove,
+                onPointerUp: _onPointerUp,
                 behavior: HitTestBehavior.translucent,
               ),
             ),
