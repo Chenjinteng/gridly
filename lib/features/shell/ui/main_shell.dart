@@ -368,11 +368,16 @@ class _MainShellState extends ConsumerState<MainShell> {
               // 我们只靠 icon + label 颜色变化表示选区
               indicatorColor: Colors.transparent,
               // 2026-10-13 P7 UAT:label 全局字号 11(默认 12)
-              //   - 中央 + 提示语 "长按+ 记其它资产" 8 字 + 加号,在 72dp slot 默认 12sp
-              //     会截断或换行
-              //   - 11sp 能 fit 一行,4 个 2 字标签(首页/流水/报表/我的) 仍清晰
+              //   - 中央 + 提示语 "长按·其它" 5 字 + dot,在 72dp slot 11sp 1 行 fit
+              //   - 2026-10-13 P9 UAT 改:字色 #79747E M3 outline 灰
+              //     (UAT 选 "outline #79747E" -- 跟 g200/g600 不同,显式 hex)
+              //   - 5 个 tab label 共享同字色 → 视觉一致
               labelTextStyle: WidgetStateProperty.all(
-                const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+                const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF79747E), // M3 outline gray
+                ),
               ),
               // 2026-10-13 P6:destinations list 不能再 const(中央 + 接受 closure)
               //   - 其它 4 个 destination 仍保留 const NavigationDestination(...) 内部,
@@ -394,18 +399,19 @@ class _MainShellState extends ConsumerState<MainShell> {
                 // 2026-10-13 P6:长按 0.4s 弹 Speed Dial(5 小圆选 type),短按走默认 cash_flow
                 //   - onTap:NavigationBar → onDestinationSelected → _handleDestSelected → _pushAdd
                 //   - onLongPress:_CenterFab 内部 GestureDetector → _openSpeedDial
-                // 2026-10-13 P7:NavigationDestination label 加提示文案
-                //   - 原文 "长按+ 记其它资产" → UAT:"太丑了,还换行了"
-                //     8 字 + 加号在 11sp 仍超 slot 宽度,折成 2 行
-                //   - 改 "长按·其它资产" 6 字 + 间隔点,1 行 fit,语义清晰不变
-                //   - 字色保持 onSurfaceVariant 灰(UAT 选 "不动色"),跟 4 个未选 tab label 一致
-                //   - 字号 11sp 略小于默认 12sp,4 个 2 字 tab label(首页/流水/报表/我的) 仍清晰
+                // 2026-10-13 P9:NavigationDestination label 精简 5 字 + outline 灰
+                //   - 5b29252 commit:label "长按+ 记其它资产" 8 字 + 加号 → 换行
+                //   - 1177052 commit:精简 "长按·其它资产" 6 字 + dot,1 行 fit 但 UAT
+                //     "看起来差不多" + "颜色是黑色而不是灰色"
+                //   - 本 commit:再缩 "长按·其它" 5 字 + 灰 #79747E M3 outline
+                //   - 字色显式 Color(0xFF79747E)(M3 outline),不复用 g200/g600,
+                //     因为 user 选的就是这个 hex
                 NavigationDestination(
                   icon: Padding(
                     padding: const EdgeInsets.only(bottom: AppSpacing.s1),
                     child: _CenterFab(onLongPress: _openSpeedDial),
                   ),
-                  label: '长按·其它资产',
+                  label: '长按·其它',
                   tooltip: '',
                 ),
                 const NavigationDestination(
