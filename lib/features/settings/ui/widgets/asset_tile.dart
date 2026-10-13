@@ -42,16 +42,43 @@ class AssetTile extends ConsumerWidget {
   final VoidCallback onDelete;
 
   /// icon 名 → IconData 映射(2026-10-12 P2):
-  ///   8 个常用资产 icon,跟 asset_form_sheet 的图标池保持一致
+  /// 2026-10-13 P6 UAT 扩:资产 icon 池(覆盖通用钱包/支付/保险/股票/债券等)
+  ///   - 之前 8 个 icon 不够:用户要"保险/股票/债券/钱包/微信/支付宝/银联"
+  ///   - Material Icons 没品牌 icon(微信/支付宝/银联),需要 brand assets;
+  ///     这次先扩通用池,品牌 icon 等 user 后续提供素材再加
+  ///   - Flutter Material Icons 内置 + 通用钱包/支付类
   static const Map<String, IconData> icons = {
-    'account_balance_wallet': Icons.account_balance_wallet_rounded,
-    'credit_card': Icons.credit_card_rounded,
-    'savings': Icons.savings_rounded,
-    'payments': Icons.payments_rounded,
-    'account_balance': Icons.account_balance_rounded,
-    'home': Icons.home_rounded,
-    'directions_car': Icons.directions_car_rounded,
-    'swap_horiz': Icons.swap_horiz_rounded,
+    // 钱包 / 支付 / 现金
+    'account_balance_wallet': Icons.account_balance_wallet_rounded, // 钱包通用
+    'wallet': Icons.wallet_rounded, // 钱包
+    'payments': Icons.payments_rounded, // 支付
+    'credit_card': Icons.credit_card_rounded, // 信用卡
+    'savings': Icons.savings_rounded, // 储蓄
+    'account_balance': Icons.account_balance_rounded, // 银行
+    'currency_yen': Icons.currency_yen_rounded, // 现金(¥)
+    'attach_money': Icons.attach_money_rounded, // 现金($)
+    'monetization_on': Icons.monetization_on_rounded, // 现金
+    // 资产类型
+    'home': Icons.home_rounded, // 不动产
+    'directions_car': Icons.directions_car_rounded, // 车
+    'landscape': Icons.landscape_rounded, // 土地
+    'apartment': Icons.apartment_rounded, // 公寓
+    // 投资 / 股票 / 债券
+    'trending_up': Icons.trending_up_rounded, // 涨跌
+    'candlestick_chart': Icons.candlestick_chart_rounded, // K 线
+    'show_chart': Icons.show_chart_rounded, // 曲线
+    'receipt_long': Icons.receipt_long_rounded, // 债券
+    'assessment': Icons.assessment_rounded, // 报表
+    // 保险 / 保障
+    'health_and_safety': Icons.health_and_safety_rounded, // 保险
+    'shield': Icons.shield_rounded, // 盾牌
+    'security': Icons.security_rounded, // 安全
+    'verified': Icons.verified_rounded, // 已验证
+    // 福利 / 借出 / 其它
+    'favorite': Icons.favorite_rounded, // 福利
+    'handshake': Icons.handshake_rounded, // 借出
+    'swap_horiz': Icons.swap_horiz_rounded, // 调拨
+    'category': Icons.category_rounded, // 其它
   };
 
   /// type 名 → 中文标签(2026-10-13 P6:4 段 → 6 段,加投资/福利/债权)

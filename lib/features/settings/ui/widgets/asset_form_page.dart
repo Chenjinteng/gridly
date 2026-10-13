@@ -53,15 +53,41 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
 
   /// 8 个资产相关 icon(2026-10-12 P2 收敛到 8 个常用,跟 asset_tile.icons 共享映射)
   /// 顺序按使用频度:钱包 / 银行卡 / 现金 / 储蓄 / 银行 / 房 / 车 / 调拨
+  /// 2026-10-13 P6 UAT 扩:跟 AssetTile.icons 同款(都用这个池)
+  /// 之前只有 8 个,扩到 ~25 个(保险/股票/债券/钱包/更多支付/现金/不动产细分)
+  /// 微信/支付宝/银联等品牌 icon 需 brand assets,这次不加
   static const _iconKeys = [
+    // 钱包 / 支付 / 现金
     'account_balance_wallet',
-    'credit_card',
+    'wallet',
     'payments',
+    'credit_card',
     'savings',
     'account_balance',
+    'currency_yen',
+    'attach_money',
+    'monetization_on',
+    // 资产类型
     'home',
     'directions_car',
+    'landscape',
+    'apartment',
+    // 投资 / 股票 / 债券
+    'trending_up',
+    'candlestick_chart',
+    'show_chart',
+    'receipt_long',
+    'assessment',
+    // 保险 / 保障
+    'health_and_safety',
+    'shield',
+    'security',
+    'verified',
+    // 福利 / 借出 / 其它
+    'favorite',
+    'handshake',
     'swap_horiz',
+    'category',
   ];
 
   /// 16 色调色板 — 跟 CategoryFormSheet 同款,保持视觉统一
