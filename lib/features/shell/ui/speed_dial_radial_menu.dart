@@ -184,9 +184,14 @@ class _SpeedDialRadialMenuState extends State<SpeedDialRadialMenu>
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // 中心点 = 屏宽中点 / 屏高 70%(2026-10-13 第 3 次改:0.78 → 0.7
-        //   5 圆整体上移,避免 +18°/+54° 圆撞到 nav 区域)
-        _center = Offset(constraints.maxWidth / 2, constraints.maxHeight * 0.7);
+        // 中心点 = 屏宽中点 / 屏高 - 90(2026-10-13 第 4 次改:
+        //   之前 0.7 算出来的 _center 在屏幕 70% 高度,但中央 + 圆
+        //   实际在 NavigationBar 中央槽(屏高 ~88% 位置),两者错位
+        //   → 5 圆围绕错位中心,跟 + 圆分离)
+        //   现在 _center = screenH - 90(≈ nav 中央位置),让 5 圆
+        //   围绕中央 + 圆
+        //   100 = 估算 nav 高度(72) + safe area bottom(~30) + buffer(8)
+        _center = Offset(constraints.maxWidth / 2, constraints.maxHeight - 90);
         return Stack(
           children: [
             // 极轻 scrim(2026-10-13 P6 第 2 次改:0.45 → 0.15,不重遮)
@@ -272,10 +277,16 @@ class _SpeedDialRadialMenuState extends State<SpeedDialRadialMenu>
                   ]
                 : null,
           ),
-          // hover:显示 icon;未选:空白(纯 ring 提示,不抢视觉)
-          child: isHovered
-              ? Icon(item.icon, color: Colors.white, size: 18)
-              : null,
+          // 2026-10-13 第 4 次改:未 hover 也显示 type icon(2026-10-13 UAT
+          //   反馈"5 个小圆没有 logo")
+          //   - hover:白 icon(填 type 配色,白 icon 醒目)
+          //   - 未 hover:type 配色 icon(空心 ring + type icon 一致,作为 logo)
+          //   - size 18 → 16:让未 hover 略小,hover 略大,呼应 scale 1.15
+          child: Icon(
+            item.icon,
+            color: isHovered ? Colors.white : item.color,
+            size: isHovered ? 18 : 16,
+          ),
         ),
       ),
     );
