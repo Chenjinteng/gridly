@@ -124,12 +124,8 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
       _toast('期初余额格式不对');
       return;
     }
-    // 2026-10-13 P6 加:期初余额上限 7 位 = 9,999,999.99(≈ 10 百万)
-    // 跟 transaction_form 流水金额上限一致(app 定位个人记账,千万级以上不服务)
-    if (balance.abs() > 9999999.99) {
-      _toast('期初余额超出范围(上限 9,999,999.99)');
-      return;
-    }
+    // (2026-10-13 P6 改:上限校验下放到 inputFormatter,实时拒绝超过
+    //  9,999,999.99 的输入,这里不再弹 toast 提示)
     setState(() => _saving = true);
     try {
       final repo = ref.read(assetRepositoryProvider);
@@ -241,6 +237,10 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
             const SizedBox(height: AppSpacing.s4),
 
             // 期初余额(可负,代表初始欠款)
+            // 2026-10-13 P6 改:
+            //   - inputFormatter 实时拒绝超过 9,999,999.99 的输入(超过不让进)
+            //   - 输入框下面红字提示"上限 9,999,999.99"作为说明(永远显示)
+            //   - _save() 不再校验上限(inputFormatter 已经卡住,重复了)
             const _SectionLabel('期初余额'),
             const SizedBox(height: AppSpacing.s2),
             TextField(
@@ -251,6 +251,7 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
               ),
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'[\d.\-]')),
+                _BalanceLimitFormatter(),
               ],
               decoration: const InputDecoration(
                 hintText: '默认 0;负债可填负数',
@@ -258,7 +259,16 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
                 isDense: true,
               ),
             ),
-            const SizedBox(height: AppSpacing.s4),
+            // 2026-10-13 P6:输入框下面红字"上限 9,999,999.99"提示
+            // 跟 inputFormatter 联动:超过不让进,所以红字只是说明性提示
+            const Padding(
+              padding: EdgeInsets.only(top: 4, left: 4),
+              child: Text(
+                '上限 9,999,999.99',
+                style: TextStyle(fontSize: 11, color: AppStatus.error),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.s3),
 
             // 图标(8 选 1)
             const _SectionLabel('图标'),
@@ -666,5 +676,39 @@ class _TypeRadio extends StatelessWidget {
             )
           : null,
     );
+  }
+}
+
+/// 2026-10-13 P6 加:期初余额 inputFormatter
+/// - 超过 9,999,999.99 的输入实时拒绝(不让进 TextField)
+/// - 解析失败(null)也拒绝(防止 "1.2.3" / "abc" 之类垃圾)
+/// - 负号 / 小数点中间态允许(用户在打字过程中)
+/// - 跟 transaction_form 流水金额上限一致(app 定位个人记账)
+class _BalanceLimitFormatter extends TextInputFormatter {
+  static const double _maxAbs = 9999999.99;
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final text = newValue.text;
+    if (text.isEmpty) return newValue;
+
+    // 中间态:用户正在打负号或小数点,允许通过
+    if (text == '-' ||
+        text == '.' ||
+        text == '-.' ||
+        text.endsWith('-') ||
+        text.endsWith('.')) {
+      return newValue;
+    }
+
+    // 解析
+    final v = double.tryParse(text);
+    if (v == null) return oldValue; // 解析失败(如 "1.2.3" 多小数点)→ 拒绝
+    if (v.abs() > _maxAbs) return oldValue; // 超限 → 拒绝
+
+    return newValue;
   }
 }
