@@ -14,8 +14,8 @@
 //       - "月份" 7+ 项 → 列表 N 项月 + 底部"显示全部",sheet
 //         用 DraggableScrollableSheet(0.7/0.4/0.9)→ 长 list 可拖拽
 //         调高度 + ListView 内部滑动
-//   - MultiSelectCategorySheet — 多选 list(分类),DraggableScrollableSheet
-//   - MultiSelectAssetSheet — 多选 list(账户),DraggableScrollableSheet
+//   - MultiSelectCategorySheet — 多选 list(分类),P12 改 fixed SizedBox
+//   - MultiSelectAssetSheet — 多选 list(账户),DraggableScrollableSheet(暂不改)
 import 'package:flutter/material.dart';
 
 import '../../../core/database/app_database.dart';
@@ -197,6 +197,14 @@ Future<Object?> showSingleSelectSheet<T>(
 }
 
 /// 多选弹层(分类)—— 临时持有选择集合,点"确定"才提交
+///
+/// 2026-10-13 P12 UAT 改:DraggableScrollableSheet(0.7/0.4/0.9) →
+///   SafeArea + SizedBox(0.7 * screenHeight),同 P12 类型/月份 picker
+///   - 不可上滑调高(已废弃)
+///
+/// 下滑关闭 user 仍需要(关不了 sheet)→ 走 showModalBottomSheet 默认
+///   `enableDrag: true`,user 在把手/标题/底部按钮区下拖 → sheet dismiss
+///   (ListView 中段下拖仍由 ListView 接管,top of list 时下拖 bubble 到 sheet 关)
 class MultiSelectCategorySheet extends StatefulWidget {
   const MultiSelectCategorySheet({
     super.key,
@@ -224,13 +232,13 @@ class _MultiSelectCategorySheetState extends State<MultiSelectCategorySheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    return DraggableScrollableSheet(
-      initialChildSize: 0.7,
-      minChildSize: 0.4,
-      maxChildSize: 0.9,
-      expand: false,
-      builder: (ctx, scrollController) {
-        return Column(
+    // 2026-10-13 P12 UAT:固定 0.7 * screenHeight,不可上滑
+    // 下滑关闭靠 showModalBottomSheet 默认 enableDrag: true
+    final sheetHeight = MediaQuery.sizeOf(context).height * 0.7;
+    return SafeArea(
+      child: SizedBox(
+        height: sheetHeight,
+        child: Column(
           children: [
             Container(
               width: 36,
@@ -265,7 +273,6 @@ class _MultiSelectCategorySheetState extends State<MultiSelectCategorySheet> {
             const Divider(height: 1),
             Expanded(
               child: ListView.builder(
-                controller: scrollController,
                 itemCount: widget.categories.length,
                 itemBuilder: (_, i) {
                   final c = widget.categories[i];
@@ -334,7 +341,7 @@ class _MultiSelectCategorySheetState extends State<MultiSelectCategorySheet> {
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: () => Navigator.pop(ctx, _selected),
+                  onPressed: () => Navigator.pop(context, _selected),
                   style: FilledButton.styleFrom(
                     backgroundColor: isDark ? AppSecondary.cream : AppBrand.ink,
                     foregroundColor: isDark ? AppBrand.ink : null,
@@ -355,8 +362,8 @@ class _MultiSelectCategorySheetState extends State<MultiSelectCategorySheet> {
               ),
             ),
           ],
-        );
-      },
+        ),
+      ),
     );
   }
 }
