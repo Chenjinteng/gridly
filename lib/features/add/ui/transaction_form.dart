@@ -115,11 +115,15 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
         _calc.display = t.amount.toString();
       }
     } else {
-      // 新增模式:默认账户取 preselectedAssetType 段的第 1 个
+      // 新增模式:默认账户取 preselectedAssetType 段优先的
       //   (2026-10-13 P6:从硬编码 'cash_flow' 改成参数化,支持中央 + 长按选 type)
       //   短按 + → 'cash_flow'(默认);长按 + → 5 小圆选(investment/benefit/...)
       //   改用 addPostFrameCallback:第一次 build 时 ref 还没 ready,
       //   直接 read 会触发 "ref used outside build" 警告
+      //
+      // 2026-10-13 P7:优先选 isDefault=true 账户(user 在 form 里"设为默认"开关)
+      //   - 没有 isDefault 的(cash_flow 段默认账户未设置)→ fallback 到 typeAssets.first
+      //   - 仅在 _accountId 仍为 null 时赋值(避免覆盖用户已选的账户)
       final preselectedType = widget.preselectedAssetType ?? 'cash_flow';
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
@@ -130,8 +134,17 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
             .where((a) => a.type == preselectedType)
             .toList();
         if (typeAssets.isEmpty) return; // 该 type 段没账户,保持 null,save 时 banner 兜底
+        // 优先 isDefault=true,没有则 fallback 第 1 个
+        Asset? picked;
+        for (final a in typeAssets) {
+          if (a.isDefault) {
+            picked = a;
+            break;
+          }
+        }
+        picked ??= typeAssets.first;
         setState(() {
-          _accountId ??= typeAssets.first.id;
+          _accountId ??= picked!.id;
         });
       });
     }
