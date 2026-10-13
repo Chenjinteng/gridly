@@ -207,7 +207,7 @@ features/<name>/
 
 ---
 
-## Repository 状态速查(2026-10-10)
+## Repository 状态速查(2026-10-14)
 
 **接手本项目的 AI 协作者必读**,免得每轮从零摸索。
 
@@ -242,6 +242,26 @@ features/<name>/
   - `logo_reverse.png` 2048×2048 — 深炭黑底 + LOGO(反色,品牌资料用)
   - `logo_horizontal.png` 2752×1536 — LOGO + "格子记账" 文字(横版品牌)
 - **Launcher icon**(5 个 mipmap-*/ic_launcher.png)当前从 `logo_primary.png` 派生,2026-10-10 改成白底风格
+
+### v0.3.5 P18 进度(2026-10-14 完成,26 commits)
+
+- HEAD: `d54d7af style(tile): 不计入流水 chip 去边框`,已推 `origin/main`
+- commit 范围:`7ea90d3..d54d7af`
+- 主要文件改动:
+  - `lib/features/add/ui/transaction_form.dart` — 5 getter 三段拆分 / save() dest 收益不存 / initState pre-fill
+  - `lib/core/database/repositories/asset_repository.dart` — `balanceDeltaByAssetId` 调拨 source / dest 各算各的
+  - `lib/core/theme/app_colors.dart` — 新增 `AppSegment` token
+  - `lib/features/settings/ui/widgets/{asset_summary_card,asset_tile}.dart` — 6 段色统一走 `AppSegment`
+  - `lib/features/ledger/ui/widgets/transaction_tile.dart` — 2×2 矩阵布局 / `_AccountBadge` 接受 destinationAccountId / 不计入流水 chip
+  - `lib/features/ledger/application/transactions_providers.dart` — monthSummary / filtered 排除投资 record + `includeInTransactions=false`
+  - `lib/features/ledger/ui/ledger_page.dart` — `_DaySection` 同步排除规则
+  - `lib/shared/constants/default_categories.dart` — seed 投资 2 类('投资投入' / '投资收益')
+  - `lib/core/database/repositories/category_repository.dart` — `ensureInvestmentCategories` 老 user 升级路径
+  - `lib/main.dart` — 启动调 `ensureInvestmentCategories()`
+- 已知遗留:
+  - ListTile + DecoratedBox 老异常(资产 / 分类管理页,跟 P18 无关,需要时单独 commit 修)
+  - 历史错数据(用户测试录入的 balanceDelta 错方向流水)user 自行处理
+- 详情见 [`docs/ROADMAP.md`](docs/ROADMAP.md) v0.3.5 章节 + [`docs/DEV.md`](docs/DEV.md) D32-D41 决策记录
 
 ### 这台机器的实际 host
 

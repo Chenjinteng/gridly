@@ -69,11 +69,101 @@
 - ✅ 共享池说明行(已分配 X · 共享池 Y),不展示重复"剩余/总额度"中段
 - ✅ push 子页过渡 360ms(slide-up 24px + fade 前 30% 完成,消除背景残影)
 
-### v0.2.0 阶段 2 · 多账户(待开)
+### v0.2.0 阶段 2 · 多账户 ✅(2026-10-14 完成)
 
-- 待做:多账户管理(银行卡 / 现金 / 支付宝 / 微信 等)
-- 待做:流水绑定账户维度
-- 待做:按账户统计余额
+基础 P0-P3 阶段:
+- ✅ 6 段账户类型 enum(`cash_flow` / `investment` / `benefit` / `receivable` / `fixed_asset` / `other`)
+- ✅ `assets` 表(Drift)+ `AssetRepository`(CRUD + 排序 + 默认账户)
+- ✅ 流水绑定账户维度(`transactions.accountId` NOT NULL,FK → assets)
+- ✅ 资产页(`/assets`)+ 资产汇总卡(总资产 + 6 段余额)
+- ✅ 实时余额计算(`assetBalancesProvider` = `initialBalance` + 流水净增量)
+- ✅ 现金调拨(单 accountId,不算月度收支)
+- ✅ 资产 `includeInTransactions` 开关(true / false)
+- ✅ 默认账户 `isDefault`(cash_flow 段"日常流水默认账户"标记)
+
+v0.3.5 增量(见下):投资场景三段拆分、调拨方向修正、6 段色重做、流水 tile 重构、余额校验、source/dest 双账户 chip、不计入流水 chip 等。
+
+---
+
+### v0.3.5 · 资产 + 收支重构 ✅(2026-10-14 完成)
+
+**目标**:投资 record 走完整 schema(投入/收益/调拨三段)+ listTile 视觉重构 + 6 段色 token 化。共 26 个 commit,详细设计决策见 [`DEV.md`](DEV.md) D32-D41。
+
+#### 1. 投资 record 三段拆分(`transaction_form.dart`)
+
+- ✅ 投入(_intent='input')→ DB `type='balance'` + 双账户(source=cash → dest=investment)
+- ✅ 收益(_intent='output')→ DB `type='income'` + 单账户(只 accountId,无 destinationAccountId)
+- ✅ 调拨(_intent='transfer')→ DB `type='balance'` + 双账户(任意 ↔ 任意,不限 type)
+- ✅ 5 个 getter 拆分:`_type` / `_needsDualAccount` / `_needsCategory` / `_accountTypeFilter` / `_destinationTypeFilter`
+- ✅ 投资分类不强制选(UI 隐藏,但 DB NOT NULL 字段需填,见 D32)
+- ✅ 6 段资产类型 + 6 段资产分类 seed 投资 2 类('投资投入' / '投资收益',cat.type='investment')
+
+#### 2. 关键 bug 修复
+
+- ✅ **`balanceDeltaByAssetId` 调拨方向反 + dest 漏处理**(D33)
+  - 修:balance 流水拆 source / dest 两次 group by
+  - source `delta -= sum`(转出),dest `delta += sum`(转入)
+  - 之前 source 累加 sum(用户看到的"中国银行转出 1000 但反 +1000"现象)
+- ✅ **转出超额无校验**(D34)
+  - save() 前 fetch source.cash_flow 余额,超过阻断
+  - 投资账户 source 不校验(市值波动,user 自负责)
+- ✅ **`_typeLabel` 漏 4 段翻译**(cash_flow / investment / benefit / receivable / fixed_asset / other 全 6 段)
+- ✅ **投资 record 挂"餐饮"分类**(D32 cat fallback 用 `投资投入` / `投资收益` 替代 `_firstCategoryId`)
+
+#### 3. 流水 tile 视觉重构(`transaction_tile.dart`)
+
+- ✅ **去掉 inline `分类名 · 备注` 方案,改 2×2 矩阵布局**
+  - 第 1 行:分类名(15sp w500)+ 金额(16sp w600)+ [不计入流水] chip
+  - 第 2 行:备注(12sp onSurfaceVariant)+ 资产 chip(11sp onSurfaceVariant)
+  - 高度统一,2 行(主体 + 辅助)
+- ✅ **`_AccountBadge` 接受 `destinationAccountId`**(D36)
+  - 投资 record 投入 / 调拨 → 显示 `[source chip] → [dest chip]`,中间 → 符号(AppGray.g400)
+  - 现金 / 投资收益(单账户)→ 维持 1 chip
+- ✅ **流水金额色 + 资产 chip 统一用段色**(D38)
+  - 抽 `AppSegment.colorFor(asset.type)` 集中 6 段色查询
+  - 流水页 + 资产页 + chip 全用同 token,跨页视觉一致
+- ✅ **不计入流水 chip**:`cat.type='investment'` 或 `source.includeInTransactions=false` 显示
+  - 跟 gridly 现有 `_TileChip` 风格一致(半透明 alpha 0.12 + 无边框 + 6px 圆角)
+  - 跟 monthSummary / _DaySection 汇总过滤规则同步
+- ✅ **去掉 `_AccountBadge` 内部 `Flexible` 嵌套**(被外层 `Expanded` 压成 0)
+  - 改 `mainAxisSize.min` + `ConstrainedBox(maxWidth: 100)` 解决
+
+#### 4. 6 段色 token 化(`app_colors.dart` + `asset_summary_card.dart` + `asset_tile.dart`)
+
+- ✅ 新增 `AppSegment` token,集中 6 段色查询
+- ✅ 6 段新色(拉大色相距离,避免撞色):
+  - `cash_flow` 现金流 → `#0EA5E9` 亮蓝
+  - `investment` 投资 → `#A855F7` 紫
+  - `benefit` 福利 → `#EC4899` 粉
+  - `receivable` 债权 → `#F59E0B` 橙
+  - `fixed_asset` 不动产 → `#06B6D4` 青
+  - `other` 其它 → `#71717A` 灰
+- ✅ 流水金额色 + 资产 icon 色 + 资产汇总 chip 全部统一 token
+- ✅ 删除 `asset_summary_card` / `asset_tile` 重复 switch
+
+#### 5. 汇总过滤规则
+
+- ✅ **monthSummary + _DaySection 排除**:
+  - 投资 record(cat.type='investment')→ 永远不计入(投资本质资产内部流转)
+  - source asset `includeInTransactions=false` → 不计入(user 在资产页关了开关)
+  - 跟 tile [不计入流水] chip 同步规则
+- ✅ 投资 record 仍在流水列表显示(可管理)但默认不计入月度 / 日结
+
+#### 6. 弹层 + 流水 Picker polish
+
+- ✅ 流水页 `_TypeRow` / `_MonthFilter` / `_CategoryFilter` 改 `DraggableScrollableSheet` 极值配置(`max=initial, min=0.0, snapSizes [0.0, X]`)
+- ✅ 高级筛选 inline 展开 cap 240px(避免 8 项分类第 8 项切 5px 不可点)
+- ✅ 切 cash_flow 支出 ↔ 收入 toggle 不再清空 `_accountId`(同 context 切,账户类型不变)
+- ✅ 投资场景 toggle 跨段(input ↔ output ↔ transfer)仍清账户(避免残留 source/dest 错位)
+
+#### 7. 已知遗留(下次清理)
+
+- ⚠️ **ListTile + DecoratedBox 嵌套老异常**(跟 P18 无关,资产 / 分类管理页 ListTile 套了 DecoratedBox 导致 selectedColor 不可见)
+  - 解决:`Material` 包 ListTile 或移除中间层 background color
+  - 暂时放着,不影响功能
+- ⚠️ **历史错数据**(用户在 P18 之前测试录入的流水,balanceDelta 错方向)
+  - 解决:用户在资产页改 initialBalance 兜底
+  - 不加自动数据迁移(测试数据由 user 自行处理)
 
 ---
 
@@ -83,7 +173,8 @@
 - **v0.2.0 阶段 1** ✅ 报表增强(Top 10 + 日均 + 分类色 + 流水筛选)
 - **v0.2.0.x** ✅ polish 与体验优化(20+ 项,见上文)
 - **v0.3.0** ✅ 分类预算精细化(2026-10-12 完成,见上文)
-- **v0.2.0 阶段 2** 🔜 多账户(账户维度 + 余额统计)
+- **v0.2.0 阶段 2** ✅ 多账户(2026-10-14 完成,见上文)
+- **v0.3.5** ✅ 资产 + 收支重构(2026-10-14 完成,26 commits,见上文)
 - **v0.4.0** 📋 i18n(英文 + 简繁中文)
 - **v0.5.0** 📋 数据导出增强(JSON / Excel)
 - **v0.5.5** 📋 局域网 Web 伴侣端(见 [`LAN_WEB.md`](LAN_WEB.md))
