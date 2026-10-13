@@ -120,9 +120,19 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   bool get _isInvestmentContext => widget.preselectedAssetType == 'investment';
 
   /// toggle segments 配置(2026-10-13 P8:caller 完全控制)
-  List<ToggleSegment> get _toggleSegments => _isInvestmentContext
-      ? TypeToggle.investmentSegments
-      : TypeToggle.cashFlowSegments;
+  /// 2026-10-13 P11 UAT 修:之前承诺 allowBalance=false 时过滤掉"调拨",
+  ///   但实现漏了 → 短按+ 仍出 3 段含"调拨",user:"日常现金流水只关注支出收入"
+  ///   - 短按 cash_flow(allowBalance=false)→ 2 段(支出/收入),无"调拨"
+  ///   - 长按 investment(_isInvestmentContext)→ investmentSegments 3 段
+  ///   - 长按 非投资(allowBalance=true)→ 3 段(支出/收入/调拨)
+  List<ToggleSegment> get _toggleSegments {
+    if (_isInvestmentContext) return TypeToggle.investmentSegments;
+    if (widget.allowBalance) return TypeToggle.cashFlowSegments;
+    // cash_flow + 不允许 balance → 过滤掉"调拨"
+    return TypeToggle.cashFlowSegments
+        .where((s) => s.key != 'balance')
+        .toList();
+  }
 
   /// 2026-10-13 P8:是否需要分类(只有 cash_flow 需要;投资场景分类去掉)
   bool get _needsCategory => !_isInvestmentContext;
