@@ -457,6 +457,11 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
         ? _categoryId!
         : ((await _firstCategoryId()) ?? 0);
     final note = _noteController.text.isEmpty ? null : _noteController.text;
+    // 2026-10-14 P18:投资收益单账户 → destinationAccountId 强制 null
+    //   - _needsDualAccount=false(收益)→ destForSave=null,DB 只存 accountId
+    //   - _needsDualAccount=true(投入/调拨)→ destForSave=_destinationAccountId,存 source→dest
+    //   - cash_flow:始终 _needsDualAccount=false → 传 null(原本行为)
+    final destForSave = _needsDualAccount ? _destinationAccountId : null;
     final repo = ref.read(transactionRepositoryProvider);
     try {
       if (_isEdit) {
@@ -467,8 +472,8 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
             type: _type,
             categoryId: categoryForSave,
             accountId: _accountId!,
-            // 2026-10-13 P8:双账户存 DB
-            destinationAccountId: Value(_destinationAccountId),
+            // 2026-10-14 P18:按 _needsDualAccount 决定存不存 destinationAccountId
+            destinationAccountId: Value(destForSave),
             occurredAt: _occurredAt,
             note: Value(note),
           ),
@@ -481,8 +486,8 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
           type: _type,
           categoryId: categoryForSave,
           accountId: _accountId!,
-          // 2026-10-13 P8:investment 场景传 destinationAccountId
-          destinationAccountId: _destinationAccountId,
+          // 2026-10-14 P18:投资收益不传 destination(单账户);投入/调拨传
+          destinationAccountId: destForSave,
           occurredAt: _occurredAt,
           note: note,
         );
