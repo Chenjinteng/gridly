@@ -1,33 +1,28 @@
 // lib/features/shell/ui/speed_dial_list_popup.dart
-// Speed Dial List Popup —— "输入法长按字母浮出变体"风格(纯 UI 组件)
+// Speed Dial List Popup —— "输入法长按字母浮出变体"风格
 //
-// 2026-10-13 P6 第 11 次改(2026-10-13 13:56 UAT:"长按弹 popup 后,得先
-//   松开再触碰才能滑动选"):
-//   - 之前自己内部用 Listener 监听 pointer events,失败:
-//     - 第 8 次改 GestureDetector → Listener(绕开 gesture arena)
-//     - 第 9 次改 localPosition → position(global 坐标)
-//     - 第 10 次改 _popupRect → 直接用 size 算
-//   - 但 user 反馈"还是不行,得松开再碰" — 说明 Listener 实际
-//     没收到 long press 之后的 PointerMove
-//   - 第 11 次改:**完全脱离 Overlay 机制**
-//     - Listener 移到 main_shell root Stack 内(覆盖全屏)
-//     - Listener 跟 _CenterFab 同一 widget tree(都在 main_shell 内),
-//       不被 Overlay 隔断,100% 接收 pointer events
-//     - hoveredIndex 状态由 main_shell 统一管理
-//     - SpeedDialListPopup 退化为纯 UI 组件
-//       (接受 hoveredIndex + onHoveredIndexChanged,内部不再有 Listener)
+// 2026-10-13 P6 第 12 次改(2026-10-13 14:11 UAT:"之前滑动能选,改了之后反而不行"):
+//   - 第 11 次改让 main_shell._computeHoveredIndex 用 MediaQuery.sizeOf,
+//     算的 size = full screen height(包含 statusBar)
+//   - SpeedDialListPopup 用 LayoutBuilder.constraints.maxHeight,
+//     算的 size = Stack 高度(screen - statusBar - bottomNav)
+//   - 两者不同,导致 fabCenterY / popupTop 算错,popupRect.contains(globalPos)
+//     永远 false,row 算不出来
+//   - 修法:把 Listener 放回 SpeedDialListPopup 内(全屏透明 Listener 覆盖整个屏幕),
+//     跟 main_shell 共用 LayoutBuilder 的 size,rowIndex 算算法跟 popup 位置一致
+//   - 通过 onHoveredIndexChanged callback 把 rowIndex 传出给 main_shell
+//   - main_shell 保留 _speedDialOpen 状态(开/关),_hoveredIndex 状态(高亮 row)
+//
+// 2026-10-13 P6 第 11 次改(2026-10-13 13:56 UAT):
+//   - 之前 Listener 在 Overlay 内(在 SpeedDialListPopup 内部),user 反馈
+//     "得先松开再触碰才能滑动选"——Listener 在 long press 触发时收不到
+//     pointer events(guesture arena 冲突)
+//   - 第 11 次改把 Listener 移到 main_shell root Stack 内,但 size 算法
+//     不一致,导致这次"之前滑动能选,改了之后反而不行"
 //
 // 2026-10-13 P6 第 5 次改(2026-10-13 11:53 UAT):
 //   - 从 Speed Dial Radial Menu(5 圆 180° 弧)改成"输入法长按字母浮出"模式
 //   - popup 锚定 + 圆上方,5 行垂直 list,跟手滑动选,松手 = 选中
-//   - 几何:popup 锚定在 + 圆上方 4px,5 row × 48px,row 高 48px
-//     icon chip 32 + 12 gap + name 14sp
-//
-// 2026-10-13 P6 第 6 次改:移除整体 Transform.scale/Opacity 动画,
-//   改用每行 StaggeredFadeIn 错峰 fade-in(20ms 错峰 + 8px 上推 + 360ms aquaIn)
-//
-// 2026-10-13 P6 第 7 次改:popup 距离 + 圆 10→4px,错峰 30→20ms,下尖角
-//   指向 + 圆(CustomPaint 三角形)
 import 'package:flutter/material.dart';
 
 import '../../../core/motion/app_motion.dart';
@@ -49,22 +44,23 @@ class SpeedDialItem {
   final Color color;
 }
 
-/// Speed Dial List Popup 主 widget(纯 UI,无 Listener)
-/// - 全屏覆盖(由父 widget 在 main_shell Stack 内)
-///
-/// [hoveredIndex]:当前拖到的 row index(由父 widget 算,传入)
-/// [onHoveredIndexChanged]:不暴露(父 widget 自己用 Listener + position 算)
+/// Speed Dial List Popup 主 widget
+///   - 全屏覆盖(由父 widget 在 main_shell Stack 内)
+///   - 内部用全屏透明 Listener 接管 pointer events(跟 _CenterFab 同 widget tree)
+///   - row index 通过 [onHoveredIndexChanged] 传出给 main_shell
 class SpeedDialListPopup extends StatefulWidget {
   const SpeedDialListPopup({
     super.key,
     required this.items,
     required this.hoveredIndex,
+    required this.onHoveredIndexChanged,
     required this.onSelected,
     required this.onDismiss,
   });
 
   final List<SpeedDialItem> items;
   final int? hoveredIndex;
+  final void Function(int? index) onHoveredIndexChanged;
   final void Function(SpeedDialItem item) onSelected;
   final VoidCallback onDismiss;
 
@@ -86,8 +82,7 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
   /// popup 顶部 padding
   static const double _popupPadding = 8;
 
-  /// 中心 + 圆在屏幕底部偏移(跟 main_shell 一致)
-  /// - 100 = 估算 nav 高度 72 + safe area bottom ~30 - buffer 2
+  /// 中心 + 圆在屏幕底部偏移
   static const double _fabOffsetFromBottom = 90;
 
   late final AnimationController _ctrl;
@@ -145,17 +140,94 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
                 ),
               ),
             ),
-            // popup 主体(纯渲染,不监听 pointer events — 由 main_shell 全屏 Listener 接管)
+            // popup 主体
             Positioned(
               left: popupLeft,
               top: popupTop,
               width: _popupWidth,
               child: _buildPopupContent(),
             ),
+            // 2026-10-13 P6 第 12 次改:全屏透明 Listener 接管 pointer events
+            //   - 覆盖整个屏幕(Positioned.fill)
+            //   - 跟 _CenterFab 同 widget tree(都在 main_shell Stack 内),
+            //     100% 接收 pointer events,不被 Overlay 隔断
+            //   - 跟 popup 主体共用 LayoutBuilder 的 size,rowIndex 算法一致
+            //   - HitTestBehavior.translucent 让 popup 主体内的 InkWell 也能 tap
+            Positioned.fill(
+              child: Listener(
+                onPointerMove: (e) =>
+                    _onPointerMove(e, popupTop, popupLeft, popupHeight, size),
+                onPointerUp: (e) =>
+                    _onPointerUp(e, popupTop, popupLeft, popupHeight, size),
+                behavior: HitTestBehavior.translucent,
+              ),
+            ),
           ],
         );
       },
     );
+  }
+
+  void _onPointerMove(
+    PointerEvent e,
+    double popupTop,
+    double popupLeft,
+    double popupHeight,
+    Size size,
+  ) {
+    final i = _computeRowIndex(
+      e.position,
+      popupTop,
+      popupLeft,
+      popupHeight,
+      size,
+    );
+    if (i != widget.hoveredIndex) {
+      widget.onHoveredIndexChanged(i);
+    }
+  }
+
+  void _onPointerUp(
+    PointerEvent e,
+    double popupTop,
+    double popupLeft,
+    double popupHeight,
+    Size size,
+  ) {
+    final i = _computeRowIndex(
+      e.position,
+      popupTop,
+      popupLeft,
+      popupHeight,
+      size,
+    );
+    if (i != null) {
+      widget.onSelected(widget.items[i]);
+    } else {
+      widget.onDismiss();
+    }
+  }
+
+  /// 根据 global position 算 hovered row
+  ///   - popupRect 跟 build 内 Positioned 用的值一致(同 LayoutBuilder)
+  ///   - pointer 在 popup 外 → null
+  int? _computeRowIndex(
+    Offset globalPos,
+    double popupTop,
+    double popupLeft,
+    double popupHeight,
+    Size size,
+  ) {
+    final popupRect = Rect.fromLTWH(
+      popupLeft,
+      popupTop,
+      _popupWidth,
+      popupHeight,
+    );
+    if (!popupRect.contains(globalPos)) return null;
+    final relY = globalPos.dy - popupTop - _popupPadding;
+    final i = (relY / _rowHeight).floor().clamp(0, widget.items.length - 1);
+    return i;
   }
 
   /// popup 主体:圆角矩形 + 下尖角 + 5 行错峰 fade-in
@@ -226,7 +298,6 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
               : Colors.transparent,
           child: Row(
             children: [
-              // icon chip(32px 圆,type 配色)
               Container(
                 width: 32,
                 height: 32,
@@ -237,7 +308,6 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
                 child: Icon(item.icon, color: item.color, size: 18),
               ),
               const SizedBox(width: AppSpacing.s3),
-              // label
               Expanded(
                 child: Text(
                   item.label,
@@ -282,7 +352,6 @@ class _StaggeredRowFadeInState extends State<_StaggeredRowFadeIn>
       value: 0,
     );
     _t = CurvedAnimation(parent: _ctrl, curve: AppMotion.aquaIn);
-    // 20ms 错峰
     Future.delayed(Duration(milliseconds: widget.index * 20), () {
       if (mounted) _ctrl.forward();
     });

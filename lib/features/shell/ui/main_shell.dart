@@ -131,57 +131,14 @@ class _MainShellState extends ConsumerState<MainShell> {
     });
   }
 
-  /// 2026-10-13 P6 第 11 次改加:全屏 Listener 收到 PointerMove 时
-  ///   根据 position 算 hovered row
-  void _onSpeedDialPointerMove(PointerMoveEvent e) {
-    if (!_speedDialOpen) return;
-    final i = _computeHoveredIndex(e.position);
-    if (i != _hoveredIndex) {
-      setState(() {
-        _hoveredIndex = i;
-      });
-      if (i != null) AppHaptics.select();
-    }
-  }
-
-  /// 2026-10-13 P6 第 11 次改加:全屏 Listener 收到 PointerUp 时
-  ///   - hoveredIndex != null → onSelected(走对应 assetType)
-  ///   - hoveredIndex == null → dismiss
-  void _onSpeedDialPointerUp(PointerUpEvent e) {
-    if (!_speedDialOpen) return;
-    final i = _computeHoveredIndex(e.position);
-    if (i != null) {
-      _closeSpeedDial();
-      _pushAdd(assetType: _speedDialItems[i].key);
-    } else {
-      _closeSpeedDial();
-    }
-  }
-
-  /// 2026-10-13 P6 第 11 次改加:根据 global position 算 hovered row
-  ///   - 用 MediaQuery.sizeOf 拿屏幕 size
-  ///   - 跟 SpeedDialListPopup 内布局算法一致(fabCenterX, fabCenterY, popupLeft, popupTop)
-  ///   - main_shell 内统一管,SpeedDialListPopup 只需渲染 UI
-  int? _computeHoveredIndex(Offset globalPos) {
-    final size = MediaQuery.sizeOf(context);
-    const fabOffsetFromBottom = 90.0;
-    const popupPadding = 8.0;
-    const rowHeight = 48.0;
-    const popupWidth = 200.0;
-    const fabRadius = 28.0; // _CenterFab 56x56
-    final fabCenterX = size.width / 2;
-    final fabCenterY = size.height - fabOffsetFromBottom;
-    final popupHeight = popupPadding * 2 + _speedDialItems.length * rowHeight;
-    final popupLeft = fabCenterX - popupWidth / 2;
-    final popupTop = (fabCenterY - fabRadius - 4 - popupHeight).clamp(
-      20.0,
-      size.height - popupHeight - 20,
-    );
-    final popupRect = Rect.fromLTWH(popupLeft, popupTop, popupWidth, popupHeight);
-    if (!popupRect.contains(globalPos)) return null;
-    final relY = globalPos.dy - popupTop - popupPadding;
-    final i = (relY / rowHeight).floor().clamp(0, _speedDialItems.length - 1);
-    return i;
+  /// 2026-10-13 P6 第 12 次改:SpeedDialListPopup 内 Listener 算 rowIndex
+  ///   通过此 callback 传出,main_shell 只负责更新 _hoveredIndex 状态
+  void _onSpeedDialHoveredIndexChanged(int? i) {
+    if (i == _hoveredIndex) return;
+    setState(() {
+      _hoveredIndex = i;
+    });
+    if (i != null) AppHaptics.select();
   }
 
   /// 跳 /add 路由,带 preselectedAssetType extra
@@ -447,26 +404,16 @@ class _MainShellState extends ConsumerState<MainShell> {
         ),
         ),
         ),
-        // 2026-10-13 P6 第 11 次改:Speed Dial 全屏 Listener(覆盖整个屏幕)
-        //   - Positioned.fill 覆盖整个屏幕
-        //   - Listener 跟 _CenterFab 同一 widget tree(都在 main_shell Stack 内)
-        //   - 不走 Overlay 机制,100% 接收 pointer events
-        //   - HitTestBehavior.translucent 让下层 widget(导航 / 列表)也接收 events
-        //     (但 _speedDialOpen = false 时 Listener 不存在,不会拦截正常 flow)
-        if (_speedDialOpen)
-          Positioned.fill(
-            child: Listener(
-              onPointerMove: _onSpeedDialPointerMove,
-              onPointerUp: _onSpeedDialPointerUp,
-              behavior: HitTestBehavior.translucent,
-            ),
-          ),
-        // Speed Dial UI(在 Listener 之上,保证 InkWell 也能响应)
-        //   - hoveredIndex 由 main_shell 状态驱动,SpeedDialListPopup 纯渲染
+        // 2026-10-13 P6 第 12 次改:Listener 在 SpeedDialListPopup 内
+        //   (用 main_shell 跟 popup 同一个 Stack 内的 size 算 rowIndex,避免 size 不一致)
+        //   - main_shell 只管 _speedDialOpen(开/关) + _hoveredIndex(高亮)
+        //   - SpeedDialListPopup 自己用全屏 Listener 接管 pointer events,
+        //     跟 _CenterFab 同 widget tree,100% 接收 events
         if (_speedDialOpen)
           SpeedDialListPopup(
             items: _speedDialItems,
             hoveredIndex: _hoveredIndex,
+            onHoveredIndexChanged: _onSpeedDialHoveredIndexChanged,
             onSelected: (item) {
               _closeSpeedDial();
               _pushAdd(assetType: item.key);
