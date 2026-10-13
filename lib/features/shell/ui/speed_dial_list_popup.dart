@@ -243,9 +243,30 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
             decoration: BoxDecoration(
               color: theme.colorScheme.surface,
               borderRadius: AppRadius.brLg,
-              border: Border.all(
-                color: theme.colorScheme.outlineVariant,
-                width: 1,
+              // 2026-10-13 P6 UAT fix:矩形不画底边 border
+              //   - 之前 Border.all 4 边全画,矩形底边 1px outlineVariant
+              //     跟下方三角形的 fill 顶边 anti-alias 接缝,看起来像"横线"
+              //     截图标红框框那里
+              //   - 改 Border.only(top/left/right),底边 0
+              //   - 三角形 fillColor 同 surface,接缝平滑
+              //   - 三角形两条斜边 border 从矩形左/右 border 起点延伸,
+              //     形成完整 5 边包围(上/左/右 + 两条斜下)
+              // 注:Flutter 4.x 改用 BorderDirectional 或自己 const Border 4 边改 side
+              // 这里用最稳的 Border.all 然后在 _TrianglePainter 调整
+              border: Border(
+                top: BorderSide(
+                  color: theme.colorScheme.outlineVariant,
+                  width: 1,
+                ),
+                left: BorderSide(
+                  color: theme.colorScheme.outlineVariant,
+                  width: 1,
+                ),
+                right: BorderSide(
+                  color: theme.colorScheme.outlineVariant,
+                  width: 1,
+                ),
+                bottom: const BorderSide(color: Color(0x00000000), width: 0),
               ),
               boxShadow: [
                 BoxShadow(
