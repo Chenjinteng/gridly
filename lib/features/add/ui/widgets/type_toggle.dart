@@ -1,23 +1,31 @@
 // lib/features/add/ui/widgets/type_toggle.dart
-// 类型切换:支出 / 收入 / 调拨(可选)
+// 类型切换:支出 / 收入 / 调拨(可选) / 投入 / 收益(投资场景)
 //
 // 2026-10-13 P7 重设计(ColorOS 14 Aquamorphic 滑动 pill):
 //   滑动 pill 动画参考 features/stats/ui/widgets/range_tabs.dart(月/年切换):
-//   - 外层 surfaceContainerLowest 底 + brLg 圆角
+//   - 外层 surfaceContainerLowest 底 + brPill 圆角
 //   - Stack + AnimatedPositioned 单 pill 在 segment 之间水平滑动
 //   - pill 由原"两 segment 自带 bg" 改为"共享 1 个 pill"(切 tab 不会两边 bg 同时 fade,
 //     过渡"破碎"的观感问题修掉)
 //   - duration = AppMotion.fast(240ms),curve = aquaIn(ColorOS 水感前快后慢)
 //
+// 2026-10-13 P8 重构:segments 完全由 caller 传入(支持 cash_flow + investment 两套)
+//   - cash_flow:[('expense','支出',red),('income','收入',teal),('balance','调拨',softGold)]
+//   - investment:[('input','投入',gold),('output','收益',gold),('transfer','调拨',softGold)]
+//   - 全部 segment 自定义:label / icon / 颜色,caller 完全控制视觉系统
+//
 // 颜色语义化(user UAT 反馈:支出/收入要"主题蓝色"):
 //   - 支出 (expense) → AppStatus.error (#EF4444 红)
 //   - 收入 (income)  → AppBrand.teal (#14B8A6 主题蓝)
 //   - 调拨 (balance) → AppSecondary.softGold (#FFEAA7 浅金,中性,跟 income 区分)
-// 收入色改 teal 是为跟 AmountDisplay 数字色 + "保存"按钮 + today pill 形成视觉系统。
+//   - 投入 (input)   → AppBrand.gold (#F5BC1F 投资主题金,跟资产 'investment' 配色一致)
+//   - 收益 (output)  → AppBrand.gold (#F5BC1F 投资主题金)
+//   - transfer       → AppSecondary.softGold (浅金,跟 input/output 区分)
 //
 // 业务规则(TransactionForm 内):
-//   - type='expense' / 'income' → 计入月度汇总(已花 / 收入)
-//   - type='balance' → 不计入月度汇总,仅算对应资产 currentBalance 变动
+//   - cash_flow: type='expense' / 'income' / 'balance' 直接对应 DB
+//   - investment: intent='input'/'output'/'transfer' 全部存 DB type='balance'
+//     + destinationAccountId(commit ff440e0 加的列)表达 source→dest 流向
 import 'package:flutter/material.dart';
 
 import '../../../../core/motion/app_motion.dart';
@@ -25,45 +33,100 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/card_shadows.dart';
 
+/// toggle 单段配置(2026-10-13 P8 加)
+class ToggleSegment {
+  const ToggleSegment({
+    required this.key,
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
+
+  /// 内部 key,也是 toggle value:
+  ///   - cash_flow:'expense' / 'income' / 'balance' (与 DB type 直接对应)
+  ///   - investment:'input' / 'output' / 'transfer' (commit ff440e0 后
+  ///     TransactionForm 在 save() 里把这 3 个 key 都映射为 DB type='balance',
+  ///     通过 destinationAccountId 区分 source→dest)
+  final String key;
+
+  /// 显示文字(支出 / 收入 / 调拨 / 投入 / 收益 / ...)
+  final String label;
+
+  /// 段内 icon(18dp)
+  final IconData icon;
+
+  /// 段主色(选中 pill bg tint + icon/label 文字色)
+  final Color color;
+}
+
 class TypeToggle extends StatelessWidget {
   const TypeToggle({
     super.key,
     required this.value,
     required this.onChanged,
-    this.allowBalance = true,
+    required this.segments,
   });
+
+  /// 当前选中段的 key
   final String value;
+
+  /// 段切换回调,参数是选中段的 key
   final ValueChanged<String> onChanged;
-  final bool allowBalance;
 
-  /// 3 段配置(顺序按查看频度:支出 > 收入 > 调拨)
-  static const _baseOptions = [
-    ('expense', '支出', Icons.arrow_outward_rounded),
-    ('income', '收入', Icons.south_west_rounded),
+  /// 段配置(2 或 3 段),由 caller 完全控制
+  final List<ToggleSegment> segments;
+
+  /// cash_flow 默认 segments(短按+ 默认)
+  static const cashFlowSegments = <ToggleSegment>[
+    ToggleSegment(
+      key: 'expense',
+      label: '支出',
+      icon: Icons.arrow_outward_rounded,
+      color: AppStatus.error, // #EF4444
+    ),
+    ToggleSegment(
+      key: 'income',
+      label: '收入',
+      icon: Icons.south_west_rounded,
+      color: AppBrand.teal, // #14B8A6
+    ),
+    ToggleSegment(
+      key: 'balance',
+      label: '调拨',
+      icon: Icons.swap_horiz_rounded,
+      color: AppSecondary.softGold, // #FFEAA7
+    ),
   ];
-  static const _balanceOption = ('balance', '调拨', Icons.swap_horiz_rounded);
 
-  /// 语义色:type 名 → 主色 + 18% tint bg
-  /// 支出 = 红(强调"花钱出去"),收入 = 主题蓝(强调"钱进来"),调拨 = 浅金(中性,跟 income 区分)
-  static Color _primaryFor(String type) {
-    switch (type) {
-      case 'expense':
-        return AppStatus.error; // #EF4444
-      case 'income':
-        return AppBrand.teal; // #14B8A6
-      default:
-        return AppSecondary.softGold; // balance / #FFEAA7
-    }
-  }
+  /// investment 默认 segments(长按+ 5 段选)
+  static const investmentSegments = <ToggleSegment>[
+    ToggleSegment(
+      key: 'input',
+      label: '投入',
+      icon: Icons.arrow_upward_rounded,
+      color: AppBrand.gold, // #F5BC1F 投资主题金
+    ),
+    ToggleSegment(
+      key: 'output',
+      label: '收益',
+      icon: Icons.payments_rounded,
+      color: AppBrand.gold,
+    ),
+    ToggleSegment(
+      key: 'transfer',
+      label: '调拨',
+      icon: Icons.swap_horiz_rounded,
+      color: AppSecondary.softGold,
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final segments = allowBalance
-        ? [..._baseOptions, _balanceOption]
-        : _baseOptions;
-    final selectedIndex = segments.indexWhere((seg) => seg.$1 == value);
-    final selectedColor = _primaryFor(value);
+    final selectedIndex = segments.indexWhere((seg) => seg.key == value);
+    final selectedColor = selectedIndex >= 0
+        ? segments[selectedIndex].color
+        : segments.first.color;
 
     return Container(
       height: 48,
@@ -108,11 +171,11 @@ class TypeToggle extends StatelessWidget {
                   for (final seg in segments)
                     Expanded(
                       child: _Segment(
-                        label: seg.$2,
-                        icon: seg.$3,
-                        selected: value == seg.$1,
-                        color: _primaryFor(seg.$1),
-                        onTap: () => onChanged(seg.$1),
+                        label: seg.label,
+                        icon: seg.icon,
+                        selected: value == seg.key,
+                        color: seg.color,
+                        onTap: () => onChanged(seg.key),
                       ),
                     ),
                 ],

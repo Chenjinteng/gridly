@@ -85,16 +85,45 @@ class _CalcState {
 }
 
 class _TransactionFormState extends ConsumerState<TransactionForm> {
-  String _type = 'expense';
-  int? _categoryId;
+  // 2026-10-13 P8 重构:用 _intent 表达 toggle UI 语义,用 _type 表达 DB 存储
+  // - cash_flow:_intent = _type = 'expense' / 'income' / 'balance'(1:1 对应 DB)
+  // - investment:_intent = 'input' / 'output' / 'transfer',DB _type 始终 'balance',
+  //   通过 destinationAccountId 表达 source→dest 流向
+  String _intent = 'expense';
+
+  /// DB 存储的实际 type:
+  /// - cash_flow → 直接用 _intent(expense / income / balance)
+  /// - investment → 全部存 'balance',destinationAccountId 区分 source→dest
+  String get _type {
+    if (_isInvestmentContext) return 'balance';
+    return _intent;
+  }
+
+  int? _categoryId; // cash_flow 才有;investment 不需要
   DateTime _occurredAt = DateTime.now();
   // 2026-10-12 P3 commit 加:账户选择(state)
   //   - 新增模式:initState 时取第一个 cash_flow 账户(displayOrder 升序 = "现金")
   //   - 编辑模式:用 editTransaction.accountId(已有流水自带)
-  //   - 改 _type 时**保留账户**(切换支出/收入/调拨不重置账户,跟用户"调拨对应账户"的预期一致)
+  //   - 改 _intent 时**保留账户**(切换支出/收入/调拨不重置账户,跟用户"调拨对应账户"的预期一致)
+  // 2026-10-13 P8:investment 场景下 _accountId 是"转出",_destinationAccountId 是"转入"
   int? _accountId;
+  int? _destinationAccountId;
   final _noteController = TextEditingController();
   final _calc = _CalcState();
+
+  /// 2026-10-13 P8:投资场景标识
+  bool get _isInvestmentContext => widget.preselectedAssetType == 'investment';
+
+  /// toggle segments 配置(2026-10-13 P8:caller 完全控制)
+  List<ToggleSegment> get _toggleSegments => _isInvestmentContext
+      ? TypeToggle.investmentSegments
+      : TypeToggle.cashFlowSegments;
+
+  /// 2026-10-13 P8:是否需要分类(只有 cash_flow 需要;投资场景分类去掉)
+  bool get _needsCategory => !_isInvestmentContext;
+
+  /// 2026-10-13 P8:是否需要双账户(只 investment 需要;cash_flow 调拨暂保留单 accountId)
+  bool get _needsDualAccount => _isInvestmentContext;
 
   bool get _isEdit => widget.editTransaction != null;
 
@@ -104,9 +133,10 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     final t = widget.editTransaction;
     if (t != null) {
       // 编辑模式:预填已有数据
-      _type = t.type;
-      _categoryId = t.categoryId;
+      _intent = t.type; // cash_flow 直接 1:1;investment 编辑 mode 暂不开放(本期只改新增)
+      _categoryId = _needsCategory ? t.categoryId : null;
       _accountId = t.accountId;
+      _destinationAccountId = t.destinationAccountId;
       _occurredAt = t.occurredAt;
       _noteController.text = t.note ?? '';
       // 金额显示:整数显示整数,小数保留原值
@@ -125,29 +155,88 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       // 2026-10-13 P7:优先选 isDefault=true 账户(user 在 form 里"设为默认"开关)
       //   - 没有 isDefault 的(cash_flow 段默认账户未设置)→ fallback 到 typeAssets.first
       //   - 仅在 _accountId 仍为 null 时赋值(避免覆盖用户已选的账户)
+      //
+      // 2026-10-13 P8:investment 场景 init 时也填一个 _destinationAccountId 占位
+      //   - 投资场景 _intent 默认 'input'(投入:cash→investment)
+      //   - 转出默认 cash_flow 第一个,转入默认 investment 第一个
       final preselectedType = widget.preselectedAssetType ?? 'cash_flow';
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
         final repo = ref.read(assetRepositoryProvider);
         final assets = await repo.all();
         if (!mounted) return;
+        // 2026-10-13 P8:双账户预选
+        // - _accountId = 转出(默认 preselectedAssetType 段第 1 个 / isDefault)
+        // - _destinationAccountId = 转入(根据 _intent 推导目标 type)
         final typeAssets = assets
             .where((a) => a.type == preselectedType)
             .toList();
-        if (typeAssets.isEmpty) return; // 该 type 段没账户,保持 null,save 时 banner 兜底
-        // 优先 isDefault=true,没有则 fallback 第 1 个
-        Asset? picked;
+        Asset? pickedSource;
         for (final a in typeAssets) {
           if (a.isDefault) {
-            picked = a;
+            pickedSource = a;
             break;
           }
         }
-        picked ??= typeAssets.first;
+        pickedSource ??= typeAssets.isEmpty ? null : typeAssets.first;
+        // 2026-10-13 P8:investment 场景默认"投入"(cash → investment),预选 dest = investment
+        Asset? pickedDest;
+        if (_isInvestmentContext) {
+          final destType = _destTypeForIntent(_intent);
+          final destAssets = assets.where((a) => a.type == destType).toList();
+          pickedDest = destAssets.isEmpty ? null : destAssets.first;
+        }
         setState(() {
-          _accountId ??= picked!.id;
+          _accountId ??= pickedSource?.id;
+          if (_isInvestmentContext) {
+            _destinationAccountId ??= pickedDest?.id;
+          }
         });
       });
+    }
+  }
+
+  /// 2026-10-13 P8:根据 _intent 推导 destinationAccountId 的目标 type
+  /// - 投入(input):dest = investment
+  /// - 收益(output):dest = cash_flow
+  /// - 调拨(transfer):dest = (不限,任何 type)
+  String _destTypeForIntent(String intent) {
+    switch (intent) {
+      case 'input':
+        return 'investment';
+      case 'output':
+        return 'cash_flow';
+      default:
+        return ''; // transfer:不限
+    }
+  }
+
+  /// 2026-10-13 P8:account picker filter —— 根据 _intent 限定可选项
+  /// - cash_flow:不 filter(原有逻辑)
+  /// - investment 投入(input):转出 filter=cash_flow;转入 filter=investment
+  /// - investment 收益(output):转出 filter=investment;转入 filter=cash_flow
+  /// - investment 调拨(transfer):不 filter(任意 ↔ 任意)
+  String? get _accountTypeFilter {
+    if (!_isInvestmentContext) return null;
+    switch (_intent) {
+      case 'input':
+        return 'cash_flow'; // 转出:从 cash_flow 出
+      case 'output':
+        return 'investment'; // 转出:从 investment 出
+      default:
+        return null; // transfer:不限
+    }
+  }
+
+  String? get _destinationTypeFilter {
+    if (!_isInvestmentContext) return null;
+    switch (_intent) {
+      case 'input':
+        return 'investment'; // 转入:进 investment
+      case 'output':
+        return 'cash_flow'; // 转入:进 cash_flow
+      default:
+        return null; // transfer:不限
     }
   }
 
@@ -310,7 +399,8 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       _toast('金额要大于 0');
       return;
     }
-    if (_categoryId == null) {
+    // 2026-10-13 P8:分类只在 cash_flow 必需;investment 不需要分类
+    if (_needsCategory && _categoryId == null) {
       _toast('选个分类');
       return;
     }
@@ -321,6 +411,17 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       _toast('先在"我的"里建账户');
       return;
     }
+    // 2026-10-13 P8:investment 场景必须同时填转入账户,否则 banner 提示
+    if (_needsDualAccount && _destinationAccountId == null) {
+      _toast('选个转入账户');
+      return;
+    }
+    // 2026-10-13 P8:investment 场景下 DB transactions.categoryId NOT NULL 字段
+    //   需要非空值,虽然 investment 不用分类。fallback 用任意一个有效 category id
+    //   (DB schema 限制,语义上忽略)。后续如要彻底不要分类,需把 schema 改 nullable。
+    final categoryForSave = _needsCategory
+        ? _categoryId!
+        : ((await _firstCategoryId()) ?? 0);
     final note = _noteController.text.isEmpty ? null : _noteController.text;
     final repo = ref.read(transactionRepositoryProvider);
     try {
@@ -330,8 +431,10 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
           widget.editTransaction!.copyWith(
             amount: value,
             type: _type,
-            categoryId: _categoryId!,
+            categoryId: categoryForSave,
             accountId: _accountId!,
+            // 2026-10-13 P8:双账户存 DB
+            destinationAccountId: Value(_destinationAccountId),
             occurredAt: _occurredAt,
             note: Value(note),
           ),
@@ -342,8 +445,10 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
         await repo.add(
           amount: value,
           type: _type,
-          categoryId: _categoryId!,
+          categoryId: categoryForSave,
           accountId: _accountId!,
+          // 2026-10-13 P8:investment 场景传 destinationAccountId
+          destinationAccountId: _destinationAccountId,
           occurredAt: _occurredAt,
           note: note,
         );
@@ -450,7 +555,10 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   ///   第 2 行:[备注输入框(弹性占满)] [保存按钮(固定宽度 80)]
   Widget _actionRow(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final catsAsync = ref.watch(categoriesByTypeProvider(_type));
+    // 2026-10-13 P8:分类只在 cash_flow 需要;investment 不 watch 分类
+    final catsAsync = _needsCategory
+        ? ref.watch(categoriesByTypeProvider(_intent))
+        : const AsyncValue<List<Category>>.data(<Category>[]);
     Category? sel;
     catsAsync.whenData((cats) {
       for (final c in cats) {
@@ -464,15 +572,15 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     // 2026-10-12 P3 commit 加:账户 chip —— 监听 allAssetsProvider 取已选账户对象
     final assetsAsync = ref.watch(allAssetsProvider);
     Asset? selAccount;
+    Asset? selDestAccount;
     assetsAsync.whenData((assets) {
       for (final a in assets) {
-        if (a.id == _accountId) {
-          selAccount = a;
-          break;
-        }
+        if (a.id == _accountId) selAccount = a;
+        if (a.id == _destinationAccountId) selDestAccount = a;
       }
     });
     final hasAccount = selAccount != null;
+    final hasDestAccount = selDestAccount != null;
     final isToday =
         _occurredAt.year == DateTime.now().year &&
         _occurredAt.month == DateTime.now().month &&
@@ -493,51 +601,105 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 2026-10-13 P7 UAT:第 1 行 —— 3 个等宽 pill(日期/账户/分类)
-          Row(
-            children: [
-              // 1) 日期 pill
-              Expanded(
-                child: _ActionPill(
-                  icon: Icons.calendar_today_rounded,
-                  label: isToday
-                      ? '今天'
-                      : '${_occurredAt.month}月${_occurredAt.day}日',
-                  highlighted: isToday,
-                  highlightColor: AppBrand.teal,
-                  onTap: _pickDate,
+          // 2026-10-13 P7 UAT:第 1 行 —— 3 个等宽 pill
+          // 2026-10-13 P8 UAT 改:按场景切 layout
+          //  - cash_flow 非 balance:[日期][账户][分类]
+          //  - cash_flow balance + investment 任意:[日期][转出][转入]
+          if (_needsDualAccount)
+            Row(
+              children: [
+                Expanded(
+                  child: _ActionPill(
+                    icon: Icons.calendar_today_rounded,
+                    label: isToday
+                        ? '今天'
+                        : '${_occurredAt.month}月${_occurredAt.day}日',
+                    highlighted: isToday,
+                    highlightColor: AppBrand.teal,
+                    onTap: _pickDate,
+                  ),
                 ),
-              ),
-              const SizedBox(width: AppSpacing.s2),
-              // 2) 账户 chip(P3 加):显示已选账户 icon + name,没选时显示"选账户"
-              Expanded(
-                child: _ActionPill(
-                  icon: _assetIconFor(selAccount),
-                  label: hasAccount ? selAccount!.name : '选账户',
-                  highlighted: hasAccount,
-                  highlightColor: hasAccount ? Color(selAccount!.color) : null,
-                  iconColorOverride: hasAccount
-                      ? Color(selAccount!.color)
-                      : null,
-                  onTap: _openAccountPicker,
+                const SizedBox(width: AppSpacing.s2),
+                Expanded(
+                  child: _ActionPill(
+                    icon: _assetIconFor(selAccount),
+                    label: hasAccount ? selAccount!.name : '转出',
+                    highlighted: hasAccount,
+                    highlightColor: hasAccount
+                        ? Color(selAccount!.color)
+                        : null,
+                    iconColorOverride: hasAccount
+                        ? Color(selAccount!.color)
+                        : null,
+                    onTap: _openAccountPicker,
+                  ),
                 ),
-              ),
-              const SizedBox(width: AppSpacing.s2),
-              // 3) 分类 chip
-              Expanded(
-                child: _ActionPill(
-                  icon: hasCat
-                      ? (CategoryIcons.map[sel!.icon] ?? Icons.category_rounded)
-                      : Icons.category_outlined,
-                  label: hasCat ? sel!.name : '选分类',
-                  highlighted: hasCat,
-                  highlightColor: hasCat ? Color(sel!.color) : null,
-                  iconColorOverride: hasCat ? Color(sel!.color) : null,
-                  onTap: _openCategoryPicker,
+                const SizedBox(width: AppSpacing.s2),
+                Expanded(
+                  child: _ActionPill(
+                    icon: _assetIconFor(selDestAccount),
+                    label: hasDestAccount ? selDestAccount!.name : '转入',
+                    highlighted: hasDestAccount,
+                    highlightColor: hasDestAccount
+                        ? Color(selDestAccount!.color)
+                        : null,
+                    iconColorOverride: hasDestAccount
+                        ? Color(selDestAccount!.color)
+                        : null,
+                    onTap: _openDestinationAccountPicker,
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                // 1) 日期 pill
+                Expanded(
+                  child: _ActionPill(
+                    icon: Icons.calendar_today_rounded,
+                    label: isToday
+                        ? '今天'
+                        : '${_occurredAt.month}月${_occurredAt.day}日',
+                    highlighted: isToday,
+                    highlightColor: AppBrand.teal,
+                    onTap: _pickDate,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.s2),
+                // 2) 账户 chip(P3 加)
+                Expanded(
+                  child: _ActionPill(
+                    icon: _assetIconFor(selAccount),
+                    label: hasAccount ? selAccount!.name : '选账户',
+                    highlighted: hasAccount,
+                    highlightColor: hasAccount
+                        ? Color(selAccount!.color)
+                        : null,
+                    iconColorOverride: hasAccount
+                        ? Color(selAccount!.color)
+                        : null,
+                    onTap: _openAccountPicker,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.s2),
+                // 3) 分类 chip(只在 _needsCategory 时显示)
+                if (_needsCategory)
+                  Expanded(
+                    child: _ActionPill(
+                      icon: hasCat
+                          ? (CategoryIcons.map[sel!.icon] ??
+                                Icons.category_rounded)
+                          : Icons.category_outlined,
+                      label: hasCat ? sel!.name : '选分类',
+                      highlighted: hasCat,
+                      highlightColor: hasCat ? Color(sel!.color) : null,
+                      iconColorOverride: hasCat ? Color(sel!.color) : null,
+                      onTap: _openCategoryPicker,
+                    ),
+                  ),
+              ],
+            ),
           const SizedBox(height: AppSpacing.s2),
           // 2026-10-13 P7 UAT:第 2 行 —— 备注输入框(弹性占满)+ 保存按钮(固定宽度)
           // 备注独立成 pill 容宽容器,跟上面 3 个 pill 风格统一(surfaceContainerLow + outlineVariant)
@@ -669,6 +831,15 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     }
   }
 
+  /// 2026-10-13 P8 加:fallback 取第一个 category id(投资场景 DB 字段强制非空)
+  ///   - App 启动 seed 必有 4 类系统分类(餐/交/居家/...),所以不可能为空
+  ///   - 用 ref.read 拿一次性数据;不 watch,只 _save 一瞬间取一次
+  Future<int?> _firstCategoryId() async {
+    final repo = ref.read(categoryRepositoryProvider);
+    final cats = await repo.all();
+    return cats.isEmpty ? null : cats.first.id;
+  }
+
   /// 2026-10-12 P3 commit 加:账户选择 bottom sheet
   ///   - 类似 _openCategoryPicker,弹 modal sheet 显示所有账户列表
   ///   - 选完 → setState(_accountId) + pop
@@ -676,7 +847,10 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   ///   - 短按 'cash_flow' → 只显示 cash_flow 账户
   ///   - 长按 'investment' → 只显示 investment 账户
   ///   - null → 不过滤,显示所有账户
+  /// 2026-10-13 P8 UAT 改:investment 场景 _accountTypeFilter 优先(转出按 _intent 限定),
+  ///   cash_flow 用 widget.accountTypeFilter(原有逻辑)
   void _openAccountPicker() {
+    final filter = _accountTypeFilter ?? widget.accountTypeFilter;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -686,9 +860,32 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       ),
       builder: (_) => _AccountPickerSheet(
         selected: _accountId,
-        accountTypeFilter: widget.accountTypeFilter,
+        accountTypeFilter: filter,
         onSelect: (id) {
           setState(() => _accountId = id);
+          Navigator.of(context).pop();
+        },
+      ),
+    );
+  }
+
+  /// 2026-10-13 P8 加:转入账户 picker(只 investment 场景使用)
+  ///   - 按 _destinationTypeFilter 限定可选项
+  ///   - null → 不过滤
+  void _openDestinationAccountPicker() {
+    final filter = _destinationTypeFilter;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      builder: (_) => _AccountPickerSheet(
+        selected: _destinationAccountId,
+        accountTypeFilter: filter,
+        onSelect: (id) {
+          setState(() => _destinationAccountId = id);
           Navigator.of(context).pop();
         },
       ),
@@ -756,15 +953,18 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                   //   2026-10-13 P6:allowBalance=false 时隐藏"调拨"段
                   //   - 短按路径(老版,默认 cash_flow):allowBalance=false → 2 段
                   //   - 长按路径(目前保留):allowBalance=true → 3 段
+                  // 2026-10-13 P8:segments 由 caller 决定;cash_flow 用支出/收入/调拨,
+                  //   investment 用投入/收益/调拨
                   Align(
                     alignment: Alignment.center,
                     child: TypeToggle(
-                      value: _type,
+                      value: _intent,
+                      segments: _toggleSegments,
                       onChanged: (v) => setState(() {
-                        _type = v;
+                        _intent = v;
+                        // 2026-10-13 P8:切 intent 时只清 category(cash_flow 才有)
                         _categoryId = null;
                       }),
-                      allowBalance: widget.allowBalance,
                     ),
                   ),
                   const SizedBox(height: AppSpacing.s3),
