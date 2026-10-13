@@ -197,41 +197,57 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       //   - 没有 isDefault 的(cash_flow 段默认账户未设置)→ fallback 到 typeAssets.first
       //   - 仅在 _accountId 仍为 null 时赋值(避免覆盖用户已选的账户)
       //
-      // 2026-10-13 P8:investment 场景 init 时也填一个 _destinationAccountId 占位
-      //   - 投资场景 _intent 默认 'input'(投入:cash→investment)
-      //   - 转出默认 cash_flow 第一个,转入默认 investment 第一个
+      // 2026-10-14 P18 大改:investment 三段各自合理 pre-fill
+      //   - 投入 (_intent='input'):source=cash_flow(从现金)+ dest=investment(到投资账户)
+      //     投入本质是 cash → investment 的流向,引导 user 一眼看到默认配对
+      //   - 收益 (_intent='output'):_accountId=investment 第 1 个(只有投资账户能涨)
+      //     _destinationAccountId=null(单账户)
+      //   - 调拨 (_intent='transfer'):不预填(_accountId/_destinationAccountId 都 null)
+      //     user 反馈"只清理就好",转出/转入互不预设
+      //   - cash_flow:原行为,取第一个 cash_flow(isDefault 优先)
       final preselectedType = widget.preselectedAssetType ?? 'cash_flow';
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
         final repo = ref.read(assetRepositoryProvider);
         final assets = await repo.all();
         if (!mounted) return;
-        // 2026-10-13 P8:双账户预选
-        // - _accountId = 转出(默认 preselectedAssetType 段第 1 个 / isDefault)
-        // - _destinationAccountId = 转入(根据 _intent 推导目标 type)
-        //
-        // 2026-10-13 P9 UAT 改:investment 场景转出/转入都保持 null
-        // user:"只清理【日期】【转出】【转入】就好"
-        // - 转出和转入互相独立,用户场景多变,不要预填干扰选择
-        // - cash_flow 仍预填首个 cash_flow(isDefault 优先),原行为不变
-        if (!_isInvestmentContext) {
-          final typeAssets = assets
-              .where((a) => a.type == preselectedType)
-              .toList();
-          Asset? pickedSource;
-          for (final a in typeAssets) {
-            if (a.isDefault) {
-              pickedSource = a;
-              break;
-            }
+
+        // 通用 helper:从指定 type 段挑第一个(isDefault 优先)
+        Asset? pickFirst(String type) {
+          final list = assets.where((a) => a.type == type).toList();
+          for (final a in list) {
+            if (a.isDefault) return a;
           }
-          pickedSource ??= typeAssets.isEmpty ? null : typeAssets.first;
-          setState(() {
-            _accountId ??= pickedSource?.id;
-          });
+          return list.isEmpty ? null : list.first;
         }
-        // 2026-10-13 P9:investment 不预填,_accountId 和 _destinationAccountId 保持 null
-        // 用户开 form 必须显式选两个账户 → 跟"只清理"语义一致
+
+        int? pickedAccountId;
+        int? pickedDestId;
+        if (_isInvestmentContext) {
+          switch (_intent) {
+            case 'input':
+              // 投入:cash_flow(转出)+ investment(转入)
+              pickedAccountId = pickFirst('cash_flow')?.id;
+              pickedDestId = pickFirst('investment')?.id;
+            case 'output':
+              // 收益:investment(单账户)
+              pickedAccountId = pickFirst('investment')?.id;
+              pickedDestId = null;
+            case 'transfer':
+              // 调拨:不预填
+              pickedAccountId = null;
+              pickedDestId = null;
+          }
+        } else {
+          // cash_flow:原行为,取 preselectedType 段第 1 个(isDefault 优先)
+          pickedAccountId = pickFirst(preselectedType)?.id;
+          pickedDestId = null;
+        }
+
+        setState(() {
+          _accountId ??= pickedAccountId;
+          _destinationAccountId ??= pickedDestId;
+        });
       });
     }
   }
