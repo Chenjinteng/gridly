@@ -202,16 +202,16 @@ class _AssetFormSheetState extends ConsumerState<AssetFormSheet> {
               ),
               const SizedBox(height: AppSpacing.s3),
 
-              // 类型(2026-10-13 P6 第 3 次改:2 列 × 3 行卡片网格,直接选
-              //   - 之前 picker 弹底部 sheet → user 来回 2 步,过载
-              //   - 现在 6 个卡片全显示,点哪张选哪张,选中卡片有 primary tint
-              //   - ColorOS 风格:卡片化外观,看得见所有选项
+              // 类型(2026-10-13 P6 第 4 次改:单列垂直 list + radio
+              //   - 2 列 × 3 行卡片 grid 太大,user 反馈"这就是一个选项,不需要搞这么大"
+              //   - 改 ColorOS 系统"选择默认浏览器"同款:每行 icon + name + radio 单选圈
+              //   - 行高紧凑(56-64px),看得见 6 个选项但不过载
               const Text(
                 '类型',
                 style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: AppSpacing.s2),
-              _TypeCardGrid(
+              _TypeRadioList(
                 value: _type,
                 onPick: (v) => setState(() => _type = v),
               ),
@@ -383,9 +383,16 @@ class _AssetFormSheetState extends ConsumerState<AssetFormSheet> {
 //   - 未选卡片:浅 surface 背景 + outline border
 //   - ColorOS 风格:外观切换卡片,看得见 6 个选项
 // ============================================================================
+// 类型单选列表(2026-10-13 P6 第 4 次改):
+//   - 替代 _TypeCardGrid(2 列卡片网格过大)
+//   - 单列垂直 ListView,每行 ListTile 风格:icon chip (左) + label (主标) + radio (右)
+//   - 跟 ColorOS 系统"选择默认浏览器"同款,行高 56-64px 紧凑
+//   - 选中行:type 配色 0.12 底色 + radio 实心
+//   - 未选行:surfaceContainerLow 底色 + radio 空心
+// ============================================================================
 
-class _TypeCardGrid extends StatelessWidget {
-  const _TypeCardGrid({required this.value, required this.onPick});
+class _TypeRadioList extends StatelessWidget {
+  const _TypeRadioList({required this.value, required this.onPick});
 
   final String value;
   final ValueChanged<String> onPick;
@@ -421,34 +428,41 @@ class _TypeCardGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 2,
+    final theme = Theme.of(context);
+    return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: AppSpacing.s2,
-      crossAxisSpacing: AppSpacing.s2,
-      // childAspectRatio:宽度:高度 ≈ 1.5(每张卡片比宽 1.5 倍高,适合 icon + label)
-      childAspectRatio: 1.5,
-      children: [
-        for (final (key, label, icon) in _options)
-          _TypeCard(
-            key: ValueKey('type-card-$key'),
-            typeKey: key,
-            label: label,
-            icon: icon,
-            selected: value == key,
-            color: _colorFor(key),
-            onTap: () => onPick(key),
-          ),
-      ],
+      padding: EdgeInsets.zero,
+      itemCount: _options.length,
+      separatorBuilder: (_, _) => Divider(
+        height: 1,
+        thickness: 1,
+        color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+        indent: AppSpacing.s4,
+        endIndent: AppSpacing.s4,
+      ),
+      itemBuilder: (context, i) {
+        final (key, label, icon) = _options[i];
+        final selected = value == key;
+        final color = _colorFor(key);
+        return _TypeRadioRow(
+          typeKey: key,
+          label: label,
+          icon: icon,
+          selected: selected,
+          color: color,
+          onTap: () => onPick(key),
+        );
+      },
     );
   }
 }
 
-/// 单个类型卡片(2 列网格中的 1 张)
-class _TypeCard extends StatelessWidget {
-  const _TypeCard({
-    super.key,
+/// 单个类型 radio row(单列列表中的 1 行)
+/// 风格:icon chip (左) + label (主标,主) + radio (右)
+/// 跟 ColorOS 系统设置"选择默认浏览器"每行同款
+class _TypeRadioRow extends StatelessWidget {
+  const _TypeRadioRow({
     required this.typeKey,
     required this.label,
     required this.icon,
@@ -469,42 +483,40 @@ class _TypeCard extends StatelessWidget {
     final theme = Theme.of(context);
     return InkWell(
       onTap: onTap,
-      borderRadius: AppRadius.brMd,
       child: Container(
+        height: 56,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s3),
         decoration: BoxDecoration(
           color: selected
-              ? color.withValues(alpha: 0.12)
+              ? color.withValues(alpha: 0.10)
               : theme.colorScheme.surfaceContainerLow,
-          borderRadius: AppRadius.brMd,
-          border: Border.all(
-            color: selected ? color : theme.colorScheme.outlineVariant,
-            width: selected ? 1.5 : 1.0,
-          ),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Row(
           children: [
+            // icon chip(32px 圆形,左对齐)
             Container(
               width: 32,
               height: 32,
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.18),
-                borderRadius: AppRadius.brXs,
+                shape: BoxShape.circle,
               ),
               child: Icon(icon, color: color, size: 18),
             ),
-            const SizedBox(height: AppSpacing.s2),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                color: selected ? color : theme.colorScheme.onSurface,
+            const SizedBox(width: AppSpacing.s3),
+            // label(主标)
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                  color: selected ? color : theme.colorScheme.onSurface,
+                ),
               ),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
             ),
+            // radio(右对齐,自定义外观贴合 type 配色)
+            _TypeRadio(selected: selected, color: color),
           ],
         ),
       ),
@@ -512,4 +524,35 @@ class _TypeCard extends StatelessWidget {
   }
 }
 
-// 旧 _TypePickerRow 类已删(2026-10-13 P6 第 3 次改,用 _TypeCardGrid 替代)
+/// 自定义 radio(单选圈)
+/// - 选中:实心 type 配色 + 中心白点
+/// - 未选:outline 边框 + 中心空白
+class _TypeRadio extends StatelessWidget {
+  const _TypeRadio({required this.selected, required this.color});
+  final bool selected;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: selected ? color : theme.colorScheme.outline,
+          width: 2,
+        ),
+        color: selected ? color : Colors.transparent,
+      ),
+      child: selected
+          ? const Center(
+              child: Icon(Icons.check, color: Colors.white, size: 14),
+            )
+          : null,
+    );
+  }
+}
+
+// 旧 _TypePickerRow / _TypeCardGrid / _TypeCard 类已删(2026-10-13 P6 第 4 次改,用 _TypeRadioList + _TypeRadioRow + _TypeRadio 替代)
