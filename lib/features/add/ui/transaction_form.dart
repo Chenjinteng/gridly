@@ -98,9 +98,18 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
 
   /// DB 存储的实际 type:
   /// - cash_flow → 直接用 _intent(expense / income / balance)
-  /// - investment → 全部存 'balance',destinationAccountId 区分 source→dest
+  /// - investment → 投入/调拨存 'balance'(双账户,source→dest),收益存 'income'(单账户)
+  ///   2026-10-14 P18 大改:
+  ///   - 投入(_intent='input'):type='balance',双账户(source=cash → dest=investment)
+  ///   - 收益(_intent='output'):type='income',单账户(只有 accountId,无 destination)
+  ///     收益是账户自身的增长,没有"从哪到哪"的流向,跟转入转出语义无关
+  ///   - 调拨(_intent='transfer'):type='balance',双账户(任意 ↔ 任意)
+  ///   - 之前 P8→P17 一律存 'balance',收益也要 destinationAccountId(语义错)
   String get _type {
-    if (_isInvestmentContext) return 'balance';
+    if (_isInvestmentContext) {
+      if (_intent == 'output') return 'income'; // 收益:单账户增加
+      return 'balance'; // 投入/调拨:source → dest
+    }
     return _intent;
   }
 
