@@ -80,6 +80,12 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
   /// 当前拖到的 row index(null = 取消区 / 还没拖)
   int? _hoveredIndex;
 
+  /// 第 10 次改加:最近一次 build 算的 size(LayoutBuilder constraints = screen size)
+  ///   - 不依赖 addPostFrameCallback,无 race condition
+  ///   - Stack 在 Overlay 内,origin = (0, 0) global,所以
+  ///     popupLeft/popupTop (Stack 局部) = global 坐标
+  Size? _lastSize;
+
   /// popup 内每行高
   static const double _rowHeight = 48;
 
@@ -95,9 +101,6 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
 
   late final AnimationController _ctrl;
   late final Animation<double> _anim;
-
-  /// popup 矩形(RenderBox 计算后填)
-  Rect? _popupRect;
 
   @override
   void initState() {
@@ -119,20 +122,17 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
     super.dispose();
   }
 
-  /// 2026-10-13 P6 第 9 次改(2026-10-13 13:38 UAT:"长按弹 popup,
-  ///   手指不离开屏幕滑动选择对应项,想做一致性手势"):
-  ///   - 第 8 次改用 Listener 监听 pointer events,绕过 gesture arena
-  ///   - 但用 `event.localPosition`(Listener widget 局部坐标)跟 `_popupRect`
-  ///     (global 坐标)比较,**坐标系不匹配**,导致 row 算错位置不跟手
-  ///   - 改用 `event.position`(global 坐标)统一坐标系,跟 `_popupRect` 比较
+  /// 2026-10-13 P6 第 10 次改(2026-10-13 13:42 UAT:"滑动选还是不行"):
+  ///   - 之前用 _popupRect (renderBox.localToGlobal 算的 global rect) 算 row,
+  ///     依赖 addPostFrameCallback 异步填值,可能因 transform / race condition 算错
+  ///   - 改用已知的 `size` (LayoutBuilder constraints = screen size) +
+  ///     `popupLeft/popupTop` (Stack 局部) 直接算 row,Stack 在 Overlay 内
+  ///     origin = (0, 0) global,所以 Stack 局部坐标 = global 坐标
+  ///   - 同时保留 _popupRect 备查(只用于打印,不算 row)
   void _onPointerDown(PointerDownEvent e) {
-    // ignore: avoid_print
-    print('DEBUG_SPD: down pos=${e.position} localPos=${e.localPosition} popupRect=$_popupRect');
     _updateHover(e.position);
   }
   void _onPointerMove(PointerMoveEvent e) {
-    // ignore: avoid_print
-    print('DEBUG_SPD: move pos=${e.position} popupRect=$_popupRect hovered=$_hoveredIndex');
     _updateHover(e.position);
   }
 
@@ -140,8 +140,6 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
   ///   - 在 popup 内某 row 上 = onSelected
   ///   - 在 popup 外 / 中心取消区 = onDismiss(走默认 cash_flow)
   void _onPointerUp(PointerUpEvent e) {
-    // ignore: avoid_print
-    print('DEBUG_SPD: up pos=${e.position} hovered=$_hoveredIndex');
     _updateHover(e.position);
     if (_hoveredIndex != null) {
       widget.onSelected(widget.items[_hoveredIndex!]);
@@ -150,26 +148,32 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
     }
   }
 
+  /// popup 在屏幕上的矩形(从 size + 已知的 popupLeft/popupTop 算,Stack origin = global (0,0))
+  Rect? _computePopupRect() {
+    final size = _lastSize;
+    if (size == null) return null;
+    final fabCenterX = size.width / 2;
+    final fabCenterY = size.height - _fabOffsetFromBottom;
+    final popupHeight = _popupPadding * 2 + widget.items.length * _rowHeight;
+    final popupLeft = fabCenterX - _popupWidth / 2;
+    final popupTop = fabCenterY - 28 - 4 - popupHeight;
+    return Rect.fromLTWH(popupLeft, popupTop, _popupWidth, popupHeight);
+  }
+
   /// 根据手指位置算"当前激活的 row index"
-  /// - 如果手指在 popup 矩形内:算 row index
-  /// - 否则:取消(null)
+  /// - 用 _computePopupRect() 算当前 popup 位置(无 addPostFrameCallback race condition)
   void _updateHover(Offset pos) {
-    if (_popupRect == null) {
-      // ignore: avoid_print
-      print('DEBUG_SPD: _updateHover skip (popupRect null)');
-      return;
-    }
-    if (!_popupRect!.contains(pos)) {
+    final popupRect = _computePopupRect();
+    if (popupRect == null) return;
+    if (!popupRect.contains(pos)) {
       if (_hoveredIndex != null) {
         setState(() => _hoveredIndex = null);
       }
       return;
     }
     // 在 popup 内:算 row index
-    final relY = pos.dy - _popupRect!.top - _popupPadding;
+    final relY = pos.dy - popupRect.top - _popupPadding;
     final i = (relY / _rowHeight).floor().clamp(0, widget.items.length - 1);
-    // ignore: avoid_print
-    print('DEBUG_SPD: hovered row i=$i relY=$relY');
     if (i != _hoveredIndex) {
       AppHaptics.select();
       setState(() => _hoveredIndex = i);
@@ -184,6 +188,8 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
             constraints.maxWidth.isFinite && constraints.maxHeight.isFinite
             ? Size(constraints.maxWidth, constraints.maxHeight)
             : MediaQuery.sizeOf(context);
+        // 第 10 次改加:缓存 size 供 _updateHover 算 popupRect(无 race condition)
+        _lastSize = size;
         // + 圆位置
         final fabCenterX = size.width / 2;
         final fabCenterY = size.height - _fabOffsetFromBottom;
@@ -213,23 +219,10 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
               left: popupLeft,
               top: popupTop,
               width: _popupWidth,
-              // 2026-10-13 第 6 次改:移除整体 Transform.scale/Opacity 动画
-              //   改用每行 StaggeredFadeIn 错峰 fade-in(30ms 错峰 + 8px 上推)
-              //   popup 容器立即显示,无整体淡入
-              // 记录 popup Rect(用 Builder 在 widget 实际 layout 完后取)
-              child: Builder(
-                builder: (innerContext) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    final renderBox =
-                        innerContext.findRenderObject() as RenderBox?;
-                    if (renderBox != null && mounted) {
-                      final topLeft = renderBox.localToGlobal(Offset.zero);
-                      _popupRect = topLeft & renderBox.size;
-                    }
-                  });
-                  return _buildPopupContent();
-                },
-              ),
+              // 第 10 次改:不再用 Builder + addPostFrameCallback 算 _popupRect
+              //   改用 _lastSize (LayoutBuilder constraints) + popupLeft/popupTop
+              //   直接在 _updateHover 内 _computePopupRect 算
+              child: _buildPopupContent(),
             ),
             // 2026-10-13 P6 第 8 次改:Listener(非 GestureDetector)
             //   监听 pointer events,绕过 gesture arena,
