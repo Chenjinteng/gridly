@@ -146,14 +146,12 @@ final filteredTransactionsByDayProvider =
                 .where((c) => c.name.toLowerCase().contains(query))
                 .map((c) => c.id)
                 .toSet();
-      // 2026-10-14 P18 加:投资分类 id 集合,流水默认隐藏
-      //   - 投资 record(categoryId='投资投入'/'投资收益',commit 3 实施)不在 cash_flow 流水里出现
-      //   - user 在 advanced filter 主动勾选投资分类 → 允许显示(opt-in)
-      //   - ledgerCategoryFilterProvider 为空 → 默认隐藏;包含投资 cat → 显示
-      final investmentCatIds = allCats
-          .where((c) => c.type == 'investment')
-          .map((c) => c.id)
-          .toSet();
+      // 2026-10-14 P18 修正:投资 record 默认在流水页面显示
+      //   - user:"这些不计入流水的行为只是不计算,但是在流水页面还是要显示,
+      //     不然就会无法对这些记录进行管理"
+      //   - 之前 commit 4 默认隐藏 → 撤销,投资 record 正常显示在流水 tile 里
+      //   - 不计入月度/日结汇总的过滤移到 monthSummaryProvider 和 _DaySection
+      //     (基于 category.type='investment' 排除)
 
       final all = await ref.watch(transactionRepositoryProvider).all();
       final filtered = all.where((t) {
@@ -168,13 +166,6 @@ final filteredTransactionsByDayProvider =
         }
         // 分类(多选 OR:命中任一选中的 id)
         if (categoryFilter.isNotEmpty &&
-            !categoryFilter.contains(t.categoryId)) {
-          return false;
-        }
-        // 2026-10-14 P18:投资 record 默认隐藏
-        //   - 投资分类 record 不混入 cash_flow 流水
-        //   - 显式 opt-in:user 在 advanced filter 勾选了对应分类(分类 id 在 categoryFilter 里)
-        if (investmentCatIds.contains(t.categoryId) &&
             !categoryFilter.contains(t.categoryId)) {
           return false;
         }
