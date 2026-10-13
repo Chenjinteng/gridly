@@ -13,10 +13,20 @@ import '../../../core/database/app_database.dart';
 import 'transaction_form.dart';
 
 class AddTransactionPage extends StatelessWidget {
-  const AddTransactionPage({super.key, this.editTransaction});
+  const AddTransactionPage({
+    super.key,
+    this.editTransaction,
+    this.preselectedAssetType,
+  });
 
   /// 编辑模式:保留以兼容路由 /add?edit=xxx(目前主要走 sheet,这里极少用)
   final Transaction? editTransaction;
+
+  /// 2026-10-13 P6 commit:预选资产类型
+  /// - 短按 + → 'cash_flow'(默认,form 内 accountId 默认选现金段第 1 账户)
+  /// - 长按 + → 5 小圆选(investment/benefit/receivable/fixed_asset/other)
+  /// - null → 走原 cash_flow 兼容
+  final String? preselectedAssetType;
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +50,7 @@ class AddTransactionPage extends StatelessWidget {
       ),
       body: TransactionForm(
         editTransaction: editTransaction,
+        preselectedAssetType: preselectedAssetType,
         // 保存后也 pop(新增 / 编辑统一处理)
         onSaved: () => context.pop(),
       ),

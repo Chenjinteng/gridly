@@ -35,6 +35,7 @@ import '../../home/ui/home_page.dart';
 import '../../ledger/ui/ledger_page.dart';
 import '../../stats/ui/stats_page.dart';
 import '../../settings/ui/settings_page.dart';
+import 'speed_dial_radial_menu.dart';
 
 class MainShell extends ConsumerStatefulWidget {
   const MainShell({super.key});
@@ -61,6 +62,80 @@ class _MainShellState extends ConsumerState<MainShell> {
   /// 累计水平 swipe 距离(commit 47 加)。GestureDetector 不直接提供
   /// "总拖动距离",需在 onHorizontalDragUpdate 累加 dx
   double _swipeDx = 0;
+
+  /// 2026-10-13 P6 commit:Speed Dial overlay
+  /// - 长按中央 + 0.4s 弹 5 小圆(investment/benefit/receivable/fixed_asset/other)
+  /// - 选中后跳 /add 路由,extra = assetType 预选
+  /// - 短按 0.4s 内松手走默认(assetType = cash_flow)
+  OverlayEntry? _speedDialOverlay;
+
+  /// Speed Dial 5 小圆配置(5 个非现金流的 type)
+  /// 顺序:投资 / 福利 / 债权 / 不动产 / 其它(跟 asset_form 顺序一致)
+  /// 配色跟 asset_type 配色一致(gold/success/warning/info/gray600)
+  static const _speedDialItems = <SpeedDialItem>[
+    SpeedDialItem(
+      key: 'investment',
+      label: '投资',
+      icon: Icons.trending_up_rounded,
+      color: AppBrand.gold,
+    ),
+    SpeedDialItem(
+      key: 'benefit',
+      label: '福利',
+      icon: Icons.favorite_rounded,
+      color: AppStatus.success,
+    ),
+    SpeedDialItem(
+      key: 'receivable',
+      label: '债权',
+      icon: Icons.handshake_rounded,
+      color: AppStatus.warning,
+    ),
+    SpeedDialItem(
+      key: 'fixed_asset',
+      label: '不动产',
+      icon: Icons.home_rounded,
+      color: AppStatus.info,
+    ),
+    SpeedDialItem(
+      key: 'other',
+      label: '其它',
+      icon: Icons.category_rounded,
+      color: AppGray.g600,
+    ),
+  ];
+
+  void _openSpeedDial() {
+    if (_speedDialOverlay != null) return; // 防重入
+    final entry = OverlayEntry(
+      builder: (_) => SpeedDialRadialMenu(
+        items: _speedDialItems,
+        onSelected: (item) {
+          _closeSpeedDial();
+          _pushAdd(assetType: item.key);
+        },
+        onDismiss: _closeSpeedDial,
+      ),
+    );
+    _speedDialOverlay = entry;
+    Overlay.of(context).insert(entry);
+  }
+
+  void _closeSpeedDial() {
+    _speedDialOverlay?.remove();
+    _speedDialOverlay = null;
+  }
+
+  /// 跳 /add 路由,带 preselectedAssetType extra
+  ///   - assetType='cash_flow'(短按默认)→ form 选 cash_flow 第一个账户
+  ///   - assetType='investment'(长按选)→ form 选 investment 第一个账户
+  void _pushAdd({required String assetType}) {
+    final shellNav = shellNavigatorKey.currentState;
+    if (shellNav != null && shellNav.canPop()) {
+      shellNav.popUntil((route) => route.isFirst);
+    }
+    context.push('/add', extra: assetType);
+  }
 
   /// 4 个 tab 实际渲染的页面(dest 0/1/3/4 直接索引)
   static const _pages = <Widget>[
@@ -126,14 +201,13 @@ class _MainShellState extends ConsumerState<MainShell> {
 
   /// 处理 NavigationBar onDestinationSelected 入口。dest 是 5 个 destination
   /// 的索引(0/1/2/3/4),中央 + 是 dest 2 → push /add 路由,不走 tab 切换
+  ///
+  /// 2026-10-13 P6:dest 2 短按 = 默认 cash_flow(走 _pushAdd)
+  /// 长按由 _CenterFab 内部 GestureDetector → _openSpeedDial 处理
   void _handleDestSelected(int dest) {
     if (dest == 2) {
       AppHaptics.tap();
-      final shellNav = shellNavigatorKey.currentState;
-      if (shellNav != null && shellNav.canPop()) {
-        shellNav.popUntil((route) => route.isFirst);
-      }
-      context.push('/add');
+      _pushAdd(assetType: 'cash_flow');
       return;
     }
     switchToTab(dest < 2 ? dest : dest - 1);
@@ -264,35 +338,41 @@ class _MainShellState extends ConsumerState<MainShell> {
           // 关掉自带的 tonal pill(就是 M3 那个"小药丸"背景);
           // 我们只靠 icon + label 颜色变化表示选区
           indicatorColor: Colors.transparent,
-          destinations: const [
-            NavigationDestination(
+          // 2026-10-13 P6:destinations list 不能再 const(中央 + 接受 closure)
+          //   - 其它 4 个 destination 仍保留 const NavigationDestination(...) 内部,
+          //     但 list literal 整体需要去掉 const 才能混 _CenterFab(onLongPress: ...)
+          destinations: [
+            const NavigationDestination(
               icon: Icon(Icons.dashboard_outlined, size: 24),
               selectedIcon: Icon(Icons.dashboard_rounded, size: 24),
               label: '首页',
               tooltip: '',
             ),
-            NavigationDestination(
+            const NavigationDestination(
               icon: Icon(Icons.list_alt_outlined, size: 24),
               selectedIcon: Icon(Icons.list_alt_rounded, size: 24),
               label: '流水',
               tooltip: '',
             ),
             // 中央"+":大圆角色块
+            // 2026-10-13 P6:长按 0.4s 弹 Speed Dial(5 小圆选 type),短按走默认 cash_flow
+            //   - onTap:NavigationBar → onDestinationSelected → _handleDestSelected → _pushAdd
+            //   - onLongPress:_CenterFab 内部 GestureDetector → _openSpeedDial
             NavigationDestination(
               icon: Padding(
-                padding: EdgeInsets.only(bottom: AppSpacing.s1),
-                child: _CenterFab(),
+                padding: const EdgeInsets.only(bottom: AppSpacing.s1),
+                child: _CenterFab(onLongPress: _openSpeedDial),
               ),
               label: '',
               tooltip: '',
             ),
-            NavigationDestination(
+            const NavigationDestination(
               icon: Icon(Icons.pie_chart_outline, size: 24),
               selectedIcon: Icon(Icons.pie_chart_rounded, size: 24),
               label: '报表',
               tooltip: '',
             ),
-            NavigationDestination(
+            const NavigationDestination(
               icon: Icon(Icons.person_outline, size: 24),
               selectedIcon: Icon(Icons.person_rounded, size: 24),
               label: '我的',
@@ -308,23 +388,35 @@ class _MainShellState extends ConsumerState<MainShell> {
 /// 中央"+":大圆角色块,呼应 LOGO
 /// - BoxShape.circle 保证真正圆(56x56 下 borderRadius=24 是圆角矩形不是圆)
 /// - dark mode 下 ink 块 → cream,和 LOGO onDark 模式一致(避免和 Ink surface 融掉)
+/// - 2026-10-13 P6:加 onLongPress 弹 Speed Dial,onTap 由父 NavigationBar 转发
+///   不在 _CenterFab 内处理(避免双重响应)
 class _CenterFab extends StatelessWidget {
-  const _CenterFab();
+  const _CenterFab({required this.onLongPress});
+  final VoidCallback onLongPress;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      width: 56,
-      height: 56,
-      decoration: BoxDecoration(
-        color: isDark ? AppSecondary.cream : AppBrand.ink,
-        shape: BoxShape.circle,
-      ),
-      child: Icon(
-        Icons.add_rounded,
-        color: isDark ? AppBrand.ink : AppBrand.gold,
-        size: 32,
+    return GestureDetector(
+      // onTap 留空:让父 NavigationBar 转发 tap → onDestinationSelected → _handleDestSelected
+      // 只在 _CenterFab 内部处理 longPress,避免双重响应
+      onLongPress: () {
+        AppHaptics.tap();
+        onLongPress();
+      },
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          color: isDark ? AppSecondary.cream : AppBrand.ink,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          Icons.add_rounded,
+          color: isDark ? AppBrand.ink : AppBrand.gold,
+          size: 32,
+        ),
       ),
     );
   }

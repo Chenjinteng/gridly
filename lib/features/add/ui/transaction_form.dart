@@ -39,7 +39,12 @@ import 'widgets/numpad.dart';
 import 'widgets/type_toggle.dart';
 
 class TransactionForm extends ConsumerStatefulWidget {
-  const TransactionForm({super.key, this.editTransaction, this.onSaved});
+  const TransactionForm({
+    super.key,
+    this.editTransaction,
+    this.onSaved,
+    this.preselectedAssetType,
+  });
 
   /// 非空 → 编辑模式(预填 + 保存 update)
   /// 为空 → 新增模式(保存 insert)
@@ -47,6 +52,11 @@ class TransactionForm extends ConsumerStatefulWidget {
 
   /// 保存成功后回调(由调用方决定:AddTransactionPage 跳 /home,edit sheet 仅 dismiss)
   final VoidCallback? onSaved;
+
+  /// 2026-10-13 P6 commit:预选资产类型(短按 + 默认 'cash_flow',长按 + 5 小圆选)
+  /// - null 或 'cash_flow' → 取 cash_flow 段第 1 个账户作 accountId
+  /// - 其他 → 取对应 type 段第 1 个账户作 accountId
+  final String? preselectedAssetType;
 
   @override
   ConsumerState<TransactionForm> createState() => _TransactionFormState();
@@ -92,18 +102,23 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
         _calc.display = t.amount.toString();
       }
     } else {
-      // 新增模式:默认账户取第一个 cash_flow(displayOrder 升序 = "现金")
+      // 新增模式:默认账户取 preselectedAssetType 段的第 1 个
+      //   (2026-10-13 P6:从硬编码 'cash_flow' 改成参数化,支持中央 + 长按选 type)
+      //   短按 + → 'cash_flow'(默认);长按 + → 5 小圆选(investment/benefit/...)
       //   改用 addPostFrameCallback:第一次 build 时 ref 还没 ready,
       //   直接 read 会触发 "ref used outside build" 警告
+      final preselectedType = widget.preselectedAssetType ?? 'cash_flow';
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
         final repo = ref.read(assetRepositoryProvider);
         final assets = await repo.all();
         if (!mounted) return;
-        final cash = assets.where((a) => a.type == 'cash_flow').toList();
-        if (cash.isEmpty) return; // 没 cash_flow 账户,保持 null,save 时 banner 兜底
+        final typeAssets = assets
+            .where((a) => a.type == preselectedType)
+            .toList();
+        if (typeAssets.isEmpty) return; // 该 type 段没账户,保持 null,save 时 banner 兜底
         setState(() {
-          _accountId ??= cash.first.id;
+          _accountId ??= typeAssets.first.id;
         });
       });
     }

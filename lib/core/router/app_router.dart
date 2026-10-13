@@ -125,7 +125,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           key: state.pageKey,
           transitionDuration: AppMotion.normal,
           reverseTransitionDuration: AppMotion.fast,
-          child: const AddTransactionPage(),
+          // 2026-10-13 P6:接受 extra:preselectedAssetType(短按='cash_flow',长按=5 小圆选)
+          child: AddTransactionPage(
+            preselectedAssetType: state.extra as String?,
+          ),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return SlideTransition(
               position:
