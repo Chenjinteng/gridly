@@ -529,6 +529,11 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
+      // 2026-10-13 P15 UAT 改:加 shape 圆角,跟 _openAccountPicker 一致
+      //   之前漏了 → sheet 顶部直边跟其他 popup 视觉割裂
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
       builder: (_) => _CategoryPickerSheet(
         type: _type,
         selected: _categoryId,
