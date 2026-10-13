@@ -83,7 +83,7 @@ Future<Object?> showSingleSelectSheet<T>(
         maxChildSize: 0.7,
         // snap + snapSizes → 下拉缩到 0.0 即 dismiss,弹回 0.7 即恢复
         snap: true,
-        snapSizes: const [0.7, 0.0],
+        snapSizes: const [0.0, 0.7],
         expand: false,
         builder: (ctx, scrollController) {
           return Column(
@@ -245,7 +245,7 @@ class _MultiSelectCategorySheetState extends State<MultiSelectCategorySheet> {
       maxChildSize: 0.7,
       // snap + snapSizes → 下拉缩到 0.0 即 dismiss,弹回 0.7 即恢复
       snap: true,
-      snapSizes: const [0.7, 0.0],
+      snapSizes: const [0.0, 0.7],
       expand: false,
       builder: (ctx, scrollController) {
         return Column(
