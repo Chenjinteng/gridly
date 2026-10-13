@@ -5,10 +5,14 @@
 //   - 全屏路由版(类比 budget_management_page),viewInsets 由 Scaffold 处理
 //   - 顶部 AssetSummaryCard(总资产 + 4 大类汇总)
 //   - 4 段 _Group 按 type 分(现金流 / 不动产 / 负债 / 其他),无资产段不显示标题
-//   - AppBar 加号按钮 → AssetFormSheet(null) 新增
-//   - 点 tile 或编辑 IconButton → AssetFormSheet(existing) 编辑
+//   - AppBar 加号按钮 → AssetFormPage(null) 新增
+//   - 点 tile 或编辑 IconButton → AssetFormPage(existing) 编辑
 //   - 删除 IconButton → confirmDelete dialog(FK check:被引用流水数 > 0 提示先改)
 //   - 底部提示:删除账户时若已被流水引用,会被外键拒绝
+//
+// 2026-10-13 P6 commit:
+//   - AssetFormSheet → AssetFormPage,从 showModalBottomSheet 改 MaterialPageRoute 整页
+//   - _showForm 用 fullscreenDialog 过渡,新增/编辑完返回自然
 //
 // 跟 category_management_page.dart 镜像结构,确保 user 体验一致
 import 'package:flutter/material.dart';
@@ -17,12 +21,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/database/providers.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/asset_balance_provider.dart';
 import '../../../core/utils/gridly_banner.dart';
 import '../../../core/utils/refresh_providers.dart';
-import 'widgets/asset_form_sheet.dart';
+import 'widgets/asset_form_page.dart';
 import 'widgets/asset_summary_card.dart';
 import 'widgets/asset_tile.dart';
 
@@ -135,14 +138,15 @@ class AssetsManagementPage extends ConsumerWidget {
   }
 
   void _showForm(BuildContext context, Asset? existing) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+    // 2026-10-13 P6:从 showModalBottomSheet 改为 MaterialPageRoute 整页
+    // - 页面太长(6 段类型 + 8 icon + 16 调色板 + 期初余额 + 计入开关),sheet 太挤
+    // - sheet 没有明显关闭/返回按钮,user 容易卡死
+    // - 整页后 AppBar 自动有返回箭头 + 右上角"保存"check,操作闭环
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AssetFormPage(existing: existing),
+        fullscreenDialog: true, // 新增/编辑的整页用全屏 dialog 过渡
       ),
-      builder: (_) => AssetFormSheet(existing: existing),
     );
   }
 
