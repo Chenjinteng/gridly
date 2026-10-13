@@ -48,11 +48,12 @@ const allPicked = AllPicked();
 /// 2026-10-12 P5:showGeneralDialog → showModalBottomSheet(底部 modal sheet 风格)
 ///
 /// 2026-10-13 P11:showModalBottomSheet + Flexible(shrinkWrap) →
-///   DraggableScrollableSheet(0.7/0.4/0.9),同款 ledger MultiSelectCategorySheet
-///   / 调拨 account picker;同时列表过滤掉 AllPicked 项(底部"显示全部"按钮
-///   已替代表达"全部",user:"已经有显示全部按钮了,就不用在滚动里面有'全部'的选项")
-///   - 月份 7+ 项时长 list 可拖拽调高度 + 内部滑动
-///   - 类型 3 项时 sheet 仍起始 0.7(多 4 行留空),视觉一致
+///   DraggableScrollableSheet(0.7/0.4/0.9)→ P12 退回 fixed SizedBox
+///   - P11 反馈"已经有显示全部按钮了,就不用在滚动里面有'全部'的选项"
+///     → list 过滤 AllPicked,底部"显示全部"按钮作为唯一"全部"入口
+///   - P12 反馈"不要做什么还能往上滑动的操作了"→ 放弃 DraggableScrollableSheet
+///     → SizedBox 固定 0.7 * screenHeight,不可上滑,内部 ListView 自带滚动
+///     (长 list 仍能看,只是 sheet 高固定)
 Future<Object?> showSingleSelectSheet<T>(
   BuildContext context, {
   required String title,
@@ -63,7 +64,7 @@ Future<Object?> showSingleSelectSheet<T>(
   final listOptions = options.where((o) => o.$1 is! AllPicked).toList();
   return showModalBottomSheet<Object?>(
     context: context,
-    isScrollControlled: true, // DraggableScrollableSheet 需要
+    isScrollControlled: true,
     backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
@@ -71,15 +72,16 @@ Future<Object?> showSingleSelectSheet<T>(
     builder: (ctx) {
       final theme = Theme.of(ctx);
       final isDark = theme.brightness == Brightness.dark;
-      return DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        minChildSize: 0.4,
-        maxChildSize: 0.9,
-        expand: false,
-        builder: (ctx, scrollController) {
-          return Column(
+      // 2026-10-13 P12 UAT:固定 sheet 高 = 0.7 * screenHeight
+      //   不用 DraggableScrollableSheet,user:"不要做什么还能往上滑动的操作了"
+      //   内部 ListView 自带滚动(超长 list 仍能看,只是 sheet 高固定)
+      final sheetHeight = MediaQuery.sizeOf(ctx).height * 0.7;
+      return SafeArea(
+        child: SizedBox(
+          height: sheetHeight,
+          child: Column(
             children: [
-              // 把手
+              // 把手(visual only,不可拖)
               Container(
                 width: 36,
                 height: 4,
@@ -114,7 +116,6 @@ Future<Object?> showSingleSelectSheet<T>(
               const Divider(height: 1),
               Expanded(
                 child: ListView.builder(
-                  controller: scrollController,
                   itemCount: listOptions.length,
                   itemBuilder: (_, i) {
                     final (value, label) = listOptions[i];
@@ -149,7 +150,7 @@ Future<Object?> showSingleSelectSheet<T>(
                 ),
               ),
               const Divider(height: 1),
-              // 2026-10-13 P10 加:"显示全部"快捷键 — 单选列表无需"清空",
+              // 2026-10-13 P10:"显示全部"快捷键 — 单选列表无需"清空",
               //   但要保留底部 FilledButton 跟 MultiSelect 同款视觉
               //   tap → pop AllPicked → caller 已 handle(等价 reset 到默认值)
               // 2026-10-13 P11:list 已过滤掉 AllPicked,按钮是"全部"的唯一入口
@@ -188,8 +189,8 @@ Future<Object?> showSingleSelectSheet<T>(
                 ),
               ),
             ],
-          );
-        },
+          ),
+        ),
       );
     },
   );
