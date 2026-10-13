@@ -146,6 +146,14 @@ final filteredTransactionsByDayProvider =
                 .where((c) => c.name.toLowerCase().contains(query))
                 .map((c) => c.id)
                 .toSet();
+      // 2026-10-14 P18 加:投资分类 id 集合,流水默认隐藏
+      //   - 投资 record(categoryId='投资投入'/'投资收益',commit 3 实施)不在 cash_flow 流水里出现
+      //   - user 在 advanced filter 主动勾选投资分类 → 允许显示(opt-in)
+      //   - ledgerCategoryFilterProvider 为空 → 默认隐藏;包含投资 cat → 显示
+      final investmentCatIds = allCats
+          .where((c) => c.type == 'investment')
+          .map((c) => c.id)
+          .toSet();
 
       final all = await ref.watch(transactionRepositoryProvider).all();
       final filtered = all.where((t) {
@@ -160,6 +168,13 @@ final filteredTransactionsByDayProvider =
         }
         // 分类(多选 OR:命中任一选中的 id)
         if (categoryFilter.isNotEmpty &&
+            !categoryFilter.contains(t.categoryId)) {
+          return false;
+        }
+        // 2026-10-14 P18:投资 record 默认隐藏
+        //   - 投资分类 record 不混入 cash_flow 流水
+        //   - 显式 opt-in:user 在 advanced filter 勾选了对应分类(分类 id 在 categoryFilter 里)
+        if (investmentCatIds.contains(t.categoryId) &&
             !categoryFilter.contains(t.categoryId)) {
           return false;
         }
