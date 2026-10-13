@@ -369,6 +369,11 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
 }
 
 /// 行级错峰 fade-in(20ms 错峰 + 8px 上推 + 360ms aquaIn)
+/// 2026-10-13 P6 改用 AnimatedOpacity(commit bda2ce1 之后 user 反馈
+/// "去掉之后连选项都看不到了"——手写 Opacity + AnimationController + vsync
+/// 时序有问题,row 一直 Opacity 0 不可见)
+/// - 用 AnimatedOpacity 让 Flutter 内部管 vsync / ticker,只 setState 触发
+///   _shown = true,AnimatedOpacity 看到 opacity prop 变化自动启动 360ms 淡入
 class _StaggeredRowFadeIn extends StatefulWidget {
   const _StaggeredRowFadeIn({required this.index, required this.child});
   final int index;
@@ -378,44 +383,24 @@ class _StaggeredRowFadeIn extends StatefulWidget {
   State<_StaggeredRowFadeIn> createState() => _StaggeredRowFadeInState();
 }
 
-class _StaggeredRowFadeInState extends State<_StaggeredRowFadeIn>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _t;
+class _StaggeredRowFadeInState extends State<_StaggeredRowFadeIn> {
+  /// false → true 触发 AnimatedOpacity 360ms 淡入
+  bool _shown = false;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 360),
-      value: 0,
-    );
-    _t = CurvedAnimation(parent: _ctrl, curve: AppMotion.aquaIn);
     Future.delayed(Duration(milliseconds: widget.index * 20), () {
-      if (mounted) _ctrl.forward();
+      if (mounted) setState(() => _shown = true);
     });
   }
 
   @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _t,
-      builder: (context, child) {
-        return Opacity(
-          opacity: _t.value,
-          child: Transform.translate(
-            offset: Offset(0, (1 - _t.value) * 8),
-            child: child,
-          ),
-        );
-      },
+    return AnimatedOpacity(
+      opacity: _shown ? 1.0 : 0.0,
+      duration: const Duration(milliseconds: 360),
+      curve: AppMotion.aquaIn,
       child: widget.child,
     );
   }
