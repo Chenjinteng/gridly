@@ -245,11 +245,25 @@ class _BudgetOverviewBodyState extends State<_BudgetOverviewBody> {
                           //   - 整圈部分:每圈 value=1.0,色按 _overColors[i] 递进
                           //   - 余数圈:value=partialTurn,色按 _overColors[fullOverTurns]
                           //   解决"3 圈以上全 deep 红"糊成一片问题
+                          //
+                          // 2026-10-13 P8 改:封顶到 3 圈超(= 总 4 圈 1 已花 + 3 超)
+                          //   原因:user UAT 输 500 万流水(实际 681x 预算),683 转几圈全部
+                          //   叠在半径 18 → fl_chart 渲染视觉混乱,UI 卡崩。
+                          //   封顶后用 3 色阶 + 文字"超额 68178%" 表达严重性。
+                          // 加 fullOverTurns clamp(0, 3):超 3 圈统一用 darkest 色;
+                          // 加 partialTurn 0 if capped:不让 4+ 圈 partial 重复。
+                          const maxOverTurns = 3;
                           final overSpentTurns = _isOver
                               ? _overSpent / overview.totalBudget
                               : 0.0;
-                          final fullOverTurns = overSpentTurns.floor();
-                          final partialTurn = overSpentTurns - fullOverTurns;
+                          final rawFullOverTurns = overSpentTurns.floor();
+                          final cappedFullOverTurns = rawFullOverTurns.clamp(
+                            0,
+                            maxOverTurns,
+                          );
+                          final partialTurn = rawFullOverTurns >= maxOverTurns
+                              ? 0.0
+                              : overSpentTurns - rawFullOverTurns;
 
                           final sections = <PieChartSectionData>[
                             if (_hasBudget && _isOver)
@@ -260,8 +274,8 @@ class _BudgetOverviewBodyState extends State<_BudgetOverviewBody> {
                                 radius: 18,
                               ),
                             if (_hasBudget && _isOver) ...[
-                              // 超额段:拆成多圈,每圈 1.0 圈
-                              for (int i = 0; i < fullOverTurns; i++)
+                              // 超额段:拆成多圈,每圈 1.0 圈,封顶 maxOverTurns
+                              for (int i = 0; i < cappedFullOverTurns; i++)
                                 PieChartSectionData(
                                   value: 1.0,
                                   color: _overColorForTurn(i),
@@ -271,7 +285,7 @@ class _BudgetOverviewBodyState extends State<_BudgetOverviewBody> {
                                 PieChartSectionData(
                                   value: partialTurn,
                                   color: _overColorForTurn(
-                                    fullOverTurns.toInt(),
+                                    cappedFullOverTurns.toInt(),
                                   ),
                                   radius: 18,
                                 ),
