@@ -917,9 +917,11 @@ class _DeleteConfirmDialog extends StatelessWidget {
   }
 }
 
-/// 2026-10-14 P18:不计入流水灰色 chip
+/// 2026-10-14 P18:不计入流水 chip
 ///   - 标记:投资 record 或 source asset.includeInTransactions=false 的流水
-///   - 视觉:灰色胶囊 10sp,AppGray.g200 背景 + AppGray.g400 边框
+///   - 视觉:跟 gridly 现有 chip 一致(参考 _TileChip)
+///     AppGray.g600 alpha 0.12 浅色填充 + 同色文字,无边框(去边框避免割裂)
+///   - 圆角 6px(更柔和,接近 ColorOS tag 风格)
 ///   - 跟 monthSummary / _DaySection 同步排除规则
 class _ExcludeFromTotalsChip extends StatelessWidget {
   const _ExcludeFromTotalsChip();
@@ -929,9 +931,8 @@ class _ExcludeFromTotalsChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: AppGray.g200,
-        border: Border.all(color: AppGray.g400, width: 0.5),
-        borderRadius: BorderRadius.circular(4),
+        color: AppGray.g600.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: const Text(
         '不计入流水',
