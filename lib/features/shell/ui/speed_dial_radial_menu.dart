@@ -59,7 +59,7 @@ class SpeedDialRadialMenu extends StatefulWidget {
     required this.items,
     required this.onSelected,
     required this.onDismiss,
-    this.radius = 100,
+    this.radius = 80,
     this.smallCircleSize = 40,
     this.centerSize = 56,
   });
@@ -86,16 +86,16 @@ class _SpeedDialRadialMenuState extends State<SpeedDialRadialMenu>
   /// 中心点(ScreenLayout 计算后设置)
   late Offset _center;
 
-  /// 弧形扫过的总角度(2026-10-13 P6 第 2 次改:180° 半圆弧)
-  ///   - 默认 360° = 整圈(覆盖 5 个 type),5 段 72° 间隔
-  ///   - 180° = 上方半弧,5 段 36° 间隔,起点 -90° 顶
-  ///   - 这里 180° 是 user 期望:节省空间,只在上方提示
+  /// 弧形扫过的总角度(2026-10-13 P6 第 3 次改)
+  ///   - 第 1 版 360° 全圆太大,5 圆跟底 nav 视觉冲突
+  ///   - 第 2 版 180° 起点 -90° 终点 +90°(跨过正上 + 正下),+18/+54 圆撞 nav
+  ///   - 第 3 版 180° 起点 -180° 终点 0°(正左到正右跨过正上),5 圆全在上方
   static const double _sweepDeg = 180;
 
-  /// 弧形起点角度(2026-10-13 P6 第 2 次改:-90° = 顶部,弧从顶部往左右两边展开)
-  ///   - 180° 弧 + 起点 -90° + 终点 +90°(左半 + 顶 + 右半)
-  ///   - 5 个 item 在 -90° 到 +90° 之间 36° 等分
-  static const double _startDeg = -90;
+  /// 弧形起点角度(2026-10-13 P6 第 3 次改:-180° = 正左)
+  ///   - 5 圆位置:-180 / -135 / -90(正上) / -45 / 0(正右)
+  ///   - 全在 + 圆上半圆(y < 0),不撞底 nav
+  static const double _startDeg = -180;
 
   late final AnimationController _ctrl;
   late final Animation<double> _anim;
@@ -160,16 +160,16 @@ class _SpeedDialRadialMenuState extends State<SpeedDialRadialMenu>
     // 5 个 item 在 180° 弧内 36° 等分
     // - 起点 -90°(顶),终点 +90°(底)
     // - 实际上 (angleDeg - (-90)) / 36 = (angleDeg + 90) / 36
-    // - 但 angleDeg 已经 normalize 到 0..360,-90° = 270°
-    // - 180° 弧映射到 270°..360°..90°(跨 0°)
-    // - 简单做法:把 angleDeg 重新映射到 -180..180,然后判断
+    // 5 个 item 在 180° 弧内 45° 等分(2026-10-13 第 3 次改)
+    //   - _startDeg = -180°(正左),弧扫 180° 终点 0°(正右)
+    //   - 5 段 step = (0 - (-180)) / (5-1) = 45° → 5 圆 -180 / -135 / -90(正上) / -45 / 0
+    //   - relAngle 范围 -180..180,clamp 到 _startDeg..(_startDeg + _sweepDeg) = -180..0
     var relAngle = angleDeg;
     if (relAngle > 180) relAngle -= 360; // 270° → -90°, 315° → -45°
-    // 现在 -90° = 顶,+90° = 底
-    final clamped = relAngle.clamp(-90.0, 90.0);
+    final clamped = relAngle.clamp(_startDeg, _startDeg + _sweepDeg); // -180..0
 
-    final step = _sweepDeg / widget.items.length; // 36° / item
-    // item 0 起点 -90°,index i 在 -90° + i*36° 位置
+    final step = _sweepDeg / (widget.items.length - 1); // 45° / item
+    // item 0 起点 -180°,index i 在 -180° + i*45° 位置
     final i = ((clamped - _startDeg) / step).round().clamp(
       0,
       widget.items.length - 1,
@@ -184,11 +184,9 @@ class _SpeedDialRadialMenuState extends State<SpeedDialRadialMenu>
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // 中心点 = 屏宽中点 / 屏高 78%(留顶部 22% 给 status bar + app bar)
-        _center = Offset(
-          constraints.maxWidth / 2,
-          constraints.maxHeight * 0.78,
-        );
+        // 中心点 = 屏宽中点 / 屏高 70%(2026-10-13 第 3 次改:0.78 → 0.7
+        //   5 圆整体上移,避免 +18°/+54° 圆撞到 nav 区域)
+        _center = Offset(constraints.maxWidth / 2, constraints.maxHeight * 0.7);
         return Stack(
           children: [
             // 极轻 scrim(2026-10-13 P6 第 2 次改:0.45 → 0.15,不重遮)
