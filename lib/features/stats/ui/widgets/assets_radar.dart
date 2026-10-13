@@ -10,6 +10,11 @@
 //   - viewport-aware 触发 fade-in(opacity 0→1,360ms aquaIn)
 //     (fl_chart RadarChart 暂没原生入场动画,这里用 AnimatedOpacity 兜底)
 //
+// 2026-10-13 P6 第 2 次改(UAT 反馈"雷达图不会动态"):
+//   - 加 TweenAnimationBuilder 0→1 缩放,数据 values 乘以 progress,
+//     雷达形状从中心"撑开"到目标大小(1200ms aquaIn,跟总览卡 AnimatedCounter 同步)
+//   - 加 SizedBox height 240 → 280,防止底部"债权"label 被裁
+//
 // 2026-10-13 P6 改 4 维 → 6 维(跟 asset_form 6 段同步)
 //
 // 风险(P4 文档):数值差异大 → fl_chart 默认线性 scale,大值维度压扁小值维度
@@ -155,64 +160,83 @@ class _AssetsRadarState extends ConsumerState<AssetsRadar> {
                   );
                 }
                 return SizedBox(
-                  height: 240,
+                  // 2026-10-13 P6:height 240 → 280,防止底部"债权"label 被裁
+                  // (6 边形底部顶点 y = height,label 5% 外圈,约 height+6px,会超出 240)
+                  height: 280,
                   child: AnimatedOpacity(
                     opacity: _appeared ? 1.0 : 0.0,
                     duration: const Duration(milliseconds: 360),
                     curve: AppMotion.aquaIn,
-                    child: RadarChart(
-                      RadarChartData(
-                        radarShape: RadarShape.polygon,
-                        // tickCount 4:网格 4 圈(0, 1/4, 2/4, 3/4, max)
-                        // fl_chart 0.69 自动 scale 到 max value,所以不需要手动指定 maxValue
-                        tickCount: 4,
-                        ticksTextStyle: const TextStyle(
-                          color: Colors.transparent,
-                          fontSize: 0, // 隐藏 tick 文字
-                        ),
-                        radarBorderData: BorderSide(
-                          color: theme.colorScheme.outlineVariant,
-                          width: 0.5,
-                        ),
-                        gridBorderData: BorderSide(
-                          color: theme.colorScheme.outlineVariant,
-                          width: 0.5,
-                        ),
-                        tickBorderData: BorderSide(
-                          color: theme.colorScheme.outlineVariant,
-                          width: 0.5,
-                        ),
-                        getTitle: (i, _) {
-                          final labels = const [
-                            '现金流',
-                            '投资',
-                            '福利',
-                            '债权',
-                            '不动产',
-                            '其它',
-                          ];
-                          return RadarChartTitle(
-                            text: labels[i],
-                            positionPercentageOffset: 0.05,
-                          );
-                        },
-                        titleTextStyle: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: theme.colorScheme.onSurface,
-                        ),
-                        dataSets: [
-                          RadarDataSet(
-                            fillColor: AppBrand.teal.withValues(alpha: 0.18),
-                            borderColor: AppBrand.teal,
-                            borderWidth: 2,
-                            entryRadius: 3,
-                            dataEntries: values
-                                .map((v) => RadarEntry(value: v))
-                                .toList(),
+                    // 2026-10-13 P6 第 2 次改:用 TweenAnimationBuilder 让 radar 形状
+                    // 从中心"撑开"到目标大小,user 反馈"不会动态"
+                    //   - begin=0 → 中心点(所有 entry 都是 0)
+                    //   - end=1 → 完整形状
+                    //   - duration 1200ms 跟总览卡 AnimatedCounter 同步
+                    //   - curve aquaIn 跟总览卡 / 月度趋势一致
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0.0, end: _appeared ? 1.0 : 0.0),
+                      duration: const Duration(milliseconds: 1200),
+                      curve: AppMotion.aquaIn,
+                      builder: (context, progress, _) {
+                        return RadarChart(
+                          RadarChartData(
+                            radarShape: RadarShape.polygon,
+                            // tickCount 4:网格 4 圈(0, 1/4, 2/4, 3/4, max)
+                            // fl_chart 0.69 自动 scale 到 max value,所以不需要手动指定 maxValue
+                            tickCount: 4,
+                            ticksTextStyle: const TextStyle(
+                              color: Colors.transparent,
+                              fontSize: 0, // 隐藏 tick 文字
+                            ),
+                            radarBorderData: BorderSide(
+                              color: theme.colorScheme.outlineVariant,
+                              width: 0.5,
+                            ),
+                            gridBorderData: BorderSide(
+                              color: theme.colorScheme.outlineVariant,
+                              width: 0.5,
+                            ),
+                            tickBorderData: BorderSide(
+                              color: theme.colorScheme.outlineVariant,
+                              width: 0.5,
+                            ),
+                            getTitle: (i, _) {
+                              final labels = const [
+                                '现金流',
+                                '投资',
+                                '福利',
+                                '债权',
+                                '不动产',
+                                '其它',
+                              ];
+                              return RadarChartTitle(
+                                text: labels[i],
+                                positionPercentageOffset: 0.05,
+                              );
+                            },
+                            titleTextStyle: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: theme.colorScheme.onSurface,
+                            ),
+                            dataSets: [
+                              // 2026-10-13 P6:每个 entry value 乘以 progress
+                              // 0 → 全部缩到中心;1 → 完整形状
+                              RadarDataSet(
+                                fillColor: AppBrand.teal.withValues(
+                                  alpha: 0.18,
+                                ),
+                                borderColor: AppBrand.teal,
+                                borderWidth: 2,
+                                entryRadius: 3,
+                                dataEntries: values
+                                    .map((v) => RadarEntry(value: v * progress))
+                                    .toList(),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        );
+                      },
                     ),
                   ),
                 );
