@@ -16,6 +16,11 @@
 //   - 计入流水 chip = 主题黄(AppBrand.gold);不计入 = 灰色(AppGray.g600)
 //   - 金额 0.00 用主题灰(AppGray.g400),"无数据"状态更明显
 //   - 删 title 末尾的 archive icon(include chip 在 subtitle 已经有更明显显示)
+// 2026-10-13 P7 第 3 次改(UAT 反馈):加"默认"chip
+//   - 仅 cash_flow 段且 isDefault=true 时,在 subtitle 第一行插入"默认" chip
+//   - 位置:type chip 之后(语义高亮,"默认账户"是比"是否计入"更突出的状态)
+//   - 配色:AppBrand.gold(跟 _IsDefaultCard + 计入 chip 同款,视觉语言统一)
+//   - 配合 Assets.isDefault 字段(3309b23),user 在资产 form 开启默认后,资产列表一眼能看到"哪条是默认"
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -166,6 +171,14 @@ class AssetTile extends ConsumerWidget {
                     label: typeLabels[asset.type] ?? asset.type,
                     color: typeColor,
                   ),
+                  // 2026-10-13 P7 第 3 次改:仅 cash_flow + isDefault=true 显示"默认" chip
+                  // - 位置:type chip 紧贴后(语义高亮,比"是否计入"更突出)
+                  // - 配色:AppBrand.gold(跟 _IsDefaultCard + 计入 chip 同款)
+                  // - "默认" 是记一笔的优先账户,user 在资产列表一眼能看到"哪条是默认"
+                  if (asset.isDefault && asset.type == 'cash_flow') ...[
+                    const SizedBox(width: 6),
+                    const _TileChip(label: '默认', color: AppBrand.gold),
+                  ],
                   const SizedBox(width: 6),
                   // 2026-10-13 P6 第 2 次改:includeInTransactions chip
                   //   计入 = 主题黄(AppBrand.gold)
