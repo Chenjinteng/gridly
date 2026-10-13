@@ -263,8 +263,14 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
               //   - 三角形 fillColor 同 surface,接缝平滑
               //   - 三角形两条斜边 border 从矩形左/右 border 起点延伸,
               //     形成完整 5 边包围(上/左/右 + 两条斜下)
-              // 注:Flutter 4.x 改用 BorderDirectional 或自己 const Border 4 边改 side
-              // 这里用最稳的 Border.all 然后在 _TrianglePainter 调整
+              // 注意:之前尝试用 BorderSide(width: 0, color: transparent) 模拟
+              //   "不画底边",但 Flutter 在 borderRadius != 0 时不允许
+              //   "hairline border(width: 0)" — 会抛 "A hairline border like
+              //   `BorderSide(width: 0.0, style: BorderStyle.solid)` can only
+              //   be drawn when BorderRadius is zero or null"
+              //   → paint 异常 → RenderObject 树中断 → row 不可见
+              // 修法:bottom 完全不传(默认 BorderSide.none)或不写 bottom 字段,
+              //   让 Border 只有 3 边有效 side
               border: Border(
                 top: BorderSide(
                   color: theme.colorScheme.outlineVariant,
@@ -278,7 +284,7 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
                   color: theme.colorScheme.outlineVariant,
                   width: 1,
                 ),
-                bottom: const BorderSide(color: Color(0x00000000), width: 0),
+                // bottom 不传 → 默认 BorderSide.none → 不画
               ),
               boxShadow: [
                 BoxShadow(
