@@ -236,20 +236,42 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     }
   }
 
-  /// 2026-10-13 P17 UAT 改:investment 场景不 filter,全资产可选择
-  ///   user:"记一笔(投资) 页面的转入转出还是不加筛选了,所有的资产都可以选择,
-  ///        就是投入/收益/调拨 的所有转入转出都可以选择所有的已配置的资产"
-  ///   - 原 P8 复杂 filter(input/output/transfer 各不同)反而限制 user 选择
-  ///   - 投资场景所有资产(cash_flow + investment)都可做转出 / 转入
-  ///   - cash_flow source 仍用 widget.accountTypeFilter(caller 决定,默认 cash_flow)
-  ///   - cash_flow destination 原本就不 filter
+  /// 2026-10-14 P18 大改:investment 三段按 intent 各自合理 filter
+  ///   - 投入 (_intent='input'):source='cash_flow'(从现金投入)/ dest='investment'(到投资账户)
+  ///     投入本质是 cash → investment 的流向,filter 引导 user 选对账户
+  ///   - 调拨 (_intent='transfer'):不 filter(任意 ↔ 任意,user 自由选)
+  ///   - 收益 (_intent='output'):source='investment'(只有投资账户才能产生收益)
+  ///     / dest=null(单账户,没有 destination)
+  ///   - cash_flow:source 用 widget.accountTypeFilter(caller 决定);dest=null
+  ///
+  /// 2026-10-13 P17 UAT 中途方案:investment 全部不 filter(投入也要 source=cash 限制的 user
+  ///   反馈反复改,P18 三段分开后恢复 P8 的合理限制
   String? get _accountTypeFilter {
-    if (_isInvestmentContext) return null; // 投资:全资产可选
-    return widget.accountTypeFilter; // 现金流:caller 决定
+    if (_isInvestmentContext) {
+      switch (_intent) {
+        case 'input':
+          return 'cash_flow'; // 投入:转出限现金账户
+        case 'output':
+          return 'investment'; // 收益:单账户限投资账户
+        case 'transfer':
+          return null; // 调拨:不限制
+      }
+    }
+    return widget.accountTypeFilter; // cash_flow:由 caller 决定
   }
 
   String? get _destinationTypeFilter {
-    return null; // P17:投资 + 现金流 全部不 filter
+    if (_isInvestmentContext) {
+      switch (_intent) {
+        case 'input':
+          return 'investment'; // 投入:转入限投资账户
+        case 'output':
+          return null; // 收益:无 destination
+        case 'transfer':
+          return null; // 调拨:不限制
+      }
+    }
+    return null; // cash_flow:无 destination
   }
 
   @override
