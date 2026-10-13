@@ -69,7 +69,10 @@ class TypeToggle extends StatelessWidget {
       height: 48,
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerLowest,
-        borderRadius: AppRadius.brLg,
+        // 2026-10-13 P7 UAT 改:brLg → brPill,跟下面 _ActionPill brPill 圆角保持一致
+        //   之前 brLg=16 + 内部 pill brMd=12 看起来是 rounded rectangle 不够圆,
+        //   跟下面 _actionRow 的 fully rounded pill 风格割裂
+        borderRadius: AppRadius.brPill,
         border: Border.all(color: theme.colorScheme.outlineVariant, width: 1),
       ),
       child: LayoutBuilder(
@@ -81,6 +84,7 @@ class TypeToggle extends StatelessWidget {
               // - horizontal 4 + vertical 4 inset,pill 略小于 segment
               // - color 用当前 type 语义色 18% tint(pill 在 segment 间滑动时,
               //   颜色会随 type 切换改变 → 配合 AnimatedPositioned 实现"换色"动画)
+              // - 2026-10-13 P7 UAT 改:brMd → brPill,跟外层 + 下面 _ActionPill 风格统一
               AnimatedPositioned(
                 duration: AppMotion.fast,
                 curve: AppMotion.aquaIn,
@@ -91,7 +95,7 @@ class TypeToggle extends StatelessWidget {
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: selectedColor.withValues(alpha: 0.18),
-                    borderRadius: AppRadius.brMd,
+                    borderRadius: AppRadius.brPill,
                   ),
                 ),
               ),
@@ -120,6 +124,10 @@ class TypeToggle extends StatelessWidget {
 
 /// 单段 tab —— 只是文字 + icon,选中态背景由父级 Stack 的共享 pill 提供。
 /// 文字色:每段用对应语义色,选中 w700,未选 onSurfaceVariant 灰
+///
+/// 2026-10-13 P7 UAT 改:Row 用 mainAxisSize.max(默认),让 mainAxisAlignment.center
+///   把 icon+gap+text 真正居中(之前 mainAxisSize.min 把 Row 缩到内容宽,视觉上
+///   "内容居中"但 pill bg 宽度大于内容 → 内容看起来偏左)
 class _Segment extends StatelessWidget {
   const _Segment({
     required this.label,
@@ -139,13 +147,16 @@ class _Segment extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return InkWell(
-      borderRadius: AppRadius.brMd,
+      // 2026-10-13 P7 UAT 改:brMd → brPill,跟外层 pill bg 圆角一致
+      //   ripple 半径跟着 pill bg 走,视觉上 ripple 像 pill 内部高光
+      borderRadius: AppRadius.brPill,
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.s2),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
+          // 去掉 mainAxisSize.min,让 Row 占满 InkWell 全宽,
+          //   mainAxisAlignment.center 才会真正把 icon+text 居中
           children: [
             Icon(
               icon,
