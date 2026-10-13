@@ -140,17 +140,17 @@ class AssetRepository {
   }
 
   /// 实时算每个账户的"净流水增量"
-  /// 公式(commit 110 P1 决策):
-  ///   delta = -sum(expense amount) + sum(income amount) + sum(balance amount)
-  ///   - expense amount 永远正 → 减少余额
-  ///   - income amount 永远正 → 增加余额
-  ///   - balance amount 可正可负 → 正入负出
+  /// 公式(commit 110 P1 决策,2026-10-14 修正 balance 流水处理):
+  ///   - expense amount 永远正 → accountId 减少 sum
+  ///   - income amount 永远正 → accountId 增加 sum
+  ///   - balance amount 永远正 → accountId(source)减少 sum,destinationAccountId(dest)增加 sum
+  ///     (P18 修:之前 source 累加 sum 是错的,转出应该减;dest 完全漏处理,转入应该加)
   ///
   /// 完整 currentBalance = initialBalance + delta(由 asset_balance_provider 组合)
   ///
   /// 返回 `Map<int, double>`(assetId → delta)—— 没流水的账户不出现在 map 里
   Future<Map<int, double>> balanceDeltaByAssetId() async {
-    // 三次查询(每种 type 一次)然后合并,比一次 group by 简单清晰
+    // expense / income 按 accountId group by
     final expenseSum =
         await (_db.selectOnly(_db.transactions)
               ..addColumns([
@@ -171,7 +171,9 @@ class AssetRepository {
               ..groupBy([_db.transactions.accountId]))
             .get();
 
-    final balanceSum =
+    // balance 流水两次查询:source 按 accountId, dest 按 destinationAccountId
+    //  - 调拨 amount 永远正,source 减 sum,dest 加 sum
+    final balanceSourceSum =
         await (_db.selectOnly(_db.transactions)
               ..addColumns([
                 _db.transactions.accountId,
@@ -179,6 +181,16 @@ class AssetRepository {
               ])
               ..where(_db.transactions.type.equals('balance'))
               ..groupBy([_db.transactions.accountId]))
+            .get();
+
+    final balanceDestSum =
+        await (_db.selectOnly(_db.transactions)
+              ..addColumns([
+                _db.transactions.destinationAccountId,
+                _db.transactions.amount.sum(),
+              ])
+              ..where(_db.transactions.type.equals('balance'))
+              ..groupBy([_db.transactions.destinationAccountId]))
             .get();
 
     final result = <int, double>{};
@@ -200,10 +212,20 @@ class AssetRepository {
       }
     }
 
-    for (final row in balanceSum) {
+    for (final row in balanceSourceSum) {
       final id = row.read(_db.transactions.accountId);
       final sum = row.read(_db.transactions.amount.sum()) ?? 0.0;
       if (id != null) {
+        // balance source:转出 → 减少余额(P18 修:之前 + sum 错)
+        result[id] = (result[id] ?? 0.0) - sum;
+      }
+    }
+
+    for (final row in balanceDestSum) {
+      final id = row.read(_db.transactions.destinationAccountId);
+      final sum = row.read(_db.transactions.amount.sum()) ?? 0.0;
+      if (id != null) {
+        // balance dest:转入 → 增加余额(P18 新增:之前完全漏处理)
         result[id] = (result[id] ?? 0.0) + sum;
       }
     }
