@@ -41,21 +41,19 @@ class TransactionTile extends ConsumerWidget {
           }
         }
         final color = cat == null ? AppGray.g400 : Color(cat.color);
-        // 2026-10-14 P18 改:投资 record(cat.type='investment')金额色用账户色,跟 _AccountBadge 一致
-        //   - 投资 record 走 source/dest 账户(可能是 cash_flow 银行),用 asset.color
-        //   - 之前 amountColor switch 全是 softGold(投资投入/调拨)+ gold(收益),太淡看不清
-        //   - 跟 _AccountBadge 用同一资产色(招商银行=红),视觉统一
-        //   - cash_flow record(cat.type='expense'/'income')维持原 amountColor 逻辑
-        final assetAsync = ref.watch(assetByIdProvider(transaction.accountId));
-        final asset = assetAsync.valueOrNull;
-        final isInvestmentRecord = cat?.type == 'investment';
-        final amountColor = isInvestmentRecord && asset != null
-            ? Color(asset.color)
-            : switch (transaction.type) {
-                'income' => AppBrand.gold,
-                'balance' => AppSecondary.softGold,
-                _ => AppStatus.error,
-              };
+        // 2026-10-14 P18 改:统一 3 色方案
+        //   - 支出(type='expense')→ 红(AppStatus.error #EF4444)
+        //   - 收入(type='income')→ 主题黄(AppBrand.gold #F5BC1F)
+        //     包括 cash_flow 收入 + 投资收益(投资 record 走 type='income' 单账户)
+        //   - 其它(type='balance')→ 主题青(AppBrand.teal #14B8A6)
+        //     包括现金调拨 + 投资投入 + 投资调拨
+        //   user 反馈:'支出红 / 收入黄 / 其它青' 统一,不需要按账户色动态
+        //   (上一版 4204eca 走 isInvestmentRecord+asset.color 太花,user 改主意)
+        final amountColor = switch (transaction.type) {
+          'income' => AppBrand.gold, // 收入:主题黄
+          'expense' => AppStatus.error, // 支出:红
+          _ => AppBrand.teal, // 其它(调拨/投资 record):主题青
+        };
         // 2026-10-12 P3 commit:balance 流水不显示 ± prefix
         //   (调拨可正可负,跟"支出=负 / 收入=正"的语义不同)
         final showPrefix = transaction.type != 'balance';
