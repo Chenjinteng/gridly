@@ -26,7 +26,6 @@ import '../../../core/haptics/app_haptics.dart';
 import '../../../core/motion/app_motion.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
-import '../../../core/widgets/staggered_fade_in.dart';
 
 /// Speed Dial 1 个 item(资产分类)
 class SpeedDialItem {
@@ -155,13 +154,12 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
         // + 圆位置
         final fabCenterX = size.width / 2;
         final fabCenterY = size.height - _fabOffsetFromBottom;
-        // popup 锚定在 + 圆上方,gap 10px
+        // popup 锚定在 + 圆上方,gap 4px(2026-10-13 第 7 次改:10 → 4,更靠近 + 圆)
         final popupHeight =
             _popupPadding * 2 + widget.items.length * _rowHeight;
         final popupLeft = fabCenterX - _popupWidth / 2;
-        // popup 底边 = + 圆顶边上方 10px
-        // popup 顶 = (fabCenterY - 28) - 10 - popupHeight
-        final popupTop = (fabCenterY - 28 - 10 - popupHeight).clamp(
+        // popup 底边 = + 圆顶边上方 4px
+        final popupTop = (fabCenterY - 28 - 4 - popupHeight).clamp(
           20.0,
           size.height - popupHeight - 20,
         );
@@ -252,9 +250,10 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   for (int i = 0; i < widget.items.length; i++)
-                    StaggeredFadeIn(
+                    // 2026-10-13 第 7 次改:用本地 _StaggeredRowFadeIn(20ms 错峰),
+                    //   替代 StaggeredFadeIn(30ms 错峰),让错峰稍快一点
+                    _StaggeredRowFadeIn(
                       index: i,
-                      enabled: true, // popup 每次开都触发一次错峰(dismiss 后重建)
                       child: _buildRow(i, widget.items[i]),
                     ),
                 ],
@@ -320,6 +319,63 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
   }
 
   ThemeData get theme => Theme.of(context);
+}
+
+/// 2026-10-13 P6 加:行级错峰 fade-in(20ms 错峰,比 StaggeredFadeIn 的 30ms 稍快)
+/// - 复制 StaggeredFadeIn 的逻辑但错峰 20ms(用户说"可以快一点点")
+/// - duration 360ms + aquaIn + 8px 上推,跟 stats_page 报表入场风格统一
+/// - 每次 popup 重新 mount 触发一次(dismiss 后重建)
+class _StaggeredRowFadeIn extends StatefulWidget {
+  const _StaggeredRowFadeIn({required this.index, required this.child});
+  final int index;
+  final Widget child;
+
+  @override
+  State<_StaggeredRowFadeIn> createState() => _StaggeredRowFadeInState();
+}
+
+class _StaggeredRowFadeInState extends State<_StaggeredRowFadeIn>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _t;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 360),
+      value: 0,
+    );
+    _t = CurvedAnimation(parent: _ctrl, curve: AppMotion.aquaIn);
+    // 20ms 错峰(2026-10-13 第 7 次改:30ms → 20ms,user 反馈"可以快一点点")
+    Future.delayed(Duration(milliseconds: widget.index * 20), () {
+      if (mounted) _ctrl.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _t,
+      builder: (context, child) {
+        return Opacity(
+          opacity: _t.value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - _t.value) * 8),
+            child: child,
+          ),
+        );
+      },
+      child: widget.child,
+    );
+  }
 }
 
 /// 2026-10-13 P6 加:popup 下尖角(指向 + 圆)
