@@ -973,6 +973,11 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                   // 2026-10-13 P8 UAT 改:切 toggle 时清掉 account / destAccount
                   //   user:"原有的已选的配置没有清空",换 toggle 后转出/转入
                   //   属于别的类,结果反了 → 切 toggle 时必须重置
+                  // 2026-10-13 P16 UAT 改:cash_flow(支出↔收入)不清 _accountId
+                  //   user:"切换支出收入的话,这个选账户还是会清空"
+                  //   - cash_flow 是同 context 切 intent,账户类型不变,清掉反而要重选
+                  //   - investment(input/output/transfer 跨段)仍清,避免残留的 source/dest 错位
+                  // 2026-10-13 P16:_categoryId 仍清(支出 / 收入 分类表不同,无效选择要清)
                   Align(
                     alignment: Alignment.center,
                     child: TypeToggle(
@@ -981,8 +986,11 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                       onChanged: (v) => setState(() {
                         _intent = v;
                         _categoryId = null;
-                        _accountId = null;
-                        _destinationAccountId = null;
+                        if (_isInvestmentContext) {
+                          _accountId = null;
+                          _destinationAccountId = null;
+                        }
+                        // cash_flow:保留 _accountId(同 context 切 intent)
                       }),
                     ),
                   ),
