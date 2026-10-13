@@ -104,64 +104,66 @@ class TransactionTile extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 2026-10-14 P18 改:分类名 + 备注 inline 到 1 行
-                      //   之前:有备注时 tile 内 2 行文字(分类名 / 备注)+ 账户 badge = 拉高
-                      //   现在:始终 1 行内容 + 1 行账户 badge = tile 高度统一
-                      //   样式:分类名 15sp 黑色 + 中间 '·' 灰色 + 备注 15sp onSurfaceVariant
-                      //   整行 maxLines:1 ellipsis,长备注从右往左截断
-                      Text.rich(
-                        TextSpan(
-                          children: [
-                            TextSpan(
-                              text: cat?.name ?? '未分类',
+                      // 2026-10-14 P18 改:2×2 矩阵布局(分类名+金额 / 备注+资产账号)
+                      //   第 1 行:分类名(15sp w500 onSurface,左)+ 金额(16sp w600,右)
+                      //     主体信息,字号大,信息最关键
+                      //   第 2 行:备注(12sp onSurfaceVariant,左,小一号)+ 资产账号(11sp 角标,右)
+                      //     辅助信息,字号小,即便 2 行也不显挤
+                      //   高度:始终 2 行(无备注时第 2 行只显账号,空白 slot 在左侧)
+                      //   user 反馈:比 inline 方案视觉层级更清晰,主/辅分明
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              cat?.name ?? '未分类',
                               style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w500,
-                                // 分类名主色,走 M3 主题 onSurface(深色 / 浅色模式自适应)
                                 color: theme.colorScheme.onSurface,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            if (transaction.note != null &&
-                                transaction.note!.isNotEmpty) ...[
-                              TextSpan(
-                                text: ' · ',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  color: theme.colorScheme.outline,
-                                ),
-                              ),
-                              TextSpan(
-                                text: transaction.note,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                  fontWeight: FontWeight.w400,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            // 2026-10-12 P3:balance 流水不显示 ± prefix(正负自定)
+                            showPrefix
+                                ? '$prefix ¥${Formatters.amount(transaction.amount)}'
+                                : '¥${Formatters.amount(transaction.amount)}',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: amountColor,
+                            ),
+                          ),
+                        ],
                       ),
-                      // 2026-10-12 P3 commit:流水 tile 下方追加"账户 chip"
-                      //   - 小尺寸 11px,onSurfaceVariant 色
-                      //   - 显示账户名 + 小 icon(角标,asset 配色)
-                      //   - 让 user 在流水列表一眼看到"哪笔进哪个账户"
                       const SizedBox(height: 2),
-                      _AccountBadge(accountId: transaction.accountId),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          // 备注(占第 2 行左半,无时空白占位)
+                          Expanded(
+                            child: Text(
+                              transaction.note ?? '',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          // 2026-10-12 P3 commit:流水 tile 第 2 行右侧资产账号 chip
+                          //   小尺寸 11px,onSurfaceVariant 色
+                          //   让 user 在流水列表一眼看到"哪笔进哪个账户"
+                          const SizedBox(width: AppSpacing.s2),
+                          _AccountBadge(accountId: transaction.accountId),
+                        ],
+                      ),
                     ],
-                  ),
-                ),
-                Text(
-                  // 2026-10-12 P3:balance 流水不显示 ± prefix(正负自定)
-                  showPrefix
-                      ? '$prefix ¥${Formatters.amount(transaction.amount)}'
-                      : '¥${Formatters.amount(transaction.amount)}',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: amountColor,
                   ),
                 ),
               ],
