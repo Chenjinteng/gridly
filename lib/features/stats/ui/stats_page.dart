@@ -28,7 +28,7 @@ import 'widgets/category_pie.dart';
 import 'widgets/budget_overview_chart.dart';
 import 'widgets/monthly_trend.dart';
 import 'widgets/assets_overview_chart.dart';
-import 'widgets/assets_bar_chart.dart';
+import 'widgets/assets_radar.dart';
 import 'widgets/range_summary.dart';
 import 'widgets/range_tabs.dart';
 import 'widgets/top_expenses.dart';
@@ -196,7 +196,7 @@ class _StatsPageState extends ConsumerState<StatsPage> {
         //   2026-10-13 P6:RangeTabs/RangeSummary 不在这里显示
         add(const AssetsOverviewChart());
         widgets.add(const SizedBox(height: AppSpacing.s3));
-        add(const AssetsBarChart());
+        add(const AssetsRadar());
     }
     return widgets;
   }
