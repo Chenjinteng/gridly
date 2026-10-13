@@ -270,11 +270,16 @@ class _AccountBadge extends ConsumerWidget {
       );
     }
     final color = Color(asset.color);
+    // 2026-10-14 P18 修:外层 Row 2 已给 _AccountBadge 剩余空间,内部不要用
+    //   Flexible(会被外层 Expanded 挤压成 0,asset name 看不见)。
+    //   改成 mainAxisSize.min + ConstrainedBox 给文字 maxWidth,Icon 固定 12,文字自然 ellipsis
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Icon(_iconFor(asset.icon), size: 12, color: color),
         const SizedBox(width: 4),
-        Flexible(
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 100),
           child: Text(
             asset.name,
             style: TextStyle(
