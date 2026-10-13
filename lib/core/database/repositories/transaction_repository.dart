@@ -13,6 +13,9 @@ class TransactionRepository {
   ///   P1 阶段 UI 未暴露账户选择器,允许 caller 不传 → 内部 fallback
   ///   到第一个 cash_flow 账户(displayOrder 升序 = "现金")。
   ///   后续 P2/P3 加资产选择器时,callers 显式传 accountId。
+  /// 2026-10-13 P8 加:destinationAccountId 参数(投资场景投入/收益/调拨双账户)
+  ///   - 非空 → 表示这是"资产流转"流水(accountId=转出,destinationAccountId=转入)
+  ///   - null → 单账户流水(cash_flow expense/income/balance 不存,数据迁移以空)
   Future<int> add({
     required double amount,
     required String type, // 'expense' | 'income' | 'balance'
@@ -20,6 +23,7 @@ class TransactionRepository {
     required DateTime occurredAt,
     String? note,
     int? accountId,
+    int? destinationAccountId,
   }) async {
     final aid = accountId ?? await _firstCashAssetId();
     return _db
@@ -32,6 +36,8 @@ class TransactionRepository {
             occurredAt: occurredAt,
             note: Value(note),
             accountId: aid,
+            // 2026-10-13 P8:nullable,投资场景以外的所有 caller 都不传 → 默认 null
+            destinationAccountId: Value(destinationAccountId),
           ),
         );
   }

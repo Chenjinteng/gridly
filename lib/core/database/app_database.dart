@@ -28,8 +28,9 @@ class AppDatabase extends _$AppDatabase {
   //   - 新设备安装走 onCreate 的 createAll() + seedDefaultsIfEmpty
   //   - 这里"没数据"约束下,不需要老数据回填(commit 110 P1 默认场景)
   // 2026-10-13 P7:4 → 5,assets 加 isDefault 列(cash_flow 段"日常流水默认账户"标记)
+  // 2026-10-13 P8:5 → 6,transactions 加 destinationAccountId 列(投资场景投入/收益/调拨双账户)
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -83,6 +84,12 @@ class AppDatabase extends _$AppDatabase {
             where: (a) => a.type.equals('cash_flow') & a.displayOrder.equals(0),
           );
         });
+      }
+      // 5 → 6:transactions 加 destinationAccountId(nullable,FK 引用 Assets)
+      //   2026-10-13 P8 投资场景精简化:投入/收益/调拨 3 段都需要"转出 + 转入"双账户
+      //   老数据全为 null(向后兼容,不影响 cash_flow 已有 expense/income/balance)
+      if (from < 6) {
+        await m.addColumn(transactions, transactions.destinationAccountId);
       }
     },
     beforeOpen: (details) async {

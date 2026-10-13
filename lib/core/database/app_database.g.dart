@@ -623,6 +623,16 @@ class $TransactionsTable extends Transactions
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _destinationAccountIdMeta =
+      const VerificationMeta('destinationAccountId');
+  @override
+  late final GeneratedColumn<int> destinationAccountId = GeneratedColumn<int>(
+    'destination_account_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -656,6 +666,7 @@ class $TransactionsTable extends Transactions
     occurredAt,
     note,
     accountId,
+    destinationAccountId,
     createdAt,
     updatedAt,
   ];
@@ -720,6 +731,15 @@ class $TransactionsTable extends Transactions
     } else if (isInserting) {
       context.missing(_accountIdMeta);
     }
+    if (data.containsKey('destination_account_id')) {
+      context.handle(
+        _destinationAccountIdMeta,
+        destinationAccountId.isAcceptableOrUnknown(
+          data['destination_account_id']!,
+          _destinationAccountIdMeta,
+        ),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -769,6 +789,10 @@ class $TransactionsTable extends Transactions
         DriftSqlType.int,
         data['${effectivePrefix}account_id'],
       )!,
+      destinationAccountId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}destination_account_id'],
+      ),
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -794,6 +818,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
   final DateTime occurredAt;
   final String? note;
   final int accountId;
+  final int? destinationAccountId;
   final DateTime createdAt;
   final DateTime updatedAt;
   const Transaction({
@@ -804,6 +829,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     required this.occurredAt,
     this.note,
     required this.accountId,
+    this.destinationAccountId,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -819,6 +845,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       map['note'] = Variable<String>(note);
     }
     map['account_id'] = Variable<int>(accountId);
+    if (!nullToAbsent || destinationAccountId != null) {
+      map['destination_account_id'] = Variable<int>(destinationAccountId);
+    }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
@@ -833,6 +862,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       occurredAt: Value(occurredAt),
       note: note == null && nullToAbsent ? const Value.absent() : Value(note),
       accountId: Value(accountId),
+      destinationAccountId: destinationAccountId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(destinationAccountId),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
     );
@@ -851,6 +883,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       occurredAt: serializer.fromJson<DateTime>(json['occurredAt']),
       note: serializer.fromJson<String?>(json['note']),
       accountId: serializer.fromJson<int>(json['accountId']),
+      destinationAccountId: serializer.fromJson<int?>(
+        json['destinationAccountId'],
+      ),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
@@ -866,6 +901,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       'occurredAt': serializer.toJson<DateTime>(occurredAt),
       'note': serializer.toJson<String?>(note),
       'accountId': serializer.toJson<int>(accountId),
+      'destinationAccountId': serializer.toJson<int?>(destinationAccountId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
@@ -879,6 +915,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     DateTime? occurredAt,
     Value<String?> note = const Value.absent(),
     int? accountId,
+    Value<int?> destinationAccountId = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
   }) => Transaction(
@@ -889,6 +926,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     occurredAt: occurredAt ?? this.occurredAt,
     note: note.present ? note.value : this.note,
     accountId: accountId ?? this.accountId,
+    destinationAccountId: destinationAccountId.present
+        ? destinationAccountId.value
+        : this.destinationAccountId,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -905,6 +945,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           : this.occurredAt,
       note: data.note.present ? data.note.value : this.note,
       accountId: data.accountId.present ? data.accountId.value : this.accountId,
+      destinationAccountId: data.destinationAccountId.present
+          ? data.destinationAccountId.value
+          : this.destinationAccountId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -920,6 +963,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           ..write('occurredAt: $occurredAt, ')
           ..write('note: $note, ')
           ..write('accountId: $accountId, ')
+          ..write('destinationAccountId: $destinationAccountId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -935,6 +979,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     occurredAt,
     note,
     accountId,
+    destinationAccountId,
     createdAt,
     updatedAt,
   );
@@ -949,6 +994,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           other.occurredAt == this.occurredAt &&
           other.note == this.note &&
           other.accountId == this.accountId &&
+          other.destinationAccountId == this.destinationAccountId &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -961,6 +1007,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
   final Value<DateTime> occurredAt;
   final Value<String?> note;
   final Value<int> accountId;
+  final Value<int?> destinationAccountId;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   const TransactionsCompanion({
@@ -971,6 +1018,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.occurredAt = const Value.absent(),
     this.note = const Value.absent(),
     this.accountId = const Value.absent(),
+    this.destinationAccountId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
@@ -982,6 +1030,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     required DateTime occurredAt,
     this.note = const Value.absent(),
     required int accountId,
+    this.destinationAccountId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
   }) : amount = Value(amount),
@@ -997,6 +1046,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Expression<DateTime>? occurredAt,
     Expression<String>? note,
     Expression<int>? accountId,
+    Expression<int>? destinationAccountId,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
   }) {
@@ -1008,6 +1058,8 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       if (occurredAt != null) 'occurred_at': occurredAt,
       if (note != null) 'note': note,
       if (accountId != null) 'account_id': accountId,
+      if (destinationAccountId != null)
+        'destination_account_id': destinationAccountId,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
@@ -1021,6 +1073,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Value<DateTime>? occurredAt,
     Value<String?>? note,
     Value<int>? accountId,
+    Value<int?>? destinationAccountId,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
   }) {
@@ -1032,6 +1085,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       occurredAt: occurredAt ?? this.occurredAt,
       note: note ?? this.note,
       accountId: accountId ?? this.accountId,
+      destinationAccountId: destinationAccountId ?? this.destinationAccountId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -1061,6 +1115,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     if (accountId.present) {
       map['account_id'] = Variable<int>(accountId.value);
     }
+    if (destinationAccountId.present) {
+      map['destination_account_id'] = Variable<int>(destinationAccountId.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -1080,6 +1137,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
           ..write('occurredAt: $occurredAt, ')
           ..write('note: $note, ')
           ..write('accountId: $accountId, ')
+          ..write('destinationAccountId: $destinationAccountId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -2476,6 +2534,7 @@ typedef $$TransactionsTableCreateCompanionBuilder =
       required DateTime occurredAt,
       Value<String?> note,
       required int accountId,
+      Value<int?> destinationAccountId,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
     });
@@ -2488,6 +2547,7 @@ typedef $$TransactionsTableUpdateCompanionBuilder =
       Value<DateTime> occurredAt,
       Value<String?> note,
       Value<int> accountId,
+      Value<int?> destinationAccountId,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
     });
@@ -2533,6 +2593,11 @@ class $$TransactionsTableFilterComposer
 
   ColumnFilters<int> get accountId => $composableBuilder(
     column: $table.accountId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get destinationAccountId => $composableBuilder(
+    column: $table.destinationAccountId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2591,6 +2656,11 @@ class $$TransactionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get destinationAccountId => $composableBuilder(
+    column: $table.destinationAccountId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -2635,6 +2705,11 @@ class $$TransactionsTableAnnotationComposer
 
   GeneratedColumn<int> get accountId =>
       $composableBuilder(column: $table.accountId, builder: (column) => column);
+
+  GeneratedColumn<int> get destinationAccountId => $composableBuilder(
+    column: $table.destinationAccountId,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
@@ -2681,6 +2756,7 @@ class $$TransactionsTableTableManager
                 Value<DateTime> occurredAt = const Value.absent(),
                 Value<String?> note = const Value.absent(),
                 Value<int> accountId = const Value.absent(),
+                Value<int?> destinationAccountId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => TransactionsCompanion(
@@ -2691,6 +2767,7 @@ class $$TransactionsTableTableManager
                 occurredAt: occurredAt,
                 note: note,
                 accountId: accountId,
+                destinationAccountId: destinationAccountId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
               ),
@@ -2703,6 +2780,7 @@ class $$TransactionsTableTableManager
                 required DateTime occurredAt,
                 Value<String?> note = const Value.absent(),
                 required int accountId,
+                Value<int?> destinationAccountId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => TransactionsCompanion.insert(
@@ -2713,6 +2791,7 @@ class $$TransactionsTableTableManager
                 occurredAt: occurredAt,
                 note: note,
                 accountId: accountId,
+                destinationAccountId: destinationAccountId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
               ),
