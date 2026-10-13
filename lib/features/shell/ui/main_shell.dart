@@ -265,155 +265,164 @@ class _MainShellState extends ConsumerState<MainShell> {
           body: Stack(
             children: [
               const Positioned.fill(child: LedgerGridBackground()),
-          // 2026-10-12 (commit 44+46+47+88) body 切 tab:
-          //   - GestureDetector + LayoutBuilder 监听水平 swipe 触发 switchToTab
-          //     (commit 47 加:commit 40 撤 PageView 时把 swipe 一起撤了,
-          //     user 反馈"现在左右滑动手势不行")
-          //   - commit 88 改:阈值从 OR(distance > 18% OR velocity > 280)
-          //     改成 AND(distance > 18% AND velocity > 400)
-          //     原因:user 反馈"chart 内的横向滑动跟切 tab 手势冲突"
-          //     - BarChart 内部用 RenderObject 直接吃 pointer(不走
-          //       GestureDetector arena),所以 chart 内的 horizontal pan
-          //       不会被外层 GestureDetector 拒绝
-          //     - 原 OR 阈值让 chart 内慢速或短距离 pan 也能误触切 tab
-          //     - 改成 AND:chart 内单柱 pan(短距离慢速)不会触发,
-          //       user 真要切 tab 需要快速 + 大距离 swipe(正常 swipe tab
-          //       动作)
-          //   - AnimatedSwitcher 480ms AppMotion.normal cross-fade
-          //   - 再叠一层方向感知 SlideTransition,offset = -dir * 0.06(屏宽 6%)
-          //   - 触觉:commit 46 撤掉切换震动,保留 FAB 主操作震动
-          Positioned.fill(
-            child: LayoutBuilder(
-              builder: (ctx, constraints) {
-                final screenWidth = constraints.maxWidth;
-                return GestureDetector(
-                  behavior: HitTestBehavior.translucent,
-                  // 累计水平拖动距离;GestureDetector 不提供"delta 求和",
-                  // 自己 addPostFrameCallback 维护一份 dx 累加
-                  onHorizontalDragStart: (_) {
-                    _swipeDx = 0;
+              // 2026-10-12 (commit 44+46+47+88) body 切 tab:
+              //   - GestureDetector + LayoutBuilder 监听水平 swipe 触发 switchToTab
+              //     (commit 47 加:commit 40 撤 PageView 时把 swipe 一起撤了,
+              //     user 反馈"现在左右滑动手势不行")
+              //   - commit 88 改:阈值从 OR(distance > 18% OR velocity > 280)
+              //     改成 AND(distance > 18% AND velocity > 400)
+              //     原因:user 反馈"chart 内的横向滑动跟切 tab 手势冲突"
+              //     - BarChart 内部用 RenderObject 直接吃 pointer(不走
+              //       GestureDetector arena),所以 chart 内的 horizontal pan
+              //       不会被外层 GestureDetector 拒绝
+              //     - 原 OR 阈值让 chart 内慢速或短距离 pan 也能误触切 tab
+              //     - 改成 AND:chart 内单柱 pan(短距离慢速)不会触发,
+              //       user 真要切 tab 需要快速 + 大距离 swipe(正常 swipe tab
+              //       动作)
+              //   - AnimatedSwitcher 480ms AppMotion.normal cross-fade
+              //   - 再叠一层方向感知 SlideTransition,offset = -dir * 0.06(屏宽 6%)
+              //   - 触觉:commit 46 撤掉切换震动,保留 FAB 主操作震动
+              Positioned.fill(
+                child: LayoutBuilder(
+                  builder: (ctx, constraints) {
+                    final screenWidth = constraints.maxWidth;
+                    return GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      // 累计水平拖动距离;GestureDetector 不提供"delta 求和",
+                      // 自己 addPostFrameCallback 维护一份 dx 累加
+                      onHorizontalDragStart: (_) {
+                        _swipeDx = 0;
+                      },
+                      onHorizontalDragUpdate: (d) {
+                        _swipeDx += d.delta.dx;
+                      },
+                      onHorizontalDragEnd: (d) {
+                        final velocity = d.primaryVelocity ?? 0;
+                        // commit 88 改 OR → AND:避免 chart 内 pan 误触发切 tab
+                        final pastDistance =
+                            _swipeDx.abs() > screenWidth * 0.18;
+                        final pastVelocity = velocity.abs() > 400;
+                        if (pastDistance && pastVelocity) {
+                          // drag 负方向(向左)→ 下一 tab;正方向(向右)→ 上一 tab
+                          final dir = _swipeDx < 0 ? 1 : -1;
+                          final target = (_currentTab + dir).clamp(0, 3);
+                          switchToTab(target);
+                        }
+                        _swipeDx = 0;
+                      },
+                      // AnimatedSwitcher 包 child:tab 切换时左右 slide + fade
+                      child: AnimatedSwitcher(
+                        duration: AppMotion.normal,
+                        reverseDuration: AppMotion.fast,
+                        switchInCurve: AppMotion.aquaIn,
+                        switchOutCurve: AppMotion.aquaOut,
+                        layoutBuilder: (currentChild, previousChildren) {
+                          return Stack(
+                            alignment: Alignment.topCenter,
+                            children: <Widget>[
+                              ...previousChildren,
+                              ?currentChild,
+                            ],
+                          );
+                        },
+                        transitionBuilder: (child, animation) {
+                          // SlideTransition 让新 page 从 ±0.06 横向位移滑入,
+                          // 同时 FadeTransition 让两 page 透明度同步过渡。
+                          final slide = Tween<Offset>(
+                            begin: Offset(-dir * 0.06, 0),
+                            end: Offset.zero,
+                          ).animate(animation);
+                          return SlideTransition(
+                            position: slide,
+                            child: FadeTransition(
+                              opacity: animation,
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: KeyedSubtree(
+                          key: ValueKey('tab-$_currentTab'),
+                          child: _pages[_currentTab],
+                        ),
+                      ),
+                    );
                   },
-                  onHorizontalDragUpdate: (d) {
-                    _swipeDx += d.delta.dx;
-                  },
-                  onHorizontalDragEnd: (d) {
-                    final velocity = d.primaryVelocity ?? 0;
-                    // commit 88 改 OR → AND:避免 chart 内 pan 误触发切 tab
-                    final pastDistance = _swipeDx.abs() > screenWidth * 0.18;
-                    final pastVelocity = velocity.abs() > 400;
-                    if (pastDistance && pastVelocity) {
-                      // drag 负方向(向左)→ 下一 tab;正方向(向右)→ 上一 tab
-                      final dir = _swipeDx < 0 ? 1 : -1;
-                      final target = (_currentTab + dir).clamp(0, 3);
-                      switchToTab(target);
-                    }
-                    _swipeDx = 0;
-                  },
-                  // AnimatedSwitcher 包 child:tab 切换时左右 slide + fade
-                  child: AnimatedSwitcher(
-                    duration: AppMotion.normal,
-                    reverseDuration: AppMotion.fast,
-                    switchInCurve: AppMotion.aquaIn,
-                    switchOutCurve: AppMotion.aquaOut,
-                    layoutBuilder: (currentChild, previousChildren) {
-                      return Stack(
-                        alignment: Alignment.topCenter,
-                        children: <Widget>[...previousChildren, ?currentChild],
-                      );
-                    },
-                    transitionBuilder: (child, animation) {
-                      // SlideTransition 让新 page 从 ±0.06 横向位移滑入,
-                      // 同时 FadeTransition 让两 page 透明度同步过渡。
-                      final slide = Tween<Offset>(
-                        begin: Offset(-dir * 0.06, 0),
-                        end: Offset.zero,
-                      ).animate(animation);
-                      return SlideTransition(
-                        position: slide,
-                        child: FadeTransition(opacity: animation, child: child),
-                      );
-                    },
-                    child: KeyedSubtree(
-                      key: ValueKey('tab-$_currentTab'),
-                      child: _pages[_currentTab],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-      // 2026-10-12 (commit 43):底 nav 去掉自定义 pill
-      //   - 之前 commit 40-41 试过 self-drawn ColorOS pill,无论宽 64 还是 56,
-      //     pill 跟中央 FAB 在 slot 内视觉冲突(都是大色块),撤掉
-      //   - 改回纯 NavigationBar + selectedIndex,选区只靠 "icon 改金 +
-      //     label 改金" 标识,极简
-      //   - 切 tab 时 NavigationBar 内部 fade 过渡足够丝滑
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: NavigationBar(
-          height: 72,
-          selectedIndex: _destForTab(_currentTab),
-          onDestinationSelected: _handleDestSelected,
-          backgroundColor: Theme.of(context).colorScheme.surface,
-          // 关掉自带的 tonal pill(就是 M3 那个"小药丸"背景);
-          // 我们只靠 icon + label 颜色变化表示选区
-          indicatorColor: Colors.transparent,
-          // 2026-10-13 P7 UAT:label 全局字号 11(默认 12)
-          //   - 中央 + 提示语 "长按+ 记其它资产" 8 字 + 加号,在 72dp slot 默认 12sp
-          //     会截断或换行
-          //   - 11sp 能 fit 一行,4 个 2 字标签(首页/流水/报表/我的) 仍清晰
-          labelTextStyle: WidgetStateProperty.all(
-            const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
-          ),
-          // 2026-10-13 P6:destinations list 不能再 const(中央 + 接受 closure)
-          //   - 其它 4 个 destination 仍保留 const NavigationDestination(...) 内部,
-          //     但 list literal 整体需要去掉 const 才能混 _CenterFab(onLongPress: ...)
-          destinations: [
-            const NavigationDestination(
-              icon: Icon(Icons.dashboard_outlined, size: 24),
-              selectedIcon: Icon(Icons.dashboard_rounded, size: 24),
-              label: '首页',
-              tooltip: '',
-            ),
-            const NavigationDestination(
-              icon: Icon(Icons.list_alt_outlined, size: 24),
-              selectedIcon: Icon(Icons.list_alt_rounded, size: 24),
-              label: '流水',
-              tooltip: '',
-            ),
-            // 中央"+":大圆角色块
-            // 2026-10-13 P6:长按 0.4s 弹 Speed Dial(5 小圆选 type),短按走默认 cash_flow
-            //   - onTap:NavigationBar → onDestinationSelected → _handleDestSelected → _pushAdd
-            //   - onLongPress:_CenterFab 内部 GestureDetector → _openSpeedDial
-            // 2026-10-13 P7:NavigationDestination label 加提示文案"长按+ 记其它资产"
-            //   - user UAT:"在底下的+号增加一句提示" → 放 NavigationBar label 槽(已确认)
-            //   - 字色用 onSurfaceVariant 灰(非选中态),跟其它 4 个未选 tab label 一致
-            //   - 字号 11sp 略小于默认 12sp,8 个字符 + 加号在 72dp slot 内 fit 一行不截断
-            NavigationDestination(
-              icon: Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.s1),
-                child: _CenterFab(onLongPress: _openSpeedDial),
+                ),
               ),
-              label: '长按+ 记其它资产',
-              tooltip: '',
+            ],
+          ),
+          // 2026-10-12 (commit 43):底 nav 去掉自定义 pill
+          //   - 之前 commit 40-41 试过 self-drawn ColorOS pill,无论宽 64 还是 56,
+          //     pill 跟中央 FAB 在 slot 内视觉冲突(都是大色块),撤掉
+          //   - 改回纯 NavigationBar + selectedIndex,选区只靠 "icon 改金 +
+          //     label 改金" 标识,极简
+          //   - 切 tab 时 NavigationBar 内部 fade 过渡足够丝滑
+          bottomNavigationBar: SafeArea(
+            top: false,
+            child: NavigationBar(
+              height: 72,
+              selectedIndex: _destForTab(_currentTab),
+              onDestinationSelected: _handleDestSelected,
+              backgroundColor: Theme.of(context).colorScheme.surface,
+              // 关掉自带的 tonal pill(就是 M3 那个"小药丸"背景);
+              // 我们只靠 icon + label 颜色变化表示选区
+              indicatorColor: Colors.transparent,
+              // 2026-10-13 P7 UAT:label 全局字号 11(默认 12)
+              //   - 中央 + 提示语 "长按+ 记其它资产" 8 字 + 加号,在 72dp slot 默认 12sp
+              //     会截断或换行
+              //   - 11sp 能 fit 一行,4 个 2 字标签(首页/流水/报表/我的) 仍清晰
+              labelTextStyle: WidgetStateProperty.all(
+                const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+              ),
+              // 2026-10-13 P6:destinations list 不能再 const(中央 + 接受 closure)
+              //   - 其它 4 个 destination 仍保留 const NavigationDestination(...) 内部,
+              //     但 list literal 整体需要去掉 const 才能混 _CenterFab(onLongPress: ...)
+              destinations: [
+                const NavigationDestination(
+                  icon: Icon(Icons.dashboard_outlined, size: 24),
+                  selectedIcon: Icon(Icons.dashboard_rounded, size: 24),
+                  label: '首页',
+                  tooltip: '',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.list_alt_outlined, size: 24),
+                  selectedIcon: Icon(Icons.list_alt_rounded, size: 24),
+                  label: '流水',
+                  tooltip: '',
+                ),
+                // 中央"+":大圆角色块
+                // 2026-10-13 P6:长按 0.4s 弹 Speed Dial(5 小圆选 type),短按走默认 cash_flow
+                //   - onTap:NavigationBar → onDestinationSelected → _handleDestSelected → _pushAdd
+                //   - onLongPress:_CenterFab 内部 GestureDetector → _openSpeedDial
+                // 2026-10-13 P7:NavigationDestination label 加提示文案
+                //   - 原文 "长按+ 记其它资产" → UAT:"太丑了,还换行了"
+                //     8 字 + 加号在 11sp 仍超 slot 宽度,折成 2 行
+                //   - 改 "长按·其它资产" 6 字 + 间隔点,1 行 fit,语义清晰不变
+                //   - 字色保持 onSurfaceVariant 灰(UAT 选 "不动色"),跟 4 个未选 tab label 一致
+                //   - 字号 11sp 略小于默认 12sp,4 个 2 字 tab label(首页/流水/报表/我的) 仍清晰
+                NavigationDestination(
+                  icon: Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.s1),
+                    child: _CenterFab(onLongPress: _openSpeedDial),
+                  ),
+                  label: '长按·其它资产',
+                  tooltip: '',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.pie_chart_outline, size: 24),
+                  selectedIcon: Icon(Icons.pie_chart_rounded, size: 24),
+                  label: '报表',
+                  tooltip: '',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.person_outline, size: 24),
+                  selectedIcon: Icon(Icons.person_rounded, size: 24),
+                  label: '我的',
+                  tooltip: '',
+                ),
+              ],
             ),
-            const NavigationDestination(
-              icon: Icon(Icons.pie_chart_outline, size: 24),
-              selectedIcon: Icon(Icons.pie_chart_rounded, size: 24),
-              label: '报表',
-              tooltip: '',
-            ),
-            const NavigationDestination(
-              icon: Icon(Icons.person_outline, size: 24),
-              selectedIcon: Icon(Icons.person_rounded, size: 24),
-              label: '我的',
-              tooltip: '',
-            ),
-          ],
-        ),
-        ),
+          ),
         ),
         // 2026-10-13 P6 第 12 次改:Listener 在 SpeedDialListPopup 内
         //   (用 main_shell 跟 popup 同一个 Stack 内的 size 算 rowIndex,避免 size 不一致)
@@ -435,7 +444,6 @@ class _MainShellState extends ConsumerState<MainShell> {
     );
   }
 }
-
 
 /// 中央"+":大圆角色块,呼应 LOGO
 /// - BoxShape.circle 保证真正圆(56x56 下 borderRadius=24 是圆角矩形不是圆)
