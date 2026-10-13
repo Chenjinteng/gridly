@@ -1,5 +1,12 @@
 // lib/features/add/ui/widgets/amount_display.dart
 // 大字号金额显示
+//
+// 2026-10-13 P7 改:金额色 = TypeToggle 选中色(支出红 / 收入 teal / 调拨浅金)
+//   - user UAT:"切换时要保持与中间的输入数字一致" — toggle 切到支出,金额变红;
+//     切到收入变 teal,视觉系统统一
+//   - expense = AppStatus.error (#EF4444 红,跟 TypeToggle _primaryFor 对齐)
+//   - income = AppBrand.teal (#14B8A6 主题蓝,跟"保存"按钮 / today pill / 现金 chip 一致)
+//   - balance = AppSecondary.softGold (#FFEAA7 浅金,中性,跟 income 区分)
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -10,14 +17,11 @@ class AmountDisplay extends StatelessWidget {
 
   final String amount; // 用户输入的字符串
   final String type; // 'expense' | 'income' | 'balance'
-  // 2026-10-12 P3 commit 加 'balance' type:
-  //   - balance 流水动资产但不算月度收支,中性色 AppSecondary.softGold(暖金),
-  //     跟 income(brand gold)区分开,避免"调拨"看着像收入。
 
   @override
   Widget build(BuildContext context) {
     final color = switch (type) {
-      'income' => AppBrand.gold,
+      'income' => AppBrand.teal,
       'balance' => AppSecondary.softGold,
       _ => AppStatus.error, // 'expense'
     };
