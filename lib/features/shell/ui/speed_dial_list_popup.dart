@@ -125,13 +125,23 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
   ///   - 但用 `event.localPosition`(Listener widget 局部坐标)跟 `_popupRect`
   ///     (global 坐标)比较,**坐标系不匹配**,导致 row 算错位置不跟手
   ///   - 改用 `event.position`(global 坐标)统一坐标系,跟 `_popupRect` 比较
-  void _onPointerDown(PointerDownEvent e) => _updateHover(e.position);
-  void _onPointerMove(PointerMoveEvent e) => _updateHover(e.position);
+  void _onPointerDown(PointerDownEvent e) {
+    // ignore: avoid_print
+    print('DEBUG_SPD: down pos=${e.position} localPos=${e.localPosition} popupRect=$_popupRect');
+    _updateHover(e.position);
+  }
+  void _onPointerMove(PointerMoveEvent e) {
+    // ignore: avoid_print
+    print('DEBUG_SPD: move pos=${e.position} popupRect=$_popupRect hovered=$_hoveredIndex');
+    _updateHover(e.position);
+  }
 
   /// PointerUp — 抬手决定 onSelected 还是 onDismiss
   ///   - 在 popup 内某 row 上 = onSelected
   ///   - 在 popup 外 / 中心取消区 = onDismiss(走默认 cash_flow)
   void _onPointerUp(PointerUpEvent e) {
+    // ignore: avoid_print
+    print('DEBUG_SPD: up pos=${e.position} hovered=$_hoveredIndex');
     _updateHover(e.position);
     if (_hoveredIndex != null) {
       widget.onSelected(widget.items[_hoveredIndex!]);
@@ -144,7 +154,11 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
   /// - 如果手指在 popup 矩形内:算 row index
   /// - 否则:取消(null)
   void _updateHover(Offset pos) {
-    if (_popupRect == null) return;
+    if (_popupRect == null) {
+      // ignore: avoid_print
+      print('DEBUG_SPD: _updateHover skip (popupRect null)');
+      return;
+    }
     if (!_popupRect!.contains(pos)) {
       if (_hoveredIndex != null) {
         setState(() => _hoveredIndex = null);
@@ -154,6 +168,8 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
     // 在 popup 内:算 row index
     final relY = pos.dy - _popupRect!.top - _popupPadding;
     final i = (relY / _rowHeight).floor().clamp(0, widget.items.length - 1);
+    // ignore: avoid_print
+    print('DEBUG_SPD: hovered row i=$i relY=$relY');
     if (i != _hoveredIndex) {
       AppHaptics.select();
       setState(() => _hoveredIndex = i);
