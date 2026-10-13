@@ -102,7 +102,7 @@ class _StatsPageState extends ConsumerState<StatsPage> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.only(bottom: AppSpacing.s6),
           children: [
-            // 视角特定内容 — 包 AnimatedSwitcher cross-fade,切视角(支出/收入/资产)时
+            // 视角特定内容 — 包 AnimatedSwitcher cross-fade,切视角(收支/资产)时
             // 新旧 view 同时存在(Stack 同时透明),完全无缝过渡。
             //
             // 2026-10-12 修(第 6 次迭代):
@@ -114,11 +114,18 @@ class _StatsPageState extends ConsumerState<StatsPage> {
             //   - StaggeredFadeIn 360ms 不动,它只在首次 mount 触发一次,
             //     view 切换时不重放,跟 AnimatedSwitcher 节奏无冲突
             //
+            // 2026-10-13 P6 第 7 次改(UAT 截图反馈"老问题又来了,500ms 还是
+            //   太长,重影"):
+            //   - duration 500ms → 200ms(200ms 重叠窗口 ~100ms,基本察觉不到)
+            //   - 切 view 是用户主动操作,要快(入场动画可以慢,view 切换要快)
+            //   - 入场动画(StaggeredFadeIn 360ms + AnimatedCounter 1200ms)
+            //     保持不变,它们只在 view 首次 mount 触发一次,不冲突
+            //
             // 2026-10-13 P6 改:RangeTabs(本月/本年) + RangeSummary(收入/支出/结余)
             //   只对 expense 视角显示。资产视角是"当前余额",不依赖时间窗口,
             //   不显示这 2 个 section 更干净。
             AnimatedSwitcher(
-              duration: const Duration(milliseconds: 500),
+              duration: const Duration(milliseconds: 200),
               switchInCurve: AppMotion.aquaIn,
               switchOutCurve: AppMotion.aquaOut,
               // cross-fade:Stack 让 previous children 跟 current child 同时
