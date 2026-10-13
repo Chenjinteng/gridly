@@ -49,6 +49,15 @@ class _MainShellState extends ConsumerState<MainShell> {
   /// 注意:FAB 不在 4 个 tab 内,dest 2 走 push '/add' 路由
   int _currentTab = 0;
 
+  /// 2026-10-13 P6 第 11 次改:Speed Dial 状态
+  ///   - 之前用 Overlay,在 Overlay 内 Listener 收不到 long press 之后的
+  ///     PointerMove(用户描述"得先松开再触碰才能滑动选")
+  ///   - 改用 main_shell root Stack 内的全屏 Listener,
+  ///     Listener 跟 _CenterFab 同 widget tree(不在 Overlay 内),
+  ///     100% 接收 pointer events
+  bool _speedDialOpen = false;
+  int? _hoveredIndex;
+
   /// 上一次 build 的 tab index —— 用于计算 slide 方向。
   /// 初始 0(首页);从 modal 进/出不算 tab slide。
   int _prevTab = 0;
@@ -63,11 +72,14 @@ class _MainShellState extends ConsumerState<MainShell> {
   /// "总拖动距离",需在 onHorizontalDragUpdate 累加 dx
   double _swipeDx = 0;
 
-  /// 2026-10-13 P6 commit:Speed Dial overlay
-  /// - 长按中央 + 0.4s 弹 5 小圆(investment/benefit/receivable/fixed_asset/other)
-  /// - 选中后跳 /add 路由,extra = assetType 预选
-  /// - 短按 0.4s 内松手走默认(assetType = cash_flow)
-  OverlayEntry? _speedDialOverlay;
+  /// 2026-10-13 P6 第 11 次改:删除 Overlay 方式,改 main_shell Stack 内全屏 Listener
+  ///   - 之前 _speedDialOverlay: OverlayEntry(2026-10-13 P6 第 5 次改的版本)
+  ///   - 现在改用 `_speedDialOpen: bool` + `_hoveredIndex: int?` 在 main_shell
+  ///     root Stack 内放全屏 Listener + SpeedDialListPopup UI
+  ///   - 长按 _CenterFab → 触发 _openSpeedDial() → setState(_speedDialOpen = true)
+  ///   - 全屏 Listener 立即接管后续 pointer move / up,跟 _CenterFab 同 widget tree
+  ///   - 100% 接收 pointer events,跟 _CenterFab 的 gesture arena 无冲突
+  // (原 _speedDialOverlay 字段已删除)
 
   /// Speed Dial 5 小圆配置(5 个非现金流的 type)
   /// 顺序:投资 / 福利 / 债权 / 不动产 / 其它(跟 asset_form 顺序一致)
@@ -106,24 +118,70 @@ class _MainShellState extends ConsumerState<MainShell> {
   ];
 
   void _openSpeedDial() {
-    if (_speedDialOverlay != null) return; // 防重入
-    final entry = OverlayEntry(
-      builder: (_) => SpeedDialListPopup(
-        items: _speedDialItems,
-        onSelected: (item) {
-          _closeSpeedDial();
-          _pushAdd(assetType: item.key);
-        },
-        onDismiss: _closeSpeedDial,
-      ),
-    );
-    _speedDialOverlay = entry;
-    Overlay.of(context).insert(entry);
+    if (_speedDialOpen) return; // 防重入
+    setState(() {
+      _speedDialOpen = true;
+    });
   }
 
   void _closeSpeedDial() {
-    _speedDialOverlay?.remove();
-    _speedDialOverlay = null;
+    setState(() {
+      _speedDialOpen = false;
+      _hoveredIndex = null;
+    });
+  }
+
+  /// 2026-10-13 P6 第 11 次改加:全屏 Listener 收到 PointerMove 时
+  ///   根据 position 算 hovered row
+  void _onSpeedDialPointerMove(PointerMoveEvent e) {
+    if (!_speedDialOpen) return;
+    final i = _computeHoveredIndex(e.position);
+    if (i != _hoveredIndex) {
+      setState(() {
+        _hoveredIndex = i;
+      });
+      if (i != null) AppHaptics.select();
+    }
+  }
+
+  /// 2026-10-13 P6 第 11 次改加:全屏 Listener 收到 PointerUp 时
+  ///   - hoveredIndex != null → onSelected(走对应 assetType)
+  ///   - hoveredIndex == null → dismiss
+  void _onSpeedDialPointerUp(PointerUpEvent e) {
+    if (!_speedDialOpen) return;
+    final i = _computeHoveredIndex(e.position);
+    if (i != null) {
+      _closeSpeedDial();
+      _pushAdd(assetType: _speedDialItems[i].key);
+    } else {
+      _closeSpeedDial();
+    }
+  }
+
+  /// 2026-10-13 P6 第 11 次改加:根据 global position 算 hovered row
+  ///   - 用 MediaQuery.sizeOf 拿屏幕 size
+  ///   - 跟 SpeedDialListPopup 内布局算法一致(fabCenterX, fabCenterY, popupLeft, popupTop)
+  ///   - main_shell 内统一管,SpeedDialListPopup 只需渲染 UI
+  int? _computeHoveredIndex(Offset globalPos) {
+    final size = MediaQuery.sizeOf(context);
+    const fabOffsetFromBottom = 90.0;
+    const popupPadding = 8.0;
+    const rowHeight = 48.0;
+    const popupWidth = 200.0;
+    const fabRadius = 28.0; // _CenterFab 56x56
+    final fabCenterX = size.width / 2;
+    final fabCenterY = size.height - fabOffsetFromBottom;
+    final popupHeight = popupPadding * 2 + _speedDialItems.length * rowHeight;
+    final popupLeft = fabCenterX - popupWidth / 2;
+    final popupTop = (fabCenterY - fabRadius - 4 - popupHeight).clamp(
+      20.0,
+      size.height - popupHeight - 20,
+    );
+    final popupRect = Rect.fromLTWH(popupLeft, popupTop, popupWidth, popupHeight);
+    if (!popupRect.contains(globalPos)) return null;
+    final relY = globalPos.dy - popupTop - popupPadding;
+    final i = (relY / rowHeight).floor().clamp(0, _speedDialItems.length - 1);
+    return i;
   }
 
   /// 跳 /add 路由,带 preselectedAssetType extra
@@ -239,10 +297,17 @@ class _MainShellState extends ConsumerState<MainShell> {
     _prevTab = _currentTab;
     _wasOnModal = onModalNow;
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          const Positioned.fill(child: LedgerGridBackground()),
+    // 2026-10-13 P6 第 11 次改:整个 Scaffold 包在 Stack 内,
+    //   Stack 末尾放全屏 Listener + SpeedDialListPopup
+    //   - Listener 覆盖整个屏幕,在 _CenterFab 之上(Stack 后写在上)
+    //   - Listener 跟 _CenterFab 同一 widget tree,不被 Overlay 隔断
+    //   - 100% 接收 pointer events,跟 _CenterFab gesture arena 无冲突
+    return Stack(
+      children: [
+        Scaffold(
+          body: Stack(
+            children: [
+              const Positioned.fill(child: LedgerGridBackground()),
           // 2026-10-12 (commit 44+46+47+88) body 切 tab:
           //   - GestureDetector + LayoutBuilder 监听水平 swipe 触发 switchToTab
           //     (commit 47 加:commit 40 撤 PageView 时把 swipe 一起撤了,
@@ -380,10 +445,39 @@ class _MainShellState extends ConsumerState<MainShell> {
             ),
           ],
         ),
-      ),
+        ),
+        ),
+        // 2026-10-13 P6 第 11 次改:Speed Dial 全屏 Listener(覆盖整个屏幕)
+        //   - Positioned.fill 覆盖整个屏幕
+        //   - Listener 跟 _CenterFab 同一 widget tree(都在 main_shell Stack 内)
+        //   - 不走 Overlay 机制,100% 接收 pointer events
+        //   - HitTestBehavior.translucent 让下层 widget(导航 / 列表)也接收 events
+        //     (但 _speedDialOpen = false 时 Listener 不存在,不会拦截正常 flow)
+        if (_speedDialOpen)
+          Positioned.fill(
+            child: Listener(
+              onPointerMove: _onSpeedDialPointerMove,
+              onPointerUp: _onSpeedDialPointerUp,
+              behavior: HitTestBehavior.translucent,
+            ),
+          ),
+        // Speed Dial UI(在 Listener 之上,保证 InkWell 也能响应)
+        //   - hoveredIndex 由 main_shell 状态驱动,SpeedDialListPopup 纯渲染
+        if (_speedDialOpen)
+          SpeedDialListPopup(
+            items: _speedDialItems,
+            hoveredIndex: _hoveredIndex,
+            onSelected: (item) {
+              _closeSpeedDial();
+              _pushAdd(assetType: item.key);
+            },
+            onDismiss: _closeSpeedDial,
+          ),
+      ],
     );
   }
 }
+
 
 /// 中央"+":大圆角色块,呼应 LOGO
 /// - BoxShape.circle 保证真正圆(56x56 下 borderRadius=24 是圆角矩形不是圆)
