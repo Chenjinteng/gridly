@@ -41,15 +41,21 @@ class TransactionTile extends ConsumerWidget {
           }
         }
         final color = cat == null ? AppGray.g400 : Color(cat.color);
-        // 2026-10-12 P3 commit:amount 颜色按 type 分
-        //   - income → gold
-        //   - balance → softGold(中性暖金,跟 income 区分开)
-        //   - expense → error
-        final amountColor = switch (transaction.type) {
-          'income' => AppBrand.gold,
-          'balance' => AppSecondary.softGold,
-          _ => AppStatus.error,
-        };
+        // 2026-10-14 P18 改:投资 record(cat.type='investment')金额色用账户色,跟 _AccountBadge 一致
+        //   - 投资 record 走 source/dest 账户(可能是 cash_flow 银行),用 asset.color
+        //   - 之前 amountColor switch 全是 softGold(投资投入/调拨)+ gold(收益),太淡看不清
+        //   - 跟 _AccountBadge 用同一资产色(招商银行=红),视觉统一
+        //   - cash_flow record(cat.type='expense'/'income')维持原 amountColor 逻辑
+        final assetAsync = ref.watch(assetByIdProvider(transaction.accountId));
+        final asset = assetAsync.valueOrNull;
+        final isInvestmentRecord = cat?.type == 'investment';
+        final amountColor = isInvestmentRecord && asset != null
+            ? Color(asset.color)
+            : switch (transaction.type) {
+                'income' => AppBrand.gold,
+                'balance' => AppSecondary.softGold,
+                _ => AppStatus.error,
+              };
         // 2026-10-12 P3 commit:balance 流水不显示 ± prefix
         //   (调拨可正可负,跟"支出=负 / 收入=正"的语义不同)
         final showPrefix = transaction.type != 'balance';
