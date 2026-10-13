@@ -8,6 +8,14 @@
 //   - subtitle:type chip + 余额(余额从 assetBalanceProvider 取)
 //   - trailing:[编辑][删除] IconButton(同 CategoryTile)
 //   - 点 tile 整体也可触发编辑,跟 CategoryTile onEdit 一致
+//
+// 2026-10-13 P6 第 2 次改(UAT 反馈):
+//   - subtitle 拆 2 行:
+//     - 第一行:type chip + 计入/不计入 chip(用户明确要"像现金流 chip 一样显示")
+//     - 第二行:金额独立一行(用户说金额长时给更多空间)
+//   - 计入流水 chip = 主题黄(AppBrand.gold);不计入 = 灰色(AppGray.g600)
+//   - 金额 0.00 用主题灰(AppGray.g400),"无数据"状态更明显
+//   - 删 title 末尾的 archive icon(include chip 在 subtitle 已经有更明显显示)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -109,61 +117,53 @@ class AssetTile extends ConsumerWidget {
             size: 18,
           ),
         ),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                asset.name,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            // 2026-10-13 P6 加:includeInTransactions=false 时,标题右侧加
-            //   小 archive icon 提示(替代之前挤一行的"不计入流水" chip,
-            //   解决 30px overflow 问题)
-            if (!asset.includeInTransactions) ...[
-              const SizedBox(width: 6),
-              Tooltip(
-                message: '不计入流水',
-                child: Icon(
-                  Icons.archive_outlined,
-                  size: 14,
-                  color: AppGray.g600,
-                ),
-              ),
-            ],
-          ],
+        title: Text(
+          asset.name,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+          overflow: TextOverflow.ellipsis,
         ),
+        // 2026-10-13 P6 第 2 次改:subtitle 拆 2 行
+        // - 第一行:type chip + 计入/不计入 chip
+        // - 第二行:金额独立(整行,长金额有更多空间)
         subtitle: Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: Row(
+          padding: const EdgeInsets.only(top: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // type 小标签(同款胶囊,type 配色)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: BoxDecoration(
-                  color: typeColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  typeLabels[asset.type] ?? asset.type,
-                  style: TextStyle(
-                    fontSize: 10,
+              // 第一行:chips
+              Row(
+                children: [
+                  // type chip(同款胶囊,type 配色)
+                  _TileChip(
+                    label: typeLabels[asset.type] ?? asset.type,
                     color: typeColor,
-                    fontWeight: FontWeight.w600,
                   ),
-                ),
+                  const SizedBox(width: 6),
+                  // 2026-10-13 P6 第 2 次改:includeInTransactions chip
+                  //   计入 = 主题黄(AppBrand.gold)
+                  //   不计入 = 灰色(AppGray.g600)
+                  //   跟 type chip 同款胶囊,色块 + 文字,一眼能看到状态
+                  _TileChip(
+                    label: asset.includeInTransactions ? '计入流水' : '不计入流水',
+                    color: asset.includeInTransactions
+                        ? AppBrand.gold
+                        : AppGray.g600,
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
+              const SizedBox(height: 6),
+              // 第二行:金额独立(2026-10-13 P6 第 2 次改)
+              //   0.00 用主题灰(AppGray.g400),"无数据"状态更明显
+              //   > 0 teal;< 0 error
               Text(
                 '¥${Formatters.amount(balance)}',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: AppSemantic.balanceFor(balance),
+                  color: balance == 0
+                      ? AppGray.g400
+                      : AppSemantic.balanceFor(balance),
                 ),
               ),
             ],
@@ -187,6 +187,36 @@ class AssetTile extends ConsumerWidget {
               onPressed: onDelete,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 资产 tile 小 chip(2026-10-13 P6 第 2 次改)
+/// - 圆角 4px 胶囊
+/// - color.withValues(alpha:0.12) 底色 + color 文字
+/// - 10sp w600(跟之前 type chip 风格一致)
+/// - 复用 type chip + 计入/不计入 chip 两种语义
+class _TileChip extends StatelessWidget {
+  const _TileChip({required this.label, required this.color});
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          color: color,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
