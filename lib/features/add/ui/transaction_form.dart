@@ -89,6 +89,11 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   // - cash_flow:_intent = _type = 'expense' / 'income' / 'balance'(1:1 对应 DB)
   // - investment:_intent = 'input' / 'output' / 'transfer',DB _type 始终 'balance',
   //   通过 destinationAccountId 表达 source→dest 流向
+  //
+  // 2026-10-13 P9 UAT 改:_intent 默认按上下文(cash_flow='expense', investment='input')
+  //   user:"默认还是选择投入,不然用户不知道这个是可以选择的"
+  //   - investment _intent='expense' 不在 investmentSegments 里,显示无选中态
+  //   - 改成 'input' 后,投入段自动可见选中,user 一眼知道 toggle 可点
   String _intent = 'expense';
 
   /// DB 存储的实际 type:
@@ -130,6 +135,14 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   @override
   void initState() {
     super.initState();
+    // 2026-10-13 P9 UAT 加:investment context 默认 _intent='input'(投入)
+    // user:"默认还是选择投入,不然用户不知道这个是可以选择的"
+    // cash_flow 默认仍是 'expense'(短按+ 默认日常支出)
+    if (!_isInvestmentContext) {
+      // _intent 已是 'expense',无需覆盖
+    } else {
+      _intent = 'input';
+    }
     final t = widget.editTransaction;
     if (t != null) {
       // 编辑模式:预填已有数据
@@ -168,46 +181,30 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
         // 2026-10-13 P8:双账户预选
         // - _accountId = 转出(默认 preselectedAssetType 段第 1 个 / isDefault)
         // - _destinationAccountId = 转入(根据 _intent 推导目标 type)
-        final typeAssets = assets
-            .where((a) => a.type == preselectedType)
-            .toList();
-        Asset? pickedSource;
-        for (final a in typeAssets) {
-          if (a.isDefault) {
-            pickedSource = a;
-            break;
+        //
+        // 2026-10-13 P9 UAT 改:investment 场景转出/转入都保持 null
+        // user:"只清理【日期】【转出】【转入】就好"
+        // - 转出和转入互相独立,用户场景多变,不要预填干扰选择
+        // - cash_flow 仍预填首个 cash_flow(isDefault 优先),原行为不变
+        if (!_isInvestmentContext) {
+          final typeAssets = assets
+              .where((a) => a.type == preselectedType)
+              .toList();
+          Asset? pickedSource;
+          for (final a in typeAssets) {
+            if (a.isDefault) {
+              pickedSource = a;
+              break;
+            }
           }
+          pickedSource ??= typeAssets.isEmpty ? null : typeAssets.first;
+          setState(() {
+            _accountId ??= pickedSource?.id;
+          });
         }
-        pickedSource ??= typeAssets.isEmpty ? null : typeAssets.first;
-        // 2026-10-13 P8:investment 场景默认"投入"(cash → investment),预选 dest = investment
-        Asset? pickedDest;
-        if (_isInvestmentContext) {
-          final destType = _destTypeForIntent(_intent);
-          final destAssets = assets.where((a) => a.type == destType).toList();
-          pickedDest = destAssets.isEmpty ? null : destAssets.first;
-        }
-        setState(() {
-          _accountId ??= pickedSource?.id;
-          if (_isInvestmentContext) {
-            _destinationAccountId ??= pickedDest?.id;
-          }
-        });
+        // 2026-10-13 P9:investment 不预填,_accountId 和 _destinationAccountId 保持 null
+        // 用户开 form 必须显式选两个账户 → 跟"只清理"语义一致
       });
-    }
-  }
-
-  /// 2026-10-13 P8:根据 _intent 推导 destinationAccountId 的目标 type
-  /// - 投入(input):dest = investment
-  /// - 收益(output):dest = cash_flow
-  /// - 调拨(transfer):dest = (不限,任何 type)
-  String _destTypeForIntent(String intent) {
-    switch (intent) {
-      case 'input':
-        return 'investment';
-      case 'output':
-        return 'cash_flow';
-      default:
-        return ''; // transfer:不限
     }
   }
 
