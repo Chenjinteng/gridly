@@ -602,7 +602,7 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-class _DaySection extends StatelessWidget {
+class _DaySection extends ConsumerWidget {
   const _DaySection({
     required this.day,
     required this.transactions,
@@ -616,12 +616,26 @@ class _DaySection extends StatelessWidget {
   final bool animateStagger;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 2026-10-14 P18:日结小计排除投资 record
+    //   投资收益(type='income')原本计入 dailyIncome → 跳过
+    //   投资投入/调拨(type='balance')原本走 else 不计入 → 一致
+    //   (但 expense 计算无投资场景,这里统一过滤保持一致)
+    final allCats = ref.watch(allCategoriesProvider).valueOrNull ?? const [];
+    final investmentCatIds = allCats
+        .where((c) => c.type == 'investment')
+        .map((c) => c.id)
+        .toSet();
     final dailyExpense = transactions
-        .where((t) => t.type == 'expense')
+        .where(
+          (t) =>
+              t.type == 'expense' && !investmentCatIds.contains(t.categoryId),
+        )
         .fold<double>(0, (sum, t) => sum + t.amount);
     final dailyIncome = transactions
-        .where((t) => t.type == 'income')
+        .where(
+          (t) => t.type == 'income' && !investmentCatIds.contains(t.categoryId),
+        )
         .fold<double>(0, (sum, t) => sum + t.amount);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
