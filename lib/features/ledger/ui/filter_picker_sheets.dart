@@ -7,9 +7,13 @@
 // 设计:
 //   - SheetDismissed sentinel — barrier dismiss / "关闭"按钮(没操作)用
 //   - AllPicked sentinel — 用户明确点"全部"项(等价 reset 到默认值)用
-//   - showSingleSelectSheet<T> — 单选 list(类型 / 月份),用底部 modal sheet
-//     2026-10-13 P10 加"显示全部" FilledButton 底部快捷键,匹配 MultiSelect
-//     同款视觉;tap = 选 AllPicked + dismiss(caller 已处理 AllPicked → reset)
+//   - showSingleSelectSheet<T> — 单选 list(类型 / 月份),DraggableScrollableSheet
+//     2026-10-13 P10 加底部"显示全部" FilledButton,匹配 MultiSelect 同款视觉
+//     2026-10-13 P11 改:list 自动过滤掉 AllPicked 项(底部按钮已替代表达"全部")
+//       - "类型" 4 项 → 列表 3 项(支出/收入/调拨)+ 底部"显示全部"
+//       - "月份" 7+ 项 → 列表 N 项月 + 底部"显示全部",sheet
+//         用 DraggableScrollableSheet(0.7/0.4/0.9)→ 长 list 可拖拽
+//         调高度 + ListView 内部滑动
 //   - MultiSelectCategorySheet — 多选 list(分类),DraggableScrollableSheet
 //   - MultiSelectAssetSheet — 多选 list(账户),DraggableScrollableSheet
 import 'package:flutter/material.dart';
@@ -42,14 +46,24 @@ const allPicked = AllPicked();
 /// 选项用 `Object?` 而非 T,因为"全部"用 sentinel 不能跟 T 类型混
 ///
 /// 2026-10-12 P5:showGeneralDialog → showModalBottomSheet(底部 modal sheet 风格)
+///
+/// 2026-10-13 P11:showModalBottomSheet + Flexible(shrinkWrap) →
+///   DraggableScrollableSheet(0.7/0.4/0.9),同款 ledger MultiSelectCategorySheet
+///   / 调拨 account picker;同时列表过滤掉 AllPicked 项(底部"显示全部"按钮
+///   已替代表达"全部",user:"已经有显示全部按钮了,就不用在滚动里面有'全部'的选项")
+///   - 月份 7+ 项时长 list 可拖拽调高度 + 内部滑动
+///   - 类型 3 项时 sheet 仍起始 0.7(多 4 行留空),视觉一致
 Future<Object?> showSingleSelectSheet<T>(
   BuildContext context, {
   required String title,
   required List<(Object?, String)> options,
   required T currentValue,
 }) {
+  // 2026-10-13 P11:list 过滤掉 AllPicked 项 → 不与底部"显示全部"按钮重复
+  final listOptions = options.where((o) => o.$1 is! AllPicked).toList();
   return showModalBottomSheet<Object?>(
     context: context,
+    isScrollControlled: true, // DraggableScrollableSheet 需要
     backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
@@ -57,11 +71,13 @@ Future<Object?> showSingleSelectSheet<T>(
     builder: (ctx) {
       final theme = Theme.of(ctx);
       final isDark = theme.brightness == Brightness.dark;
-      return SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: AppSpacing.s2),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+      return DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (ctx, scrollController) {
+          return Column(
             children: [
               // 把手
               Container(
@@ -96,16 +112,14 @@ Future<Object?> showSingleSelectSheet<T>(
                 ),
               ),
               const Divider(height: 1),
-              Flexible(
+              Expanded(
                 child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: options.length,
+                  controller: scrollController,
+                  itemCount: listOptions.length,
                   itemBuilder: (_, i) {
-                    final (value, label) = options[i];
-                    // 选中态判断:value 是 AllPicked 且 currentValue 是 null
-                    final selected =
-                        (value is AllPicked && currentValue == null) ||
-                        (value == currentValue);
+                    final (value, label) = listOptions[i];
+                    // 2026-10-13 P11:AllPicked 已不在 list,只比 value == currentValue
+                    final selected = value == currentValue;
                     return InkWell(
                       onTap: () => Navigator.pop(ctx, value),
                       child: Padding(
@@ -138,6 +152,7 @@ Future<Object?> showSingleSelectSheet<T>(
               // 2026-10-13 P10 加:"显示全部"快捷键 — 单选列表无需"清空",
               //   但要保留底部 FilledButton 跟 MultiSelect 同款视觉
               //   tap → pop AllPicked → caller 已 handle(等价 reset 到默认值)
+              // 2026-10-13 P11:list 已过滤掉 AllPicked,按钮是"全部"的唯一入口
               Padding(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.s4,
@@ -173,8 +188,8 @@ Future<Object?> showSingleSelectSheet<T>(
                 ),
               ),
             ],
-          ),
-        ),
+          );
+        },
       );
     },
   );
