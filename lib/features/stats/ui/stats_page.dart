@@ -102,12 +102,6 @@ class _StatsPageState extends ConsumerState<StatsPage> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.only(bottom: AppSpacing.s6),
           children: [
-            // 时间范围(本月/本年) —— 现在是该页 body 的最顶(view
-            // segmented 改到 AppBar 右侧了,这里不再有 view 行)
-            const RangeTabs(),
-            // 汇总(收入/支出/结余)— 三个视角共享(它是"窗口内总览")
-            const RangeSummary(),
-            const SizedBox(height: AppSpacing.s3),
             // 视角特定内容 — 包 AnimatedSwitcher cross-fade,切视角(支出/收入/资产)时
             // 新旧 view 同时存在(Stack 同时透明),完全无缝过渡。
             //
@@ -119,6 +113,10 @@ class _StatsPageState extends ConsumerState<StatsPage> {
             //     view 糊在一起"的长时间叠加
             //   - StaggeredFadeIn 360ms 不动,它只在首次 mount 触发一次,
             //     view 切换时不重放,跟 AnimatedSwitcher 节奏无冲突
+            //
+            // 2026-10-13 P6 改:RangeTabs(本月/本年) + RangeSummary(收入/支出/结余)
+            //   只对 expense 视角显示。资产视角是"当前余额",不依赖时间窗口,
+            //   不显示这 2 个 section 更干净。
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 500),
               switchInCurve: AppMotion.aquaIn,
@@ -169,6 +167,11 @@ class _StatsPageState extends ConsumerState<StatsPage> {
 
     switch (view) {
       case StatsView.expense:
+        // 2026-10-13 P6 改:RangeTabs + RangeSummary 只对 expense 视角显示
+        //   资产视角是"当前余额",不依赖时间窗口,不需要本月/本年/收入/支出/结余
+        add(const RangeTabs());
+        add(const RangeSummary());
+        widgets.add(const SizedBox(height: AppSpacing.s3));
         add(const CategoryPie());
         widgets.add(const SizedBox(height: AppSpacing.s3));
         add(const TopExpenses());
@@ -182,7 +185,8 @@ class _StatsPageState extends ConsumerState<StatsPage> {
         }
         add(const MonthlyTrendChart());
       case StatsView.assets:
-        // 2026-10-12 P4 commit:资产视角 = 总览卡 + 4 维雷达图(替换 P5 前的 placeholder)
+        // 2026-10-12 P4 commit:资产视角 = 总览卡 + 6 维雷达图(2026-10-13 P6 改 4 维 → 6 维)
+        //   2026-10-13 P6:RangeTabs/RangeSummary 不在这里显示
         add(const AssetsOverviewChart());
         widgets.add(const SizedBox(height: AppSpacing.s3));
         add(const AssetsRadar());
