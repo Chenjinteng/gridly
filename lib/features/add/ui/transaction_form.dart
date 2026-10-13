@@ -891,13 +891,30 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     }
   }
 
-  /// 2026-10-13 P8 加:fallback 取第一个 category id(投资场景 DB 字段强制非空)
-  ///   - App 启动 seed 必有 4 类系统分类(餐/交/居家/...),所以不可能为空
-  ///   - 用 ref.read 拿一次性数据;不 watch,只 _save 一瞬间取一次
+  /// 2026-10-14 P18 重构:按 _intent 取对应 categoryId
+  ///   - cash_flow → 用 _categoryId!(user 在 UI 必填)
+  ///   - investment 投入/调拨(_intent='input'/'transfer')→ '投资投入' 分类
+  ///   - investment 收益(_intent='output')→ '投资收益' 分类
+  ///   - UI 隐藏:investment context 不显示分类选择器,user 看不到也选不到
+  ///   - 之前 P8 一律 fallback 到 cash_flow 第一个分类(餐桌),导致投资 record 挂"餐饮"
+  ///     显示在 cash_flow 流水里,语义错位
+  ///   - DB schema NOT NULL 字段必须填,所以 fallback 是必要的,只是要选对分类
   Future<int?> _firstCategoryId() async {
     final repo = ref.read(categoryRepositoryProvider);
     final cats = await repo.all();
-    return cats.isEmpty ? null : cats.first.id;
+    if (cats.isEmpty) return null;
+    if (_isInvestmentContext) {
+      // 2026-10-14 P18:按 _intent 选投资分类,名字固定 seed 出来
+      const investmentInName = '投资投入';
+      const investmentOutName = '投资收益';
+      final target = _intent == 'output' ? investmentOutName : investmentInName;
+      for (final c in cats) {
+        if (c.name == target) return c.id;
+      }
+      // seed 失败兜底(理论上 App 启动已 seed,不会走到这)
+      return cats.first.id;
+    }
+    return cats.first.id;
   }
 
   /// 2026-10-12 P3 commit 加:账户选择 bottom sheet
