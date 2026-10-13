@@ -1115,10 +1115,17 @@ class _CategoryPickerSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final catsAsync = ref.watch(categoriesByTypeProvider(type));
+    // 2026-10-13 P14 UAT 改:DraggableScrollableSheet(0.6/0.3/0.9)→ 极值配置
+    //   user:"不要做什么还能往上滑动的操作了"
+    //   - max = 0.6 = initial → 上滑无效
+    //   - min = 0.0 + snapSizes [0.0, 0.6] → 下拉能缩到 0 dismiss
+    //   - GridView 4×3 = 12 项,初始 0.6 屏高刚好放下,scrollController 让超长 list 可滑
     return DraggableScrollableSheet(
       initialChildSize: 0.6,
-      minChildSize: 0.3,
-      maxChildSize: 0.9,
+      minChildSize: 0.0,
+      maxChildSize: 0.6,
+      snap: true,
+      snapSizes: const [0.0, 0.6],
       expand: false,
       builder: (context, scrollController) {
         return Container(
@@ -1261,6 +1268,12 @@ class _CategoryPickerSheet extends ConsumerWidget {
 ///   ColorOS Aquamorphic(那边 modal sheet 都支持拖拽调整高度)
 ///   - 调拨无"全部"概念 → 底部不加"显示全部"按钮(只有多选 + 有
 ///     AllPicked 选项的 sheet 才需要)
+///
+/// 2026-10-13 P14 UAT 改:DraggableScrollableSheet(0.7/0.5/0.9)→ 极值配置
+///   同 P12-3 类型/月份/分类 picker
+///   - max = 0.7 = initial → 上滑无效
+///   - min = 0.0 + snapSizes [0.0, 0.7] → 下拉缩到 0 dismiss
+///   - ListView scrollController 协调手势:list top 拖下 bubble 到 sheet 关
 class _AccountPickerSheet extends ConsumerWidget {
   const _AccountPickerSheet({
     required this.selected,
@@ -1299,10 +1312,16 @@ class _AccountPickerSheet extends ConsumerWidget {
           //   user 可拖 sheet 调大小 + ListView 内部滑动;同款 ledger
           //   MultiSelectCategorySheet / MultiSelectAssetSheet 结构
           //   调拨无"全部"概念 → 底部无 FilledButton
+          // 2026-10-13 P14 UAT 改:极值配置,user:"不要做什么还能往上滑动的操作了"
+          //   - max = 0.7 = initial → 上滑无效
+          //   - min = 0.0 + snapSizes [0.0, 0.7] → 下拉缩到 0 dismiss
+          //   - ListView scrollController 协调手势:list top 拖下 bubble 到 sheet 关
           return DraggableScrollableSheet(
             initialChildSize: 0.7,
-            minChildSize: 0.5,
-            maxChildSize: 0.9,
+            minChildSize: 0.0,
+            maxChildSize: 0.7,
+            snap: true,
+            snapSizes: const [0.0, 0.7],
             expand: false,
             builder: (ctx, scrollController) {
               return Column(
