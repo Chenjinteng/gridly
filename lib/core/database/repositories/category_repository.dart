@@ -26,6 +26,25 @@ class CategoryRepository {
       for (final c in DefaultCategories.income) {
         batch.insert(_db.categories, _toCompanion(c));
       }
+      // 2026-10-14 P18 加:投资 2 类(投入/收益),UI 隐藏但 DB NOT NULL 字段需要填
+      for (final c in DefaultCategories.investment) {
+        batch.insert(_db.categories, _toCompanion(c));
+      }
+    });
+  }
+
+  /// 2026-10-14 P18 加:升级路径 —— 老 user DB 已有 cash_flow 分类但没有投资分类,
+  /// 这里幂等插入,name 已存在就跳过。
+  /// 跟 seedDefaultsIfEmpty 不同:即便 expense/income 已 seed,investment 仍可能缺。
+  Future<void> ensureInvestmentCategories() async {
+    final existing = await all();
+    final names = existing.map((c) => c.name).toSet();
+    await _db.batch((batch) {
+      for (final c in DefaultCategories.investment) {
+        if (!names.contains(c.name)) {
+          batch.insert(_db.categories, _toCompanion(c));
+        }
+      }
     });
   }
 

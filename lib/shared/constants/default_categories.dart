@@ -17,9 +17,9 @@ class DefaultCategory {
     required this.sortOrder,
   });
   final String name;
-  final String icon;          // icon key,对应 CategoryIcons.map
+  final String icon; // icon key,对应 CategoryIcons.map
   final Color color;
-  final String type;          // 'expense' | 'income'
+  final String type; // 'expense' | 'income'
   final int sortOrder;
 }
 
@@ -114,27 +114,152 @@ class DefaultCategories {
 
   /// 支出 12 类 —— 每个分类一个独特图标 + 一个独特颜色
   static const List<DefaultCategory> expense = [
-    DefaultCategory(name: '餐饮', icon: 'restaurant',        color: AppCategory.food,           type: 'expense', sortOrder: 0),
-    DefaultCategory(name: '交通', icon: 'directions_bus',    color: AppCategory.transport,      type: 'expense', sortOrder: 1),
-    DefaultCategory(name: '购物', icon: 'shopping_bag',      color: AppCategory.shopping,       type: 'expense', sortOrder: 2),
-    DefaultCategory(name: '居住', icon: 'home',              color: AppCategory.housing,        type: 'expense', sortOrder: 3),
-    DefaultCategory(name: '通讯', icon: 'phone_iphone',      color: AppCategory.telecom,        type: 'expense', sortOrder: 4),
-    DefaultCategory(name: '医疗', icon: 'medical_services',  color: AppCategory.medical,        type: 'expense', sortOrder: 5),
-    DefaultCategory(name: '教育', icon: 'school',            color: AppCategory.education,      type: 'expense', sortOrder: 6),
-    DefaultCategory(name: '娱乐', icon: 'movie',             color: AppCategory.entertainment,  type: 'expense', sortOrder: 7),
-    DefaultCategory(name: '居家', icon: 'chair',             color: AppCategory.home,           type: 'expense', sortOrder: 8),
-    DefaultCategory(name: '美妆', icon: 'spa',               color: AppCategory.beauty,         type: 'expense', sortOrder: 9),
-    DefaultCategory(name: '宠物', icon: 'pets',              color: AppCategory.pet,            type: 'expense', sortOrder: 10),
-    DefaultCategory(name: '其他', icon: 'more_horiz',        color: AppCategory.neutral,        type: 'expense', sortOrder: 99),
+    DefaultCategory(
+      name: '餐饮',
+      icon: 'restaurant',
+      color: AppCategory.food,
+      type: 'expense',
+      sortOrder: 0,
+    ),
+    DefaultCategory(
+      name: '交通',
+      icon: 'directions_bus',
+      color: AppCategory.transport,
+      type: 'expense',
+      sortOrder: 1,
+    ),
+    DefaultCategory(
+      name: '购物',
+      icon: 'shopping_bag',
+      color: AppCategory.shopping,
+      type: 'expense',
+      sortOrder: 2,
+    ),
+    DefaultCategory(
+      name: '居住',
+      icon: 'home',
+      color: AppCategory.housing,
+      type: 'expense',
+      sortOrder: 3,
+    ),
+    DefaultCategory(
+      name: '通讯',
+      icon: 'phone_iphone',
+      color: AppCategory.telecom,
+      type: 'expense',
+      sortOrder: 4,
+    ),
+    DefaultCategory(
+      name: '医疗',
+      icon: 'medical_services',
+      color: AppCategory.medical,
+      type: 'expense',
+      sortOrder: 5,
+    ),
+    DefaultCategory(
+      name: '教育',
+      icon: 'school',
+      color: AppCategory.education,
+      type: 'expense',
+      sortOrder: 6,
+    ),
+    DefaultCategory(
+      name: '娱乐',
+      icon: 'movie',
+      color: AppCategory.entertainment,
+      type: 'expense',
+      sortOrder: 7,
+    ),
+    DefaultCategory(
+      name: '居家',
+      icon: 'chair',
+      color: AppCategory.home,
+      type: 'expense',
+      sortOrder: 8,
+    ),
+    DefaultCategory(
+      name: '美妆',
+      icon: 'spa',
+      color: AppCategory.beauty,
+      type: 'expense',
+      sortOrder: 9,
+    ),
+    DefaultCategory(
+      name: '宠物',
+      icon: 'pets',
+      color: AppCategory.pet,
+      type: 'expense',
+      sortOrder: 10,
+    ),
+    DefaultCategory(
+      name: '其他',
+      icon: 'more_horiz',
+      color: AppCategory.neutral,
+      type: 'expense',
+      sortOrder: 99,
+    ),
   ];
 
   /// 收入 5 类 —— 每个分类一个独特图标 + 一个独特颜色
   static const List<DefaultCategory> income = [
-    DefaultCategory(name: '工资', icon: 'payments',          color: AppCategory.salary,     type: 'income', sortOrder: 0),
-    DefaultCategory(name: '奖金', icon: 'card_giftcard',     color: AppCategory.bonus,      type: 'income', sortOrder: 1),
-    DefaultCategory(name: '理财', icon: 'savings',           color: AppCategory.invest,     type: 'income', sortOrder: 2),
-    DefaultCategory(name: '兼职', icon: 'work',              color: AppCategory.parttime,   type: 'income', sortOrder: 3),
-    DefaultCategory(name: '退款', icon: 'replay',            color: AppCategory.neutral,    type: 'income', sortOrder: 99),
+    DefaultCategory(
+      name: '工资',
+      icon: 'payments',
+      color: AppCategory.salary,
+      type: 'income',
+      sortOrder: 0,
+    ),
+    DefaultCategory(
+      name: '奖金',
+      icon: 'card_giftcard',
+      color: AppCategory.bonus,
+      type: 'income',
+      sortOrder: 1,
+    ),
+    DefaultCategory(
+      name: '理财',
+      icon: 'savings',
+      color: AppCategory.invest,
+      type: 'income',
+      sortOrder: 2,
+    ),
+    DefaultCategory(
+      name: '兼职',
+      icon: 'work',
+      color: AppCategory.parttime,
+      type: 'income',
+      sortOrder: 3,
+    ),
+    DefaultCategory(
+      name: '退款',
+      icon: 'replay',
+      color: AppCategory.neutral,
+      type: 'income',
+      sortOrder: 99,
+    ),
+  ];
+
+  /// 投资 2 类 —— 2026-10-14 P18 大改加:
+  ///   - '投资投入':投入(_intent='input')和调拨(_intent='transfer')用,语义:cash → investment
+  ///   - '投资收益':收益(_intent='output')用,语义:investment 账户自身增长
+  ///   - UI 隐藏:TransactionForm 在 investment context 不显示分类选择器
+  ///     (user 看不到这两个分类,也选不到),seed 出来只是为了填 DB NOT NULL 字段
+  ///   - ledger 默认隐藏(ledger_page filter 黑名单),投资 record 不混入 cash_flow 流水
+  static const List<DefaultCategory> investment = [
+    DefaultCategory(
+      name: '投资投入',
+      icon: 'savings',
+      color: AppCategory.invest,
+      type: 'investment',
+      sortOrder: 0,
+    ),
+    DefaultCategory(
+      name: '投资收益',
+      icon: 'trending_up',
+      color: AppCategory.invest,
+      type: 'investment',
+      sortOrder: 1,
+    ),
   ];
 }
 
