@@ -169,22 +169,35 @@ class AssetTile extends ConsumerWidget {
             ],
           ),
         ),
+        // 2026-10-13 P6 UAT 改:IconButton 占用 40x40,2 个 = 80px,挤
+        //   "债权/借出" + "不计入流水" 两个 5 字符 chip 时 1.3px overflow
+        //   改用 InkWell + 自定义 Padding(all:6),size = 30x30,省 20px
+        //   - 失去 IconButton 自带的 tooltip / splash 半径等 Material 特性
+        //   - 但 splash 用 InkWell 自带(通过 borderRadius 限定形状)
+        //   - 视觉上 IconButton 默认 ripple 几乎一样,只是 hit area 小 4px
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
-              icon: const Icon(Icons.edit_outlined, size: 18),
-              visualDensity: VisualDensity.compact,
-              onPressed: onEdit,
-            ),
-            IconButton(
-              icon: const Icon(
-                Icons.delete_outline,
-                size: 18,
-                color: AppStatus.error,
+            InkWell(
+              onTap: onEdit,
+              borderRadius: AppRadius.brSm,
+              child: const Padding(
+                padding: EdgeInsets.all(6),
+                child: Icon(Icons.edit_outlined, size: 18),
               ),
-              visualDensity: VisualDensity.compact,
-              onPressed: onDelete,
+            ),
+            const SizedBox(width: 2),
+            InkWell(
+              onTap: onDelete,
+              borderRadius: AppRadius.brSm,
+              child: const Padding(
+                padding: EdgeInsets.all(6),
+                child: Icon(
+                  Icons.delete_outline,
+                  size: 18,
+                  color: AppStatus.error,
+                ),
+              ),
             ),
           ],
         ),
