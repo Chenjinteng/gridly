@@ -23,6 +23,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/motion/app_motion.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
+import '../../../../core/theme/card_shadows.dart';
 
 class TypeToggle extends StatelessWidget {
   const TypeToggle({
@@ -73,6 +74,9 @@ class TypeToggle extends StatelessWidget {
         //   跟下面 _actionRow 的 fully rounded pill 风格割裂
         borderRadius: AppRadius.brPill,
         border: Border.all(color: theme.colorScheme.outlineVariant, width: 1),
+        // 2026-10-13 P7 UAT 加:极轻 pill 投影,增加"离开纸面"立体感
+        // user:"想给这个切换以及所有按钮增加一点点投影,不然没立体感"
+        boxShadow: CardShadows.pill(context),
       ),
       child: LayoutBuilder(
         builder: (ctx, c) {

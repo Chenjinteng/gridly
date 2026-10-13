@@ -27,6 +27,7 @@ import '../../../core/database/providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/card_shadows.dart';
 import '../../../core/utils/asset_balance_provider.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/gridly_banner.dart';
@@ -541,6 +542,7 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
           // 2026-10-13 P7 UAT:第 2 行 —— 备注输入框(弹性占满)+ 保存按钮(固定宽度)
           // 备注独立成 pill 容宽容器,跟上面 3 个 pill 风格统一(surfaceContainerLow + outlineVariant)
           // 内部 TextField 去掉自身 border,内容填满容器
+          // 2026-10-13 P7 UAT 加:pill 投影,跟 TypeToggle + 上面 3 个 pill + 保存按钮立体感一致
           Row(
             children: [
               Expanded(
@@ -553,6 +555,7 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                       color: theme.colorScheme.outlineVariant,
                       width: 1,
                     ),
+                    boxShadow: CardShadows.pill(context),
                   ),
                   child: TextField(
                     controller: _noteController,
@@ -584,9 +587,15 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
               ),
               const SizedBox(width: AppSpacing.s2),
               // 保存按钮(2026-10-13 P7:宽度从 64 提到 80,跟"短按"行展开视觉平衡)
-              SizedBox(
+              // 2026-10-13 P7 UAT 加:pill 投影,外层 Container 包 FilledButton 提供阴影
+              // (FilledButton 自身 Material 3 默认 elevation=0,要立体感得手动加)
+              Container(
                 width: 80,
                 height: 36,
+                decoration: BoxDecoration(
+                  borderRadius: AppRadius.brPill,
+                  boxShadow: CardShadows.pill(context),
+                ),
                 child: FilledButton(
                   onPressed: _save,
                   style: FilledButton.styleFrom(
@@ -839,6 +848,9 @@ class _ActionPill extends StatelessWidget {
                 : theme.colorScheme.outlineVariant,
             width: 1,
           ),
+          // 2026-10-13 P7 UAT 加:极轻 pill 投影,跟 TypeToggle + 保存按钮立体感统一
+          // user:"想给切换以及所有按钮增加一点点投影"
+          boxShadow: CardShadows.pill(context),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
