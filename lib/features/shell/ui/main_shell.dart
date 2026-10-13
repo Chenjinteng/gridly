@@ -368,7 +368,8 @@ class _MainShellState extends ConsumerState<MainShell> {
               // 我们只靠 icon + label 颜色变化表示选区
               indicatorColor: Colors.transparent,
               // 2026-10-13 P7 UAT:label 全局字号 11(默认 12)
-              //   - 中央 + 提示语 "长按·其它" 5 字 + dot,在 72dp slot 11sp 1 行 fit
+              //   - 中央 + 提示语 "长按记其它" 5 字,在 72dp slot 11sp 1 行 fit
+              //     (P9 起文案 dot 换动词,语义"长按 → 记 → 其它"更直接)
               //   - 2026-10-13 P9 UAT 改:字色 #79747E M3 outline 灰
               //     (UAT 选 "outline #79747E" -- 跟 g200/g600 不同,显式 hex)
               //   - 5 个 tab label 共享同字色 → 视觉一致
@@ -399,11 +400,12 @@ class _MainShellState extends ConsumerState<MainShell> {
                 // 2026-10-13 P6:长按 0.4s 弹 Speed Dial(5 小圆选 type),短按走默认 cash_flow
                 //   - onTap:NavigationBar → onDestinationSelected → _handleDestSelected → _pushAdd
                 //   - onLongPress:_CenterFab 内部 GestureDetector → _openSpeedDial
-                // 2026-10-13 P9:NavigationDestination label 精简 5 字 + outline 灰
+                // 2026-10-13 P9:NavigationDestination label 精简 + outline 灰
                 //   - 5b29252 commit:label "长按+ 记其它资产" 8 字 + 加号 → 换行
                 //   - 1177052 commit:精简 "长按·其它资产" 6 字 + dot,1 行 fit 但 UAT
                 //     "看起来差不多" + "颜色是黑色而不是灰色"
-                //   - 本 commit:再缩 "长按·其它" 5 字 + 灰 #79747E M3 outline
+                //   - 42be567 commit:再缩 "长按·其它" 5 字 + 灰 #79747E M3 outline
+                //   - 本 commit:dot 换动词 "长按记其它" 5 字(语义更直:动作 + 结果)
                 //   - 字色显式 Color(0xFF79747E)(M3 outline),不复用 g200/g600,
                 //     因为 user 选的就是这个 hex
                 NavigationDestination(
@@ -411,7 +413,7 @@ class _MainShellState extends ConsumerState<MainShell> {
                     padding: const EdgeInsets.only(bottom: AppSpacing.s1),
                     child: _CenterFab(onLongPress: _openSpeedDial),
                   ),
-                  label: '长按·其它',
+                  label: '长按记其它',
                   tooltip: '',
                 ),
                 const NavigationDestination(
