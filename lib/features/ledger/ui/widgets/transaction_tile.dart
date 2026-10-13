@@ -54,6 +54,13 @@ class TransactionTile extends ConsumerWidget {
         final accountType =
             txAsset?.type ?? _fallbackAccountType(transaction.type);
         final amountColor = AppSegment.colorFor(accountType);
+        // 2026-10-14 P18:不计入流水判断
+        //   - 投资 record(cat.type='investment')→ 永远不计入(投资本质资产内部流转)
+        //   - source asset.includeInTransactions=false → 不计入(user 在资产页关了开关)
+        //   - monthSummary / _DaySection 跟这个标志同步,确保汇总排除
+        final isInvestmentRecord = cat?.type == 'investment';
+        final isExcludeFromTotals =
+            isInvestmentRecord || (txAsset?.includeInTransactions == false);
         // 2026-10-12 P3 commit:balance 流水不显示 ± prefix
         //   (调拨可正可负,跟"支出=负 / 收入=正"的语义不同)
         final showPrefix = transaction.type != 'balance';
@@ -116,8 +123,7 @@ class TransactionTile extends ConsumerWidget {
                       //   高度:始终 2 行(无备注时第 2 行只显账号,空白 slot 在左侧)
                       //   user 反馈:比 inline 方案视觉层级更清晰,主/辅分明
                       Row(
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Expanded(
                             child: Text(
@@ -131,6 +137,15 @@ class TransactionTile extends ConsumerWidget {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
+                          // 2026-10-14 P18:不计入流水灰色 chip
+                          //   - 投资 record(cat.type='investment')或 source.includeInTransactions=false
+                          //   - 跟 monthSummary / _DaySection 同步排除规则
+                          //   - 灰色胶囊,10sp,AppGray 配色,跟 tile 视觉不抢戏
+                          if (isExcludeFromTotals) ...[
+                            const SizedBox(width: AppSpacing.s2),
+                            const _ExcludeFromTotalsChip(),
+                          ],
+                          const SizedBox(width: AppSpacing.s2),
                           Text(
                             // 2026-10-12 P3:balance 流水不显示 ± prefix(正负自定)
                             showPrefix
@@ -896,6 +911,34 @@ class _DeleteConfirmDialog extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 2026-10-14 P18:不计入流水灰色 chip
+///   - 标记:投资 record 或 source asset.includeInTransactions=false 的流水
+///   - 视觉:灰色胶囊 10sp,AppGray.g200 背景 + AppGray.g400 边框
+///   - 跟 monthSummary / _DaySection 同步排除规则
+class _ExcludeFromTotalsChip extends StatelessWidget {
+  const _ExcludeFromTotalsChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppGray.g200,
+        border: Border.all(color: AppGray.g400, width: 0.5),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: const Text(
+        '不计入流水',
+        style: TextStyle(
+          fontSize: 10,
+          color: AppGray.g600,
+          fontWeight: FontWeight.w500,
         ),
       ),
     );
