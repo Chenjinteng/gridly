@@ -1244,8 +1244,13 @@ class _CategoryPickerSheet extends ConsumerWidget {
 ///     站屏幕 87%
 ///   - ConstrainedBox(maxHeight: 0.65 * screenHeight) 限 sheet 高
 ///     超出内容 ListView 内部滑动
-///   - maxHeight 与底部 safeArea.padding.bottom 解耦(键盘弹出场景;
-///     account picker 不带键盘,这里不被影响)
+///
+/// 2026-10-13 P10 UAT 改:ConstrainedBox → DraggableScrollableSheet(跟 ledger
+///   MultiSelectCategorySheet / MultiSelectAssetSheet 同款,初值 0.7 / min 0.5
+///   / max 0.9)。user 可拖 sheet 调大小 + ListView 内部滑动,行为更接近
+///   ColorOS Aquamorphic(那边 modal sheet 都支持拖拽调整高度)
+///   - 调拨无"全部"概念 → 底部不加"显示全部"按钮(只有多选 + 有
+///     AllPicked 选项的 sheet 才需要)
 class _AccountPickerSheet extends ConsumerWidget {
   const _AccountPickerSheet({
     required this.selected,
@@ -1280,167 +1285,174 @@ class _AccountPickerSheet extends ConsumerWidget {
           final filtered = accountTypeFilter == null
               ? assets
               : assets.where((a) => a.type == accountTypeFilter).toList();
-          // 2026-10-13 P8 UAT 加:限 sheet 高 + 滑动
-          // 屏幕 65% 封顶,超出 ListView 内部滑动
-          final screenHeight = MediaQuery.sizeOf(context).height;
-          return ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: screenHeight * 0.65),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 36,
-                  height: 4,
-                  margin: const EdgeInsets.only(top: 8, bottom: 12),
-                  decoration: BoxDecoration(
-                    color: AppGray.g400,
-                    borderRadius: BorderRadius.circular(2),
+          // 2026-10-13 P10 UAT 改:DraggableScrollableSheet(0.7/0.5/0.9)
+          //   user 可拖 sheet 调大小 + ListView 内部滑动;同款 ledger
+          //   MultiSelectCategorySheet / MultiSelectAssetSheet 结构
+          //   调拨无"全部"概念 → 底部无 FilledButton
+          return DraggableScrollableSheet(
+            initialChildSize: 0.7,
+            minChildSize: 0.5,
+            maxChildSize: 0.9,
+            expand: false,
+            builder: (ctx, scrollController) {
+              return Column(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 4,
+                    margin: const EdgeInsets.only(top: 8, bottom: 12),
+                    decoration: BoxDecoration(
+                      color: AppGray.g400,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.s4,
-                    0,
-                    AppSpacing.s4,
-                    AppSpacing.s2,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        '选账户',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      Text(
-                        '${filtered.length} 个',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (filtered.isEmpty)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(
                       AppSpacing.s4,
+                      0,
                       AppSpacing.s4,
-                      AppSpacing.s4,
-                      AppSpacing.s5,
+                      AppSpacing.s2,
                     ),
-                    child: Text(
-                      '还没有账户,请先到"我的 > 资产"新建',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          '选账户',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(
+                          '${filtered.length} 个',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
                     ),
-                  )
-                else
-                  Flexible(
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: filtered.length,
-                      itemBuilder: (_, i) {
-                        final a = filtered[i];
-                        final isSelected = a.id == selected;
-                        final color = Color(a.color);
-                        final balanceAsync = ref.watch(
-                          assetBalanceProvider(a.id),
-                        );
-                        final balance = balanceAsync.valueOrNull ?? 0.0;
-                        return InkWell(
-                          onTap: () => onSelect(a.id),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.s4,
-                              vertical: AppSpacing.s3,
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: filtered.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.fromLTRB(
+                              AppSpacing.s4,
+                              AppSpacing.s4,
+                              AppSpacing.s4,
+                              AppSpacing.s5,
                             ),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? color.withValues(alpha: 0.10)
-                                  : Colors.transparent,
-                              border: Border(
-                                bottom: BorderSide(
-                                  color: theme.colorScheme.outlineVariant,
-                                  width: 0.5,
-                                ),
+                            child: Text(
+                              '还没有账户,请先到"我的 > 资产"新建',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: theme.colorScheme.onSurfaceVariant,
                               ),
                             ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 36,
-                                  height: 36,
+                          )
+                        : ListView.builder(
+                            controller: scrollController,
+                            itemCount: filtered.length,
+                            itemBuilder: (_, i) {
+                              final a = filtered[i];
+                              final isSelected = a.id == selected;
+                              final color = Color(a.color);
+                              final balanceAsync = ref.watch(
+                                assetBalanceProvider(a.id),
+                              );
+                              final balance = balanceAsync.valueOrNull ?? 0.0;
+                              return InkWell(
+                                onTap: () => onSelect(a.id),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: AppSpacing.s4,
+                                    vertical: AppSpacing.s3,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: color.withValues(alpha: 0.12),
-                                    borderRadius: AppRadius.brXs,
-                                    border: Border.all(
-                                      color: color.withValues(alpha: 0.3),
-                                      width: 0.5,
+                                    color: isSelected
+                                        ? color.withValues(alpha: 0.10)
+                                        : Colors.transparent,
+                                    border: Border(
+                                      bottom: BorderSide(
+                                        color: theme.colorScheme.outlineVariant,
+                                        width: 0.5,
+                                      ),
                                     ),
                                   ),
-                                  child: Icon(
-                                    _iconForAsset(a.icon),
-                                    color: color,
-                                    size: 18,
-                                  ),
-                                ),
-                                const SizedBox(width: AppSpacing.s3),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                  child: Row(
                                     children: [
-                                      Text(
-                                        a.name,
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w500,
+                                      Container(
+                                        width: 36,
+                                        height: 36,
+                                        decoration: BoxDecoration(
+                                          color: color.withValues(alpha: 0.12),
+                                          borderRadius: AppRadius.brXs,
+                                          border: Border.all(
+                                            color: color.withValues(alpha: 0.3),
+                                            width: 0.5,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          _iconForAsset(a.icon),
+                                          color: color,
+                                          size: 18,
                                         ),
                                       ),
-                                      const SizedBox(height: 2),
+                                      const SizedBox(width: AppSpacing.s3),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              a.name,
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              _typeLabel(a.type),
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: theme
+                                                    .colorScheme
+                                                    .onSurfaceVariant,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
                                       Text(
-                                        _typeLabel(a.type),
+                                        '¥${Formatters.amount(balance)}',
                                         style: TextStyle(
-                                          fontSize: 11,
-                                          color: theme
-                                              .colorScheme
-                                              .onSurfaceVariant,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppSemantic.balanceFor(
+                                            balance,
+                                          ),
                                         ),
                                       ),
+                                      if (isSelected) ...[
+                                        const SizedBox(width: 8),
+                                        Icon(
+                                          Icons.check_circle_rounded,
+                                          size: 18,
+                                          color: color,
+                                        ),
+                                      ],
                                     ],
                                   ),
                                 ),
-                                Text(
-                                  '¥${Formatters.amount(balance)}',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppSemantic.balanceFor(balance),
-                                  ),
-                                ),
-                                if (isSelected) ...[
-                                  const SizedBox(width: 8),
-                                  Icon(
-                                    Icons.check_circle_rounded,
-                                    size: 18,
-                                    color: color,
-                                  ),
-                                ],
-                              ],
-                            ),
+                              );
+                            },
                           ),
-                        );
-                      },
-                    ),
                   ),
-              ],
-            ),
+                ],
+              );
+            },
           );
         },
       ),
