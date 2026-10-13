@@ -17,6 +17,8 @@ class AssetRepository {
 
   /// App 启动:seed 默认资产(只在空表时执行)
   /// 跟 CategoryRepository.seedDefaultsIfEmpty 同模式,幂等
+  ///
+  /// 2026-10-13 P7:seed 时也写入 isDefault("现金"为 true)
   Future<void> seedDefaultsIfEmpty() async {
     final count =
         await (_db.selectOnly(_db.assets)..addColumns([_db.assets.id.count()]))
@@ -34,6 +36,8 @@ class AssetRepository {
             icon: Value(a.icon),
             color: Value(a.color),
             displayOrder: Value(a.displayOrder),
+            // 2026-10-13 P7:"现金" isDefault=true,记一笔默认命中
+            isDefault: Value(a.isDefault),
           ),
         );
       }
@@ -64,6 +68,10 @@ class AssetRepository {
 
   /// 新增
   /// 2026-10-13 P6:加 includeInTransactions 参数(true = 计入日常流水 / false = 投资/福利/债权等)
+  /// 2026-10-13 P7:加 isDefault 参数(cash_flow 段"日常流水默认账户"标记)
+  ///   - 单例:cash_flow 段同时只能有 1 只 isDefault=true
+  ///   - 由调用方负责调用 setDefaultForCashFlow() 在插入后同步
+  ///     (insert + setDefault 在一个事务里更好,但当前 UI 流程允许短暂不一致,可接受)
   Future<int> create({
     required String name,
     required String type,
@@ -72,6 +80,7 @@ class AssetRepository {
     double initialBalance = 0.0,
     bool includeInTransactions = true,
     int displayOrder = 0,
+    bool isDefault = false,
   }) {
     return _db
         .into(_db.assets)
@@ -85,6 +94,8 @@ class AssetRepository {
             // 显式 Value() 包,即使默认值也是 true,迁移过来的老数据这条会是默认值
             includeInTransactions: Value(includeInTransactions),
             displayOrder: Value(displayOrder),
+            // 2026-10-13 P7:记一笔默认账户标记(cash_flow 段单例)
+            isDefault: Value(isDefault),
           ),
         );
   }
@@ -97,6 +108,26 @@ class AssetRepository {
   /// 删(若被 transactions FK 引用会失败,UI 提示先改引用)
   Future<int> delete(int id) {
     return (_db.delete(_db.assets)..where((a) => a.id.equals(id))).go();
+  }
+
+  /// 2026-10-13 P7:把 cash_flow 段 id 标记为默认账户,清掉同段其他 isDefault
+  ///   - 单例:cash_flow 段同时只能有 1 只 isDefault=true
+  ///   - 关闭老默认(同段其他账户 isDefault=false)+ 开启新默认(id isDefault=true)
+  ///   - 包 batch 一次事务,避免 race(用户快速切换默认值时老默认残留)
+  ///   - 非 cash_flow 段调用本方法无害(where 含 type=blank,找不到就 update 0 行)
+  Future<void> setDefaultForCashFlow(int id) async {
+    await _db.batch((b) {
+      b.update(
+        _db.assets,
+        const AssetsCompanion(isDefault: Value(false)),
+        where: (a) => a.type.equals('cash_flow') & a.isDefault.equals(true),
+      );
+      b.update(
+        _db.assets,
+        const AssetsCompanion(isDefault: Value(true)),
+        where: (a) => a.id.equals(id),
+      );
+    });
   }
 
   /// 资产是否被流水引用

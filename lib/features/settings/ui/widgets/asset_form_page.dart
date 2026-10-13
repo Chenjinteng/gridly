@@ -49,6 +49,10 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
   // 2026-10-13 P6 加:资产是否计入日常流水开关(true = 显示在流水页,默认开)
   // 投资 / 福利 / 债权等"非日常"资产,user 关掉它,后面做调拨/理财报表时启用 filter
   late bool _includeInTransactions;
+  // 2026-10-13 P7 加:cash_flow 段"日常流水默认账户"标记
+  //   - 只有 cash_flow 段才有意义(其他段 IsDefaultCard 不显示)
+  //   - save 后会调 setDefaultForCashFlow(id) 保证单例
+  late bool _isDefault;
   bool _saving = false;
 
   /// 8 个资产相关 icon(2026-10-12 P2 收敛到 8 个常用,跟 asset_tile.icons 共享映射)
@@ -123,8 +127,14 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
     _type = a?.type ?? 'cash_flow';
     _icon = a?.icon ?? 'account_balance_wallet';
     _color = a?.color ?? 0xFF14B8A6; // AppBrand.teal 默认
-    // 2026-10-13 P6:老数据可能没有这个字段(默认值兜底 true)
-    _includeInTransactions = a?.includeInTransactions ?? true;
+    // 2026-10-13 P7:includeInTransactions 按 type 推导默认值
+    //   - 新增模式 + cash_flow → true(银行/钱包默认会记账)
+    //   - 新增模式 + 其他 type → false(投资/福利/债权默认不进,2026-10-13 user 要求)
+    //   - 编辑模式 → 用已有值
+    final isCashFlow = (_type == 'cash_flow');
+    _includeInTransactions = a?.includeInTransactions ?? isCashFlow;
+    // 2026-10-13 P7:isDefault 默认 false,seed "现金" 通过 default_assets.dart 主动置 true
+    _isDefault = a?.isDefault ?? false;
   }
 
   @override
@@ -155,26 +165,39 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
     setState(() => _saving = true);
     try {
       final repo = ref.read(assetRepositoryProvider);
+      // 2026-10-13 P7:是否要把这条 cash_flow 标为"日常流水默认账户"
+      // - 切到非 cash_flow 段时,IsDefaultCard 不显示,_isDefault 永远 false,这里不进
+      // - 保证 cash_flow 段单例(由 repo.setDefaultForCashFlow 维护)
+      final markDefault = _isDefault && _type == 'cash_flow';
+      late final int savedId;
       if (widget.existing == null) {
-        await repo.create(
+        savedId = await repo.create(
           name: name,
           type: _type,
           icon: _icon,
           color: _color,
           initialBalance: balance,
           includeInTransactions: _includeInTransactions,
+          isDefault: markDefault,
         );
       } else {
-        await repo.update(
-          widget.existing!.copyWith(
-            name: name,
-            type: _type,
-            icon: _icon,
-            color: _color,
-            initialBalance: balance,
-            includeInTransactions: _includeInTransactions,
-          ),
+        final updated = widget.existing!.copyWith(
+          name: name,
+          type: _type,
+          icon: _icon,
+          color: _color,
+          initialBalance: balance,
+          includeInTransactions: _includeInTransactions,
+          isDefault: markDefault,
         );
+        await repo.update(updated);
+        savedId = updated.id;
+      }
+      // 2026-10-13 P7:打开默认账户时调 setDefaultForCashFlow
+      // 保证 cash_flow 段同时只有 1 只 isDefault=true(批量清掉老默认 + 开启新默认)
+      // 解决 race,确保单例
+      if (markDefault) {
+        await repo.setDefaultForCashFlow(savedId);
       }
       // 广谱 invalidate(包含 asset 列表 + balances map)
       refreshAllData(ref);
@@ -240,13 +263,31 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
             //   - 第 4 版的 ListView + Divider 散开,user 反馈"用圆角矩形更柔和"
             //   - 改 ColorOS 14 Aquamorphic Card-Styled Layout 标准
             //   - 6 行包裹在 1 个 16px 圆角大 card 内,选中行 tint 0.10
+            //   2026-10-13 P7:onPick 同步重置 _isDefault(切走 cash_flow 强制清掉默认标记)
             const _SectionLabel('类型'),
             const SizedBox(height: AppSpacing.s2),
             _TypeRadioList(
               value: _type,
-              onPick: (v) => setState(() => _type = v),
+              onPick: (v) => setState(() {
+                _type = v;
+                // 切到非 cash_flow 段 → 默认账户开关无意义,清掉避免存脏数据
+                if (v != 'cash_flow') _isDefault = false;
+              }),
             ),
             const SizedBox(height: AppSpacing.s4),
+
+            // 2026-10-13 P7:默认账户开关(仅 cash_flow 显示)
+            //   - 切换用户最常用的现金账户为"日常流水默认",记一笔默认选中
+            //   - 非 cash_flow 段记一笔不会选中,该开关无意义,隐藏避免误操作
+            if (_type == 'cash_flow') ...[
+              const _SectionLabel('默认'),
+              const SizedBox(height: AppSpacing.s2),
+              _IsDefaultCard(
+                value: _isDefault,
+                onChanged: (v) => setState(() => _isDefault = v),
+              ),
+              const SizedBox(height: AppSpacing.s4),
+            ],
 
             // 2026-10-13 P6 第 6 次改:计入日常流水
             //   - user UAT:样式很奇怪,参考 settings_page.dart 的"显示金额"按钮
@@ -504,6 +545,79 @@ class _IncludeInTransactionsCard extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         value ? '会显示在流水页' : '不会显示在流水页(投资/福利/债权等)',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppGray.g600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                AquaSwitch(value: value, onChanged: onChanged),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 2026-10-13 P7 加:默认账户 卡片行(仅 cash_flow 段显示)
+/// - 风格跟 _IncludeInTransactionsCard 同款(16px 圆角 card + AquaSwitch)
+/// - 开启:这条 cash_flow 账户会被记一笔默认选中(配合 setDefaultForCashFlow 单例)
+/// - 关闭:不影响其他默认账户(若自己是当前默认,关闭后无 cash_flow 默认账户,
+///   记一笔 fallback 到 typeAssets.first)
+class _IsDefaultCard extends StatelessWidget {
+  const _IsDefaultCard({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: AppRadius.brLg,
+        border: Border.all(color: theme.colorScheme.outlineVariant, width: 1),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => onChanged(!value),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.s3,
+              vertical: 14,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  value ? Icons.star_rounded : Icons.star_outline_rounded,
+                  size: 20,
+                  color: value
+                      ? AppBrand.gold
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: AppSpacing.s3),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        '设为默认账户',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        value ? '记一笔时优先选中这条账户' : '关闭后,其他现金账户可设为默认',
                         style: const TextStyle(
                           fontSize: 11,
                           color: AppGray.g600,

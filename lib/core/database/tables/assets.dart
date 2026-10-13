@@ -12,6 +12,12 @@
 //     - true = 计入日常流水(银行卡/钱包/现金)
 //     - false = 不计入(投资/福利/债权等"非日常"资产)
 //     - 当前只存,filter 暂不动(等调拨 source/target 设计落地再启用过滤)
+// 2026-10-13 P7 加:
+//   - isDefault:BoolColumn,默认 false
+//     - 标记每只 cash_flow 段的"日常流水默认账户",记一笔时优先选
+//     - 单例:cash_flow 段同时只能有 1 只 isDefault=true(由 repo.setDefaultForCashFlow 维护)
+//     - 非 cash_flow 段恒为 false(记一笔只关心 cash_flow 段默认)
+//     - 老数据默认 false,需要 user 主动在资产列表"设为默认"开启,首次启动 seed 时给"现金"开
 import 'package:drift/drift.dart';
 
 class Assets extends Table {
@@ -32,6 +38,10 @@ class Assets extends Table {
   // 2026-10-13 P6 加:开关位,默认 true(老数据全部默认计入流水)
   BoolColumn get includeInTransactions =>
       boolean().withDefault(const Constant(true))();
+  // 2026-10-13 P7 加:cash_flow 段的"日常流水默认账户"标记
+  //   - 老数据默认 false,seed "现金" 时主动置 true
+  //   - 非 cash_flow 段恒为 false(setDefaultForCashFlow 只动 cash_flow 段)
+  BoolColumn get isDefault => boolean().withDefault(const Constant(false))();
   IntColumn get displayOrder => integer().withDefault(const Constant(0))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();

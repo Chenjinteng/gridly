@@ -27,8 +27,9 @@ class AppDatabase extends _$AppDatabase {
   //   - 旧设备升级时走 onUpgrade 创建新表 + 预置 3 个默认账户
   //   - 新设备安装走 onCreate 的 createAll() + seedDefaultsIfEmpty
   //   - 这里"没数据"约束下,不需要老数据回填(commit 110 P1 默认场景)
+  // 2026-10-13 P7:4 → 5,assets 加 isDefault 列(cash_flow 段"日常流水默认账户"标记)
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -65,6 +66,23 @@ class AppDatabase extends _$AppDatabase {
       //   老账户默认 includeInTransactions = true(全部计入日常流水,行为不变)
       if (from < 4) {
         await m.addColumn(assets, assets.includeInTransactions);
+      }
+      // 4 → 5:assets 加 isDefault 列(默认 false)
+      //   2026-10-13 P7 user 要求 cash_flow 段支持"设为默认"开关,
+      //   记一笔优先选 isDefault=true 账户。老设备升级时 cash_flow 段账户全为 false,
+      //   user 在资产列表主动开/用 form 创建时手动开。已有 seed "现金" 自动 isDefault=true。
+      if (from < 5) {
+        await m.addColumn(assets, assets.isDefault);
+        // 老设备升级时,seed 已经种了 3 个 cash_flow 默认账户,但 isDefault 全 false。
+        // 这里把 displayOrder 0 的"现金"补 isDefault = true(2026-10-13 P7 决策,
+        // 保证老设备升级后立刻有默认账户可用,不强制 user 重新设置)。
+        await batch((b) {
+          b.update(
+            assets,
+            const AssetsCompanion(isDefault: Value(true)),
+            where: (a) => a.type.equals('cash_flow') & a.displayOrder.equals(0),
+          );
+        });
       }
     },
     beforeOpen: (details) async {
