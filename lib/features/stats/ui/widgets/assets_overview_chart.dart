@@ -1,12 +1,15 @@
 // lib/features/stats/ui/widgets/assets_overview_chart.dart
-// stats 资产视角总览卡 —— 总资产 + 4 大类汇总
+// stats 资产视角总览卡 —— 总资产 + 6 大类汇总
 //
 // 2026-10-12 P4 commit 加(P4 · 资产分布 + 雷达图):
 //   - 跟 budget_overview_chart 同款 viewport-aware 触发入场
 //     (GlobalKey + Scrollable.position 监听,任意部分进入 viewport 才触发)
-//   - 顶部"总资产" + 大数字 0→total 滚动(360ms aquaIn)
-//   - 4 行 type chip:icon + 类型名 + 余额(纯展示,点击无效果)
+//   - 顶部"总资产" + 大数字 0→total 滚动(1200ms aquaIn)
+//   - 6 行 type chip:icon + 类型名 + 余额(纯展示,点击无效果)
+//     顺序:现金流 / 投资 / 福利 / 债权 / 不动产 / 其它
 //   - 黑底卡片(ink 风格,跟 settings_page "关于"卡 / range_summary 一致)
+//
+// 2026-10-13 P6 改 4 段 → 6 段(跟 asset_form 6 段同步,删"负债"加投资/福利/债权)
 //
 // 数据源:assetTotalsProvider
 import 'package:flutter/material.dart';
@@ -111,11 +114,13 @@ class _AssetsOverviewChartState extends ConsumerState<AssetsOverviewChart> {
           ),
         ),
         data: (totals) {
-          // 总资产 = 4 类之和(简单累加,P4 文档明确"按大类 currentBalance 总和")
+          // 总资产 = 6 类之和(简单累加,P4 文档明确"按大类 currentBalance 总和")
           final totalAll =
               totals.totalCashFlow +
+              totals.totalInvestment +
+              totals.totalBenefit +
+              totals.totalReceivable +
               totals.totalFixedAsset +
-              totals.totalLiability +
               totals.totalOther;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -133,7 +138,7 @@ class _AssetsOverviewChartState extends ConsumerState<AssetsOverviewChart> {
                     ),
                   ),
                   Text(
-                    '4 大类',
+                    '6 大类',
                     style: TextStyle(
                       fontSize: 11,
                       color: theme.colorScheme.onSurfaceVariant,
@@ -164,12 +169,33 @@ class _AssetsOverviewChartState extends ConsumerState<AssetsOverviewChart> {
               const SizedBox(height: AppSpacing.s3),
               const Divider(height: 1, color: AppGray.g600),
               const SizedBox(height: AppSpacing.s3),
-              // 4 大类汇总
+              // 6 大类汇总(2026-10-13 P6:顺序按日常查看频度)
               _TypeRow(
                 icon: Icons.account_balance_wallet_rounded,
                 label: '现金流',
                 amount: _appeared ? totals.totalCashFlow : 0,
                 color: AppBrand.teal,
+              ),
+              const SizedBox(height: AppSpacing.s2),
+              _TypeRow(
+                icon: Icons.trending_up_rounded,
+                label: '投资',
+                amount: _appeared ? totals.totalInvestment : 0,
+                color: AppBrand.gold,
+              ),
+              const SizedBox(height: AppSpacing.s2),
+              _TypeRow(
+                icon: Icons.favorite_rounded,
+                label: '福利',
+                amount: _appeared ? totals.totalBenefit : 0,
+                color: AppStatus.success,
+              ),
+              const SizedBox(height: AppSpacing.s2),
+              _TypeRow(
+                icon: Icons.handshake_rounded,
+                label: '债权/借出',
+                amount: _appeared ? totals.totalReceivable : 0,
+                color: AppStatus.warning,
               ),
               const SizedBox(height: AppSpacing.s2),
               _TypeRow(
@@ -180,15 +206,8 @@ class _AssetsOverviewChartState extends ConsumerState<AssetsOverviewChart> {
               ),
               const SizedBox(height: AppSpacing.s2),
               _TypeRow(
-                icon: Icons.credit_card_rounded,
-                label: '负债',
-                amount: _appeared ? totals.totalLiability : 0,
-                color: AppStatus.error,
-              ),
-              const SizedBox(height: AppSpacing.s2),
-              _TypeRow(
                 icon: Icons.category_rounded,
-                label: '其他',
+                label: '其它',
                 amount: _appeared ? totals.totalOther : 0,
                 color: AppGray.g600,
               ),
@@ -200,7 +219,7 @@ class _AssetsOverviewChartState extends ConsumerState<AssetsOverviewChart> {
   }
 }
 
-/// 4 大类单行(跟 AssetSummaryCard._TypeRow 同款,这里独立避免跨文件依赖)
+/// 6 大类单行(跟 AssetSummaryCard._TypeRow 同款,这里独立避免跨文件依赖)
 class _TypeRow extends StatelessWidget {
   const _TypeRow({
     required this.icon,

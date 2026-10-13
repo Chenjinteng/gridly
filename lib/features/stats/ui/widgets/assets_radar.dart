@@ -1,17 +1,18 @@
 // lib/features/stats/ui/widgets/assets_radar.dart
-// stats 资产视角 — 4 维雷达图
+// stats 资产视角 — 6 维雷达图
 //
 // 2026-10-12 P4 commit 加(P4 · 资产分布 + 雷达图):
-//   - fl_chart RadarChart 4 维:现金流 / 不动产 / 负债 / 其他
-//   - 负债维度取 abs(显示对比幅度),原始值仍按累加保留在 AssetTotals
-//   - maxValue 取所有维度最大值的 1.1(避免顶到外圈难看)
-//   - title style:按 type 配色,11px
+//   - fl_chart RadarChart 6 维:现金流 / 投资 / 福利 / 债权 / 不动产 / 其它
+//   - 累加不取 abs(让 user 看到"实际欠多少/待收多少",正值/负值都反映)
+//   - fl_chart 0.69 自动 scale 到 max value,不需要手动指定 maxValue
+//   - title style:11px w600
 //   - 数据源:assetTotalsProvider
 //   - viewport-aware 触发 fade-in(opacity 0→1,360ms aquaIn)
 //     (fl_chart RadarChart 暂没原生入场动画,这里用 AnimatedOpacity 兜底)
 //
+// 2026-10-13 P6 改 4 维 → 6 维(跟 asset_form 6 段同步)
+//
 // 风险(P4 文档):数值差异大 → fl_chart 默认线性 scale,大值维度压扁小值维度
-//   - 加 minRadius 0.05 让 grid 在中心有最小值
 //   - 备选 log scale 在这里不实现,先跑通线性看效果再调
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
@@ -104,7 +105,7 @@ class _AssetsRadarState extends ConsumerState<AssetsRadar> {
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                 ),
                 Text(
-                  '负债按绝对值',
+                  '正负值都反映',
                   style: TextStyle(
                     fontSize: 11,
                     color: theme.colorScheme.onSurfaceVariant,
@@ -129,14 +130,18 @@ class _AssetsRadarState extends ConsumerState<AssetsRadar> {
                 ),
               ),
               data: (totals) {
-                // 雷达图维度(负债取 abs,让视觉上可比对幅度)
+                // 雷达图维度(2026-10-13 P6:4 维 → 6 维,跟 asset_form 6 段同步)
+                // - 取 abs 防止负值穿透:虽然累计可能负(欠款),但雷达图显示"幅度对比"
+                // - 6 段顺序按日常查看频度:现金 / 投资 / 福利 / 债权 / 不动产 / 其它
                 final values = [
                   totals.totalCashFlow.abs(),
+                  totals.totalInvestment.abs(),
+                  totals.totalBenefit.abs(),
+                  totals.totalReceivable.abs(),
                   totals.totalFixedAsset.abs(),
-                  totals.totalLiability.abs(),
                   totals.totalOther.abs(),
                 ];
-                // 极端 case:4 个都 0 → 雷达图中央 0 点,显示空态
+                // 极端 case:6 个都 0 → 雷达图中央 0 点,显示空态
                 final allZero = values.every((v) => v == 0);
                 if (allZero) {
                   return const SizedBox(
@@ -178,7 +183,14 @@ class _AssetsRadarState extends ConsumerState<AssetsRadar> {
                           width: 0.5,
                         ),
                         getTitle: (i, _) {
-                          final labels = const ['现金流', '不动产', '负债', '其他'];
+                          final labels = const [
+                            '现金流',
+                            '投资',
+                            '福利',
+                            '债权',
+                            '不动产',
+                            '其它',
+                          ];
                           return RadarChartTitle(
                             text: labels[i],
                             positionPercentageOffset: 0.05,

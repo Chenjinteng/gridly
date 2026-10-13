@@ -298,7 +298,7 @@ class _AssetsTile extends ConsumerWidget {
       leading: const Icon(Icons.account_balance_wallet_outlined, size: 20),
       title: const Text('资产', style: TextStyle(fontSize: 14)),
       subtitle: const Text(
-        '账户管理 + 总资产 + 4 大类',
+        '账户管理 + 总资产 + 6 大类',
         style: TextStyle(fontSize: 11, color: AppGray.g600),
       ),
       trailing: const Icon(Icons.chevron_right, size: 18, color: AppGray.g400),

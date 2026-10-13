@@ -1,17 +1,18 @@
 // lib/features/settings/ui/widgets/asset_summary_card.dart
-// 我的页"资产"section 顶部 — 总资产 + 4 大类汇总卡片
+// 我的页"资产"section 顶部 — 总资产 + 6 大类汇总卡片
 //
 // 2026-10-12 P2 commit 加(P2 · 我的页资产 section):
 //   - 跟 settings_page "关于"卡片 / range_summary 同款黑底(ink)风格,大数居中
-//   - 总资产 = 4 大类余额总和(暂时显示绝对值总和;P4 可切"净资产"= cash_flow + fixed_asset - liability)
-//   - 4 行 type chip:icon + type 中文名 + 余额(color 按 type 配色)
+//   - 2026-10-13 P6:总资产 = 6 大类余额总和(累加,不抵消)
+//   - 6 行 type chip:icon + type 中文名 + 余额(color 按 type 配色)
+//     顺序:现金流 / 投资 / 福利 / 债权 / 不动产 / 其它
 //   - 进场:跟 range_summary 一样 fade-in,300ms aquaIn
-//   - 空态:只显示总资产 0,4 行 type chip 都显示 0
+//   - 空态:只显示总资产 0,6 行 type chip 都显示 0
 //
 // 数据源:
 //   - assetRepositoryProvider (List<Asset>)
 //   - assetBalancesProvider (Map<assetId, currentBalance>)
-//   - assetTotalsProvider (AssetTotals — 当前只有 totalCashFlow,P4 扩)
+//   - assetTotalsProvider (AssetTotals — 6 大类,P6 扩)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -49,7 +50,7 @@ class AssetSummaryCard extends ConsumerWidget {
       byType[a.type] = (byType[a.type] ?? 0.0) + bal;
     }
 
-    // 总资产:6 类之和(全部相加,不做正负抵消;后期可切"净资产 = 现金+投资+福利+债权+不动产-负债")
+    // 总资产:6 类之和(全部相加,不做正负抵消)
     final totalAll = byType.values.fold<double>(0.0, (s, v) => s + v);
 
     return Container(

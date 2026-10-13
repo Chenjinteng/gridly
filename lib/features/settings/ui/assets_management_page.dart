@@ -3,8 +3,8 @@
 //
 // 2026-10-12 P2 commit 加:
 //   - 全屏路由版(类比 budget_management_page),viewInsets 由 Scaffold 处理
-//   - 顶部 AssetSummaryCard(总资产 + 4 大类汇总)
-//   - 4 段 _Group 按 type 分(现金流 / 不动产 / 负债 / 其他),无资产段不显示标题
+//   - 顶部 AssetSummaryCard(总资产 + 6 大类汇总)
+//   - 6 段 _Group 按 type 分(现金流 / 投资 / 福利 / 债权 / 不动产 / 其它),无资产段不显示标题
 //   - AppBar 加号按钮 → AssetFormPage(null) 新增
 //   - 点 tile 或编辑 IconButton → AssetFormPage(existing) 编辑
 //   - 删除 IconButton → confirmDelete dialog(FK check:被引用流水数 > 0 提示先改)

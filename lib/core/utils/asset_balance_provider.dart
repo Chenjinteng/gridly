@@ -52,19 +52,23 @@ final assetBalanceProvider = FutureProvider.family<double, int>((
 });
 
 /// 2026-10-12 P4 commit 扩展:资产总览(给 P4 资产页雷达图 + AssetsOverviewChart 用)
-///   - totalCashFlow / totalFixedAsset / totalLiability / totalOther 4 维度
-///   - 负债用累加(不取 abs),让用户看到"实际欠多少"(负值)
+///   - 2026-10-13 P6 扩到 6 段:总现金 / 总投资 / 总福利 / 总债权 / 总不动产 / 总其它
+///   - 累加不取 abs(让 user 看到"实际欠多少/待收多少",正值/负值都反映)
 ///   - 雷达图单独取 abs 用以显示对比幅度
 class AssetTotals {
   const AssetTotals({
     required this.totalCashFlow,
+    required this.totalInvestment,
+    required this.totalBenefit,
+    required this.totalReceivable,
     required this.totalFixedAsset,
-    required this.totalLiability,
     required this.totalOther,
   });
   final double totalCashFlow;
+  final double totalInvestment;
+  final double totalBenefit;
+  final double totalReceivable;
   final double totalFixedAsset;
-  final double totalLiability;
   final double totalOther;
 }
 
@@ -72,18 +76,24 @@ final assetTotalsProvider = FutureProvider<AssetTotals>((ref) async {
   final repo = ref.watch(assetRepositoryProvider);
   final assets = await repo.all();
   final balances = await ref.watch(assetBalancesProvider.future);
-  var cf = 0.0, fa = 0.0, li = 0.0, ot = 0.0;
+  var cf = 0.0, inv = 0.0, ben = 0.0, rec = 0.0, fa = 0.0, ot = 0.0;
   for (final a in assets) {
     final bal = balances[a.id] ?? 0.0;
     switch (a.type) {
       case 'cash_flow':
         cf += bal;
         break;
+      case 'investment':
+        inv += bal;
+        break;
+      case 'benefit':
+        ben += bal;
+        break;
+      case 'receivable':
+        rec += bal;
+        break;
       case 'fixed_asset':
         fa += bal;
-        break;
-      case 'liability':
-        li += bal;
         break;
       default:
         ot += bal;
@@ -91,8 +101,10 @@ final assetTotalsProvider = FutureProvider<AssetTotals>((ref) async {
   }
   return AssetTotals(
     totalCashFlow: cf,
+    totalInvestment: inv,
+    totalBenefit: ben,
+    totalReceivable: rec,
     totalFixedAsset: fa,
-    totalLiability: li,
     totalOther: ot,
   );
 });
