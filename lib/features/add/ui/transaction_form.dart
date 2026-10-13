@@ -234,7 +234,10 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       case 'input':
         return 'investment'; // 转入:进 investment
       case 'output':
-        return 'cash_flow'; // 转入:进 cash_flow
+        // 2026-10-13 P8 UAT 改:收益不限定转入 type
+        // user:"我忘了收益也有可能是基金 -> 基金"(转基金类型)
+        // 转入 + 全钱都行,避免归因过窄
+        return null; // 转入:不限
       default:
         return null; // transfer:不限
     }
@@ -955,6 +958,9 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                   //   - 长按路径(目前保留):allowBalance=true → 3 段
                   // 2026-10-13 P8:segments 由 caller 决定;cash_flow 用支出/收入/调拨,
                   //   investment 用投入/收益/调拨
+                  // 2026-10-13 P8 UAT 改:切 toggle 时清掉 account / destAccount
+                  //   user:"原有的已选的配置没有清空",换 toggle 后转出/转入
+                  //   属于别的类,结果反了 → 切 toggle 时必须重置
                   Align(
                     alignment: Alignment.center,
                     child: TypeToggle(
@@ -962,8 +968,9 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                       segments: _toggleSegments,
                       onChanged: (v) => setState(() {
                         _intent = v;
-                        // 2026-10-13 P8:切 intent 时只清 category(cash_flow 才有)
                         _categoryId = null;
+                        _accountId = null;
+                        _destinationAccountId = null;
                       }),
                     ),
                   ),
@@ -1233,6 +1240,15 @@ class _CategoryPickerSheet extends ConsumerWidget {
 ///   - 每行:icon + name + type chip + currentBalance(右对齐)
 ///   - 选中态:左侧 / 整行高亮 + check icon
 ///   - 空态:引导用户去"我的"建账户
+///
+/// 2026-10-13 P8 UAT 改:maxHeight 限 + 滑动
+///   - user:"调拨 = 所有 ↔ 所有,这个 popup 太高了",全选 10+ 帐户
+///     原 Column 自适应内容高度,isScrollControlled=true 不限高 → sheet
+///     站屏幕 87%
+///   - ConstrainedBox(maxHeight: 0.65 * screenHeight) 限 sheet 高
+///     超出内容 ListView 内部滑动
+///   - maxHeight 与底部 safeArea.padding.bottom 解耦(键盘弹出场景;
+///     account picker 不带键盘,这里不被影响)
 class _AccountPickerSheet extends ConsumerWidget {
   const _AccountPickerSheet({
     required this.selected,
@@ -1267,159 +1283,167 @@ class _AccountPickerSheet extends ConsumerWidget {
           final filtered = accountTypeFilter == null
               ? assets
               : assets.where((a) => a.type == accountTypeFilter).toList();
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(top: 8, bottom: 12),
-                decoration: BoxDecoration(
-                  color: AppGray.g400,
-                  borderRadius: BorderRadius.circular(2),
+          // 2026-10-13 P8 UAT 加:限 sheet 高 + 滑动
+          // 屏幕 65% 封顶,超出 ListView 内部滑动
+          final screenHeight = MediaQuery.sizeOf(context).height;
+          return ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: screenHeight * 0.65),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(top: 8, bottom: 12),
+                  decoration: BoxDecoration(
+                    color: AppGray.g400,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.s4,
-                  0,
-                  AppSpacing.s4,
-                  AppSpacing.s2,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      '选账户',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.s4,
+                    0,
+                    AppSpacing.s4,
+                    AppSpacing.s2,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        '选账户',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
+                      Text(
+                        '${filtered.length} 个',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (filtered.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.s4,
+                      AppSpacing.s4,
+                      AppSpacing.s4,
+                      AppSpacing.s5,
                     ),
-                    Text(
-                      '${filtered.length} 个',
+                    child: Text(
+                      '还没有账户,请先到"我的 > 资产"新建',
                       style: TextStyle(
                         fontSize: 13,
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
-                  ],
-                ),
-              ),
-              if (filtered.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.s4,
-                    AppSpacing.s4,
-                    AppSpacing.s4,
-                    AppSpacing.s5,
-                  ),
-                  child: Text(
-                    '还没有账户,请先到"我的 > 资产"新建',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                )
-              else
-                Flexible(
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: filtered.length,
-                    itemBuilder: (_, i) {
-                      final a = filtered[i];
-                      final isSelected = a.id == selected;
-                      final color = Color(a.color);
-                      final balanceAsync = ref.watch(
-                        assetBalanceProvider(a.id),
-                      );
-                      final balance = balanceAsync.valueOrNull ?? 0.0;
-                      return InkWell(
-                        onTap: () => onSelect(a.id),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.s4,
-                            vertical: AppSpacing.s3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? color.withValues(alpha: 0.10)
-                                : Colors.transparent,
-                            border: Border(
-                              bottom: BorderSide(
-                                color: theme.colorScheme.outlineVariant,
-                                width: 0.5,
+                  )
+                else
+                  Flexible(
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: filtered.length,
+                      itemBuilder: (_, i) {
+                        final a = filtered[i];
+                        final isSelected = a.id == selected;
+                        final color = Color(a.color);
+                        final balanceAsync = ref.watch(
+                          assetBalanceProvider(a.id),
+                        );
+                        final balance = balanceAsync.valueOrNull ?? 0.0;
+                        return InkWell(
+                          onTap: () => onSelect(a.id),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.s4,
+                              vertical: AppSpacing.s3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? color.withValues(alpha: 0.10)
+                                  : Colors.transparent,
+                              border: Border(
+                                bottom: BorderSide(
+                                  color: theme.colorScheme.outlineVariant,
+                                  width: 0.5,
+                                ),
                               ),
                             ),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 36,
-                                height: 36,
-                                decoration: BoxDecoration(
-                                  color: color.withValues(alpha: 0.12),
-                                  borderRadius: AppRadius.brXs,
-                                  border: Border.all(
-                                    color: color.withValues(alpha: 0.3),
-                                    width: 0.5,
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: color.withValues(alpha: 0.12),
+                                    borderRadius: AppRadius.brXs,
+                                    border: Border.all(
+                                      color: color.withValues(alpha: 0.3),
+                                      width: 0.5,
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    _iconForAsset(a.icon),
+                                    color: color,
+                                    size: 18,
                                   ),
                                 ),
-                                child: Icon(
-                                  _iconForAsset(a.icon),
-                                  color: color,
-                                  size: 18,
-                                ),
-                              ),
-                              const SizedBox(width: AppSpacing.s3),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      a.name,
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w500,
+                                const SizedBox(width: AppSpacing.s3),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        a.name,
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      _typeLabel(a.type),
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color:
-                                            theme.colorScheme.onSurfaceVariant,
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        _typeLabel(a.type),
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: theme
+                                              .colorScheme
+                                              .onSurfaceVariant,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              Text(
-                                '¥${Formatters.amount(balance)}',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppSemantic.balanceFor(balance),
+                                Text(
+                                  '¥${Formatters.amount(balance)}',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppSemantic.balanceFor(balance),
+                                  ),
                                 ),
-                              ),
-                              if (isSelected) ...[
-                                const SizedBox(width: 8),
-                                Icon(
-                                  Icons.check_circle_rounded,
-                                  size: 18,
-                                  color: color,
-                                ),
+                                if (isSelected) ...[
+                                  const SizedBox(width: 8),
+                                  Icon(
+                                    Icons.check_circle_rounded,
+                                    size: 18,
+                                    color: color,
+                                  ),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           );
         },
       ),
