@@ -433,13 +433,20 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   //   底部:Numpad(键盘区域固定)
   //   旧 _metaRow / _datePill / _categoryChip / _saveButton 全部弃用,
   //   单一 _actionRow 替代
+  //
+  // 2026-10-13 P7 UAT 改:操作行拆 2 行(4 items 一行挤爆 → 3+2 拆分)
+  //   user 反馈:截图中 [今天][招...][选...][保存] 4 items 一行,
+  //   pill 文字被 flex 吃掉变 "招..." / "选...",账户名根本显示不全。
+  //   拆 2 行:
+  //     第 1 行:[日期 pill][账户 pill][分类 pill]  —— 3 个等宽 Expanded
+  //     第 2 行:[备注 TextField 弹性占满] [保存按钮固定宽度]
+  //   - 长账户名(如"招商银行")在第 1 行通过 ellipsis 自然截断,不再被 flex 压扁
+  //   - 备注独立在第 2 行,跟保存按钮并排,有充足输入空间
   // ============================================================
 
   /// ③两行操作栏(贴近 Numpad,单手拇指可达):
-  ///   上行:备注 TextField(占满整行,不再跟其它挤)
-  ///   下行:[日期 pill][分类 chip][保存按钮] — 3 items
-  /// 之前 4 items 一行挤不下,分类 chip 名字被 flex 吃掉变成只有 icon,
-  /// 备注输入框又被挤压。改成两行后,每个 item 都有自己的舒适宽度。
+  ///   第 1 行:[日期 pill][账户 pill][分类 pill]  —— 3 个等宽 Expanded
+  ///   第 2 行:[备注输入框(弹性占满)] [保存按钮(固定宽度 80)]
   Widget _actionRow(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final catsAsync = ref.watch(categoriesByTypeProvider(_type));
@@ -485,38 +492,7 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 上行:备注 —— 占满整行,舒适的输入空间
-          TextField(
-            controller: _noteController,
-            maxLength: 30,
-            textAlignVertical: TextAlignVertical.center,
-            decoration: InputDecoration(
-              hintText: '备注',
-              hintStyle: TextStyle(color: AppGray.g400, fontSize: 13),
-              prefixIcon: Icon(
-                Icons.edit_note_rounded,
-                size: 16,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              prefixIconConstraints: const BoxConstraints(
-                minWidth: 28,
-                minHeight: 28,
-              ),
-              border: InputBorder.none,
-              isDense: true,
-              counterText: '',
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.s1,
-                vertical: AppSpacing.s2,
-              ),
-            ),
-            style: const TextStyle(fontSize: 13),
-          ),
-          const SizedBox(height: AppSpacing.s2),
-          // 2026-10-12 P3 commit:4 列操作行
-          //   [日期 pill][账户 chip][分类 chip][保存按钮]
-          //   日期 / 账户 / 分类 1:1:1 均分(三个弹性 Expanded 同 flex),
-          //   保存按钮固定窄宽。账户跟分类同级,跟现有 UI 一致。
+          // 2026-10-13 P7 UAT:第 1 行 —— 3 个等宽 pill(日期/账户/分类)
           Row(
             children: [
               // 1) 日期 pill
@@ -559,19 +535,65 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                   onTap: _openCategoryPicker,
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.s2),
+          // 2026-10-13 P7 UAT:第 2 行 —— 备注输入框(弹性占满)+ 保存按钮(固定宽度)
+          // 备注独立成 pill 容宽容器,跟上面 3 个 pill 风格统一(surfaceContainerLow + outlineVariant)
+          // 内部 TextField 去掉自身 border,内容填满容器
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerLow,
+                    borderRadius: AppRadius.brPill,
+                    border: Border.all(
+                      color: theme.colorScheme.outlineVariant,
+                      width: 1,
+                    ),
+                  ),
+                  child: TextField(
+                    controller: _noteController,
+                    maxLength: 30,
+                    textAlignVertical: TextAlignVertical.center,
+                    decoration: InputDecoration(
+                      hintText: '备注',
+                      hintStyle: TextStyle(color: AppGray.g400, fontSize: 13),
+                      prefixIcon: Icon(
+                        Icons.edit_note_rounded,
+                        size: 16,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      prefixIconConstraints: const BoxConstraints(
+                        minWidth: 28,
+                        minHeight: 28,
+                      ),
+                      border: InputBorder.none,
+                      isDense: true,
+                      counterText: '',
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.s1,
+                        vertical: AppSpacing.s2,
+                      ),
+                    ),
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ),
+              ),
               const SizedBox(width: AppSpacing.s2),
-              // 4) 保存按钮
+              // 保存按钮(2026-10-13 P7:宽度从 64 提到 80,跟"短按"行展开视觉平衡)
               SizedBox(
+                width: 80,
                 height: 36,
                 child: FilledButton(
                   onPressed: _save,
                   style: FilledButton.styleFrom(
                     backgroundColor: theme.colorScheme.primary,
                     foregroundColor: theme.colorScheme.onPrimary,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.s4,
-                    ),
-                    minimumSize: const Size(64, 36),
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(80, 36),
                     shape: RoundedRectangleBorder(
                       borderRadius: AppRadius.brPill,
                     ),
