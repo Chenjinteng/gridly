@@ -119,24 +119,20 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
     super.dispose();
   }
 
-  /// 2026-10-13 P6 第 8 次改(2026-10-13 12:09 UAT:"长按弹 popup,
-  ///   手指不离开屏幕滑动选择对应项"):
-  ///   - 之前用 GestureDetector 监听 onPanStart/Update/End 失败:
-  ///     _CenterFab.onLongPress 触发后,gesture arena 已被 LongPressRecognizer
-  ///     claim 完,Overlay 顶层的 GestureDetector 收不到 pointer move events,
-  ///     所以手指滑动时 popup 内 row 不能跟手高亮(用户描述"这时候不行")
-  ///   - 改成 Listener 直接监听 pointer events,**绕过 gesture arena**,
-  ///     pointer up 时 hit-tested Listener 都能收到。
-  ///   - PointerMove 自动算 hovered row(跟手),松手即选中;
-  ///     抬手时不在任何 row 上 = dismiss。
-  void _onPointerDown(PointerDownEvent e) => _updateHover(e.localPosition);
-  void _onPointerMove(PointerMoveEvent e) => _updateHover(e.localPosition);
+  /// 2026-10-13 P6 第 9 次改(2026-10-13 13:38 UAT:"长按弹 popup,
+  ///   手指不离开屏幕滑动选择对应项,想做一致性手势"):
+  ///   - 第 8 次改用 Listener 监听 pointer events,绕过 gesture arena
+  ///   - 但用 `event.localPosition`(Listener widget 局部坐标)跟 `_popupRect`
+  ///     (global 坐标)比较,**坐标系不匹配**,导致 row 算错位置不跟手
+  ///   - 改用 `event.position`(global 坐标)统一坐标系,跟 `_popupRect` 比较
+  void _onPointerDown(PointerDownEvent e) => _updateHover(e.position);
+  void _onPointerMove(PointerMoveEvent e) => _updateHover(e.position);
 
   /// PointerUp — 抬手决定 onSelected 还是 onDismiss
   ///   - 在 popup 内某 row 上 = onSelected
   ///   - 在 popup 外 / 中心取消区 = onDismiss(走默认 cash_flow)
   void _onPointerUp(PointerUpEvent e) {
-    _updateHover(e.localPosition);
+    _updateHover(e.position);
     if (_hoveredIndex != null) {
       widget.onSelected(widget.items[_hoveredIndex!]);
     } else {
