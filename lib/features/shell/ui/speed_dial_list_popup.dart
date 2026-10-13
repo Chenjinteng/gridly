@@ -73,6 +73,15 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
   /// 0..1 弹出动画进度
   double _expanded = 0;
 
+  /// 2026-10-13 P6 fix:避免双触发
+  ///   - Listener.onPointerUp 跟 InkWell.onTap 都会触发 onSelected
+  ///     (用户 tap row,两个 gesture 路径都判定为有效)
+  ///   - 不加 _dismissed 的话 main_shell.onSelected 执行两次 →
+  ///     _closeSpeedDial() 调两次 + _pushAdd(assetType) 调两次 →
+  ///     push /add 两次,按 back 两次才能回 app
+  ///   - 加 _dismissed 标志,第一个 path 触发后置 true,后续 path 短路
+  bool _dismissed = false;
+
   /// popup 内每行高
   static const double _rowHeight = 48;
 
@@ -175,6 +184,7 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
     double popupHeight,
     Size size,
   ) {
+    if (_dismissed) return;
     final i = _computeRowIndex(
       e.position,
       popupTop,
@@ -194,6 +204,8 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
     double popupHeight,
     Size size,
   ) {
+    if (_dismissed) return;
+    _dismissed = true;
     final i = _computeRowIndex(
       e.position,
       popupTop,
@@ -310,7 +322,14 @@ class _SpeedDialListPopupState extends State<SpeedDialListPopup>
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => widget.onSelected(item),
+        // 2026-10-13 P6 fix:跟 Listener.onPointerUp 互斥
+        //   第一个 path 触发 onSelected 后置 _dismissed = true,
+        //   第二个 path(InkWell.onTap 或 Listener.onPointerUp)短路
+        onTap: () {
+          if (_dismissed) return;
+          _dismissed = true;
+          widget.onSelected(item);
+        },
         child: Container(
           height: _rowHeight,
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s3),
