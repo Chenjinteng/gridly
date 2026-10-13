@@ -32,6 +32,9 @@ final monthTransactionsProvider = FutureProvider<List<Transaction>>((
 });
 
 /// 本月汇总(收入 / 支出)
+/// 2026-10-14 P18:排除投资 record,不计入月度收支
+///   - 投资 record(category.type='investment')不影响"本月结余 / 收入 / 支出"汇总
+///   - 流水页面仍显示投资 record(可管理),但不进月度统计
 class MonthSummary {
   const MonthSummary({required this.income, required this.expense});
   final double income;
@@ -41,8 +44,19 @@ class MonthSummary {
 
 final monthSummaryProvider = Provider<MonthSummary>((ref) {
   final txs = ref.watch(monthTransactionsProvider).valueOrNull ?? const [];
+  // 2026-10-14 P18:投资分类 id 集合,monthSummary 跳过
+  //   - 投资收益(type='income')原本会被计入 income → 跳过
+  //   - 投资投入/调拨(type='balance')走 else 分支计入 expense → 跳过
+  //   - cash_flow balance(现金调拨)仍计入 expense(cat.type 不是 investment)
+  final allCats = ref.watch(allCategoriesProvider).valueOrNull ?? const [];
+  final investmentCatIds = allCats
+      .where((c) => c.type == 'investment')
+      .map((c) => c.id)
+      .toSet();
   double income = 0, expense = 0;
   for (final t in txs) {
+    // 投资 record 不计入月度收支
+    if (investmentCatIds.contains(t.categoryId)) continue;
     if (t.type == 'income') {
       income += t.amount;
     } else {
