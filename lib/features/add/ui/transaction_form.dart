@@ -466,6 +466,29 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       _toast('选个转入账户');
       return;
     }
+    // 2026-10-14 P18:Bug3 余额校验 —— 转出类流水 source 账户余额不足时阻断
+    //   - 转出类:_type ∈ {'expense', 'balance'}(现金支出 / 调拨 / 投资投入 / 投资调拨)
+    //   - cash_flow 类型账户(source)必校验:日常现金流出不能超过实际余额
+    //   - investment 类型账户(source)不校验:投资市值波动,user 自己负责
+    //     (投资投入 source 是 cash_flow 仍校验;投资调拨 source 若是 investment 则不校验)
+    //   - type='income'(现金收入/投资收益)不校验:账户增加,无上限
+    //   - 编辑模式:只有金额变化时校验,其它情况跳过(因为余额已变化过)
+    final isTransferOut = _type == 'expense' || _type == 'balance';
+    if (isTransferOut) {
+      final repo = ref.read(assetRepositoryProvider);
+      final sourceAsset = await repo.byId(_accountId!);
+      if (sourceAsset != null && sourceAsset.type == 'cash_flow') {
+        final balances = await ref.read(assetBalancesProvider.future);
+        final sourceBalance =
+            balances[_accountId!] ?? sourceAsset.initialBalance;
+        if (sourceBalance < value) {
+          _toast(
+            '${sourceAsset.name} 余额 ¥${sourceBalance.toStringAsFixed(2)} 不足',
+          );
+          return;
+        }
+      }
+    }
     // 2026-10-13 P8:investment 场景下 DB transactions.categoryId NOT NULL 字段
     //   需要非空值,虽然 investment 不用分类。fallback 用任意一个有效 category id
     //   (DB schema 限制,语义上忽略)。后续如要彻底不要分类,需把 schema 改 nullable。
