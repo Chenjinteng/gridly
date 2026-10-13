@@ -6,6 +6,14 @@
 //
 // 流水编辑场景同样用全屏路由(/edit/:id,见 lib/features/add/ui/edit_transaction_page.dart),
 // 跟本页同架构 —— 2026-10-11 改:之前用 modal sheet 路线因 Numpad 行为不一致被换掉。
+//
+// 2026-10-13 P11 UAT:AppBar 标题按 preselectedAssetType 场景化
+//     - 短按 cash_flow / null → "记一笔(现金流)"
+//     - 长按 investment → "记一笔(投资)"
+//     - 长按 benefit / receivable / fixed_asset / other → "记一笔(福利/债权/不动产/其它)"
+//     user:"日常现金流水只关注支出收入,如果是这样,你在每个场景弹出来的
+//          记一笔都要定义标题,比如短按就是默认现金流,弹出来的就是
+//          记一笔(现金流),然后投资的场景,就是记一笔(投资)"
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -43,6 +51,30 @@ class AddTransactionPage extends StatelessWidget {
   /// - 'investment' → 只显示 investment 账户
   final String? accountTypeFilter;
 
+  /// 2026-10-13 P11 UAT:按 preselectedAssetType 推导 AppBar 标题
+  ///   - user:"每个场景弹出来的记一笔都要定义标题"
+  ///   - 短按 cash_flow / null → 记一笔(现金流)
+  ///   - 长按 investment → 记一笔(投资)
+  ///   - 长按 benefit / receivable / fixed_asset / other → 记一笔(<label>)
+  String get _appBarTitle {
+    switch (preselectedAssetType) {
+      case 'investment':
+        return '记一笔(投资)';
+      case 'benefit':
+        return '记一笔(福利)';
+      case 'receivable':
+        return '记一笔(债权)';
+      case 'fixed_asset':
+        return '记一笔(不动产)';
+      case 'other':
+        return '记一笔(其它)';
+      case null:
+      case 'cash_flow':
+      default:
+        return '记一笔(现金流)';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // 2026-10-13 P6 UAT:按 preselectedAssetType 推导 allowBalance 默认值
@@ -59,7 +91,8 @@ class AddTransactionPage extends StatelessWidget {
     //   - 长按 'investment' → 账户 sheet 只显示 investment 账户
     //   - caller 显式传 null → 不过滤(向后兼容)
     //   - caller 显式传 string → 用 caller 的值(可强制覆盖)
-    final effectiveAccountTypeFilter = accountTypeFilter ?? preselectedAssetType;
+    final effectiveAccountTypeFilter =
+        accountTypeFilter ?? preselectedAssetType;
 
     return Scaffold(
       // resizeToAvoidBottomInset: false → 系统键盘弹起时不重排 body,
@@ -71,7 +104,8 @@ class AddTransactionPage extends StatelessWidget {
       // 简化成"始终显示 + 键盘自然覆盖"是 2026-10-11 UAT 最终方案。
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
-        title: const Text('记一笔'),
+        // 2026-10-13 P11 UAT:按场景显示标题(短按 现金流 / 投资 场景 投资 / etc.)
+        title: Text(_appBarTitle),
         leading: IconButton(
           icon: const Icon(Icons.close),
           // pop 回 root navigator,自动回到 shell 当前 tab —— 哪个 tab 点 +
