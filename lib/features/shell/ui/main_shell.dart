@@ -35,7 +35,7 @@ import '../../home/ui/home_page.dart';
 import '../../ledger/ui/ledger_page.dart';
 import '../../stats/ui/stats_page.dart';
 import '../../settings/ui/settings_page.dart';
-import 'speed_dial_radial_menu.dart';
+import 'speed_dial_list_popup.dart';
 
 class MainShell extends ConsumerStatefulWidget {
   const MainShell({super.key});
@@ -108,7 +108,7 @@ class _MainShellState extends ConsumerState<MainShell> {
   void _openSpeedDial() {
     if (_speedDialOverlay != null) return; // 防重入
     final entry = OverlayEntry(
-      builder: (_) => SpeedDialRadialMenu(
+      builder: (_) => SpeedDialListPopup(
         items: _speedDialItems,
         onSelected: (item) {
           _closeSpeedDial();
