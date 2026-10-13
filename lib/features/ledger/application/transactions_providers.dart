@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/providers.dart';
+import '../../../core/utils/asset_balance_provider.dart';
 
 /// 当前月份的时间区间
 final monthRangeProvider = Provider<({DateTime start, DateTime end})>((ref) {
@@ -44,19 +45,28 @@ class MonthSummary {
 
 final monthSummaryProvider = Provider<MonthSummary>((ref) {
   final txs = ref.watch(monthTransactionsProvider).valueOrNull ?? const [];
-  // 2026-10-14 P18:投资分类 id 集合,monthSummary 跳过
-  //   - 投资收益(type='income')原本会被计入 income → 跳过
-  //   - 投资投入/调拨(type='balance')走 else 分支计入 expense → 跳过
-  //   - cash_flow balance(现金调拨)仍计入 expense(cat.type 不是 investment)
+  // 2026-10-14 P18:不计入月度收支的 record 集合
+  //   - 投资 record(cat.type='investment')→ 永远不计入
+  //   - source asset.includeInTransactions=false → 不计入(user 在资产页关了开关)
+  //   - 跟 tile chip / _DaySection 同步规则
   final allCats = ref.watch(allCategoriesProvider).valueOrNull ?? const [];
   final investmentCatIds = allCats
       .where((c) => c.type == 'investment')
       .map((c) => c.id)
       .toSet();
+  // 2026-10-14:source asset 是否 includeInTransactions=false
+  //   - watch allAssetsProvider 拿全部账户,建 excludeAccountIds 集合
+  //   - record 的 accountId 命中 → 不计入
+  final allAssets = ref.watch(allAssetsProvider).valueOrNull ?? const [];
+  final excludeAccountIds = allAssets
+      .where((a) => !a.includeInTransactions)
+      .map((a) => a.id)
+      .toSet();
   double income = 0, expense = 0;
   for (final t in txs) {
-    // 投资 record 不计入月度收支
+    // 投资 record 或 source 资产"不计入流水" → 跳过
     if (investmentCatIds.contains(t.categoryId)) continue;
+    if (excludeAccountIds.contains(t.accountId)) continue;
     if (t.type == 'income') {
       income += t.amount;
     } else {
