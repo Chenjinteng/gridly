@@ -14,7 +14,8 @@
 //       - "月份" 7+ 项 → 列表 N 项月 + 底部"显示全部",sheet
 //         用 DraggableScrollableSheet(0.7/0.4/0.9)→ 长 list 可拖拽
 //         调高度 + ListView 内部滑动
-//   - MultiSelectCategorySheet — 多选 list(分类),P12 改 fixed SizedBox
+//   - MultiSelectCategorySheet — 多选 list(分类),P12-3 改 DraggableScrollableSheet
+//     (max=initial,min=0,snap+snapSizes 兼顾"不上滑"+"下拉能关")
 //   - MultiSelectAssetSheet — 多选 list(账户),DraggableScrollableSheet(暂不改)
 import 'package:flutter/material.dart';
 
@@ -47,13 +48,16 @@ const allPicked = AllPicked();
 ///
 /// 2026-10-12 P5:showGeneralDialog → showModalBottomSheet(底部 modal sheet 风格)
 ///
-/// 2026-10-13 P11:showModalBottomSheet + Flexible(shrinkWrap) →
-///   DraggableScrollableSheet(0.7/0.4/0.9)→ P12 退回 fixed SizedBox
-///   - P11 反馈"已经有显示全部按钮了,就不用在滚动里面有'全部'的选项"
-///     → list 过滤 AllPicked,底部"显示全部"按钮作为唯一"全部"入口
-///   - P12 反馈"不要做什么还能往上滑动的操作了"→ 放弃 DraggableScrollableSheet
-///     → SizedBox 固定 0.7 * screenHeight,不可上滑,内部 ListView 自带滚动
-///     (长 list 仍能看,只是 sheet 高固定)
+/// 2026-10-13 P12 演化:UI 调整 3 步走
+///   P11-1:加底部"显示全部"按钮(list 已过滤 AllPicked)
+///   P12-2:DraggableScrollableSheet(0.7/0.4/0.9)→ SafeArea+SizedBox(0.7固定)
+///     user:"不要做什么还能往上滑动的操作了"→ 弃上滑
+///   P12-3:但 P12-2 试出来 showModalBottomSheet enableDrag 默认值在 ListView
+///     区域被吃,下滑关不掉 → 退回 DraggableScrollableSheet
+///     (initial 0.7, min 0.0, max 0.7, snap + snapSizes [0.7, 0.0])
+///     - max == initial:上滑无效
+///     - min == 0.0 + snap to 0.0:下拉能缩到 0 = dismiss
+///     - ListView 用 scrollController 协调手势:list top 拖下 bubble 到 sheet 关
 Future<Object?> showSingleSelectSheet<T>(
   BuildContext context, {
   required String title,
@@ -72,16 +76,19 @@ Future<Object?> showSingleSelectSheet<T>(
     builder: (ctx) {
       final theme = Theme.of(ctx);
       final isDark = theme.brightness == Brightness.dark;
-      // 2026-10-13 P12 UAT:固定 sheet 高 = 0.7 * screenHeight
-      //   不用 DraggableScrollableSheet,user:"不要做什么还能往上滑动的操作了"
-      //   内部 ListView 自带滚动(超长 list 仍能看,只是 sheet 高固定)
-      final sheetHeight = MediaQuery.sizeOf(ctx).height * 0.7;
-      return SafeArea(
-        child: SizedBox(
-          height: sheetHeight,
-          child: Column(
+      return DraggableScrollableSheet(
+        // P12-3:max = initial → 锁死在 0.7,上滑无效
+        initialChildSize: 0.7,
+        minChildSize: 0.0,
+        maxChildSize: 0.7,
+        // snap + snapSizes → 下拉缩到 0.0 即 dismiss,弹回 0.7 即恢复
+        snap: true,
+        snapSizes: const [0.7, 0.0],
+        expand: false,
+        builder: (ctx, scrollController) {
+          return Column(
             children: [
-              // 把手(visual only,不可拖)
+              // 把手
               Container(
                 width: 36,
                 height: 4,
@@ -116,6 +123,7 @@ Future<Object?> showSingleSelectSheet<T>(
               const Divider(height: 1),
               Expanded(
                 child: ListView.builder(
+                  controller: scrollController,
                   itemCount: listOptions.length,
                   itemBuilder: (_, i) {
                     final (value, label) = listOptions[i];
@@ -150,9 +158,7 @@ Future<Object?> showSingleSelectSheet<T>(
                 ),
               ),
               const Divider(height: 1),
-              // 2026-10-13 P10:"显示全部"快捷键 — 单选列表无需"清空",
-              //   但要保留底部 FilledButton 跟 MultiSelect 同款视觉
-              //   tap → pop AllPicked → caller 已 handle(等价 reset 到默认值)
+              // 2026-10-13 P10:"显示全部"快捷键
               // 2026-10-13 P11:list 已过滤掉 AllPicked,按钮是"全部"的唯一入口
               Padding(
                 padding: const EdgeInsets.fromLTRB(
@@ -189,8 +195,8 @@ Future<Object?> showSingleSelectSheet<T>(
                 ),
               ),
             ],
-          ),
-        ),
+          );
+        },
       );
     },
   );
@@ -198,13 +204,13 @@ Future<Object?> showSingleSelectSheet<T>(
 
 /// 多选弹层(分类)—— 临时持有选择集合,点"确定"才提交
 ///
-/// 2026-10-13 P12 UAT 改:DraggableScrollableSheet(0.7/0.4/0.9) →
-///   SafeArea + SizedBox(0.7 * screenHeight),同 P12 类型/月份 picker
-///   - 不可上滑调高(已废弃)
-///
-/// 下滑关闭 user 仍需要(关不了 sheet)→ 走 showModalBottomSheet 默认
-///   `enableDrag: true`,user 在把手/标题/底部按钮区下拖 → sheet dismiss
-///   (ListView 中段下拖仍由 ListView 接管,top of list 时下拖 bubble 到 sheet 关)
+/// 2026-10-13 P12 演化:同 showSingleSelectSheet
+///   P12-2:DraggableScrollableSheet(0.7/0.4/0.9)→ SafeArea+SizedBox(0.7固定)
+///   P12-3:P12-2 试出来 showModalBottomSheet enableDrag 默认值在 ListView
+///     区域被吃,下滑关不掉 → 退回 DraggableScrollableSheet
+///     (initial 0.7, min 0.0, max 0.7, snap + snapSizes [0.7, 0.0])
+///     - max == initial:上滑无效
+///     - min == 0.0 + snap to 0.0:下拉能缩到 0 = dismiss
 class MultiSelectCategorySheet extends StatefulWidget {
   const MultiSelectCategorySheet({
     super.key,
@@ -232,13 +238,17 @@ class _MultiSelectCategorySheetState extends State<MultiSelectCategorySheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    // 2026-10-13 P12 UAT:固定 0.7 * screenHeight,不可上滑
-    // 下滑关闭靠 showModalBottomSheet 默认 enableDrag: true
-    final sheetHeight = MediaQuery.sizeOf(context).height * 0.7;
-    return SafeArea(
-      child: SizedBox(
-        height: sheetHeight,
-        child: Column(
+    return DraggableScrollableSheet(
+      // P12-3:max = initial → 锁死在 0.7,上滑无效
+      initialChildSize: 0.7,
+      minChildSize: 0.0,
+      maxChildSize: 0.7,
+      // snap + snapSizes → 下拉缩到 0.0 即 dismiss,弹回 0.7 即恢复
+      snap: true,
+      snapSizes: const [0.7, 0.0],
+      expand: false,
+      builder: (ctx, scrollController) {
+        return Column(
           children: [
             Container(
               width: 36,
@@ -273,6 +283,7 @@ class _MultiSelectCategorySheetState extends State<MultiSelectCategorySheet> {
             const Divider(height: 1),
             Expanded(
               child: ListView.builder(
+                controller: scrollController,
                 itemCount: widget.categories.length,
                 itemBuilder: (_, i) {
                   final c = widget.categories[i];
@@ -341,7 +352,7 @@ class _MultiSelectCategorySheetState extends State<MultiSelectCategorySheet> {
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: () => Navigator.pop(context, _selected),
+                  onPressed: () => Navigator.pop(ctx, _selected),
                   style: FilledButton.styleFrom(
                     backgroundColor: isDark ? AppSecondary.cream : AppBrand.ink,
                     foregroundColor: isDark ? AppBrand.ink : null,
@@ -362,8 +373,8 @@ class _MultiSelectCategorySheetState extends State<MultiSelectCategorySheet> {
               ),
             ),
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 }
