@@ -124,6 +124,12 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
       _toast('期初余额格式不对');
       return;
     }
+    // 2026-10-13 P6 加:期初余额上限 7 位 = 9,999,999.99(≈ 10 百万)
+    // 跟 transaction_form 流水金额上限一致(app 定位个人记账,千万级以上不服务)
+    if (balance.abs() > 9999999.99) {
+      _toast('期初余额超出范围(上限 9,999,999.99)');
+      return;
+    }
     setState(() => _saving = true);
     try {
       final repo = ref.read(assetRepositoryProvider);
