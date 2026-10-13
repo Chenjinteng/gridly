@@ -211,7 +211,10 @@ class _AssetsRadarState extends ConsumerState<AssetsRadar> {
                               ];
                               return RadarChartTitle(
                                 text: labels[i],
-                                positionPercentageOffset: 0.05,
+                                // 2026-10-13 P6 UAT 反馈"label 太靠近端点":
+                                //   0.05 → 0.12,label 离 6 边形顶点更远,
+                                //   不再跟 entry 圆点挤在一起
+                                positionPercentageOffset: 0.12,
                               );
                             },
                             titleTextStyle: TextStyle(
