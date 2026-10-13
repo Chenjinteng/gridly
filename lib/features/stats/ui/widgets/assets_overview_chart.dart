@@ -154,7 +154,12 @@ class _AssetsOverviewChartState extends ConsumerState<AssetsOverviewChart> {
                 child: AnimatedCounter(
                   prefix: '¥',
                   value: _appeared ? totalAll : 0,
-                  formatter: (v) => Formatters.amount(v, withUnit: false),
+                  // 2026-10-13 UAT fix:总资产跟 6 段明细用同一单位
+                  //   - 6 段明细(尤其"不动产 ¥100.00万")都用 withUnit: true 带"万"
+                  //   - 总资产 ≥ 100 万时也得带"万",否则 ¥172.89 跟 ¥100.00万
+                  //     看起来不像是 1 个量级的(用户问"为什么是 172.89")
+                  //   - 实际 1,728,990 / 10000 = 172.899 → 172.89万 才跟 6 段对得上
+                  formatter: (v) => Formatters.amount(v, withUnit: true),
                   duration: const Duration(milliseconds: 1200),
                   curve: AppMotion.aquaIn,
                   style: const TextStyle(
