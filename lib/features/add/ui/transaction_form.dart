@@ -146,8 +146,17 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   /// 2026-10-13 P8:是否需要分类(只有 cash_flow 需要;投资场景分类去掉)
   bool get _needsCategory => !_isInvestmentContext;
 
-  /// 2026-10-13 P8:是否需要双账户(只 investment 需要;cash_flow 调拨暂保留单 accountId)
-  bool get _needsDualAccount => _isInvestmentContext;
+  /// 2026-10-14 P18 大改:investment 三段拆分
+  ///   - 投入 / 调拨 → 双账户(转出 + 转入)
+  ///   - 收益 → 单账户(只有 accountId)
+  /// 收益是账户自身的增长,没有"从哪到哪"的流向,UI 上不显示转入转出 pill,
+  ///   save() 时 destinationAccountId 传 null
+  bool get _needsDualAccount {
+    if (_isInvestmentContext) {
+      return _intent != 'output'; // 投入/调拨:双;收益:单
+    }
+    return false; // cash_flow 暂用单 accountId
+  }
 
   bool get _isEdit => widget.editTransaction != null;
 
