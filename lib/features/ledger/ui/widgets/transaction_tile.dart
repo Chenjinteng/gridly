@@ -163,8 +163,14 @@ class TransactionTile extends ConsumerWidget {
                           // 2026-10-12 P3 commit:流水 tile 第 2 行右侧资产账号 chip
                           //   小尺寸 11px,onSurfaceVariant 色
                           //   让 user 在流水列表一眼看到"哪笔进哪个账户"
+                          // 2026-10-14 P18:投资 record 投入/调拨传 destinationAccountId
+                          //   显示 source → dest 双账户 chip,跟 record 的资产流向对应
                           const SizedBox(width: AppSpacing.s2),
-                          _AccountBadge(accountId: transaction.accountId),
+                          _AccountBadge(
+                            accountId: transaction.accountId,
+                            destinationAccountId:
+                                transaction.destinationAccountId,
+                          ),
                         ],
                       ),
                     ],
@@ -240,9 +246,17 @@ class TransactionTile extends ConsumerWidget {
 ///   - assetByIdProvider 取账户对象(找不到 → 显示 'unknown 账户')
 ///   - 用 AssetTile.icons 风格的小 icon(14px,asset 配色)
 ///   - 不显示余额(余额已在 SummaryCard 显示,避免重复)
+/// 2026-10-14 P18 扩展:投资 record 投入/调拨需要显示 source → dest 双账户
+///   - destinationAccountId != null → 显示 [source chip] → [dest chip]
+///   - destinationAccountId == null → 维持单账户 chip
 class _AccountBadge extends ConsumerWidget {
-  const _AccountBadge({required this.accountId});
+  const _AccountBadge({required this.accountId, this.destinationAccountId});
   final int accountId;
+
+  /// 投资 record 投入/调拨的目标账户,nullable
+  ///   - 非空 → 显示 source → dest 双账户 chip
+  ///   - 空(现金流水 / 投资收益)→ 只显示 source 单账户
+  final int? destinationAccountId;
 
   IconData _iconFor(String iconKey) {
     switch (iconKey) {
@@ -267,12 +281,55 @@ class _AccountBadge extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // 2026-10-14 P18:投资 record(投入/调拨)显示 source → dest 双账户
+    //   - destinationAccountId != null → 嵌套 _SingleChip × 2,中间 → 符号
+    //   - 现金 / 投资收益(单账户)→ 单 _SingleChip
+    if (destinationAccountId != null) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _SingleChip(accountId: accountId, iconFor: _iconFor, maxWidth: 60),
+          // 中间 → 符号(中性灰,10sp)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 4),
+            child: Icon(
+              Icons.arrow_forward_rounded,
+              size: 11,
+              color: AppGray.g400,
+            ),
+          ),
+          _SingleChip(
+            accountId: destinationAccountId!,
+            iconFor: _iconFor,
+            maxWidth: 60,
+          ),
+        ],
+      );
+    }
+    // 单账户原逻辑
+    return _SingleChip(accountId: accountId, iconFor: _iconFor, maxWidth: 100);
+  }
+}
+
+/// 2026-10-14 P18 抽:单账户 chip,投资 record 双账户时复用 2 次
+class _SingleChip extends ConsumerWidget {
+  const _SingleChip({
+    required this.accountId,
+    required this.iconFor,
+    required this.maxWidth,
+  });
+  final int accountId;
+  final IconData Function(String) iconFor;
+  final double maxWidth;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final assetAsync = ref.watch(assetByIdProvider(accountId));
     final asset = assetAsync.valueOrNull;
     final theme = Theme.of(context);
     if (asset == null) {
       return Text(
-        'unknown 账户',
+        'unknown',
         style: TextStyle(
           fontSize: 11,
           color: theme.colorScheme.onSurfaceVariant,
@@ -284,16 +341,13 @@ class _AccountBadge extends ConsumerWidget {
     // 2026-10-14 P18:icon 色从账户自选 asset.color 改资产段色(asset.type 走 AppSegment)
     //   跟流水金额色统一,跨页视觉一致
     final color = AppSegment.colorFor(asset.type);
-    // 2026-10-14 P18 修:外层 Row 2 已给 _AccountBadge 剩余空间,内部不要用
-    //   Flexible(会被外层 Expanded 挤压成 0,asset name 看不见)。
-    //   改成 mainAxisSize.min + ConstrainedBox 给文字 maxWidth,Icon 固定 12,文字自然 ellipsis
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(_iconFor(asset.icon), size: 12, color: color),
+        Icon(iconFor(asset.icon), size: 12, color: color),
         const SizedBox(width: 4),
         ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 100),
+          constraints: BoxConstraints(maxWidth: maxWidth),
           child: Text(
             asset.name,
             style: TextStyle(
