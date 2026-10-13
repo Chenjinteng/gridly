@@ -121,3 +121,38 @@ class AppCategory {
     0xFF7C3AED, // 深紫
   ];
 }
+
+/// 2026-10-14 P18 加:资产 6 段统一色 token
+///   - 替代散落在 asset_summary_card / asset_tile / transaction_tile 的重复 switch
+///   - 流水页资产 chip + 金额统一用段色,跨页视觉一致
+///   - 颜色拉大色相距离,避免 cash_flow teal / investment gold / benefit 绿 撞色
+///   - user 反馈:6 段颜色不够明显,流水颜色不跟资产大类一致
+class AppSegment {
+  AppSegment._();
+  static const Color cashFlow = Color(0xFF0EA5E9); // 现金流 — 亮蓝
+  static const Color investment = Color(0xFFA855F7); // 投资 — 紫
+  static const Color benefit = Color(0xFFEC4899); // 福利 — 粉
+  static const Color receivable = Color(0xFFF59E0B); // 债权/借出 — 橙
+  static const Color fixedAsset = Color(0xFF06B6D4); // 不动产 — 青
+  static const Color other = Color(0xFF71717A); // 其它 — 灰
+
+  /// asset.type → 段色统一查询
+  ///   - 'cash_flow' / 'investment' / 'benefit' / 'receivable' / 'fixed_asset' / 'other'
+  ///   - 未知 type 兜底 other 灰
+  static Color colorFor(String type) {
+    switch (type) {
+      case 'cash_flow':
+        return cashFlow;
+      case 'investment':
+        return investment;
+      case 'benefit':
+        return benefit;
+      case 'receivable':
+        return receivable;
+      case 'fixed_asset':
+        return fixedAsset;
+      default:
+        return other;
+    }
+  }
+}
