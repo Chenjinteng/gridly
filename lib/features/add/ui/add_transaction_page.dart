@@ -54,6 +54,13 @@ class AddTransactionPage extends StatelessWidget {
             ? false
             : true);
 
+    // 2026-10-13 P6 UAT:accountTypeFilter 默认 = preselectedAssetType
+    //   - 短按 'cash_flow' → 账户 sheet 只显示 cash_flow 账户
+    //   - 长按 'investment' → 账户 sheet 只显示 investment 账户
+    //   - caller 显式传 null → 不过滤(向后兼容)
+    //   - caller 显式传 string → 用 caller 的值(可强制覆盖)
+    final effectiveAccountTypeFilter = accountTypeFilter ?? preselectedAssetType;
+
     return Scaffold(
       // resizeToAvoidBottomInset: false → 系统键盘弹起时不重排 body,
       // 底部的 Numpad 整段留在原位,**被键盘盖住**(这是用户期望行为:
@@ -77,7 +84,7 @@ class AddTransactionPage extends StatelessWidget {
         preselectedAssetType: preselectedAssetType,
         // 2026-10-13 P6 UAT:传 allowBalance + accountTypeFilter 给 form
         allowBalance: effectiveAllowBalance,
-        accountTypeFilter: accountTypeFilter,
+        accountTypeFilter: effectiveAccountTypeFilter,
         // 保存后也 pop(新增 / 编辑统一处理)
         onSaved: () => context.pop(),
       ),
