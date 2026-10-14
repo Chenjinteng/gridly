@@ -1391,105 +1391,115 @@ class _CategoryPickerSheet extends ConsumerWidget {
             padding: const EdgeInsets.all(AppSpacing.s4),
             child: Center(child: Text('加载失败:$e')),
           ),
-          data: (cats) => Column(
-            children: [
-              // 把手
-              Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(top: 8, bottom: 12),
-                decoration: BoxDecoration(
-                  color: AppGray.g400,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              // 标题 + 计数
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.s4,
-                  0,
-                  AppSpacing.s4,
-                  AppSpacing.s2,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      '选分类',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
+          data: (cats) => LayoutBuilder(
+            builder: (lctx, constraints) {
+              final sheetHeight = constraints.maxHeight;
+              const headerBlockHeight = 71.0;
+              final showHeader = sheetHeight > headerBlockHeight;
+              return Column(
+                children: [
+                  if (showHeader) ...[
+                    // 把手
+                    Container(
+                      width: 36,
+                      height: 4,
+                      margin: const EdgeInsets.only(top: 8, bottom: 12),
+                      decoration: BoxDecoration(
+                        color: AppGray.g400,
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                    Text(
-                      '${cats.length} 个',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: theme.colorScheme.onSurfaceVariant,
+                    // 标题 + 计数
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.s4,
+                        0,
+                        AppSpacing.s4,
+                        AppSpacing.s2,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            '选分类',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Text(
+                            '${cats.length} 个',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
-                ),
-              ),
-              Expanded(
-                child: GridView.builder(
-                  controller: scrollController,
-                  padding: const EdgeInsets.all(AppSpacing.s4),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 4,
-                    mainAxisSpacing: AppSpacing.s2,
-                    crossAxisSpacing: AppSpacing.s2,
-                    childAspectRatio: 0.85,
-                  ),
-                  itemCount: cats.length,
-                  itemBuilder: (context, i) {
-                    final c = cats[i];
-                    final isSelected = c.id == selected;
-                    return InkWell(
-                      borderRadius: AppRadius.brLg,
-                      onTap: () => onSelect(c.id),
-                      child: Container(
-                        padding: const EdgeInsets.all(AppSpacing.s2),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? Color(c.color).withValues(alpha: 0.12)
-                              : theme.colorScheme.surfaceContainerLow,
-                          borderRadius: AppRadius.brLg,
-                          border: Border.all(
-                            color: isSelected
-                                ? Color(c.color)
-                                : theme.colorScheme.outlineVariant,
-                            width: isSelected ? 1.5 : 0.5,
+                  Expanded(
+                    child: GridView.builder(
+                      controller: scrollController,
+                      padding: const EdgeInsets.all(AppSpacing.s4),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 4,
+                            mainAxisSpacing: AppSpacing.s2,
+                            crossAxisSpacing: AppSpacing.s2,
+                            childAspectRatio: 0.85,
                           ),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              CategoryIcons.map[c.icon] ??
-                                  Icons.category_rounded,
-                              color: Color(c.color),
-                              size: 26,
-                            ),
-                            const SizedBox(height: AppSpacing.s1),
-                            Text(
-                              c.name,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
+                      itemCount: cats.length,
+                      itemBuilder: (context, i) {
+                        final c = cats[i];
+                        final isSelected = c.id == selected;
+                        return InkWell(
+                          borderRadius: AppRadius.brLg,
+                          onTap: () => onSelect(c.id),
+                          child: Container(
+                            padding: const EdgeInsets.all(AppSpacing.s2),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? Color(c.color).withValues(alpha: 0.12)
+                                  : theme.colorScheme.surfaceContainerLow,
+                              borderRadius: AppRadius.brLg,
+                              border: Border.all(
+                                color: isSelected
+                                    ? Color(c.color)
+                                    : theme.colorScheme.outlineVariant,
+                                width: isSelected ? 1.5 : 0.5,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
                             ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  CategoryIcons.map[c.icon] ??
+                                      Icons.category_rounded,
+                                  color: Color(c.color),
+                                  size: 26,
+                                ),
+                                const SizedBox(height: AppSpacing.s1),
+                                Text(
+                                  c.name,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         );
       },

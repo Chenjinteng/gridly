@@ -86,115 +86,126 @@ Future<Object?> showSingleSelectSheet<T>(
         snapSizes: const [0.0, 0.7],
         expand: false,
         builder: (ctx, scrollController) {
-          return Column(
-            children: [
-              // 把手
-              Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(top: 8, bottom: 12),
-                decoration: BoxDecoration(
-                  color: AppGray.g400,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.s4,
-                  vertical: AppSpacing.s2,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
+          return LayoutBuilder(
+            builder: (lctx, constraints) {
+              final sheetHeight = constraints.maxHeight;
+              const fullUIThreshold = 110.0;
+              final showFullUI = sheetHeight > fullUIThreshold;
+              return Column(
+                children: [
+                  if (showFullUI) ...[
+                    // 把手
+                    Container(
+                      width: 36,
+                      height: 4,
+                      margin: const EdgeInsets.only(top: 8, bottom: 12),
+                      decoration: BoxDecoration(
+                        color: AppGray.g400,
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, sheetDismissed),
-                      child: const Text('关闭'),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: ListView.builder(
-                  controller: scrollController,
-                  itemCount: listOptions.length,
-                  itemBuilder: (_, i) {
-                    final (value, label) = listOptions[i];
-                    // 2026-10-13 P11:AllPicked 已不在 list,只比 value == currentValue
-                    final selected = value == currentValue;
-                    return InkWell(
-                      onTap: () => Navigator.pop(ctx, value),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.s4,
-                          vertical: AppSpacing.s3,
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                label,
-                                style: const TextStyle(fontSize: 15),
-                              ),
-                            ),
-                            if (selected)
-                              Icon(
-                                Icons.check,
-                                size: 20,
-                                color: theme.colorScheme.primary,
-                              ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const Divider(height: 1),
-              // 2026-10-13 P10:"显示全部"快捷键
-              // 2026-10-13 P11:list 已过滤掉 AllPicked,按钮是"全部"的唯一入口
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.s4,
-                  AppSpacing.s3,
-                  AppSpacing.s4,
-                  AppSpacing.s3,
-                ),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () => Navigator.pop(ctx, allPicked),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: isDark
-                          ? AppSecondary.cream
-                          : AppBrand.ink,
-                      foregroundColor: isDark ? AppBrand.ink : null,
+                    Padding(
                       padding: const EdgeInsets.symmetric(
-                        vertical: AppSpacing.s3,
+                        horizontal: AppSpacing.s4,
+                        vertical: AppSpacing.s2,
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: AppRadius.brLg,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, sheetDismissed),
+                            child: const Text('关闭'),
+                          ),
+                        ],
                       ),
                     ),
-                    child: const Text(
-                      '显示全部',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
+                    const Divider(height: 1),
+                  ],
+                  Expanded(
+                    child: ListView.builder(
+                      controller: scrollController,
+                      itemCount: listOptions.length,
+                      itemBuilder: (_, i) {
+                        final (value, label) = listOptions[i];
+                        // 2026-10-13 P11:AllPicked 已不在 list,只比 value == currentValue
+                        final selected = value == currentValue;
+                        return InkWell(
+                          onTap: () => Navigator.pop(ctx, value),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.s4,
+                              vertical: AppSpacing.s3,
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    label,
+                                    style: const TextStyle(fontSize: 15),
+                                  ),
+                                ),
+                                if (selected)
+                                  Icon(
+                                    Icons.check,
+                                    size: 20,
+                                    color: theme.colorScheme.primary,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
-                ),
-              ),
-            ],
+                  if (showFullUI) ...[
+                    const Divider(height: 1),
+                    // 2026-10-13 P10:"显示全部"快捷键
+                    // 2026-10-13 P11:list 已过滤掉 AllPicked,按钮是"全部"的唯一入口
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppSpacing.s4,
+                        AppSpacing.s3,
+                        AppSpacing.s4,
+                        AppSpacing.s3,
+                      ),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: () => Navigator.pop(ctx, allPicked),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: isDark
+                                ? AppSecondary.cream
+                                : AppBrand.ink,
+                            foregroundColor: isDark ? AppBrand.ink : null,
+                            padding: const EdgeInsets.symmetric(
+                              vertical: AppSpacing.s3,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: AppRadius.brLg,
+                            ),
+                          ),
+                          child: const Text(
+                            '显示全部',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              );
+            },
           );
         },
       );
@@ -248,131 +259,151 @@ class _MultiSelectCategorySheetState extends State<MultiSelectCategorySheet> {
       snapSizes: const [0.0, 0.7],
       expand: false,
       builder: (ctx, scrollController) {
-        return Column(
-          children: [
-            Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.only(top: 8, bottom: 12),
-              decoration: BoxDecoration(
-                color: AppGray.g400,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.s4,
-                vertical: AppSpacing.s2,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    '选择分类(可多选)',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                  ),
-                  TextButton(
-                    onPressed: _selected.isEmpty
-                        ? null
-                        : () => setState(_selected.clear),
-                    child: const Text('清空'),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: ListView.builder(
-                controller: scrollController,
-                itemCount: widget.categories.length,
-                itemBuilder: (_, i) {
-                  final c = widget.categories[i];
-                  final checked = _selected.contains(c.id);
-                  final color = Color(c.color);
-                  return InkWell(
-                    onTap: () => setState(() {
-                      if (checked) {
-                        _selected.remove(c.id);
-                      } else {
-                        _selected.add(c.id);
-                      }
-                    }),
-                    child: Container(
-                      color: checked
-                          ? color.withValues(alpha: 0.08)
-                          : Colors.transparent,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppSpacing.s4,
-                        vertical: AppSpacing.s3,
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: color,
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              c.name,
-                              style: const TextStyle(fontSize: 15),
-                            ),
-                          ),
-                          if (checked)
-                            Icon(
-                              Icons.check_circle,
-                              color: theme.colorScheme.primary,
-                              size: 22,
-                            )
-                          else
-                            Icon(
-                              Icons.radio_button_unchecked,
-                              color: theme.colorScheme.outlineVariant,
-                              size: 22,
-                            ),
-                        ],
-                      ),
+        return LayoutBuilder(
+          builder: (lctx, constraints) {
+            final sheetHeight = constraints.maxHeight;
+            const fullUIThreshold = 110.0;
+            final showFullUI = sheetHeight > fullUIThreshold;
+            return Column(
+              children: [
+                if (showFullUI) ...[
+                  Container(
+                    width: 36,
+                    height: 4,
+                    margin: const EdgeInsets.only(top: 8, bottom: 12),
+                    decoration: BoxDecoration(
+                      color: AppGray.g400,
+                      borderRadius: BorderRadius.circular(2),
                     ),
-                  );
-                },
-              ),
-            ),
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.s4,
-                AppSpacing.s3,
-                AppSpacing.s4,
-                AppSpacing.s3,
-              ),
-              child: SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () => Navigator.pop(ctx, _selected),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: isDark ? AppSecondary.cream : AppBrand.ink,
-                    foregroundColor: isDark ? AppBrand.ink : null,
+                  ),
+                  Padding(
                     padding: const EdgeInsets.symmetric(
-                      vertical: AppSpacing.s3,
+                      horizontal: AppSpacing.s4,
+                      vertical: AppSpacing.s2,
                     ),
-                    shape: RoundedRectangleBorder(borderRadius: AppRadius.brLg),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          '选择分类(可多选)',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _selected.isEmpty
+                              ? null
+                              : () => setState(_selected.clear),
+                          child: const Text('清空'),
+                        ),
+                      ],
+                    ),
                   ),
-                  child: Text(
-                    _selected.isEmpty ? '显示全部' : '确定(${_selected.length})',
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
+                  const Divider(height: 1),
+                ],
+                Expanded(
+                  child: ListView.builder(
+                    controller: scrollController,
+                    itemCount: widget.categories.length,
+                    itemBuilder: (_, i) {
+                      final c = widget.categories[i];
+                      final checked = _selected.contains(c.id);
+                      final color = Color(c.color);
+                      return InkWell(
+                        onTap: () => setState(() {
+                          if (checked) {
+                            _selected.remove(c.id);
+                          } else {
+                            _selected.add(c.id);
+                          }
+                        }),
+                        child: Container(
+                          color: checked
+                              ? color.withValues(alpha: 0.08)
+                              : Colors.transparent,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.s4,
+                            vertical: AppSpacing.s3,
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 10,
+                                height: 10,
+                                decoration: BoxDecoration(
+                                  color: color,
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  c.name,
+                                  style: const TextStyle(fontSize: 15),
+                                ),
+                              ),
+                              if (checked)
+                                Icon(
+                                  Icons.check_circle,
+                                  color: theme.colorScheme.primary,
+                                  size: 22,
+                                )
+                              else
+                                Icon(
+                                  Icons.radio_button_unchecked,
+                                  color: theme.colorScheme.outlineVariant,
+                                  size: 22,
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
-              ),
-            ),
-          ],
+                const Divider(height: 1),
+                if (showFullUI) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.s4,
+                      AppSpacing.s3,
+                      AppSpacing.s4,
+                      AppSpacing.s3,
+                    ),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () => Navigator.pop(ctx, _selected),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: isDark
+                              ? AppSecondary.cream
+                              : AppBrand.ink,
+                          foregroundColor: isDark ? AppBrand.ink : null,
+                          padding: const EdgeInsets.symmetric(
+                            vertical: AppSpacing.s3,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: AppRadius.brLg,
+                          ),
+                        ),
+                        child: Text(
+                          _selected.isEmpty
+                              ? '显示全部'
+                              : '确定(${_selected.length})',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            );
+          },
         );
       },
     );
