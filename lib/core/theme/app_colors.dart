@@ -103,6 +103,11 @@ class AppCategory {
   //   跟 account 段色一致视觉)。不复用 shopping(同 #EC4899):"福利" vs "购物"
   //   是不同财务概念,语义独立。user 拍板用 #EC4899,后续不喜欢可以再 fix。
   static const Color benefit = Color(0xFFEC4899); // 福利 — 粉
+  // 2026-10-14 加:债权段 1 cat(负债)内置色
+  //   - user 提议:期权直接去掉(归到投资段),负债借贷改名为"负债"统称
+  //   - receivable 段下只剩 1 cat,跟投资/福利同 pattern:UI 隐藏,自动 fallback
+  //   - 红(警示我需还金额)跟 D16 支出红同系,语义一致
+  static const Color liability = Color(0xFFEF4444); // 负债 — 红(警示)
 
   // === 中性 ===
   static const Color neutral = AppGray.g400; // 其他 / 退款
