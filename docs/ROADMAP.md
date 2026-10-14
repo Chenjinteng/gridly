@@ -87,7 +87,7 @@ v0.3.5 增量(见下):投资场景三段拆分、调拨方向修正、6 段色�
 
 ### v0.3.5 · 资产 + 收支重构 ✅(2026-10-14 完成)
 
-**目标**:投资 record 走完整 schema(投入/收益/调拨三段)+ listTile 视觉重构 + 6 段色 token 化。共 51 个 commit,详细设计决策见 [`DEV.md`](DEV.md) D32-D56。
+**目标**:投资 record 走完整 schema(投入/收益/调拨三段)+ listTile 视觉重构 + 6 段色 token 化。共 52 个 commit,详细设计决策见 [`DEV.md`](DEV.md) D32-D57。
 
 #### 1. 投资 record 三段拆分(`transaction_form.dart`)
 

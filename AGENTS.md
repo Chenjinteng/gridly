@@ -243,18 +243,18 @@ features/<name>/
   - `logo_horizontal.png` 2752×1536 — LOGO + "格子记账" 文字(横版品牌)
 - **Launcher icon**(5 个 mipmap-*/ic_launcher.png)当前从 `logo_primary.png` 派生,2026-10-10 改成白底风格
 
-### v0.3.5 P18 进度(2026-10-14 完成,51 commits)
+### v0.3.5 P18 进度(2026-10-14 完成,52 commits)
 
-- HEAD: `386d879 fix(form): "记一笔(其它)"段 选分类按账户 type 过滤 + 内置 cat 显示 (D56)`,已推 `origin/main`
-- commit 范围:`7ea90d3..386d879`
+- HEAD: `cf2fef6 refactor(form): "记一笔(其它)"段 改 = 福利 pattern(2 段+只 other 账户+UI 隐藏 cat) (D57)`,已推 `origin/main`
+- commit 范围:`7ea90d3..cf2fef6`
 - 主要文件改动:
-  - `lib/features/add/ui/transaction_form.dart` — 5 getter 三段拆分 / save() dest 收益不存 / initState pre-fill / D44 toggle 不清 cat(receivable 例外) / D45 `_actionRow` 全表查 cat / D49 余额校验扩所有非负债段 / D50 `_AccountPickerSheet` 加 `excludeId` / D51 v4 source picker 短路 / D52 / D53 popup overflow 修 / D55 `_isOtherContext` getter + `_accountTypeFilter` 返 null + `_openAccountPicker` 短路加 `_isOtherContext` / D56 `_categoryFilterType` getter 按 account.type 映射 cat.type + `_findAccountById` helper + `_openCategoryPicker` 改用 `_categoryFilterType ?? _type` + `_firstCategoryId` 其它段账户 fallback
-  - `lib/features/add/ui/add_transaction_page.dart` — `_appBarTitle` / `effectiveAllowBalance` 福利 / 债权适配
+  - `lib/features/add/ui/transaction_form.dart` — 5 getter 三段拆分 / save() dest 收益不存 / initState pre-fill / D44 toggle 不清 cat(receivable 例外) / D45 `_actionRow` 全表查 cat / D49 余额校验扩所有非负债段 / D50 `_AccountPickerSheet` 加 `excludeId` / D51 v4 source picker 短路 / D52 / D53 popup overflow 修 / D55 `_isOtherContext` getter / D57 撤销 D56 `_categoryFilterType` + D55 `_accountTypeFilter` 返 null,改 `_toggleSegments` filter balance + `_needsCategory` 返 false + `_firstCategoryId` 简化 fallback(cat.type='other')
+  - `lib/features/add/ui/add_transaction_page.dart` — `_appBarTitle` / `effectiveAllowBalance` 福利 / 债权 / 其它(D57)适配
   - `lib/features/shell/ui/main_shell.dart` — Speed Dial 改"债务" + D54 删 `fixed_asset` 段(5 → 4 项)
   - `lib/core/database/repositories/asset_repository.dart` — `balanceDeltaByAssetId` 调拨 source / dest 各算各的 + lend_out / borrow_in 累加(D51)
-  - `lib/core/database/repositories/category_repository.dart` — `ensureBenefitCategories` / `ensureReceivableCategories`
+  - `lib/core/database/repositories/category_repository.dart` — `ensureBenefitCategories` / `ensureReceivableCategories` / `ensureOtherCategories`(D57)
   - `lib/core/database/app_database.dart` — `clearAllData()` 全删 assets(D46)
-  - `lib/core/theme/app_colors.dart` — `AppSegment` token + D47 加 `labelFor` / `iconFor` + D51 v2 receivable label 改"债务"
+  - `lib/core/theme/app_colors.dart` — `AppSegment` token + D47 加 `labelFor` / `iconFor` + D51 v2 receivable label 改"债务" + D57 加 `AppCategory.other`(灰)
   - `lib/features/settings/ui/widgets/asset_summary_card.dart` — 6 段色统一走 `AppSegment`
   - `lib/features/settings/ui/widgets/asset_form_page.dart` — 6 段 radio 改走 `AppSegment`(D47) + icon picker 47 个扁平(D48 v2 去掉分组)
   - `lib/features/settings/ui/widgets/asset_tile.dart` — 6 段色 + label 统一走 `AppSegment`(D47) + `brandIcons` / `renderIcon`(D48 v2 银行 5→1)
@@ -263,16 +263,15 @@ features/<name>/
   - `lib/features/ledger/application/transactions_providers.dart` — monthSummary / filtered 排除投资 record + `includeInTransactions=false`
   - `lib/features/ledger/ui/ledger_page.dart` — `_DaySection` 同步排除规则
   - `lib/features/ledger/ui/filter_picker_sheets.dart` — D53 `showSingleSelectSheet` + `MultiSelectCategorySheet` overflow 修
-  - `lib/shared/constants/default_categories.dart` — seed 投资 2 类 + 福利 1 类 + 债权 1 类(债务)
+  - `lib/shared/constants/default_categories.dart` — seed 投资 2 类 + 福利 1 类 + 债权 1 类(债务) + D57 其它 1 类
   - `lib/features/settings/ui/about_page.dart` — `_confirmClearData` refresh + 文案补"资产"(D46)
-  - `lib/main.dart` — 启动调 `ensureInvestmentCategories()` / `ensureBenefitCategories()` / `ensureReceivableCategories()`
+  - `lib/main.dart` — 启动调 `ensureInvestmentCategories()` / `ensureBenefitCategories()` / `ensureReceivableCategories()` / D57 `ensureOtherCategories()`
 - 已知遗留:
   - ListTile + DecoratedBox 老异常(资产 / 分类管理页,跟 P18 无关,需要时单独 commit 修)
   - 历史错数据(用户测试录入的 balanceDelta 错方向流水)user 自行处理
   - D46 清空后 assets 表为空,user 反馈如要自动 seed 默认 3 账户再 patch
   - D54 user 仍可在资产表单开 `includeInTransactions=true` 走短按 + cash_flow 调拨选 不动产 账户(后路,user 暂未要求封)
-  - D55 "记一笔(其它)"默认账户 pre-fill 仍取 first 'other' account,无 'other' 账户时 _accountId=null 等 user 手选(暂未改,等需要再补)
-- 详情见 [`docs/ROADMAP.md`](docs/ROADMAP.md) v0.3.5 章节 + [`docs/DEV.md`](docs/DEV.md) D32-D56 决策记录
+- 详情见 [`docs/ROADMAP.md`](docs/ROADMAP.md) v0.3.5 章节 + [`docs/DEV.md`](docs/DEV.md) D32-D57 决策记录
 
 ### 这台机器的实际 host
 
