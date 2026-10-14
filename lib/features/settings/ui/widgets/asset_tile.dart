@@ -86,18 +86,10 @@ class AssetTile extends ConsumerWidget {
     'category': Icons.category_rounded, // 其它
   };
 
-  /// type 名 → 中文标签(2026-10-13 P6:4 段 → 6 段,加投资/福利/债权)
-  /// 2026-10-14 改:跟所有"期权/负债"统一用"负债"称呼
-  ///   receivable label "债权/借出" → "负债"
-  ///   DB key 仍是 'receivable'(API enum 内部不变)
-  static const Map<String, String> typeLabels = {
-    'cash_flow': '现金流',
-    'investment': '投资',
-    'benefit': '福利',
-    'receivable': '负债',
-    'fixed_asset': '不动产',
-    'other': '其它',
-  };
+  /// type 名 → 中文标签(2026-10-14 D47:统一走 AppSegment 集中数据源)
+  ///   之前硬编码 6 段 label,跟资产页 / 报表不一致;现在走 AppSegment.labelFor
+  ///   删硬编码 map,跨 3 页(总览 / 资产页 / 新增账户 / 报表)改一处生效全部
+  static String labelFor(String type) => AppSegment.labelFor(type);
 
   /// 2026-10-14 P18:type 名 → 段色统一走 AppSegment(集中管理)
   static Color colorFor(String type) => AppSegment.colorFor(type);
@@ -155,10 +147,7 @@ class AssetTile extends ConsumerWidget {
               Row(
                 children: [
                   // type chip(同款胶囊,type 配色)
-                  _TileChip(
-                    label: typeLabels[asset.type] ?? asset.type,
-                    color: typeColor,
-                  ),
+                  _TileChip(label: labelFor(asset.type), color: typeColor),
                   // 2026-10-13 P7 第 3 次改:仅 cash_flow + isDefault=true 显示"默认" chip
                   // - 位置:type chip 紧贴后(语义高亮,比"是否计入"更突出)
                   // - 配色:AppBrand.gold(跟 _IsDefaultCard + 计入 chip 同款)

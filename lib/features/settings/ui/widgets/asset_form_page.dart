@@ -652,37 +652,20 @@ class _TypeRadioList extends StatelessWidget {
   final String value;
   final ValueChanged<String> onPick;
 
-  /// 6 段类型配置(顺序按日常查看频度)
-  /// 跟 asset_tile / asset_summary_card 共用同一份数据
-  /// 2026-10-14 改:user 反馈跟所有"期权/负债"统一用"负债"称呼
-  ///   receivable segment UI label "债权/借出" → "负债"
-  ///   DB key 仍是 'receivable'(API enum 内部不变),只改 user 可见的 label
-  static const _options = <(String, String, IconData)>[
-    ('cash_flow', '现金流', Icons.account_balance_wallet_rounded),
-    ('investment', '投资', Icons.trending_up_rounded),
-    ('benefit', '福利', Icons.favorite_rounded),
-    ('receivable', '负债', Icons.handshake_rounded),
-    ('fixed_asset', '不动产', Icons.home_rounded),
-    ('other', '其它', Icons.category_rounded),
+  /// 2026-10-14 D47:6 段类型配置统一走 AppSegment 集中数据源
+  ///   - 之前硬编码 icon / color / label 三元组 + _colorFor switch,跟资产页 / 报表不一致
+  ///   - user 反馈:'这里的颜色图标要与新增账户里面的保持一致'
+  ///     + '报表 / 资产管理页面 / 新增资产页面的都不一样,你再统一一下图标和颜色'
+  ///   - 修:全部走 AppSegment.iconFor / labelFor / colorFor,删 _colorFor switch
+  ///   - 跨 3 页(报表 / 资产页 / 新增账户)视觉一致,改一处生效全部
+  static const _order = [
+    'cash_flow',
+    'investment',
+    'benefit',
+    'receivable',
+    'fixed_asset',
+    'other',
   ];
-
-  /// 6 段类型配色(跟 asset_summary_card._colorFor / asset_tile.colorFor 一致)
-  static Color _colorFor(String t) {
-    switch (t) {
-      case 'cash_flow':
-        return AppBrand.teal;
-      case 'investment':
-        return AppBrand.gold;
-      case 'benefit':
-        return AppStatus.success;
-      case 'receivable':
-        return AppStatus.warning;
-      case 'fixed_asset':
-        return AppStatus.info;
-      default:
-        return AppGray.g600;
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -701,7 +684,7 @@ class _TypeRadioList extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          for (var i = 0; i < _options.length; i++) ...[
+          for (var i = 0; i < _order.length; i++) ...[
             if (i > 0)
               Container(
                 height: 1,
@@ -709,12 +692,12 @@ class _TypeRadioList extends StatelessWidget {
                 color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
               ),
             _TypeRadioRow(
-              typeKey: _options[i].$1,
-              label: _options[i].$2,
-              icon: _options[i].$3,
-              selected: value == _options[i].$1,
-              color: _colorFor(_options[i].$1),
-              onTap: () => onPick(_options[i].$1),
+              typeKey: _order[i],
+              label: AppSegment.labelFor(_order[i]),
+              icon: AppSegment.iconFor(_order[i]),
+              selected: value == _order[i],
+              color: AppSegment.colorFor(_order[i]),
+              onTap: () => onPick(_order[i]),
             ),
           ],
         ],

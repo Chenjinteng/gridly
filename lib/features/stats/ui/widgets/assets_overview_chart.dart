@@ -174,48 +174,25 @@ class _AssetsOverviewChartState extends ConsumerState<AssetsOverviewChart> {
               const SizedBox(height: AppSpacing.s3),
               const Divider(height: 1, color: AppGray.g600),
               const SizedBox(height: AppSpacing.s3),
-              // 6 大类汇总(2026-10-13 P6:顺序按日常查看频度)
-              _TypeRow(
-                icon: Icons.account_balance_wallet_rounded,
-                label: '现金流',
-                amount: _appeared ? totals.totalCashFlow : 0,
-                color: AppBrand.teal,
-              ),
-              const SizedBox(height: AppSpacing.s2),
-              _TypeRow(
-                icon: Icons.trending_up_rounded,
-                label: '投资',
-                amount: _appeared ? totals.totalInvestment : 0,
-                color: AppBrand.gold,
-              ),
-              const SizedBox(height: AppSpacing.s2),
-              _TypeRow(
-                icon: Icons.favorite_rounded,
-                label: '福利',
-                amount: _appeared ? totals.totalBenefit : 0,
-                color: AppStatus.success,
-              ),
-              const SizedBox(height: AppSpacing.s2),
-              _TypeRow(
-                icon: Icons.handshake_rounded,
-                label: '债权/借出',
-                amount: _appeared ? totals.totalReceivable : 0,
-                color: AppStatus.warning,
-              ),
-              const SizedBox(height: AppSpacing.s2),
-              _TypeRow(
-                icon: Icons.home_rounded,
-                label: '不动产',
-                amount: _appeared ? totals.totalFixedAsset : 0,
-                color: AppStatus.info,
-              ),
-              const SizedBox(height: AppSpacing.s2),
-              _TypeRow(
-                icon: Icons.category_rounded,
-                label: '其它',
-                amount: _appeared ? totals.totalOther : 0,
-                color: AppGray.g600,
-              ),
+              // 2026-10-14 改(D47):6 大类汇总改走 AppSegment 集中数据源
+              //   - 之前硬编码 icon / color / label,跟资产页不一致:
+              //     - 现金流:teal(老) vs cashFlow 亮蓝(AppSegment)
+              //     - 投资:gold(老) vs investment 紫
+              //     - 福利:success(老) vs benefit 粉
+              //     - 不动产:info(老) vs fixedAsset 青
+              //     - 其它:g600(老) vs other 灰
+              //   - user 反馈:'这里的颜色图标要与新增账户里面的保持一致'
+              //   - 修:6 段全改 AppSegment.iconFor / colorFor / labelFor
+              //     跨 widget 一致
+              for (int i = 0; i < _segmentOrder.length; i++) ...[
+                if (i > 0) const SizedBox(height: AppSpacing.s2),
+                _TypeRow(
+                  type: _segmentOrder[i],
+                  amount: _appeared
+                      ? _amountForType(_segmentOrder[i], totals)
+                      : 0,
+                ),
+              ],
             ],
           );
         },
@@ -226,16 +203,15 @@ class _AssetsOverviewChartState extends ConsumerState<AssetsOverviewChart> {
 
 /// 6 大类单行(跟 AssetSummaryCard._TypeRow 同款,这里独立避免跨文件依赖)
 class _TypeRow extends StatelessWidget {
-  const _TypeRow({
-    required this.icon,
-    required this.label,
-    required this.amount,
-    required this.color,
-  });
-  final IconData icon;
-  final String label;
+  const _TypeRow({required this.type, required this.amount});
+
+  /// asset.type 字符串,内部走 AppSegment.iconFor / colorFor / labelFor
+  final String type;
   final double amount;
-  final Color color;
+
+  IconData get _icon => AppSegment.iconFor(type);
+  Color get _color => AppSegment.colorFor(type);
+  String get _label => AppSegment.labelFor(type);
 
   @override
   Widget build(BuildContext context) {
@@ -245,27 +221,59 @@ class _TypeRow extends StatelessWidget {
           width: 28,
           height: 28,
           decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.18),
+            color: _color.withValues(alpha: 0.18),
             borderRadius: AppRadius.brXs,
           ),
-          child: Icon(icon, color: color, size: 16),
+          child: Icon(_icon, color: _color, size: 16),
         ),
         const SizedBox(width: AppSpacing.s3),
         Expanded(
           child: Text(
-            label,
+            _label,
             style: const TextStyle(color: AppGray.g400, fontSize: 13),
           ),
         ),
         Text(
           '¥${Formatters.amount(amount)}',
           style: TextStyle(
-            color: color,
+            color: _color,
             fontSize: 13,
             fontWeight: FontWeight.w600,
           ),
         ),
       ],
     );
+  }
+}
+
+/// 6 大类展示顺序(跟 asset_form_page 段位顺序一致)
+///   - 顺序固定,跟资产页 / 新增账户页 6 段 chip 顺序对齐,避免视觉错位
+const List<String> _segmentOrder = [
+  'cash_flow',
+  'investment',
+  'benefit',
+  'receivable',
+  'fixed_asset',
+  'other',
+];
+
+/// 6 大类金额查询(从 AssetTotals 提取对应字段)
+///   - 不知道 type 时兜底 0(对应 empty segment,UI 不显示但 row 仍在)
+double _amountForType(String type, AssetTotals totals) {
+  switch (type) {
+    case 'cash_flow':
+      return totals.totalCashFlow;
+    case 'investment':
+      return totals.totalInvestment;
+    case 'benefit':
+      return totals.totalBenefit;
+    case 'receivable':
+      return totals.totalReceivable;
+    case 'fixed_asset':
+      return totals.totalFixedAsset;
+    case 'other':
+      return totals.totalOther;
+    default:
+      return 0;
   }
 }

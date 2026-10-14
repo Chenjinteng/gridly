@@ -95,51 +95,21 @@ class AssetSummaryCard extends ConsumerWidget {
           const SizedBox(height: AppSpacing.s3),
           const Divider(height: 1, color: AppGray.g600),
           const SizedBox(height: AppSpacing.s3),
-          // 2026-10-13 P6:6 大类汇总(顺序按日常查看频度)
-          _TypeRow(
-            type: 'cash_flow',
-            icon: Icons.account_balance_wallet_rounded,
-            label: '现金流',
-            amount: byType['cash_flow'] ?? 0,
-          ),
-          const SizedBox(height: AppSpacing.s2),
-          _TypeRow(
-            type: 'investment',
-            icon: Icons.trending_up_rounded,
-            label: '投资',
-            amount: byType['investment'] ?? 0,
-          ),
-          const SizedBox(height: AppSpacing.s2),
-          _TypeRow(
-            type: 'benefit',
-            icon: Icons.favorite_rounded,
-            label: '福利',
-            amount: byType['benefit'] ?? 0,
-          ),
-          const SizedBox(height: AppSpacing.s2),
-          _TypeRow(
-            type: 'receivable',
-            icon: Icons.handshake_rounded,
-            // 2026-10-14 改:跟所有"期权/负债"统一用"负债"称呼
-            // 跟 asset_form / Speed Dial 同步;icon / color 已经一致(都走
-            // AppSegment + handshake_rounded + 橙)
-            label: '负债',
-            amount: byType['receivable'] ?? 0,
-          ),
-          const SizedBox(height: AppSpacing.s2),
-          _TypeRow(
-            type: 'fixed_asset',
-            icon: Icons.home_rounded,
-            label: '不动产',
-            amount: byType['fixed_asset'] ?? 0,
-          ),
-          const SizedBox(height: AppSpacing.s2),
-          _TypeRow(
-            type: 'other',
-            icon: Icons.category_rounded,
-            label: '其它',
-            amount: byType['other'] ?? 0,
-          ),
+          // 2026-10-14 P18 D47:6 大类汇总统一走 AppSegment 集中数据源
+          //   - 之前硬编码 icon / label / color,跟资产页 / 报表不一致
+          //   - 现在 type 传 type,内部 iconFor / labelFor / colorFor 全走 AppSegment
+          //   - 跨 3 页(总览 / 报表 / 新增账户)视觉一致
+          for (final t in const [
+            'cash_flow',
+            'investment',
+            'benefit',
+            'receivable',
+            'fixed_asset',
+            'other',
+          ]) ...[
+            if (t != 'cash_flow') const SizedBox(height: AppSpacing.s2),
+            _TypeRow(type: t, amount: byType[t] ?? 0),
+          ],
         ],
       ),
     );
@@ -147,23 +117,19 @@ class AssetSummaryCard extends ConsumerWidget {
 }
 
 class _TypeRow extends StatelessWidget {
-  const _TypeRow({
-    required this.type,
-    required this.icon,
-    required this.label,
-    required this.amount,
-  });
-  final String type;
-  final IconData icon;
-  final String label;
-  final double amount;
+  const _TypeRow({required this.type, required this.amount});
 
-  /// 2026-10-14 P18:6 段配色统一走 AppSegment(集中管理,跨页一致)
-  Color _colorFor(String t) => AppSegment.colorFor(t);
+  /// 2026-10-14 P18 D47:type 字符串,内部 icon / label / color 全走 AppSegment
+  ///   - 跨页一致:总览卡 / 资产页 / 新增账户 都从 AppSegment.iconFor / labelFor / colorFor 拿
+  ///   - 删硬编码 icon / label 参数,避免一处改名多处漏改
+  final String type;
+  final double amount;
 
   @override
   Widget build(BuildContext context) {
-    final color = _colorFor(type);
+    final color = AppSegment.colorFor(type);
+    final icon = AppSegment.iconFor(type);
+    final label = AppSegment.labelFor(type);
     return Row(
       children: [
         Container(
