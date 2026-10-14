@@ -7,6 +7,11 @@
 //   - expense = AppStatus.error (#EF4444 红,跟 TypeToggle _primaryFor 对齐)
 //   - income = AppBrand.teal (#14B8A6 主题蓝,跟"保存"按钮 / today pill / 现金 chip 一致)
 //   - balance = AppSecondary.softGold (#FFEAA7 浅金,中性,跟 income 区分)
+//
+// 2026-10-14 D51 加:负债段 lend_out / borrow_in 颜色
+//   - lend_out = AppSegment.receivable #F59E0B(借出,我是债权人,正数中性橙)
+//   - borrow_in = AppStatus.error #EF4444(借入,我是负债方,负数警示红)
+//   - 跟 TypeToggle.receivableSegments 配色对齐
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -16,14 +21,17 @@ class AmountDisplay extends StatelessWidget {
   const AmountDisplay({super.key, required this.amount, required this.type});
 
   final String amount; // 用户输入的字符串
-  final String type; // 'expense' | 'income' | 'balance'
+  final String
+  type; // 'expense' | 'income' | 'balance' | 'lend_out' | 'borrow_in'
 
   @override
   Widget build(BuildContext context) {
     final color = switch (type) {
       'income' => AppBrand.teal,
       'balance' => AppSecondary.softGold,
-      _ => AppStatus.error, // 'expense'
+      'lend_out' => AppSegment.receivable, // D51:借出(我是债权人,正数)
+      'borrow_in' => AppStatus.error, // D51:借入(我是负债方,负数警示)
+      _ => AppStatus.error, // 'expense' + 兜底
     };
     return Container(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.s4),

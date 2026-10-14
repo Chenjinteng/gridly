@@ -63,7 +63,12 @@ class TransactionTile extends ConsumerWidget {
             isInvestmentRecord || (txAsset?.includeInTransactions == false);
         // 2026-10-12 P3 commit:balance 流水不显示 ± prefix
         //   (调拨可正可负,跟"支出=负 / 收入=正"的语义不同)
-        final showPrefix = transaction.type != 'balance';
+        // 2026-10-14 D51 加:lend_out / borrow_in 也不显示 ± prefix
+        //   (借出/借入 amount 永远正,语义靠 type 区分,跟 balance 同样的"无 prefix"规则)
+        final showPrefix =
+            transaction.type != 'balance' &&
+            transaction.type != 'lend_out' &&
+            transaction.type != 'borrow_in';
         final prefix = switch (transaction.type) {
           'income' => '+',
           'expense' => '-',
