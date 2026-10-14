@@ -105,21 +105,19 @@ class AssetTile extends ConsumerWidget {
   ///   - 颜色用各品牌官方色 + 数字货币 / 银行标准色
   ///   - 跨页统一(form picker + asset tile leading 都走 AssetTile.renderIcon)
   static const Map<String, BrandIconSpec> brandIcons = {
-    // === 支付品牌(支付宝 / 微信 / Google Pay / ePay,Apple Pay 走 material apple icon)===
+    // === 支付品牌(支付宝 / 微信 / Apple Pay / Google Pay / ePay + 银联)===
     'brand:alipay': BrandIconSpec('支', Color(0xFF1677FF)), // 支付宝蓝
     'brand:wechat': BrandIconSpec('微', Color(0xFF07C160)), // 微信绿
     'brand:google_pay': BrandIconSpec('G', Color(0xFF4285F4)), // Google 蓝
     'brand:epay': BrandIconSpec('e', Color(0xFF6B7280)), // ePay 灰(中性,无强品牌色)
+    'brand:unionpay': BrandIconSpec(
+      '银',
+      Color(0xFFE21836),
+    ), // 银联红(2026-10-14 D48 简化:只留银联)
     // === 加密货币(Bitcoin / Ethereum / USDT)===
     'crypto:btc': BrandIconSpec('₿', Color(0xFFF7931A)), // Bitcoin 橙
     'crypto:eth': BrandIconSpec('Ξ', Color(0xFF627EEA)), // Ethereum 紫
     'crypto:usdt': BrandIconSpec('₮', Color(0xFF26A17B)), // Tether 绿
-    // === 银行(招商 / 工行 / 建行 / 农行 / 中行)===
-    'bank:cmb': BrandIconSpec('招', Color(0xFFE60012)), // 招商红
-    'bank:icbc': BrandIconSpec('工', Color(0xFFC7000B)), // 工行红
-    'bank:ccb': BrandIconSpec('建', Color(0xFF003C9D)), // 建行蓝
-    'bank:abc': BrandIconSpec('农', Color(0xFF007F3D)), // 农行绿
-    'bank:boc': BrandIconSpec('中', Color(0xFFB71C1C)), // 中行红
   };
 
   /// 2026-10-14 D48:统一 icon 渲染入口
