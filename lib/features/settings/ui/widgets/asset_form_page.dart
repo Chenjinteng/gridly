@@ -55,69 +55,65 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
   late bool _isDefault;
   bool _saving = false;
 
-  /// 2026-10-14 D48:icon picker 改成"分组 + 标签"结构(原扁平 Wrap 太长)
-  ///   - 47 个 icon,分 8 组,每组用 _SectionLabel 跟"颜色 / 段位"区分
-  ///   - key 命名:material 走裸名(走 AssetTile.icons),brand/crypto/bank 走前缀
+  /// 2026-10-14 D48 续:icon 池扁平列表,不分组
+  ///   - 之前 D48 第一版做了 8 组分组 + 子 label,user 反馈"图标不需要分类,不用指导用户"
+  ///   - 改成扁平 Wrap,user 自己挑,系统不引导
+  ///   - 顺序按日常使用频度:通用支付 → 支付品牌 → 资产 → 投资 → 加密 → 票务 → 保险 → 福利
+  ///   - key 命名:material 走裸名(走 AssetTile.icons),brand:/crypto: 走前缀
   ///     (走 AssetTile.brandIcons)
-  ///   - 渲染统一 AssetTile.renderIcon(),自动判断走 Icon 还是 brand chip
-  ///   - 顺序按日常使用频度:支付 → 资产类型 → 投资 → 加密 → 银行 → 票务 → 保险 → 福利 / 其它
-  static const _iconSections = <(String, List<String>)>[
-    // 支付(material 通用 + 5 品牌:支付宝 / 微信 / Apple Pay / Google Pay / ePay)
-    //   Apple Pay 走 material apple icon(跨平台稳),其它 4 品牌走 letter chip
-    (
-      '支付',
-      [
-        'account_balance_wallet',
-        'wallet',
-        'payments',
-        'credit_card',
-        'savings',
-        'account_balance',
-        'currency_yen',
-        'attach_money',
-        'monetization_on',
-        'brand:alipay',
-        'brand:wechat',
-        'apple_pay',
-        'brand:google_pay',
-        'brand:epay',
-      ],
-    ),
-    // 资产类型(不动产 / 车 / 土地 / 公寓)
-    ('资产类型', ['home', 'directions_car', 'landscape', 'apartment']),
-    // 投资 / 股票 / 债券
-    (
-      '投资',
-      [
-        'trending_up',
-        'candlestick_chart',
-        'show_chart',
-        'receipt_long',
-        'assessment',
-      ],
-    ),
-    // 加密货币(2026-10-14 D48 加:Bitcoin / Ethereum / USDT)
-    ('加密货币', ['crypto:btc', 'crypto:eth', 'crypto:usdt']),
-    // 银行(2026-10-14 D48 加:招 / 工 / 建 / 农 / 中)
-    ('银行', ['bank:cmb', 'bank:icbc', 'bank:ccb', 'bank:abc', 'bank:boc']),
-    // 票务 / 充值 / 餐饮(2026-10-14 D48 加:8 个 Material Icons)
-    (
-      '票务 / 充值',
-      [
-        'card_giftcard',
-        'confirmation_number',
-        'theater_comedy',
-        'restaurant',
-        'redeem',
-        'flight',
-        'train',
-        'local_activity',
-      ],
-    ),
-    // 保险 / 保障
-    ('保险', ['health_and_safety', 'shield', 'security', 'verified']),
-    // 福利 / 借出 / 其它
-    ('其它', ['favorite', 'handshake', 'swap_horiz', 'category']),
+  ///   - 渲染统一 AssetTile.renderIcon(),自动判别 Icon / Container
+  static const _iconKeys = [
+    // 通用钱包 / 支付 / 现金(9)
+    'account_balance_wallet',
+    'wallet',
+    'payments',
+    'credit_card',
+    'savings',
+    'account_balance',
+    'currency_yen',
+    'attach_money',
+    'monetization_on',
+    // 支付品牌(6:alipay / wechat / apple_pay / google_pay / epay / unionpay)
+    'brand:alipay',
+    'brand:wechat',
+    'apple_pay',
+    'brand:google_pay',
+    'brand:epay',
+    'brand:unionpay',
+    // 资产类型(4)
+    'home',
+    'directions_car',
+    'landscape',
+    'apartment',
+    // 投资 / 股票 / 债券(5)
+    'trending_up',
+    'candlestick_chart',
+    'show_chart',
+    'receipt_long',
+    'assessment',
+    // 加密货币(3:btc / eth / usdt)
+    'crypto:btc',
+    'crypto:eth',
+    'crypto:usdt',
+    // 票务 / 充值 / 餐饮 / 兑换(8)
+    'card_giftcard',
+    'confirmation_number',
+    'theater_comedy',
+    'restaurant',
+    'redeem',
+    'flight',
+    'train',
+    'local_activity',
+    // 保险 / 保障(4)
+    'health_and_safety',
+    'shield',
+    'security',
+    'verified',
+    // 福利 / 借出 / 其它(4)
+    'favorite',
+    'handshake',
+    'swap_horiz',
+    'category',
   ];
 
   /// 16 色调色板 — 跟 CategoryFormSheet 同款,保持视觉统一
@@ -363,65 +359,50 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
             ),
             const SizedBox(height: AppSpacing.s3),
 
-            // 图标(2026-10-14 D48:47 个 icon,按 8 组分组渲染,每组用小 label)
-            //   - 之前扁平 Wrap 25 个,加 21 个后太长,分组 + label 让 user 容易找
+            // 图标(2026-10-14 D48 续:扁平 Wrap,43 个 icon 不分类)
+            //   - 之前分组 + 子 label,user 反馈"图标不需要分类,不用指导用户"
+            //   - 改成扁平 Wrap,user 自己挑
             //   - 走 AssetTile.renderIcon() 统一入口(material + brand 自动判别)
-            //   - brand key(brand:/crypto:/bank:)自带品牌色背景,选中态用 border 区分
             const _SectionLabel('图标'),
             const SizedBox(height: AppSpacing.s2),
-            for (final section in _iconSections) ...[
-              // 组标签(小字,跟主 _SectionLabel 区分但更轻量)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6, left: 2),
-                child: Text(
-                  section.$1,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-              Wrap(
-                spacing: AppSpacing.s2,
-                runSpacing: AppSpacing.s2,
-                children: section.$2.map((k) {
-                  final selected = _icon == k;
-                  final isBrand = AssetTile.isBrandKey(k);
-                  return InkWell(
-                    onTap: () => setState(() => _icon = k),
-                    borderRadius: AppRadius.brMd,
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        // brand chip 已有品牌背景,picker 底色用 surfaceContainerLow
-                        // 避免双重色块冲突
-                        color: !isBrand && selected
-                            ? Color(_color).withValues(alpha: 0.18)
-                            : theme.colorScheme.surfaceContainerLow,
-                        borderRadius: AppRadius.brMd,
-                        border: Border.all(
-                          color: selected ? Color(_color) : Colors.transparent,
-                          width: 2,
-                        ),
+            Wrap(
+              spacing: AppSpacing.s2,
+              runSpacing: AppSpacing.s2,
+              children: _iconKeys.map((k) {
+                final selected = _icon == k;
+                final isBrand = AssetTile.isBrandKey(k);
+                return InkWell(
+                  onTap: () => setState(() => _icon = k),
+                  borderRadius: AppRadius.brMd,
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      // brand chip 已有品牌背景,picker 底色用 surfaceContainerLow
+                      // 避免双重色块冲突
+                      color: !isBrand && selected
+                          ? Color(_color).withValues(alpha: 0.18)
+                          : theme.colorScheme.surfaceContainerLow,
+                      borderRadius: AppRadius.brMd,
+                      border: Border.all(
+                        color: selected ? Color(_color) : Colors.transparent,
+                        width: 2,
                       ),
-                      alignment: Alignment.center,
-                      // brand chip 内部渲染:不再套 tint,让品牌色透出来
-                      child: isBrand
-                          ? AssetTile.renderIcon(k, size: 28)
-                          : Icon(
-                              AssetTile.icons[k] ??
-                                  Icons.account_balance_wallet_rounded,
-                              color: selected ? Color(_color) : AppGray.g600,
-                              size: 22,
-                            ),
                     ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: AppSpacing.s3),
-            ],
+                    alignment: Alignment.center,
+                    // brand chip 内部渲染:不再套 tint,让品牌色透出来
+                    child: isBrand
+                        ? AssetTile.renderIcon(k, size: 28)
+                        : Icon(
+                            AssetTile.icons[k] ??
+                                Icons.account_balance_wallet_rounded,
+                            color: selected ? Color(_color) : AppGray.g600,
+                            size: 22,
+                          ),
+                  ),
+                );
+              }).toList(),
+            ),
             const SizedBox(height: AppSpacing.s1),
 
             // 颜色
