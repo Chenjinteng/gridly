@@ -227,6 +227,50 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     return false; // cash_flow 暂用单 accountId
   }
 
+  /// 2026-10-14 D56 加:其它段 选分类按账户 type 过滤
+  ///   user:"其它这里的选分类要注意,要按选择的不同的账户来进行展示,
+  ///        并且有一些是内置的并没有放出来可以让用户定制的,也需要在这里一并展示"
+  ///   - 当前 _type='expense'/'income'/'balance' 决定分类 filter(categoriesByTypeProvider)。
+  ///     其它段选了 investment 账户后,picker 仍只显示 cash_flow 的 expense/income cat,
+  ///     user 看不到 投资投入/投资收益(投资段 UI 隐藏的"内置 cat")
+  ///   - 修:其它段按 account.type → cat.type 映射,picker 显示对应内置 cat:
+  ///     cash_flow → _type(expense/income 跟 toggle 对齐)
+  ///     investment → 'investment'(内置:投资投入/投资收益,分类管理 UI 隐藏)
+  ///     benefit → 'benefit'(内置:福利,UI 隐藏)
+  ///     receivable → 'liability'(内置:债务,UI 隐藏)
+  ///     fixed_asset / other → _type(fallback,无专用 cat type)
+  ///   - 返回 null 表示走 _type(默认行为)
+  String? get _categoryFilterType {
+    if (!_isOtherContext) return null;
+    if (_accountId == null) return null;
+    final account = _findAccountById(_accountId!);
+    if (account == null) return null;
+    switch (account.type) {
+      case 'investment':
+        return 'investment';
+      case 'benefit':
+        return 'benefit';
+      case 'receivable':
+        return 'liability';
+      case 'cash_flow':
+      case 'fixed_asset':
+      case 'other':
+        return null; // 走 _type
+    }
+    return null;
+  }
+
+  /// D56 helper:按 id 在 allAssetsProvider 找账户对象(同步,从 cache 读)
+  ///   - 用于 _categoryFilterType / _firstCategoryId 等需要根据当前账户决定 cat 的场景
+  ///   - 复用 _actionRow 的 ref.watch 模式,这里用 ref.read 因为不在 build 阶段
+  Asset? _findAccountById(int id) {
+    final assets = ref.read(allAssetsProvider).valueOrNull ?? const [];
+    for (final a in assets) {
+      if (a.id == id) return a;
+    }
+    return null;
+  }
+
   bool get _isEdit => widget.editTransaction != null;
 
   @override
@@ -704,7 +748,10 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
       ),
       builder: (_) => _CategoryPickerSheet(
-        type: _type,
+        // 2026-10-14 D56:其它段按选中的账户 type 决定 cat filter
+        //   _categoryFilterType 返非 null → 用账户映射的 cat type
+        //   _categoryFilterType 返 null → 走 _type(原行为,cash_flow 用 toggle 决定)
+        type: _categoryFilterType ?? _type,
         selected: _categoryId,
         onSelect: (id) {
           setState(() => _categoryId = id);
@@ -1038,6 +1085,10 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   ///   - DB schema NOT NULL 字段必须填,所以 fallback 是必要的,只是要选对分类
   /// 2026-10-14 加:福利场景 fallback 取 cat.type='benefit' 的第一个分类
   ///   - 跟 investment 同结构:UI 隐藏 + DB NOT NULL 字段必填,福利 1 个 cat 通用(支出/收入都 fallback 到它)
+  /// 2026-10-14 D56 加:其它段 fallback 按账户 type 映射(cat.type)
+  ///   - 跟 _categoryFilterType 同逻辑:investment→'investment', benefit→'benefit',
+  ///     receivable→'liability', cash_flow/fixed_asset/other → cash_flow 第一个 cat
+  ///   - 适用:其它段 user 没手动选 cat 直接保存,DB NOT NULL 兜底填对分类
   Future<int?> _firstCategoryId() async {
     final repo = ref.read(categoryRepositoryProvider);
     final cats = await repo.all();
@@ -1068,6 +1119,28 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       }
       // seed 失败兜底(同 investment / benefit)
       return cats.first.id;
+    }
+    // 2026-10-14 D56:其它段按账户 type 选 fallback cat(同 picker 逻辑)
+    if (_isOtherContext && _accountId != null) {
+      final account = _findAccountById(_accountId!);
+      if (account != null) {
+        switch (account.type) {
+          case 'investment':
+            for (final c in cats) {
+              if (c.type == 'investment') return c.id;
+            }
+          case 'benefit':
+            for (final c in cats) {
+              if (c.type == 'benefit') return c.id;
+            }
+          case 'receivable':
+            for (final c in cats) {
+              if (c.type == 'liability') return c.id;
+            }
+          // cash_flow / fixed_asset / other → 走 cash_flow toggle 决定的 _type,
+          //   由 caller(_openCategoryPicker + save)处理,这里默认 fallback 到 first cat
+        }
+      }
     }
     return cats.first.id;
   }
