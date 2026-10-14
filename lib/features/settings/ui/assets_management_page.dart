@@ -83,8 +83,9 @@ class AssetsManagementPage extends ConsumerWidget {
                 ),
               if (recv.isNotEmpty)
                 _Group(
-                  // 2026-10-14 改:user 反馈跟所有"期权/负债"统一用"负债"称呼
-                  title: '负债',
+                  // 2026-10-14 D51 v2 改:user 反馈"负债"改"债务",口语更直观
+                  // "负债"是法律会计词,用户日常用"债务"
+                  title: '债务',
                   items: recv,
                   onEdit: (a) => _showForm(context, a),
                   onDelete: (a) => _confirmDelete(context, ref, a),

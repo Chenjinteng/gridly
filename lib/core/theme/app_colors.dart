@@ -169,7 +169,10 @@ class AppSegment {
   ///   - 之前散落在 assets_overview_chart / asset_summary_card / asset_form_page
   ///     各自硬编码 '现金流' / '投资' / '负债' / ...
   ///   - 统一走 AppSegment.labelFor,user 改 label 只改一处
-  ///   - 跟 "会计/记账 app 词汇:债权/期权/负债借贷统一叫'负债'" 偏好一致
+  ///   - 2026-10-14 D51 v2:user 反馈'receivable 段 label 改"债务",语义更准
+  ///     "负债"是会计负债(legal accounting),用户口语"债务"更直观
+  ///   - 跟 "会计/记账 app 词汇:债权/期权/负债借贷统一叫'负债'" 偏好 supersede:
+  ///     "负债"内部技术命名 OK,UI label 改 "债务" 更自然
   static String labelFor(String type) {
     switch (type) {
       case 'cash_flow':
@@ -179,7 +182,7 @@ class AppSegment {
       case 'benefit':
         return '福利';
       case 'receivable':
-        return '负债';
+        return '债务'; // D51 v2:从 "负债" 改 "债务",user 反馈更直观
       case 'fixed_asset':
         return '不动产';
       default:

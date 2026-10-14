@@ -157,7 +157,8 @@ class _AssetsRadarState extends ConsumerState<AssetsRadar> {
                     color: AppStatus.success,
                   ),
                   _RadarEntry(
-                    label: '债权',
+                    // 2026-10-14 D51 v2:从"债权"改"债务",跟 AppSegment.labelFor 同步
+                    label: '债务',
                     value: totals.totalReceivable,
                     color: AppStatus.warning,
                   ),

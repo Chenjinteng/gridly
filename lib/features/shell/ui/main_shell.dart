@@ -102,7 +102,8 @@ class _MainShellState extends ConsumerState<MainShell> {
     ),
     SpeedDialItem(
       key: 'receivable',
-      label: '负债',
+      // 2026-10-14 D51 v2:user 反馈"负债"改"债务",口语更直观
+      label: '债务',
       icon: Icons.handshake_rounded,
       color: AppStatus.warning,
     ),

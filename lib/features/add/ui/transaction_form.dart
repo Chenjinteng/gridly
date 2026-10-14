@@ -1754,13 +1754,13 @@ class _AccountPickerSheet extends ConsumerWidget {
       case 'benefit':
         return '福利';
       case 'receivable':
-        return '债权';
+        return '债务'; // D51 v2:从"债权"改"债务",user 反馈更直观
       case 'fixed_asset':
         return '不动产';
       case 'other':
         return '其他';
       case 'liability':
-        return '负债';
+        return '债务'; // D51 v2:从"负债"改"债务",user 反馈更直观
       default:
         return t; // 未知值原样返回,避免 silent fallback 掩盖新 type
     }

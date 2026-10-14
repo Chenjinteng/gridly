@@ -283,14 +283,14 @@ class DefaultCategories {
   ];
 
   /// 债权段 1 类 —— 2026-10-14 改:
-  ///   - '负债':跟 receivable 段账户对账,记录我需还的借款 / 负债(record 方向是 -)
+  ///   - '债务':跟 receivable 段账户对账,记录我需还的借款 / 债务(D51 v2 从"负债"改"债务")
   ///   - 2026-10-14 简化前是 2 类(股份期权 / 负债借贷,user 主动在 2 里选区分)
-  ///   - 2026-10-14 简化后:user 反馈"期权直接去掉,放到投资中",只剩 1 个"负债" cat
+  ///   - 2026-10-14 简化后:user 反馈"期权直接去掉,放到投资中",只剩 1 个"债务" cat
   ///   - 跟福利同 pattern:UI 隐藏,自动 fallback(cat.type='liability' 唯一)
   ///   - DB schema 不动:cat.type 是 String,'liability' 新值不需 migration
   static const List<DefaultCategory> receivable = [
     DefaultCategory(
-      name: '负债',
+      name: '债务', // D51 v2:从"负债"改"债务",口语更直观
       icon: 'request_quote',
       color: AppCategory.liability,
       type: 'liability',
