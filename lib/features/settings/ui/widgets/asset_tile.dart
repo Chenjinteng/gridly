@@ -87,11 +87,14 @@ class AssetTile extends ConsumerWidget {
   };
 
   /// type 名 → 中文标签(2026-10-13 P6:4 段 → 6 段,加投资/福利/债权)
+  /// 2026-10-14 改:跟所有"期权/负债"统一用"负债"称呼
+  ///   receivable label "债权/借出" → "负债"
+  ///   DB key 仍是 'receivable'(API enum 内部不变)
   static const Map<String, String> typeLabels = {
     'cash_flow': '现金流',
     'investment': '投资',
     'benefit': '福利',
-    'receivable': '债权/借出',
+    'receivable': '负债',
     'fixed_asset': '不动产',
     'other': '其它',
   };

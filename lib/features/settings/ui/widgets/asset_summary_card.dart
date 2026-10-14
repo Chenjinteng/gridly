@@ -120,7 +120,10 @@ class AssetSummaryCard extends ConsumerWidget {
           _TypeRow(
             type: 'receivable',
             icon: Icons.handshake_rounded,
-            label: '债权/借出',
+            // 2026-10-14 改:跟所有"期权/负债"统一用"负债"称呼
+            // 跟 asset_form / Speed Dial 同步;icon / color 已经一致(都走
+            // AppSegment + handshake_rounded + 橙)
+            label: '负债',
             amount: byType['receivable'] ?? 0,
           ),
           const SizedBox(height: AppSpacing.s2),
