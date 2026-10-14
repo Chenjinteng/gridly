@@ -243,10 +243,10 @@ features/<name>/
   - `logo_horizontal.png` 2752×1536 — LOGO + "格子记账" 文字(横版品牌)
 - **Launcher icon**(5 个 mipmap-*/ic_launcher.png)当前从 `logo_primary.png` 派生,2026-10-10 改成白底风格
 
-### v0.3.5 P18 进度(2026-10-14 完成,46 commits)
+### v0.3.5 P18 进度(2026-10-14 完成,47 commits)
 
-- HEAD: `8fff636 fix(form): 债务调拨 转出 picker 真正去掉类型限制(D51 v4)`,已推 `origin/main`
-- commit 范围:`7ea90d3..8fff636`
+- HEAD: `9343a46 fix(form): 修 _AccountPickerSheet 滑到底 RenderFlex overflow (D52)`,已推 `origin/main`
+- commit 范围:`7ea90d3..9343a46`
 - 主要文件改动:
   - `lib/features/add/ui/transaction_form.dart` — 5 getter 三段拆分 / save() dest 收益不存 / initState pre-fill / D44 toggle 不清 cat(receivable 例外) / D45 `_actionRow` 全表查 cat
   - `lib/features/add/ui/add_transaction_page.dart` — `_appBarTitle` / `effectiveAllowBalance` 福利 / 债权适配
