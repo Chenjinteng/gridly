@@ -56,6 +56,9 @@ class AddTransactionPage extends StatelessWidget {
   ///   - 短按 cash_flow / null → 记一笔(现金流)
   ///   - 长按 investment → 记一笔(投资)
   ///   - 长按 benefit / receivable / fixed_asset / other → 记一笔(<label>)
+  /// 2026-10-14 改:case 'receivable' 返回 "记一笔(负债)"
+  ///   - user 反馈:跟所有"期权/负债"统一用"负债"称呼
+  ///   - DB key 仍是 'receivable'(API enum 内部不变),只改 UI label
   String get _appBarTitle {
     switch (preselectedAssetType) {
       case 'investment':
@@ -63,7 +66,7 @@ class AddTransactionPage extends StatelessWidget {
       case 'benefit':
         return '记一笔(福利)';
       case 'receivable':
-        return '记一笔(债权)';
+        return '记一笔(负债)';
       case 'fixed_asset':
         return '记一笔(不动产)';
       case 'other':
@@ -82,8 +85,8 @@ class AddTransactionPage extends StatelessWidget {
     //   - 其他 5 段(长按):allowBalance=true(保留 3 段,后续再调)
     // 2026-10-14 加:'benefit'(福利)走 false(2 段)
     //   - 福利 = 公司社保/医保/餐补等日常账户,跟 cash_flow 短按 + 同 pattern:无调拨
-    // 2026-10-14 加:'receivable'(债权)也走 false(2 段)
-    //   - 债权段账户不涉及日常调拨(股份期权 / 负债借贷 都是 receipt 类,无 balance)
+    // 2026-10-14 加:'receivable'(负债)也走 false(2 段)
+    //   - 负债段账户不涉及日常调拨(股份期权 / 负债借贷 都是 receipt 类,无 balance)
     //   - 其它 3 段(不动产/其它)暂仍走 true(3 段),后续单独适配
     final effectiveAllowBalance =
         allowBalance ??

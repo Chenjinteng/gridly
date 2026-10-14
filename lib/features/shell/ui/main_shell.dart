@@ -82,7 +82,10 @@ class _MainShellState extends ConsumerState<MainShell> {
   // (原 _speedDialOverlay 字段已删除)
 
   /// Speed Dial 5 小圆配置(5 个非现金流的 type)
-  /// 顺序:投资 / 福利 / 债权 / 不动产 / 其它(跟 asset_form 顺序一致)
+  /// 顺序:投资 / 福利 / 负债 / 不动产 / 其它(跟 asset_form 顺序一致)
+  /// 2026-10-14 改:label "债权" → "负债"
+  ///   - user 反馈:跟所有"期权/负债"统一用"负债"称呼
+  ///   - DB key 仍是 'receivable'(API enum 内部不变),只改 UI label
   /// 配色跟 asset_type 配色一致(gold/success/warning/info/gray600)
   static const _speedDialItems = <SpeedDialItem>[
     SpeedDialItem(
@@ -99,7 +102,7 @@ class _MainShellState extends ConsumerState<MainShell> {
     ),
     SpeedDialItem(
       key: 'receivable',
-      label: '债权',
+      label: '负债',
       icon: Icons.handshake_rounded,
       color: AppStatus.warning,
     ),

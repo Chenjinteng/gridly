@@ -141,7 +141,7 @@ class AppSegment {
   static const Color cashFlow = Color(0xFF0EA5E9); // 现金流 — 亮蓝
   static const Color investment = Color(0xFFA855F7); // 投资 — 紫
   static const Color benefit = Color(0xFFEC4899); // 福利 — 粉
-  static const Color receivable = Color(0xFFF59E0B); // 债权/借出 — 橙
+  static const Color receivable = Color(0xFFF59E0B); // 负债(原"债权/借出")— 橙
   static const Color fixedAsset = Color(0xFF06B6D4); // 不动产 — 青
   static const Color other = Color(0xFF71717A); // 其它 — 灰
 

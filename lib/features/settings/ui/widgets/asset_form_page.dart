@@ -654,11 +654,14 @@ class _TypeRadioList extends StatelessWidget {
 
   /// 6 段类型配置(顺序按日常查看频度)
   /// 跟 asset_tile / asset_summary_card 共用同一份数据
+  /// 2026-10-14 改:user 反馈跟所有"期权/负债"统一用"负债"称呼
+  ///   receivable segment UI label "债权/借出" → "负债"
+  ///   DB key 仍是 'receivable'(API enum 内部不变),只改 user 可见的 label
   static const _options = <(String, String, IconData)>[
     ('cash_flow', '现金流', Icons.account_balance_wallet_rounded),
     ('investment', '投资', Icons.trending_up_rounded),
     ('benefit', '福利', Icons.favorite_rounded),
-    ('receivable', '债权/借出', Icons.handshake_rounded),
+    ('receivable', '负债', Icons.handshake_rounded),
     ('fixed_asset', '不动产', Icons.home_rounded),
     ('other', '其它', Icons.category_rounded),
   ];
