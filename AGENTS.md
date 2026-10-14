@@ -243,10 +243,10 @@ features/<name>/
   - `logo_horizontal.png` 2752×1536 — LOGO + "格子记账" 文字(横版品牌)
 - **Launcher icon**(5 个 mipmap-*/ic_launcher.png)当前从 `logo_primary.png` 派生,2026-10-10 改成白底风格
 
-### v0.3.5 P18 进度(2026-10-14 完成,32 commits)
+### v0.3.5 P18 进度(2026-10-14 完成,34 commits)
 
-- HEAD: `58ec831 refactor(ui): 总览卡 / 资产页 / 新增账户 6 段 chip 统一走 AppSegment (D47)`,已推 `origin/main`
-- commit 范围:`7ea90d3..58ec831`
+- HEAD: `ad71bbe refactor(form): icon picker 改 8 组分组 + 47 icon (D48 续)`,已推 `origin/main`
+- commit 范围:`7ea90d3..ad71bbe`
 - 主要文件改动:
   - `lib/features/add/ui/transaction_form.dart` — 5 getter 三段拆分 / save() dest 收益不存 / initState pre-fill / D44 toggle 不清 cat(receivable 例外) / D45 `_actionRow` 全表查 cat
   - `lib/features/add/ui/add_transaction_page.dart` — `_appBarTitle` / `effectiveAllowBalance` 福利 / 债权适配
@@ -256,8 +256,8 @@ features/<name>/
   - `lib/core/database/app_database.dart` — `clearAllData()` 全删 assets(D46)
   - `lib/core/theme/app_colors.dart` — `AppSegment` token + D47 加 `labelFor` / `iconFor`
   - `lib/features/settings/ui/widgets/asset_summary_card.dart` — 6 段色统一走 `AppSegment`
-  - `lib/features/settings/ui/widgets/asset_form_page.dart` — 6 段 radio 改走 `AppSegment`(D47)
-  - `lib/features/settings/ui/widgets/asset_tile.dart` — 6 段色 + label 统一走 `AppSegment`(D47)
+  - `lib/features/settings/ui/widgets/asset_form_page.dart` — 6 段 radio 改走 `AppSegment`(D47) + icon picker 8 组 47 icon(D48)
+  - `lib/features/settings/ui/widgets/asset_tile.dart` — 6 段色 + label 统一走 `AppSegment`(D47) + `brandIcons` / `renderIcon`(D48)
   - `lib/features/stats/ui/widgets/assets_overview_chart.dart` — 6 段循环改走 `AppSegment`(D47)
   - `lib/features/ledger/ui/widgets/transaction_tile.dart` — 2×2 矩阵布局 / `_AccountBadge` 接受 destinationAccountId / 不计入流水 chip
   - `lib/features/ledger/application/transactions_providers.dart` — monthSummary / filtered 排除投资 record + `includeInTransactions=false`
@@ -269,7 +269,7 @@ features/<name>/
   - ListTile + DecoratedBox 老异常(资产 / 分类管理页,跟 P18 无关,需要时单独 commit 修)
   - 历史错数据(用户测试录入的 balanceDelta 错方向流水)user 自行处理
   - D46 清空后 assets 表为空,user 反馈如要自动 seed 默认 3 账户再 patch
-- 详情见 [`docs/ROADMAP.md`](docs/ROADMAP.md) v0.3.5 章节 + [`docs/DEV.md`](docs/DEV.md) D32-D47 决策记录
+- 详情见 [`docs/ROADMAP.md`](docs/ROADMAP.md) v0.3.5 章节 + [`docs/DEV.md`](docs/DEV.md) D32-D48 决策记录
 
 ### 这台机器的实际 host
 
