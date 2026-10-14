@@ -1068,7 +1068,19 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   /// 2026-10-13 P8 UAT 改:investment 场景 _accountTypeFilter 优先(转出按 _intent 限定),
   ///   cash_flow 用 widget.accountTypeFilter(原有逻辑)
   void _openAccountPicker() {
-    final filter = _accountTypeFilter ?? widget.accountTypeFilter;
+    // 2026-10-14 D51 v4 修:source picker 过滤逻辑
+    //   之前 `?? widget.accountTypeFilter` 会 fallback 到 caller 设的 'receivable',
+    //   即便我在 _accountTypeFilter 返 null(债务调拨不过滤)也被覆盖
+    //   改:用 _accountTypeFilter 优先;只在 _accountTypeFilter 返 null 且不是债务调拨时,
+    //       fallback 到 widget.accountTypeFilter
+    //   实际效果:
+    //   - 借出/借入段:_accountTypeFilter 返 'receivable' → 只看 债务账户(单账户操作)
+    //   - 债务调拨段:_accountTypeFilter 返 null → 不过滤(现金 + 债务都能选)
+    //   - 现金短按+:_accountTypeFilter 返 null → fallback 到 'cash_flow'
+    //   - 投资段:_accountTypeFilter 走投资 intent 限定(input='cash_flow', transfer=null)
+    final String? filter = _isReceivableContext && _intent == 'transfer'
+        ? null
+        : (_accountTypeFilter ?? widget.accountTypeFilter);
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
