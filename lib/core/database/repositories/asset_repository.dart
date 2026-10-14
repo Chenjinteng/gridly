@@ -145,6 +145,10 @@ class AssetRepository {
   ///   - income amount 永远正 → accountId 增加 sum
   ///   - balance amount 永远正 → accountId(source)减少 sum,destinationAccountId(dest)增加 sum
   ///     (P18 修:之前 source 累加 sum 是错的,转出应该减;dest 完全漏处理,转入应该加)
+  /// 2026-10-14 D51 加:负债段 lend_out / borrow_in
+  ///   - lend_out amount 永远正 → accountId 增加 sum(我是债权人,正数)
+  ///   - borrow_in amount 永远正 → accountId 减少 sum(我是负债方,负数)
+  ///   - balance 公式:Σ lend_out − Σ borrow_in(正数=净债权人,负数=净负债方)
   ///
   /// 完整 currentBalance = initialBalance + delta(由 asset_balance_provider 组合)
   ///
@@ -193,6 +197,29 @@ class AssetRepository {
               ..groupBy([_db.transactions.destinationAccountId]))
             .get();
 
+    // 2026-10-14 D51:负债段 lend_out / borrow_in 累加
+    //   lend_out = 借出,我是债权人,balance += sum
+    //   borrow_in = 借入,我是负债方,balance -= sum
+    final lendOutSum =
+        await (_db.selectOnly(_db.transactions)
+              ..addColumns([
+                _db.transactions.accountId,
+                _db.transactions.amount.sum(),
+              ])
+              ..where(_db.transactions.type.equals('lend_out'))
+              ..groupBy([_db.transactions.accountId]))
+            .get();
+
+    final borrowInSum =
+        await (_db.selectOnly(_db.transactions)
+              ..addColumns([
+                _db.transactions.accountId,
+                _db.transactions.amount.sum(),
+              ])
+              ..where(_db.transactions.type.equals('borrow_in'))
+              ..groupBy([_db.transactions.accountId]))
+            .get();
+
     final result = <int, double>{};
 
     for (final row in expenseSum) {
@@ -227,6 +254,25 @@ class AssetRepository {
       if (id != null) {
         // balance dest:转入 → 增加余额(P18 新增:之前完全漏处理)
         result[id] = (result[id] ?? 0.0) + sum;
+      }
+    }
+
+    // 2026-10-14 D51:负债段 lend_out / borrow_in
+    for (final row in lendOutSum) {
+      final id = row.read(_db.transactions.accountId);
+      final sum = row.read(_db.transactions.amount.sum()) ?? 0.0;
+      if (id != null) {
+        // 借出:我是债权人,balance 增加
+        result[id] = (result[id] ?? 0.0) + sum;
+      }
+    }
+
+    for (final row in borrowInSum) {
+      final id = row.read(_db.transactions.accountId);
+      final sum = row.read(_db.transactions.amount.sum()) ?? 0.0;
+      if (id != null) {
+        // 借入:我是负债方,balance 减少
+        result[id] = (result[id] ?? 0.0) - sum;
       }
     }
 
