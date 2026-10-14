@@ -1,5 +1,5 @@
 // lib/features/add/ui/widgets/type_toggle.dart
-// 类型切换:支出 / 收入 / 调拨(可选) / 投入 / 收益(投资场景)
+// 类型切换:支出 / 收入 / 调拨(可选) / 投入 / 收益(投资场景) / 借出 / 借入(负债场景)
 //
 // 2026-10-13 P7 重设计(ColorOS 14 Aquamorphic 滑动 pill):
 //   滑动 pill 动画参考 features/stats/ui/widgets/range_tabs.dart(月/年切换):
@@ -14,6 +14,12 @@
 //   - investment:[('input','投入',gold),('output','收益',gold),('transfer','调拨',softGold)]
 //   - 全部 segment 自定义:label / icon / 颜色,caller 完全控制视觉系统
 //
+// 2026-10-14 D51 加:负债段 receivable 2 段(借出 / 借入)
+//   - 替换之前 2 段(支出 / 收入)语义(支出/收入对负债账户语义错)
+//   - 借出 lend_out:我是债权人,balance += amount
+//   - 借入 borrow_in:我是负债方,balance -= amount
+//   - 颜色:借出 = AppSegment.receivable (#F59E0B 橙);借入 = AppStatus.error (#EF4444 红,警示我欠)
+//
 // 颜色语义化(user UAT 反馈:支出/收入要"主题蓝色"):
 //   - 支出 (expense) → AppStatus.error (#EF4444 红)
 //   - 收入 (income)  → AppBrand.teal (#14B8A6 主题蓝)
@@ -21,11 +27,15 @@
 //   - 投入 (input)   → AppBrand.gold (#F5BC1F 投资主题金,跟资产 'investment' 配色一致)
 //   - 收益 (output)  → AppBrand.gold (#F5BC1F 投资主题金)
 //   - transfer       → AppSecondary.softGold (浅金,跟 input/output 区分)
+//   - 借出 (lend_out)→ AppSegment.receivable #F59E0B(负债段语义色)
+//   - 借入 (borrow_in)→ AppStatus.error #EF4444(警示我欠)
 //
 // 业务规则(TransactionForm 内):
 //   - cash_flow: type='expense' / 'income' / 'balance' 直接对应 DB
 //   - investment: intent='input'/'output'/'transfer' 全部存 DB type='balance'
 //     + destinationAccountId(commit ff440e0 加的列)表达 source→dest 流向
+//   - receivable(D51): intent='lend_out'/'borrow_in' 直接对应 DB type('lend_out'/'borrow_in'),
+//     accountId=负债账户,无 destinationAccountId(单账户操作,跟现金支出/收入同 pattern)
 import 'package:flutter/material.dart';
 
 import '../../../../core/motion/app_motion.dart';
@@ -117,6 +127,26 @@ class TypeToggle extends StatelessWidget {
       label: '调拨',
       icon: Icons.swap_horiz_rounded,
       color: AppSecondary.softGold,
+    ),
+  ];
+
+  /// 2026-10-14 D51 加:receivable 负债段 2 段(借出 / 借入)
+  ///   - 替换之前 2 段(支出 / 收入)语义,user 反馈"语义错:借出是债权人(正数),借入是负债方(负数)"
+  ///   - 借出 = AppSegment.receivable #F59E0B(中性橙,"钱在外面,正常")
+  ///   - 借入 = AppStatus.error #EF4444(警示红,"我欠的钱,需关注")
+  ///   - 无"调拨"段(还款走 负债 → 现金 调拨 / 现金 → 负债 调拨,跟其它段调拨逻辑一致)
+  static const receivableSegments = <ToggleSegment>[
+    ToggleSegment(
+      key: 'lend_out',
+      label: '借出',
+      icon: Icons.north_east_rounded, // ↗ 出
+      color: AppSegment.receivable, // #F59E0B
+    ),
+    ToggleSegment(
+      key: 'borrow_in',
+      label: '借入',
+      icon: Icons.south_west_rounded, // ↙ 入
+      color: AppStatus.error, // #EF4444
     ),
   ];
 

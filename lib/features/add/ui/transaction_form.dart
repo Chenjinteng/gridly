@@ -105,10 +105,17 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   ///     收益是账户自身的增长,没有"从哪到哪"的流向,跟转入转出语义无关
   ///   - 调拨(_intent='transfer'):type='balance',双账户(任意 ↔ 任意)
   ///   - 之前 P8→P17 一律存 'balance',收益也要 destinationAccountId(语义错)
+  /// - 2026-10-14 D51:receivable → 直接用 _intent('lend_out' / 'borrow_in'),1:1 对应 DB
+  ///   - 借出 = 'lend_out',accountId=负债账户,balance += amount
+  ///   - 借入 = 'borrow_in',accountId=负债账户,balance -= amount
+  ///   - 单账户操作,无 destinationAccountId(跟现金支出/收入同 pattern)
   String get _type {
     if (_isInvestmentContext) {
       if (_intent == 'output') return 'income'; // 收益:单账户增加
       return 'balance'; // 投入/调拨:source → dest
+    }
+    if (_isReceivableContext) {
+      return _intent; // 'lend_out' / 'borrow_in' 直接对应 DB
     }
     return _intent;
   }
@@ -152,18 +159,19 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   /// 2026-10-14 加:_isBenefitContext 走 2 段(同 cash_flow 短按 +),无调拨
   ///   - user 截图:"调拨:动资产,不算月度收支" tip 在福利页 toggle 上也有
   ///   - 福利是"日常福利",不涉及账户间调拨,跟 cash_flow 短按 + 同样逻辑
-  /// 2026-10-14 加:_isReceivableContext 也走 2 段(债权段账户不涉及日常调拨)
-  ///   - 股份期权 / 负债借贷都是 payable 关联,跟 cash_flow 调拨概念不一样
+  /// 2026-10-14 D51 改:_isReceivableContext 走 receivableSegments 2 段(借出/借入)
+  ///   - 之前 v1 用 cashFlowSegments 过滤 balance 段(走支出/收入),user 反馈
+  ///     语义错:"借出"是债权人(正数),"借入"是负债方(负数),跟支出/收入对不上
+  ///   - 改成借出/借入 2 段,DB 存 'lend_out' / 'borrow_in' 直接对应
   List<ToggleSegment> get _toggleSegments {
     if (_isInvestmentContext) return TypeToggle.investmentSegments;
+    if (_isReceivableContext) {
+      // 2026-10-14 D51:负债段走独立 receivableSegments(借出 / 借入)
+      //   不复用 cashFlowSegments 过滤,因为语义完全不同
+      return TypeToggle.receivableSegments;
+    }
     if (_isBenefitContext) {
       // 福利 2 段:filter 掉 balance(同 cashFlow 短按 + path)
-      return TypeToggle.cashFlowSegments
-          .where((s) => s.key != 'balance')
-          .toList();
-    }
-    if (_isReceivableContext) {
-      // 债权 2 段:filter 掉 balance(同 cashFlow 短按 + path)
       return TypeToggle.cashFlowSegments
           .where((s) => s.key != 'balance')
           .toList();
@@ -194,9 +202,14 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   ///   - 收益 → 单账户(只有 accountId)
   /// 收益是账户自身的增长,没有"从哪到哪"的流向,UI 上不显示转入转出 pill,
   ///   save() 时 destinationAccountId 传 null
+  /// 2026-10-14 D51:receivable 借出/借入 → 单账户(只有 accountId=负债账户)
+  ///   - 跟现金支出/收入同 pattern(无 destinationAccountId)
   bool get _needsDualAccount {
     if (_isInvestmentContext) {
       return _intent != 'output'; // 投入/调拨:双;收益:单
+    }
+    if (_isReceivableContext) {
+      return false; // 借出/借入都是单账户操作
     }
     return false; // cash_flow 暂用单 accountId
   }
@@ -209,7 +222,12 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     // 2026-10-13 P9 UAT 加:investment context 默认 _intent='input'(投入)
     // user:"默认还是选择投入,不然用户不知道这个是可以选择的"
     // cash_flow 默认仍是 'expense'(短按+ 默认日常支出)
-    if (!_isInvestmentContext) {
+    // 2026-10-14 D51:receivable context 默认 _intent='lend_out'(借出)
+    //   - 借出 是 2 段里的"正向"动作(我是债权人,balance +)
+    //   - 跟 investment 选 'input'(投入) 同样的设计哲学:默认展示最常用 / 最明确的语义
+    if (_isReceivableContext) {
+      _intent = 'lend_out';
+    } else if (!_isInvestmentContext) {
       // _intent 已是 'expense',无需覆盖
     } else {
       _intent = 'input';
@@ -217,7 +235,8 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     final t = widget.editTransaction;
     if (t != null) {
       // 编辑模式:预填已有数据
-      _intent = t.type; // cash_flow 直接 1:1;investment 编辑 mode 暂不开放(本期只改新增)
+      // 2026-10-14 D51:receivable 编辑时_type = 'lend_out' / 'borrow_in' 1:1
+      _intent = t.type; // cash_flow / receivable 直接 1:1;investment 编辑 mode 暂不开放(本期只改新增)
       _categoryId = _needsCategory ? t.categoryId : null;
       _accountId = t.accountId;
       _destinationAccountId = t.destinationAccountId;
