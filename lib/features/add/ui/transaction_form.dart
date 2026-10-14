@@ -134,6 +134,15 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   ///   - 跟 investment 区别:investment 三段(投入/收益/调拨),福利就 2 段(支出/收入)
   bool get _isBenefitContext => widget.preselectedAssetType == 'benefit';
 
+  /// 2026-10-14 加:债权场景标识(preselectedAssetType='receivable')
+  ///   - 2026-10-14 简化:user 反馈"期权直接去掉,放到投资中",
+  ///     receivable 段下只剩 1 cat"负债"(cat.type='liability')
+  ///   - 跟福利/投资同 pattern:UI 隐藏 cat 选择,自动 fallback
+  ///     (不跟之前"保留选分类,2 cat 选"逻辑,简化设计)
+  ///   - 2 段 toggle(支出/收入),无调拨(同 cashFlow 短按 +)
+  ///   - 跟福利/投资行为对齐:_needsCategory=false,_firstCategoryId 走 fallback
+  bool get _isReceivableContext => widget.preselectedAssetType == 'receivable';
+
   /// toggle segments 配置(2026-10-13 P8:caller 完全控制)
   /// 2026-10-13 P11 UAT 修:之前承诺 allowBalance=false 时过滤掉"调拨",
   ///   但实现漏了 → 短按+ 仍出 3 段含"调拨",user:"日常现金流水只关注支出收入"
@@ -143,10 +152,18 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   /// 2026-10-14 加:_isBenefitContext 走 2 段(同 cash_flow 短按 +),无调拨
   ///   - user 截图:"调拨:动资产,不算月度收支" tip 在福利页 toggle 上也有
   ///   - 福利是"日常福利",不涉及账户间调拨,跟 cash_flow 短按 + 同样逻辑
+  /// 2026-10-14 加:_isReceivableContext 也走 2 段(债权段账户不涉及日常调拨)
+  ///   - 股份期权 / 负债借贷都是 payable 关联,跟 cash_flow 调拨概念不一样
   List<ToggleSegment> get _toggleSegments {
     if (_isInvestmentContext) return TypeToggle.investmentSegments;
     if (_isBenefitContext) {
       // 福利 2 段:filter 掉 balance(同 cashFlow 短按 + path)
+      return TypeToggle.cashFlowSegments
+          .where((s) => s.key != 'balance')
+          .toList();
+    }
+    if (_isReceivableContext) {
+      // 债权 2 段:filter 掉 balance(同 cashFlow 短按 + path)
       return TypeToggle.cashFlowSegments
           .where((s) => s.key != 'balance')
           .toList();
@@ -161,9 +178,14 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   /// 2026-10-13 P8:是否需要分类(只有 cash_flow 需要;投资场景分类去掉)
   /// 2026-10-14 加:福利场景也去掉分类选择器,默认 fallback cat.type='benefit' 的 cat
   ///   - 跟 investment 同 pattern:UI 隐藏 + DB NOT NULL 通过 fallback 填
+  /// 2026-10-14 加:债权场景也去掉分类选择器(跟福利/投资同 pattern)
+  ///   - 简化前:债权段有 2 cat(股份期权 / 负债借贷),user 主动选
+  ///   - 简化后:user 反馈"期权直接去掉,放到投资中",只剩 1 cat"负债"
+  ///   - 1 cat 跟投资/福利同样处理:UI 隐藏,自动 fallback 到 cat.type='liability' 的 cat
   bool get _needsCategory {
     if (_isInvestmentContext) return false;
     if (_isBenefitContext) return false;
+    if (_isReceivableContext) return false;
     return true;
   }
 
@@ -614,6 +636,10 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     // 修复:把 _CategoryPickerSheet 改成 ConsumerWidget,内部 watch 这个
     // provider。打开后 invalidate 完成的最新分类会自动出现在 grid 里。
     // 调用方只负责传 type + selected + onSelect,不再读 categories。
+    //
+    // 2026-10-14 简化:之前 receivable context 透传 forcedCategories(2 cat 选),
+    //   现已跟福利/投资同 pattern(UI 隐藏 + 自动 fallback),不再需要选分类
+    //   —— 这里不再处理 forcedCategories,picker 走默认 type filter
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -659,19 +685,25 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   ///   第 2 行:[备注输入框(弹性占满)] [保存按钮(固定宽度 80)]
   Widget _actionRow(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    // 2026-10-13 P8:分类只在 cash_flow 需要;investment 不 watch 分类
-    final catsAsync = _needsCategory
-        ? ref.watch(categoriesByTypeProvider(_intent))
-        : const AsyncValue<List<Category>>.data(<Category>[]);
+    // 2026-10-14 D45 改:cat chip 显示从 allCategoriesProvider 找,不依赖 _intent type filter
+    //   - 之前用 categoriesByTypeProvider(_intent) 拿 cat,思路是 cash_flow 默认行为
+    //     (cat.type='expense'/'income' 跟 _intent 1:1)
+    //   - bug:multi-context 下 cat.type 不跟 _intent 对齐——
+    //     receivable 的 cat.type='stock_option' / 'liability_loan',
+    //     categoriesByTypeProvider('expense') / ('income') 都返回空 list,
+    //     sel=null,chip 一直显示"选分类"(看上去像"选了 cat 没生效")
+    //   - 实际 picker onSelect 真设了 _categoryId,DB 写入对的 cat_id
+    //     —— 但因为 _actionRow 找不到 cat 显示,所以 user 看到"选了不显示"
+    //   - 修:用 allCategoriesProvider 全表找,跟 _intent 维度脱钩
+    //     picker 那边自己的 type filter 留给 categoriesByTypeProvider 用
+    final allCats = ref.watch(allCategoriesProvider).valueOrNull ?? const [];
     Category? sel;
-    catsAsync.whenData((cats) {
-      for (final c in cats) {
-        if (c.id == _categoryId) {
-          sel = c;
-          break;
-        }
+    for (final c in allCats) {
+      if (c.id == _categoryId) {
+        sel = c;
+        break;
       }
-    });
+    }
     final hasCat = sel != null;
     // 2026-10-12 P3 commit 加:账户 chip —— 监听 allAssetsProvider 取已选账户对象
     final assetsAsync = ref.watch(allAssetsProvider);
@@ -792,13 +824,13 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                   Expanded(
                     child: _ActionPill(
                       icon: hasCat
-                          ? (CategoryIcons.map[sel!.icon] ??
+                          ? (CategoryIcons.map[sel.icon] ??
                                 Icons.category_rounded)
                           : Icons.category_outlined,
-                      label: hasCat ? sel!.name : '选分类',
+                      label: hasCat ? sel.name : '选分类',
                       highlighted: hasCat,
-                      highlightColor: hasCat ? Color(sel!.color) : null,
-                      iconColorOverride: hasCat ? Color(sel!.color) : null,
+                      highlightColor: hasCat ? Color(sel.color) : null,
+                      iconColorOverride: hasCat ? Color(sel.color) : null,
                       onTap: _openCategoryPicker,
                     ),
                   ),
@@ -975,6 +1007,14 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       // seed 失败兜底(同 investment)
       return cats.first.id;
     }
+    if (_isReceivableContext) {
+      // 债权:取 cat.type='liability' 的第一个分类(负债),seed 出来
+      for (final c in cats) {
+        if (c.type == 'liability') return c.id;
+      }
+      // seed 失败兜底(同 investment / benefit)
+      return cats.first.id;
+    }
     return cats.first.id;
   }
 
@@ -1100,7 +1140,15 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                   //   user:"切换支出收入的话,这个选账户还是会清空"
                   //   - cash_flow 是同 context 切 intent,账户类型不变,清掉反而要重选
                   //   - investment(input/output/transfer 跨段)仍清,避免残留的 source/dest 错位
-                  // 2026-10-13 P16:_categoryId 仍清(支出 / 收入 分类表不同,无效选择要清)
+                  // 2026-10-14 D44 改:切 toggle 时只清 cash_flow 的 _categoryId,其它 context 保留
+  //   - P16 UAT 原逻辑无条件清 _categoryId,理由:cash_flow 支出/收入的分类表
+  //     不同("餐饮"只在支出,"工资"只在收入),保留 cat 在另一边非法
+  //   - bug:receivable context 只有 2 个 cat(股份期权 / 负债借贷),2 cat 都支持
+  //     支出/收入方向。user 在 receivable context 切支出 → 收入时仍被清,
+  //     cat 视觉 chip 先显示 → toggle 一动就消失,user 看成"选了没生效"
+  //   - 修:receivable 不强制清,让 user 在支出/收入切换时保留 cat 选择
+  //   - cash_flow / 走原 P16 逻辑(强制清)
+  //   - investment 清 account / destAccount(原 P16 不变)
                   Align(
                     alignment: Alignment.center,
                     child: TypeToggle(
@@ -1108,7 +1156,11 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                       segments: _toggleSegments,
                       onChanged: (v) => setState(() {
                         _intent = v;
-                        _categoryId = null;
+                        // cash_flow 切支出 ↔ 收入,分类表不同,无效选择要清
+                        // receivable 不清(2 cat 通用)
+                        if (!_isReceivableContext) {
+                          _categoryId = null;
+                        }
                         if (_isInvestmentContext) {
                           _accountId = null;
                           _destinationAccountId = null;
@@ -1250,6 +1302,9 @@ class _CategoryPickerSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    // 2026-10-14 简化:删除 forcedCategories 参数,reivable 段不再需要
+    //   picker 强制传 2 cat(原 receiv 2 cat 设计) — 现在 receivable 跟福利/投资
+    //   同样 UI 隐藏,1 个内置 cat 走自动 fallback,不再调 picker
     final catsAsync = ref.watch(categoriesByTypeProvider(type));
     // 2026-10-13 P14 UAT 改:DraggableScrollableSheet(0.6/0.3/0.9)→ 极值配置
     //   user:"不要做什么还能往上滑动的操作了"

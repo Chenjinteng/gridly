@@ -80,14 +80,17 @@ class AddTransactionPage extends StatelessWidget {
     // 2026-10-13 P6 UAT:按 preselectedAssetType 推导 allowBalance 默认值
     //   - null 或 'cash_flow'(短按):allowBalance=false(老版,无调拨)
     //   - 其他 5 段(长按):allowBalance=true(保留 3 段,后续再调)
-    // 2026-10-14 加:'benefit'(福利)也走 false(2 段)
+    // 2026-10-14 加:'benefit'(福利)走 false(2 段)
     //   - 福利 = 公司社保/医保/餐补等日常账户,跟 cash_flow 短按 + 同 pattern:无调拨
-    //   - 其它 4 段(债权/不动产/其它)暂仍走 true(3 段),后续单独适配
+    // 2026-10-14 加:'receivable'(债权)也走 false(2 段)
+    //   - 债权段账户不涉及日常调拨(股份期权 / 负债借贷 都是 receipt 类,无 balance)
+    //   - 其它 3 段(不动产/其它)暂仍走 true(3 段),后续单独适配
     final effectiveAllowBalance =
         allowBalance ??
         (preselectedAssetType == null ||
                 preselectedAssetType == 'cash_flow' ||
-                preselectedAssetType == 'benefit'
+                preselectedAssetType == 'benefit' ||
+                preselectedAssetType == 'receivable'
             ? false
             : true);
 
