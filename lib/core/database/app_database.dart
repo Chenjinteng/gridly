@@ -98,13 +98,18 @@ class AppDatabase extends _$AppDatabase {
     },
   );
 
-  /// 清空所有用户数据:流水 + 自定义分类 + 分类预算
-  /// 保留系统预置分类(餐饮/交通/...)和数据库 schema 和默认资产
+  /// 清空所有用户数据:流水 + 自定义分类 + 分类预算 + 资产
+  /// 保留系统预置分类(餐饮/交通/...)和数据库 schema
+  /// 2026-10-14 修(D46):之前漏删 assets,user UAT 发现"清空所有数据"按钮
+  ///   实际没清空资产 —— 注释里写"预置账户永远保留"但 user 期望的"清空"
+  ///   语义是真清空,保留 system 分类是因为分类是 user 主动选的核心维度,
+  ///   资产清空后 caller(UI 层)可以再调 seedDefaultsIfEmpty() 重 seed 默认
+  ///   3 个现金账户,或者 user 自己建。
   Future<void> clearAllData() async {
     await delete(transactions).go();
     await delete(categoryBudgets).go();
     await (delete(categories)..where((c) => c.isSystem.equals(false))).go();
-    // assets 表不删(预置账户永远保留,user 删完自己加的也无所谓)
+    await delete(assets).go();
   }
 }
 

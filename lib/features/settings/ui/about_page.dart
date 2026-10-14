@@ -11,6 +11,7 @@ import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/card_shadows.dart';
 import '../../../core/utils/gridly_banner.dart';
+import '../../../core/utils/refresh_providers.dart';
 import '../../../core/widgets/gridly_mark.dart';
 
 class AboutPage extends ConsumerWidget {
@@ -153,8 +154,10 @@ class AboutPage extends ConsumerWidget {
       builder: (_) => AlertDialog(
         title: const Text('清空所有数据?'),
         content: const Text(
-          '所有流水和自定义分类都会被删除。\n'
-          '系统预置的 17 个分类会保留。\n'
+          // 2026-10-14 改(D46):提示文案补'资产'和'分类预算',
+          // 之前 user 看到"清空所有数据"按钮但 assets 没被清,提示误导
+          '所有流水 / 自定义分类 / 分类预算 / 资产 都会被删除。\n'
+          '系统预置的 17 个分类会保留(后续清空仍能使用)。\n'
           '此操作不可撤销。',
         ),
         actions: [
@@ -173,8 +176,11 @@ class AboutPage extends ConsumerWidget {
     if (confirmed != true) return;
     try {
       await ref.read(databaseProvider).clearAllData();
+      // 2026-10-14 加(D46):refreshAllData 让 UI 同步看到'已清空'状态
+      // 之前没 refresh,流水列表 / 资产页 仍显示旧缓存数据
+      refreshAllData(ref);
       if (context.mounted) {
-        showGridlyBanner(context, '已清空所有流水', kind: GridlyBannerKind.success);
+        showGridlyBanner(context, '已清空所有数据', kind: GridlyBannerKind.success);
       }
     } catch (e) {
       if (context.mounted) {
