@@ -243,10 +243,10 @@ features/<name>/
   - `logo_horizontal.png` 2752×1536 — LOGO + "格子记账" 文字(横版品牌)
 - **Launcher icon**(5 个 mipmap-*/ic_launcher.png)当前从 `logo_primary.png` 派生,2026-10-10 改成白底风格
 
-### v0.3.5 P18 进度(2026-10-14 完成,44 commits)
+### v0.3.5 P18 进度(2026-10-14 完成,45 commits)
 
-- HEAD: `6c3c5d9 feat(ui): 借出/借入 流水显示 ± prefix + 类型 label 修复(D51 v2)`,已推 `origin/main`
-- commit 范围:`7ea90d3..6c3c5d9`
+- HEAD: `02d1a6a fix(form): 债务调拨 转出/转入 不限账户类型 + 记一笔页标题改"债务"(D51 v3)`,已推 `origin/main`
+- commit 范围:`7ea90d3..02d1a6a`
 - 主要文件改动:
   - `lib/features/add/ui/transaction_form.dart` — 5 getter 三段拆分 / save() dest 收益不存 / initState pre-fill / D44 toggle 不清 cat(receivable 例外) / D45 `_actionRow` 全表查 cat
   - `lib/features/add/ui/add_transaction_page.dart` — `_appBarTitle` / `effectiveAllowBalance` 福利 / 债权适配
