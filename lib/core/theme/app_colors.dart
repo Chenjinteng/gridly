@@ -164,4 +164,53 @@ class AppSegment {
         return other;
     }
   }
+
+  /// 2026-10-14 加:asset.type → 中文 label 集中数据源
+  ///   - 之前散落在 assets_overview_chart / asset_summary_card / asset_form_page
+  ///     各自硬编码 '现金流' / '投资' / '负债' / ...
+  ///   - 统一走 AppSegment.labelFor,user 改 label 只改一处
+  ///   - 跟 "会计/记账 app 词汇:债权/期权/负债借贷统一叫'负债'" 偏好一致
+  static String labelFor(String type) {
+    switch (type) {
+      case 'cash_flow':
+        return '现金流';
+      case 'investment':
+        return '投资';
+      case 'benefit':
+        return '福利';
+      case 'receivable':
+        return '负债';
+      case 'fixed_asset':
+        return '不动产';
+      default:
+        return '其它';
+    }
+  }
+
+  /// 2026-10-14 加:asset.type → icon 集中数据源
+  ///   - 跟 labelFor 同源,3 个 widget(报表 / 资产页 / 新增账户)都用
+  ///   - 未知 type 兜底 Icons.category_rounded(同 other 段,避免不一致)
+  static const _iconCashFlow = Icons.account_balance_wallet_rounded;
+  static const _iconInvestment = Icons.trending_up_rounded;
+  static const _iconBenefit = Icons.favorite_rounded;
+  static const _iconReceivable = Icons.handshake_rounded;
+  static const _iconFixedAsset = Icons.home_rounded;
+  static const _iconOther = Icons.category_rounded;
+
+  static IconData iconFor(String type) {
+    switch (type) {
+      case 'cash_flow':
+        return _iconCashFlow;
+      case 'investment':
+        return _iconInvestment;
+      case 'benefit':
+        return _iconBenefit;
+      case 'receivable':
+        return _iconReceivable;
+      case 'fixed_asset':
+        return _iconFixedAsset;
+      default:
+        return _iconOther;
+    }
+  }
 }
