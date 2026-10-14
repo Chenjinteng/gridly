@@ -52,6 +52,7 @@ class AssetTile extends ConsumerWidget {
   ///   - Material Icons 没品牌 icon(微信/支付宝/银联),需要 brand assets;
   ///     这次先扩通用池,品牌 icon 等 user 后续提供素材再加
   ///   - Flutter Material Icons 内置 + 通用钱包/支付类
+  /// 2026-10-14 D48:扩 8 个票务 / 充值 / 餐饮 / 兑换类,user 要丰富账户图标池
   static const Map<String, IconData> icons = {
     // 钱包 / 支付 / 现金
     'account_balance_wallet': Icons.account_balance_wallet_rounded, // 钱包通用
@@ -63,6 +64,8 @@ class AssetTile extends ConsumerWidget {
     'currency_yen': Icons.currency_yen_rounded, // 现金(¥)
     'attach_money': Icons.attach_money_rounded, // 现金($)
     'monetization_on': Icons.monetization_on_rounded, // 现金
+    // 支付品牌(Material 内置品牌 icon,2026-10-14 D48 加)
+    'apple_pay': Icons.apple_rounded, // Apple Pay(走 Material apple icon,跨平台稳)
     // 资产类型
     'home': Icons.home_rounded, // 不动产
     'directions_car': Icons.directions_car_rounded, // 车
@@ -79,12 +82,96 @@ class AssetTile extends ConsumerWidget {
     'shield': Icons.shield_rounded, // 盾牌
     'security': Icons.security_rounded, // 安全
     'verified': Icons.verified_rounded, // 已验证
+    // 票务 / 充值 / 餐饮 / 兑换(2026-10-14 D48 加)
+    'card_giftcard': Icons.card_giftcard_rounded, // 礼品卡
+    'confirmation_number': Icons.confirmation_number_rounded, // 票务
+    'theater_comedy': Icons.theater_comedy_rounded, // 娱乐
+    'restaurant': Icons.restaurant_rounded, // 餐饮
+    'redeem': Icons.redeem_rounded, // 兑换/积分
+    'flight': Icons.flight_rounded, // 机票
+    'train': Icons.train_rounded, // 火车
+    'local_activity': Icons.local_activity_rounded, // 活动
     // 福利 / 借出 / 其它
     'favorite': Icons.favorite_rounded, // 福利
     'handshake': Icons.handshake_rounded, // 借出
     'swap_horiz': Icons.swap_horiz_rounded, // 调拨
     'category': Icons.category_rounded, // 其它
   };
+
+  /// 2026-10-14 D48:品牌 / 加密 / 银行 letter chip icon 映射
+  ///   - Material Icons 内置无品牌 logo(Alipay/微信/Apple Pay/Google Pay/ePay)
+  ///   - 走 brand:xxx / crypto:xxx / bank:xxx 命名空间前缀,跟 material key 不冲突
+  ///   - 自渲染彩色圆形 + 单字/单符号(支/微//G/e + ₿/Ξ/₮ + 招/工/建/农/中)
+  ///   - 颜色用各品牌官方色 + 数字货币 / 银行标准色
+  ///   - 跨页统一(form picker + asset tile leading 都走 AssetTile.renderIcon)
+  static const Map<String, BrandIconSpec> brandIcons = {
+    // === 支付品牌(支付宝 / 微信 / Google Pay / ePay,Apple Pay 走 material apple icon)===
+    'brand:alipay': BrandIconSpec('支', Color(0xFF1677FF)), // 支付宝蓝
+    'brand:wechat': BrandIconSpec('微', Color(0xFF07C160)), // 微信绿
+    'brand:google_pay': BrandIconSpec('G', Color(0xFF4285F4)), // Google 蓝
+    'brand:epay': BrandIconSpec('e', Color(0xFF6B7280)), // ePay 灰(中性,无强品牌色)
+    // === 加密货币(Bitcoin / Ethereum / USDT)===
+    'crypto:btc': BrandIconSpec('₿', Color(0xFFF7931A)), // Bitcoin 橙
+    'crypto:eth': BrandIconSpec('Ξ', Color(0xFF627EEA)), // Ethereum 紫
+    'crypto:usdt': BrandIconSpec('₮', Color(0xFF26A17B)), // Tether 绿
+    // === 银行(招商 / 工行 / 建行 / 农行 / 中行)===
+    'bank:cmb': BrandIconSpec('招', Color(0xFFE60012)), // 招商红
+    'bank:icbc': BrandIconSpec('工', Color(0xFFC7000B)), // 工行红
+    'bank:ccb': BrandIconSpec('建', Color(0xFF003C9D)), // 建行蓝
+    'bank:abc': BrandIconSpec('农', Color(0xFF007F3D)), // 农行绿
+    'bank:boc': BrandIconSpec('中', Color(0xFFB71C1C)), // 中行红
+  };
+
+  /// 2026-10-14 D48:统一 icon 渲染入口
+  ///   - material key:走 Material Icon(跟现有一样)
+  ///   - brand:/crypto:/bank: 前缀:走 Container 自渲染彩色圆 + 字
+  ///   - 未知 key:fallback wallet_rounded,跟现有兜底一致
+  ///   - 跨页(form picker + asset tile leading)统一走这个,避免 brand 漏渲染
+  static Widget renderIcon(String key, {double size = 22, Color? tintColor}) {
+    final matIcon = icons[key];
+    if (matIcon != null) {
+      return Icon(matIcon, size: size, color: tintColor);
+    }
+    final brand = brandIcons[key];
+    if (brand != null) {
+      // brand chip:正方形(资产 form picker 44x44 + asset tile 36x36 都用这个)
+      // 字大小跟 size 成比例(0.55 倍),中文 0.6 倍
+      //   letter 为空(无单字 / 符号,如未来纯色块):只渲染背景,不渲染 Text
+      final hasLetter = brand.letter.isNotEmpty;
+      final fontSize = hasLetter ? size * 0.55 : 0.0;
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: brand.color,
+          borderRadius: AppRadius.brXs,
+        ),
+        alignment: Alignment.center,
+        child: hasLetter
+            ? Text(
+                brand.letter,
+                style: TextStyle(
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  height: 1.0,
+                ),
+              )
+            : null,
+      );
+    }
+    return Icon(
+      Icons.account_balance_wallet_rounded,
+      size: size,
+      color: tintColor,
+    );
+  }
+
+  /// 2026-10-14 D48:判断 key 是否走 brand letter chip(给 form picker / db 列展示用)
+  static bool isBrandKey(String key) =>
+      key.startsWith('brand:') ||
+      key.startsWith('crypto:') ||
+      key.startsWith('bank:');
 
   /// type 名 → 中文标签(2026-10-14 D47:统一走 AppSegment 集中数据源)
   ///   之前硬编码 6 段 label,跟资产页 / 报表不一致;现在走 AppSegment.labelFor
@@ -115,20 +202,36 @@ class AssetTile extends ConsumerWidget {
       ),
       child: ListTile(
         onTap: onEdit,
-        leading: Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: AppRadius.brXs,
-            border: Border.all(color: color.withValues(alpha: 0.3), width: 0.5),
-          ),
-          child: Icon(
-            icons[asset.icon] ?? Icons.account_balance_wallet_rounded,
-            color: color,
-            size: 18,
-          ),
-        ),
+        // 2026-10-14 D48:leading 区分 material / brand 渲染
+        //   - material:36x36 tinted box(asset.color 0.12 底 + asset.color icon),跟之前一致
+        //   - brand/crypto/bank:36x36 圆角盒,内部 brand chip 自带品牌色背景,
+        //     不再加 tinted 外框(避免双层色块冲突)
+        leading: isBrandKey(asset.icon)
+            ? ClipRRect(
+                borderRadius: AppRadius.brXs,
+                child: SizedBox(
+                  width: 36,
+                  height: 36,
+                  child: renderIcon(asset.icon, size: 36),
+                ),
+              )
+            : Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: AppRadius.brXs,
+                  border: Border.all(
+                    color: color.withValues(alpha: 0.3),
+                    width: 0.5,
+                  ),
+                ),
+                child: Icon(
+                  icons[asset.icon] ?? Icons.account_balance_wallet_rounded,
+                  color: color,
+                  size: 18,
+                ),
+              ),
         title: Text(
           asset.name,
           style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
@@ -251,4 +354,15 @@ class _TileChip extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 2026-10-14 D48:品牌 / 加密 / 银行 letter chip icon 配置
+///   - letter:单字(支/微/G/e)或单符号(₿/Ξ/₮)或单字(招/工/建/农/中)
+///   - color:品牌官方背景色,Container 用作底色
+///   - 渲染走 AssetTile.renderIcon() 统一入口,跨 form picker + asset tile 一致
+///   - 公开类:AssetTile.brandIcons 是 public API,spec 类型也得 public 避免 lint
+class BrandIconSpec {
+  const BrandIconSpec(this.letter, this.color);
+  final String letter;
+  final Color color;
 }
