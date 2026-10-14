@@ -360,41 +360,48 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   /// 2026-10-14 D57 改:"其它" 段只显示 other 类型账户
   ///   - 之前 D55 想"6 大类账户都能选",user 反馈太复杂,改成跟福利同样的简化结构
   ///   - 其它 = 兜底简化,只显示 asset.type='other' 的账户(_accountTypeFilter='other')
-  String? get _accountTypeFilter {
+  /// 2026-10-14 D58 改:类型 `String?` → `List<String>?`,支持多类型白名单
+  ///   - 之前 D51 v3 债务调拨不限类型 → D58 user 推翻,改限定 cash_flow ↔ receivable,
+  ///     picker 要能传"白名单多 type"(同 D50 互斥仍适用)
+  ///   - 各 path 返单元素 list 而不是裸 string,统一 list 协议
+  List<String>? get _accountTypeFilter {
     if (_isInvestmentContext) {
       switch (_intent) {
         case 'input':
-          return 'cash_flow'; // 投入:转出限现金账户
+          return ['cash_flow']; // 投入:转出限现金账户
         case 'output':
-          return 'investment'; // 收益:单账户限投资账户
+          return ['investment']; // 收益:单账户限投资账户
         case 'transfer':
           return null; // 调拨:不限制
       }
     }
     if (_isReceivableContext && _intent == 'transfer') {
-      return null; // D51 v3:债务调拨源也能选 现金 + 债务,不限
+      // D58:user 推翻 D51 v3 改限定 cash_flow ↔ receivable,转出/转入都按此
+      //   之前的 v3 不限太松(能选投资/福利/不动产/其它,语义错位)
+      return ['cash_flow', 'receivable'];
     }
-    return widget.accountTypeFilter; // cash_flow / benefit / receivable / other:由 caller 决定
+    if (widget.accountTypeFilter != null) {
+      return [
+        widget.accountTypeFilter!,
+      ]; // cash_flow / benefit / receivable / other:caller 决定
+    }
+    return null;
   }
 
-  String? get _destinationTypeFilter {
+  List<String>? get _destinationTypeFilter {
     if (_isInvestmentContext) {
       switch (_intent) {
         case 'input':
-          return 'investment'; // 投入:转入限投资账户
+          return ['investment']; // 投入:转入限投资账户
         case 'output':
           return null; // 收益:无 destination
         case 'transfer':
           return null; // 调拨:不限制
       }
     }
-    // 2026-10-14 D51 v3:债务段调拨不过滤(转出/转入都能选 现金 + 债务账号)
-    //   user 反馈:"调拨的话,转入转出都能选择现金流和债务账号"
-    //   之前 v2 限定 cash_flow 太死,实际场景:用户可能有多个债务账户(不同对象),
-    //   调拨可以在债务账户之间转(账户A → 账户B),也可以跟现金互转
-    //   D50 互斥仍适用:source ≠ dest,避免自转
     if (_isReceivableContext && _intent == 'transfer') {
-      return null; // 不限制,转出/转入都能选 现金 + 债务
+      // D58:跟 _accountTypeFilter 同步,转入也限定 cash_flow ↔ receivable
+      return ['cash_flow', 'receivable'];
     }
     return null; // cash_flow:无 destination
   }
@@ -1111,19 +1118,21 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     // 2026-10-14 D51 v4 修:source picker 过滤逻辑
     //   之前 `?? widget.accountTypeFilter` 会 fallback 到 caller 设的 'receivable',
     //   即便我在 _accountTypeFilter 返 null(债务调拨不过滤)也被覆盖
-    //   改:用 _accountTypeFilter 优先;只在 _accountTypeFilter 返 null 且不是债务调拨时,
-    //       fallback 到 widget.accountTypeFilter
+    //   改:用 _accountTypeFilter 优先;只在 _accountTypeFilter 返 null 时,
+    //       fallback 到 widget.accountTypeFilter(包成单元素 list)
     //   实际效果:
-    //   - 借出/借入段:_accountTypeFilter 返 'receivable' → 只看 债务账户(单账户操作)
-    //   - 债务调拨段:_accountTypeFilter 返 null → 不过滤(现金 + 债务都能选)
-    //   - 现金短按+:_accountTypeFilter 返 null → fallback 到 'cash_flow'
-    //   - 投资段:_accountTypeFilter 走投资 intent 限定(input='cash_flow', transfer=null)
-    //   - 其它段:caller 默认 'other'(走 widget.accountTypeFilter),显示 other 账户
+    //   - 借出/借入段:_accountTypeFilter 返 ['receivable'] → 只看 债务账户(单账户操作)
+    //   - 债务调拨段(D58):_accountTypeFilter 返 ['cash_flow', 'receivable'] → 限定这 2 类
+    //   - 现金短按+:_accountTypeFilter 返 null → fallback 到 caller 'cash_flow'
+    //   - 投资段:_accountTypeFilter 走投资 intent 限定(input=['cash_flow'], transfer=null)
+    //   - 其它段:caller 默认 'other' → _accountTypeFilter 返 ['other'],显示 other 账户
     // 2026-10-14 D57 废:_isOtherContext 短路 —— D55 假设"6 大类可选",
     //   D57 改"只 other 账户",跟 caller 默认一致,不需要短路
-    final String? filter = _isReceivableContext && _intent == 'transfer'
-        ? null
-        : (_accountTypeFilter ?? widget.accountTypeFilter);
+    // 2026-10-14 D58 废:D51 v4 receivable transfer 短路 —— 现在 _accountTypeFilter
+    //   本身返 List(['cash_flow', 'receivable']),不需要在 caller 端再覆盖
+    final List<String>? filter =
+        _accountTypeFilter ??
+        (widget.accountTypeFilter == null ? null : [widget.accountTypeFilter!]);
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1586,10 +1595,13 @@ class _AccountPickerSheet extends ConsumerWidget {
   final ValueChanged<int> onSelect;
 
   /// 2026-10-13 P6 UAT 改:按 type 过滤账户
-  ///   - 'cash_flow' → 只显示 cash_flow 账户
-  ///   - 'investment' → 只显示 investment 账户
+  ///   - 单值:['cash_flow'] → 只显示 cash_flow 账户
+  ///   - 多值:['cash_flow', 'receivable'] → 显示这 2 类账户(D58 债务调拨用)
   ///   - null → 不过滤,显示所有账户
-  final String? accountTypeFilter;
+  /// 2026-10-14 D58 改:从 `String?` → `List<String>?`,支持多类型过滤
+  ///   - 之前 D51 v3 债务调拨不限类型 → D58 改限定 cash_flow ↔ receivable,
+  ///     picker 需要支持"白名单多个 type"
+  final List<String>? accountTypeFilter;
 
   /// 2026-10-14 D50:排除指定账户(给调拨 source / dest 互斥用)
   ///   - source picker 传 _destinationAccountId(已选 dest 不能作 source)
@@ -1614,8 +1626,11 @@ class _AccountPickerSheet extends ConsumerWidget {
         data: (assets) {
           // 2026-10-13 P6 UAT 改:按 accountTypeFilter 过滤
           // 2026-10-14 D50:再按 excludeId 排除(调拨 source / dest 互斥)
+          // 2026-10-14 D58 改:accountTypeFilter 类型 String? → List<String>?,支持多类型
+          //   白名单(membership check);null 不过滤,list 含 account.type 才显示
           final filtered = assets.where((a) {
-            if (accountTypeFilter != null && a.type != accountTypeFilter) {
+            if (accountTypeFilter != null &&
+                !accountTypeFilter!.contains(a.type)) {
               return false;
             }
             if (excludeId != null && a.id == excludeId) {
