@@ -128,14 +128,29 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   /// 2026-10-13 P8:投资场景标识
   bool get _isInvestmentContext => widget.preselectedAssetType == 'investment';
 
+  /// 2026-10-14 加:福利场景标识(preselectedAssetType='benefit')
+  ///   - 福利 = 公司社保/医保/餐补等日常福利账户,逻辑跟 cash_flow 短按 + 同:
+  ///     只收入支出 / 隐藏分类选择器(默认 fallback 到 cat.type='benefit' 的 cat)/ 单账户
+  ///   - 跟 investment 区别:investment 三段(投入/收益/调拨),福利就 2 段(支出/收入)
+  bool get _isBenefitContext => widget.preselectedAssetType == 'benefit';
+
   /// toggle segments 配置(2026-10-13 P8:caller 完全控制)
   /// 2026-10-13 P11 UAT 修:之前承诺 allowBalance=false 时过滤掉"调拨",
   ///   但实现漏了 → 短按+ 仍出 3 段含"调拨",user:"日常现金流水只关注支出收入"
   ///   - 短按 cash_flow(allowBalance=false)→ 2 段(支出/收入),无"调拨"
   ///   - 长按 investment(_isInvestmentContext)→ investmentSegments 3 段
   ///   - 长按 非投资(allowBalance=true)→ 3 段(支出/收入/调拨)
+  /// 2026-10-14 加:_isBenefitContext 走 2 段(同 cash_flow 短按 +),无调拨
+  ///   - user 截图:"调拨:动资产,不算月度收支" tip 在福利页 toggle 上也有
+  ///   - 福利是"日常福利",不涉及账户间调拨,跟 cash_flow 短按 + 同样逻辑
   List<ToggleSegment> get _toggleSegments {
     if (_isInvestmentContext) return TypeToggle.investmentSegments;
+    if (_isBenefitContext) {
+      // 福利 2 段:filter 掉 balance(同 cashFlow 短按 + path)
+      return TypeToggle.cashFlowSegments
+          .where((s) => s.key != 'balance')
+          .toList();
+    }
     if (widget.allowBalance) return TypeToggle.cashFlowSegments;
     // cash_flow + 不允许 balance → 过滤掉"调拨"
     return TypeToggle.cashFlowSegments
@@ -144,7 +159,13 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   }
 
   /// 2026-10-13 P8:是否需要分类(只有 cash_flow 需要;投资场景分类去掉)
-  bool get _needsCategory => !_isInvestmentContext;
+  /// 2026-10-14 加:福利场景也去掉分类选择器,默认 fallback cat.type='benefit' 的 cat
+  ///   - 跟 investment 同 pattern:UI 隐藏 + DB NOT NULL 通过 fallback 填
+  bool get _needsCategory {
+    if (_isInvestmentContext) return false;
+    if (_isBenefitContext) return false;
+    return true;
+  }
 
   /// 2026-10-14 P18 大改:investment 三段拆分
   ///   - 投入 / 调拨 → 双账户(转出 + 转入)
@@ -929,6 +950,8 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   ///   - 之前 P8 一律 fallback 到 cash_flow 第一个分类(餐桌),导致投资 record 挂"餐饮"
   ///     显示在 cash_flow 流水里,语义错位
   ///   - DB schema NOT NULL 字段必须填,所以 fallback 是必要的,只是要选对分类
+  /// 2026-10-14 加:福利场景 fallback 取 cat.type='benefit' 的第一个分类
+  ///   - 跟 investment 同结构:UI 隐藏 + DB NOT NULL 字段必填,福利 1 个 cat 通用(支出/收入都 fallback 到它)
   Future<int?> _firstCategoryId() async {
     final repo = ref.read(categoryRepositoryProvider);
     final cats = await repo.all();
@@ -942,6 +965,14 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
         if (c.name == target) return c.id;
       }
       // seed 失败兜底(理论上 App 启动已 seed,不会走到这)
+      return cats.first.id;
+    }
+    if (_isBenefitContext) {
+      // 福利:取 cat.type='benefit' 的第一个分类(福利),seed 出来
+      for (final c in cats) {
+        if (c.type == 'benefit') return c.id;
+      }
+      // seed 失败兜底(同 investment)
       return cats.first.id;
     }
     return cats.first.id;
