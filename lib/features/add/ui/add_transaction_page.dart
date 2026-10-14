@@ -56,8 +56,8 @@ class AddTransactionPage extends StatelessWidget {
   ///   - 短按 cash_flow / null → 记一笔(现金流)
   ///   - 长按 investment → 记一笔(投资)
   ///   - 长按 benefit / receivable / fixed_asset / other → 记一笔(<label>)
-  /// 2026-10-14 改:case 'receivable' 返回 "记一笔(负债)"
-  ///   - user 反馈:跟所有"期权/负债"统一用"负债"称呼
+  /// 2026-10-14 D51 v2 改:case 'receivable' 返回 "记一笔(债务)"
+  ///   - user 反馈:"记一笔页面还是记一笔(负债) 这里应该是(债务)" —— 跟所有 UI label 同步
   ///   - DB key 仍是 'receivable'(API enum 内部不变),只改 UI label
   String get _appBarTitle {
     switch (preselectedAssetType) {
@@ -66,7 +66,7 @@ class AddTransactionPage extends StatelessWidget {
       case 'benefit':
         return '记一笔(福利)';
       case 'receivable':
-        return '记一笔(负债)';
+        return '记一笔(债务)'; // D51 v2:从"负债"改"债务"
       case 'fixed_asset':
         return '记一笔(不动产)';
       case 'other':

@@ -328,6 +328,9 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   ///
   /// 2026-10-13 P17 UAT 中途方案:investment 全部不 filter(投入也要 source=cash 限制的 user
   ///   反馈反复改,P18 三段分开后恢复 P8 的合理限制
+  ///
+  /// 2026-10-14 D51 v3:债务段调拨段不 filter(转出/转入都能选 现金 + 债务)
+  ///   借出/借入段仍走 caller 默认(preselectedAssetType='receivable',只显示 债务账户)
   String? get _accountTypeFilter {
     if (_isInvestmentContext) {
       switch (_intent) {
@@ -338,6 +341,9 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
         case 'transfer':
           return null; // 调拨:不限制
       }
+    }
+    if (_isReceivableContext && _intent == 'transfer') {
+      return null; // D51 v3:债务调拨源也能选 现金 + 债务,不限
     }
     return widget.accountTypeFilter; // cash_flow:由 caller 决定
   }
@@ -353,10 +359,13 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
           return null; // 调拨:不限制
       }
     }
-    // 2026-10-14 D51 v2:债务段调拨默认只显示现金账户(收回借款 / 借入方还款)
-    //   user 反馈"调拨就是债务 ↔ 现金",其它段(投资/福利/不动产)跟债务没自然调拨关系
+    // 2026-10-14 D51 v3:债务段调拨不过滤(转出/转入都能选 现金 + 债务账号)
+    //   user 反馈:"调拨的话,转入转出都能选择现金流和债务账号"
+    //   之前 v2 限定 cash_flow 太死,实际场景:用户可能有多个债务账户(不同对象),
+    //   调拨可以在债务账户之间转(账户A → 账户B),也可以跟现金互转
+    //   D50 互斥仍适用:source ≠ dest,避免自转
     if (_isReceivableContext && _intent == 'transfer') {
-      return 'cash_flow';
+      return null; // 不限制,转出/转入都能选 现金 + 债务
     }
     return null; // cash_flow:无 destination
   }
