@@ -107,12 +107,10 @@ class _MainShellState extends ConsumerState<MainShell> {
       icon: Icons.handshake_rounded,
       color: AppStatus.warning,
     ),
-    SpeedDialItem(
-      key: 'fixed_asset',
-      label: '不动产',
-      icon: Icons.home_rounded,
-      color: AppStatus.info,
-    ),
+    // 2026-10-14 D54:删 'fixed_asset' 不动产
+    //   user:"不动产应该变动的很少,应该没有必要在流水这里出现"
+    //   "把记一笔(不动产)这个入口先去掉,不动产直接在资产管理中进行修改就行"
+    //   不动产 6 段保留(资产表单仍能选),只是 Speed Dial 不再暴露入口
     SpeedDialItem(
       key: 'other',
       label: '其它',
