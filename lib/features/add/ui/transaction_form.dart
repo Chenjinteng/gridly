@@ -153,6 +153,15 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   ///   - 跟福利/投资行为对齐:_needsCategory=false,_firstCategoryId 走 fallback
   bool get _isReceivableContext => widget.preselectedAssetType == 'receivable';
 
+  /// 2026-10-14 D55 加:其它场景标识(preselectedAssetType='other')
+  ///   - "其它" 是兜底 bucket,user 反馈:"这里是为了拟补一些没有考虑到的场景的"
+  ///   - 3 段 toggle(支出/收入/调拨,同 cash_flow + balance)
+  ///   - 资产账户类型不限:6 大类(cash_flow / investment / benefit / receivable /
+  ///     fixed_asset / other)都能选,_accountTypeFilter 返 null
+  ///   - 跟 cash_flow 区别:cash_flow 走 caller 默认(短按+'cash_flow',长按相应段),
+  ///     "其它"是 fallback,无 caller 预设,必须显式 null 才不被 caller 默认 'other' 覆盖
+  bool get _isOtherContext => widget.preselectedAssetType == 'other';
+
   /// toggle segments 配置(2026-10-13 P8:caller 完全控制)
   /// 2026-10-13 P11 UAT 修:之前承诺 allowBalance=false 时过滤掉"调拨",
   ///   但实现漏了 → 短按+ 仍出 3 段含"调拨",user:"日常现金流水只关注支出收入"
@@ -331,6 +340,8 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   ///
   /// 2026-10-14 D51 v3:债务段调拨段不 filter(转出/转入都能选 现金 + 债务)
   ///   借出/借入段仍走 caller 默认(preselectedAssetType='receivable',只显示 债务账户)
+  /// 2026-10-14 D55 加:"其它" 段不 filter — user 兜底 bucket,6 大类账户都能选
+  ///   - 即使 caller 默认传 'other',这里也返 null 覆盖掉(同 D51 v3 receivable transfer)
   String? get _accountTypeFilter {
     if (_isInvestmentContext) {
       switch (_intent) {
@@ -344,6 +355,9 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     }
     if (_isReceivableContext && _intent == 'transfer') {
       return null; // D51 v3:债务调拨源也能选 现金 + 债务,不限
+    }
+    if (_isOtherContext) {
+      return null; // D55:其它段兜底,6 大类账户都能选
     }
     return widget.accountTypeFilter; // cash_flow:由 caller 决定
   }
@@ -1078,7 +1092,11 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     //   - 债务调拨段:_accountTypeFilter 返 null → 不过滤(现金 + 债务都能选)
     //   - 现金短按+:_accountTypeFilter 返 null → fallback 到 'cash_flow'
     //   - 投资段:_accountTypeFilter 走投资 intent 限定(input='cash_flow', transfer=null)
-    final String? filter = _isReceivableContext && _intent == 'transfer'
+    // 2026-10-14 D55 加:"其它"段不 filter(兜底,6 大类都能选)
+    //   - _accountTypeFilter 已经返 null,但 `?? widget.accountTypeFilter` 会 fallback 到 caller 的 'other',
+    //   所以这里跟 D51 v4 receivable transfer 同 pattern 显式短路
+    final String? filter =
+        (_isReceivableContext && _intent == 'transfer') || _isOtherContext
         ? null
         : (_accountTypeFilter ?? widget.accountTypeFilter);
     showModalBottomSheet<void>(
