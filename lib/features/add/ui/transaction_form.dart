@@ -1039,9 +1039,12 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
       ),
+      // 2026-10-14 D50:source picker 排除已选 dest
+      //   调拨时 source = dest 是不合法(同一账户自转没意义,且会引发 balanceDelta 双重扣款)
       builder: (_) => _AccountPickerSheet(
         selected: _accountId,
         accountTypeFilter: filter,
+        excludeId: _destinationAccountId,
         onSelect: (id) {
           setState(() => _accountId = id);
           Navigator.of(context).pop();
@@ -1053,6 +1056,7 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   /// 2026-10-13 P8 加:转入账户 picker(只 investment 场景使用)
   ///   - 按 _destinationTypeFilter 限定可选项
   ///   - null → 不过滤
+  /// 2026-10-14 D50:dest picker 排除已选 source,user 反馈"如果原 A 选了,转入不能再出现 A"
   void _openDestinationAccountPicker() {
     final filter = _destinationTypeFilter;
     showModalBottomSheet<void>(
@@ -1065,6 +1069,7 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       builder: (_) => _AccountPickerSheet(
         selected: _destinationAccountId,
         accountTypeFilter: filter,
+        excludeId: _accountId,
         onSelect: (id) {
           setState(() => _destinationAccountId = id);
           Navigator.of(context).pop();
@@ -1473,6 +1478,7 @@ class _AccountPickerSheet extends ConsumerWidget {
     required this.selected,
     required this.onSelect,
     this.accountTypeFilter,
+    this.excludeId,
   });
   final int? selected;
   final ValueChanged<int> onSelect;
@@ -1482,6 +1488,12 @@ class _AccountPickerSheet extends ConsumerWidget {
   ///   - 'investment' → 只显示 investment 账户
   ///   - null → 不过滤,显示所有账户
   final String? accountTypeFilter;
+
+  /// 2026-10-14 D50:排除指定账户(给调拨 source / dest 互斥用)
+  ///   - source picker 传 _destinationAccountId(已选 dest 不能作 source)
+  ///   - dest picker 传 _accountId(已选 source 不能作 dest)
+  ///   - 同一账户自转没意义 + 会引发 balanceDelta 双重扣款 bug
+  final int? excludeId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1499,9 +1511,16 @@ class _AccountPickerSheet extends ConsumerWidget {
         ),
         data: (assets) {
           // 2026-10-13 P6 UAT 改:按 accountTypeFilter 过滤
-          final filtered = accountTypeFilter == null
-              ? assets
-              : assets.where((a) => a.type == accountTypeFilter).toList();
+          // 2026-10-14 D50:再按 excludeId 排除(调拨 source / dest 互斥)
+          final filtered = assets.where((a) {
+            if (accountTypeFilter != null && a.type != accountTypeFilter) {
+              return false;
+            }
+            if (excludeId != null && a.id == excludeId) {
+              return false;
+            }
+            return true;
+          }).toList();
           // 2026-10-13 P10 UAT 改:DraggableScrollableSheet(0.7/0.5/0.9)
           //   user 可拖 sheet 调大小 + ListView 内部滑动;同款 ledger
           //   MultiSelectCategorySheet / MultiSelectAssetSheet 结构
