@@ -243,12 +243,12 @@ features/<name>/
   - `logo_horizontal.png` 2752×1536 — LOGO + "格子记账" 文字(横版品牌)
 - **Launcher icon**(5 个 mipmap-*/ic_launcher.png)当前从 `logo_primary.png` 派生,2026-10-10 改成白底风格
 
-### v0.3.5 P18 进度(2026-10-14 完成,49 commits)
+### v0.3.5 P18 进度(2026-10-14 完成,50 commits)
 
-- HEAD: `468f9e6 refactor(shell): Speed Dial 去掉'不动产'入口 (D54)`,已推 `origin/main`
-- commit 范围:`7ea90d3..468f9e6`
+- HEAD: `6fd7d9e fix(form): "记一笔(其它)"段 不限定资产账户类型,可选 6 大类 (D55)`,已推 `origin/main`
+- commit 范围:`7ea90d3..6fd7d9e`
 - 主要文件改动:
-  - `lib/features/add/ui/transaction_form.dart` — 5 getter 三段拆分 / save() dest 收益不存 / initState pre-fill / D44 toggle 不清 cat(receivable 例外) / D45 `_actionRow` 全表查 cat / D49 余额校验扩所有非负债段 / D50 `_AccountPickerSheet` 加 `excludeId` / D51 v4 source picker 短路 / D52 / D53 popup overflow 修
+  - `lib/features/add/ui/transaction_form.dart` — 5 getter 三段拆分 / save() dest 收益不存 / initState pre-fill / D44 toggle 不清 cat(receivable 例外) / D45 `_actionRow` 全表查 cat / D49 余额校验扩所有非负债段 / D50 `_AccountPickerSheet` 加 `excludeId` / D51 v4 source picker 短路 / D52 / D53 popup overflow 修 / D55 `_isOtherContext` getter + `_accountTypeFilter` 返 null + `_openAccountPicker` 短路加 `_isOtherContext`
   - `lib/features/add/ui/add_transaction_page.dart` — `_appBarTitle` / `effectiveAllowBalance` 福利 / 债权适配
   - `lib/features/shell/ui/main_shell.dart` — Speed Dial 改"债务" + D54 删 `fixed_asset` 段(5 → 4 项)
   - `lib/core/database/repositories/asset_repository.dart` — `balanceDeltaByAssetId` 调拨 source / dest 各算各的 + lend_out / borrow_in 累加(D51)
@@ -271,7 +271,8 @@ features/<name>/
   - 历史错数据(用户测试录入的 balanceDelta 错方向流水)user 自行处理
   - D46 清空后 assets 表为空,user 反馈如要自动 seed 默认 3 账户再 patch
   - D54 user 仍可在资产表单开 `includeInTransactions=true` 走短按 + cash_flow 调拨选 不动产 账户(后路,user 暂未要求封)
-- 详情见 [`docs/ROADMAP.md`](docs/ROADMAP.md) v0.3.5 章节 + [`docs/DEV.md`](docs/DEV.md) D32-D54 决策记录
+  - D55 "记一笔(其它)"默认账户 pre-fill 仍取 first 'other' account,无 'other' 账户时 _accountId=null 等 user 手选(暂未改,等需要再补)
+- 详情见 [`docs/ROADMAP.md`](docs/ROADMAP.md) v0.3.5 章节 + [`docs/DEV.md`](docs/DEV.md) D32-D55 决策记录
 
 ### 这台机器的实际 host
 
