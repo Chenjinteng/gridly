@@ -509,18 +509,21 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       _toast('选个转入账户');
       return;
     }
-    // 2026-10-14 P18:Bug3 余额校验 —— 转出类流水 source 账户余额不足时阻断
+    // 2026-10-14 P18 D49:余额校验 —— 转出类流水 source 账户余额不足时阻断
     //   - 转出类:_type ∈ {'expense', 'balance'}(现金支出 / 调拨 / 投资投入 / 投资调拨)
-    //   - cash_flow 类型账户(source)必校验:日常现金流出不能超过实际余额
-    //   - investment 类型账户(source)不校验:投资市值波动,user 自己负责
-    //     (投资投入 source 是 cash_flow 仍校验;投资调拨 source 若是 investment 则不校验)
-    //   - type='income'(现金收入/投资收益)不校验:账户增加,无上限
+    //   - 所有非 负债 类型账户(source)必校验:日常现金流出不能超过实际余额
+    //     之前只校验 cash_flow,user 反馈投资调拨时 source 投资账户可以扣成负数
+    //     (P18 D34 当时考虑"投资市值波动 user 自负责",但 user UAT 明确不接受 ——
+    //      任何"扣款"动作都不允许出负数,跟"市值波动"是另一个维度)
+    //   - 负债 (receivable) 不校验:负债账户语义是"我欠的",余额正常为负,
+    //     调拨 / 支出时继续扣到更负代表"我多欠了",逻辑正确
+    //   - type='income'(现金收入 / 投资收益)不校验:账户增加,无上限
     //   - 编辑模式:只有金额变化时校验,其它情况跳过(因为余额已变化过)
     final isTransferOut = _type == 'expense' || _type == 'balance';
     if (isTransferOut) {
       final repo = ref.read(assetRepositoryProvider);
       final sourceAsset = await repo.byId(_accountId!);
-      if (sourceAsset != null && sourceAsset.type == 'cash_flow') {
+      if (sourceAsset != null && sourceAsset.type != 'receivable') {
         final balances = await ref.read(assetBalancesProvider.future);
         final sourceBalance =
             balances[_accountId!] ?? sourceAsset.initialBalance;
@@ -1141,14 +1144,14 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                   //   - cash_flow 是同 context 切 intent,账户类型不变,清掉反而要重选
                   //   - investment(input/output/transfer 跨段)仍清,避免残留的 source/dest 错位
                   // 2026-10-14 D44 改:切 toggle 时只清 cash_flow 的 _categoryId,其它 context 保留
-  //   - P16 UAT 原逻辑无条件清 _categoryId,理由:cash_flow 支出/收入的分类表
-  //     不同("餐饮"只在支出,"工资"只在收入),保留 cat 在另一边非法
-  //   - bug:receivable context 只有 2 个 cat(股份期权 / 负债借贷),2 cat 都支持
-  //     支出/收入方向。user 在 receivable context 切支出 → 收入时仍被清,
-  //     cat 视觉 chip 先显示 → toggle 一动就消失,user 看成"选了没生效"
-  //   - 修:receivable 不强制清,让 user 在支出/收入切换时保留 cat 选择
-  //   - cash_flow / 走原 P16 逻辑(强制清)
-  //   - investment 清 account / destAccount(原 P16 不变)
+                  //   - P16 UAT 原逻辑无条件清 _categoryId,理由:cash_flow 支出/收入的分类表
+                  //     不同("餐饮"只在支出,"工资"只在收入),保留 cat 在另一边非法
+                  //   - bug:receivable context 只有 2 个 cat(股份期权 / 负债借贷),2 cat 都支持
+                  //     支出/收入方向。user 在 receivable context 切支出 → 收入时仍被清,
+                  //     cat 视觉 chip 先显示 → toggle 一动就消失,user 看成"选了没生效"
+                  //   - 修:receivable 不强制清,让 user 在支出/收入切换时保留 cat 选择
+                  //   - cash_flow / 走原 P16 逻辑(强制清)
+                  //   - investment 清 account / destAccount(原 P16 不变)
                   Align(
                     alignment: Alignment.center,
                     child: TypeToggle(
