@@ -30,6 +30,10 @@ class CategoryRepository {
       for (final c in DefaultCategories.investment) {
         batch.insert(_db.categories, _toCompanion(c));
       }
+      // 2026-10-14 加:福利 1 类,UI 隐藏但 DB NOT NULL 字段需要填
+      for (final c in DefaultCategories.benefit) {
+        batch.insert(_db.categories, _toCompanion(c));
+      }
     });
   }
 
@@ -41,6 +45,20 @@ class CategoryRepository {
     final names = existing.map((c) => c.name).toSet();
     await _db.batch((batch) {
       for (final c in DefaultCategories.investment) {
+        if (!names.contains(c.name)) {
+          batch.insert(_db.categories, _toCompanion(c));
+        }
+      }
+    });
+  }
+
+  /// 2026-10-14 加:跟 ensureInvestmentCategories 同结构 ——
+  /// 老 user DB 没 seed 福利分类时幂等插入,name 已存在就跳过。
+  Future<void> ensureBenefitCategories() async {
+    final existing = await all();
+    final names = existing.map((c) => c.name).toSet();
+    await _db.batch((batch) {
+      for (final c in DefaultCategories.benefit) {
         if (!names.contains(c.name)) {
           batch.insert(_db.categories, _toCompanion(c));
         }
@@ -134,6 +152,14 @@ class CategoryRepository {
         );
       }
       for (final c in DefaultCategories.income) {
+        batch.update(
+          _db.categories,
+          CategoriesCompanion(color: Value(c.color.toARGB32())),
+          where: (cat) => cat.name.equals(c.name) & cat.isSystem.equals(true),
+        );
+      }
+      // 2026-10-14 加:福利分类色同步(同结构)
+      for (final c in DefaultCategories.benefit) {
         batch.update(
           _db.categories,
           CategoriesCompanion(color: Value(c.color.toARGB32())),

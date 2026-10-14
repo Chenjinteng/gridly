@@ -88,6 +88,8 @@ class CategoryIcons {
     // 美妆
     'face': Icons.face_rounded,
     'content_cut': Icons.content_cut_rounded,
+    // 福利(2026-10-14 加)
+    'favorite': Icons.favorite_rounded,
     // 健身 / 旅行 / 礼物
     'fitness_center': Icons.fitness_center_rounded,
     'hotel': Icons.hotel_rounded,
@@ -259,6 +261,22 @@ class DefaultCategories {
       color: AppCategory.invest,
       type: 'investment',
       sortOrder: 1,
+    ),
+  ];
+
+  /// 福利 1 类 —— 2026-10-14 加:
+  ///   - '福利':福利段账户(_type='benefit')的支出/收入都用同一个分类
+  ///   - UI 隐藏:TransactionForm 在 benefit context 不显示分类选择器,
+  ///     seed 出来只填 DB NOT NULL 字段(cat.type='benefit')
+  ///   - 跟 investment 同结构:UI 隐藏 + DB 必填,所以统一 fallback
+  ///   - 后续要细分福利支出/收入可改 2 类(福利支出 / 福利收入),同结构扩展
+  static const List<DefaultCategory> benefit = [
+    DefaultCategory(
+      name: '福利',
+      icon: 'favorite',
+      color: AppCategory.benefit,
+      type: 'benefit',
+      sortOrder: 0,
     ),
   ];
 }

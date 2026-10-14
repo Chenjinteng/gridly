@@ -99,6 +99,10 @@ class AppCategory {
   static const Color bonus = Color(0xFFFFC107); // 奖金 — 亮金
   static const Color invest = AppStatus.success; // 理财 — 绿(收益)
   static const Color parttime = Color(0xFFA855F7); // 兼职 — 紫
+  // 2026-10-14 加:福利分类色,跟 AppSegment.benefit 同值(流水 tile cat icon chip
+  //   跟 account 段色一致视觉)。不复用 shopping(同 #EC4899):"福利" vs "购物"
+  //   是不同财务概念,语义独立。user 拍板用 #EC4899,后续不喜欢可以再 fix。
+  static const Color benefit = Color(0xFFEC4899); // 福利 — 粉
 
   // === 中性 ===
   static const Color neutral = AppGray.g400; // 其他 / 退款
