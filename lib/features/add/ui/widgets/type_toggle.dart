@@ -130,11 +130,15 @@ class TypeToggle extends StatelessWidget {
     ),
   ];
 
-  /// 2026-10-14 D51 加:receivable 负债段 2 段(借出 / 借入)
-  ///   - 替换之前 2 段(支出 / 收入)语义,user 反馈"语义错:借出是债权人(正数),借入是负债方(负数)"
-  ///   - 借出 = AppSegment.receivable #F59E0B(中性橙,"钱在外面,正常")
-  ///   - 借入 = AppStatus.error #EF4444(警示红,"我欠的钱,需关注")
-  ///   - 无"调拨"段(还款走 负债 → 现金 调拨 / 现金 → 负债 调拨,跟其它段调拨逻辑一致)
+  /// 2026-10-14 D51 v2 改:receivable 债务段 3 段(借出 / 借入 / 调拨)
+  ///   - user 反馈"没看到有调拨,我认为调拨是直接在这里" ——
+  ///     调拨(receivable ↔ 现金)跟借出/借入是同场景的 3 个动作,应该一起
+  ///   - 借出 lend_out:单账户,我借出钱(我是债权人,balance += amount)
+  ///   - 借入 borrow_in:单账户,我借到钱(我是负债方,balance -= amount)
+  ///   - 调拨 transfer:双账户,债务 ↔ 现金 流转(收回借款 / 借入方还款)
+  ///     DB type='balance',有 destinationAccountId,跟 cash_flow 调拨同 schema
+  ///   - 颜色:借出 = #F59E0B 橙(中性正数);借入 = #EF4444 红(警示我欠);
+  ///     调拨 = #FFEAA7 浅金(中性,跟 income 区分,跟 cash_flow 调拨一致)
   static const receivableSegments = <ToggleSegment>[
     ToggleSegment(
       key: 'lend_out',
@@ -147,6 +151,12 @@ class TypeToggle extends StatelessWidget {
       label: '借入',
       icon: Icons.south_west_rounded, // ↙ 入
       color: AppStatus.error, // #EF4444
+    ),
+    ToggleSegment(
+      key: 'transfer',
+      label: '调拨',
+      icon: Icons.swap_horiz_rounded, // 双向
+      color: AppSecondary.softGold, // #FFEAA7
     ),
   ];
 
