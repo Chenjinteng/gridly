@@ -860,11 +860,18 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
               ),
             ],
           ),
-          // 2026-10-12 P3 commit:balance 流水提示
-          //   - 仅在 type='balance' 时显示
-          //   - 提示文案:"动资产,不算月度收支"
+          // 2026-10-14 改(D42):仅 _intent='transfer' 才显示这条 tip
+          //   - 2026-10-12 P3 commit 原条件是 _type == 'balance',P18 大改前
+          //     只有 cash_flow 调拨 type='balance',没问题;P18 后投资"投入"
+          //     _intent='input' / _intent='transfer' 都变成 type='balance',
+          //     投入段也被误显"调拨:动资产,不算月度收支"误导成调拨
+          //   - 修法:从 _type 改 _intent,只有 toggle 切到调拨段才提示
+          //     - cash_flow 调拨 = _type='balance' + _intent='balance' = 文案准
+          //     - 投资调拨 = _type='balance' + _intent='transfer' = 文案准
+          //     - 投资投入 (_intent='input') / 投资收益 (_intent='output') = 不显示
+          //   - 文案"调拨:动资产,不算月度收支"对真正调拨段都仍然准确
           //   - 用 onSurfaceVariant 中性色(提示性,非强调)
-          if (_type == 'balance')
+          if (_intent == 'transfer')
             Padding(
               padding: const EdgeInsets.only(top: AppSpacing.s2),
               child: Row(
