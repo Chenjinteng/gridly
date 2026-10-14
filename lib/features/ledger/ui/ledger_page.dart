@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/widgets/staggered_fade_in.dart';
+import '../../../core/widgets/privacy_obscure.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -110,116 +111,121 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
         ? allCats
         : allCats.where((c) => typeFilter.contains(c.type)).toList();
 
-    return Scaffold(
-      appBar: AppBar(
-        // 2026-10-12 P5 follow-up 第 2 次改:搜索 + 过滤合并到 AppBar filter_alt 图标
-        //   - 搜索输入框搬到 _FilterSheet 顶部(用户偏好"同操作只保留一个入口")
-        //   - 标题固定 '流水',不再切 search field
-        title: const Text('流水'),
-        actions: [
-          // 2026-10-13 改:AppBar 右上角 filter 按钮 → push 全屏 AdvancedFilterPage
-          //   4 条件 row-by-row(类型 / 月份 / 分类 / 资产)+ 搜索
-          //   icon 在有任意筛选激活时 tint primary 色(不变)
-          IconButton(
-            icon: Icon(
-              Icons.filter_alt_rounded,
-              color: _anyFilterActive(ref)
-                  ? Theme.of(context).colorScheme.primary
-                  : null,
+    // 2026-10-14 D60:整页隐私覆盖 —— 关闭"显示金额"时,流水页整页盖半透明蒙版
+    //   (含 AppBar),block 全部点击(包括 filter 按钮,防 user 借 filter 跳到带数据的子页)
+    //   点蒙版任意位置 = 恢复显示。详情见 PrivacyObscure。
+    return PrivacyObscure(
+      child: Scaffold(
+        appBar: AppBar(
+          // 2026-10-12 P5 follow-up 第 2 次改:搜索 + 过滤合并到 AppBar filter_alt 图标
+          //   - 搜索输入框搬到 _FilterSheet 顶部(用户偏好"同操作只保留一个入口")
+          //   - 标题固定 '流水',不再切 search field
+          title: const Text('流水'),
+          actions: [
+            // 2026-10-13 改:AppBar 右上角 filter 按钮 → push 全屏 AdvancedFilterPage
+            //   4 条件 row-by-row(类型 / 月份 / 分类 / 资产)+ 搜索
+            //   icon 在有任意筛选激活时 tint primary 色(不变)
+            IconButton(
+              icon: Icon(
+                Icons.filter_alt_rounded,
+                color: _anyFilterActive(ref)
+                    ? Theme.of(context).colorScheme.primary
+                    : null,
+              ),
+              onPressed: _openAdvancedFilter,
             ),
-            onPressed: _openAdvancedFilter,
-          ),
-        ],
-      ),
-      body: GestureDetector(
-        // 点 body 空白处收起键盘(2026-10-11 UAT 反馈):
-        //   - 搜备注/分类的 TextField 在 AppBar,聚焦后想退出只能按"完成",
-        //     用户希望点 body 任意非输入处也能 unfocus
-        // + 同时清掉 openSwipeTileIdProvider(2026-10-11 UAT 反馈):
-        //   - 左滑开的 tile 在外面任何地方点击都得收回(避免"卡着")
-        //   - 流水 tile 自己有 GestureDetector.onTap 也调 _close,这里再清一次
-        //     是冗余但无害;真正的"外部点击关闭"靠 tile 里的 ref.listen 触发
-        // - HitTestBehavior.translucent:不拦截子 widget 的点击(下拉 / 流水 tile
-        //   自己有 InkWell / GestureDetector 处理 tap),只在没有 child 消费的
-        //   位置才落到 onTap
-        // - 用 FocusScope 而非 FocusManager:跟 Material / Scaffold 默认
-        //   焦点范围对齐,不会误清掉 dialog / sheet 里的 focus
-        behavior: HitTestBehavior.translucent,
-        onTap: () {
-          FocusScope.of(context).unfocus();
-          ref.read(openSwipeTileIdProvider.notifier).state = null;
-        },
-        child: Column(
-          children: [
-            _FilterBar(
-              typeFilter: typeFilter,
-              monthFilter: monthFilter,
-              categoryFilter: categoryFilter,
-              catsForType: catsForType,
-              monthKeys: _recentMonthKeys(),
-              formatMonthKey: _formatMonthKey,
-              onTypeChanged: (v) =>
-                  ref.read(ledgerTypeFilterProvider.notifier).state = v,
-              onMonthChanged: (v) =>
-                  ref.read(ledgerMonthFilterProvider.notifier).state = v,
-              onCategoryChanged: (v) =>
-                  ref.read(ledgerCategoryFilterProvider.notifier).state = v,
-            ),
-            Expanded(
-              child: RefreshIndicator(
-                onRefresh: () async => refreshAllData(ref),
-                // AlwaysScrollableScrollPhysics:即使空态/内容不满一屏也能下拉触发刷新
-                child: filteredAsync.when(
-                  data: (grouped) {
-                    if (grouped.isEmpty) {
-                      return ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        children: [
-                          const SizedBox(height: 120),
-                          _EmptyState(searching: searchQuery.isNotEmpty),
-                        ],
-                      );
-                    }
-                    final days = grouped.keys.toList()
-                      ..sort((a, b) => b.compareTo(a));
-                    return ListView.builder(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.only(
-                        top: AppSpacing.s2,
-                        bottom: AppSpacing.s6,
-                      ),
-                      itemCount: days.length,
-                      itemBuilder: (context, i) {
-                        final day = days[i];
-                        final txs = grouped[day]!;
-                        return _DaySection(
-                          day: day,
-                          transactions: txs,
-                          // 首次进入页面时为所有 tile 触发错峰 fade-in,
-                          // _appeared 翻转后(filter 切换 / 滚动)不再重放
-                          animateStagger: !_appeared,
+          ],
+        ),
+        body: GestureDetector(
+          // 点 body 空白处收起键盘(2026-10-11 UAT 反馈):
+          //   - 搜备注/分类的 TextField 在 AppBar,聚焦后想退出只能按"完成",
+          //     用户希望点 body 任意非输入处也能 unfocus
+          // + 同时清掉 openSwipeTileIdProvider(2026-10-11 UAT 反馈):
+          //   - 左滑开的 tile 在外面任何地方点击都得收回(避免"卡着")
+          //   - 流水 tile 自己有 GestureDetector.onTap 也调 _close,这里再清一次
+          //     是冗余但无害;真正的"外部点击关闭"靠 tile 里的 ref.listen 触发
+          // - HitTestBehavior.translucent:不拦截子 widget 的点击(下拉 / 流水 tile
+          //   自己有 InkWell / GestureDetector 处理 tap),只在没有 child 消费的
+          //   位置才落到 onTap
+          // - 用 FocusScope 而非 FocusManager:跟 Material / Scaffold 默认
+          //   焦点范围对齐,不会误清掉 dialog / sheet 里的 focus
+          behavior: HitTestBehavior.translucent,
+          onTap: () {
+            FocusScope.of(context).unfocus();
+            ref.read(openSwipeTileIdProvider.notifier).state = null;
+          },
+          child: Column(
+            children: [
+              _FilterBar(
+                typeFilter: typeFilter,
+                monthFilter: monthFilter,
+                categoryFilter: categoryFilter,
+                catsForType: catsForType,
+                monthKeys: _recentMonthKeys(),
+                formatMonthKey: _formatMonthKey,
+                onTypeChanged: (v) =>
+                    ref.read(ledgerTypeFilterProvider.notifier).state = v,
+                onMonthChanged: (v) =>
+                    ref.read(ledgerMonthFilterProvider.notifier).state = v,
+                onCategoryChanged: (v) =>
+                    ref.read(ledgerCategoryFilterProvider.notifier).state = v,
+              ),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: () async => refreshAllData(ref),
+                  // AlwaysScrollableScrollPhysics:即使空态/内容不满一屏也能下拉触发刷新
+                  child: filteredAsync.when(
+                    data: (grouped) {
+                      if (grouped.isEmpty) {
+                        return ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            const SizedBox(height: 120),
+                            _EmptyState(searching: searchQuery.isNotEmpty),
+                          ],
                         );
-                      },
-                    );
-                  },
-                  loading: () => ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: const [
-                      SizedBox(height: 120),
-                      Center(child: CircularProgressIndicator()),
-                    ],
-                  ),
-                  error: (e, _) => ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: [
-                      const SizedBox(height: 120),
-                      Center(child: Text('加载失败:$e')),
-                    ],
+                      }
+                      final days = grouped.keys.toList()
+                        ..sort((a, b) => b.compareTo(a));
+                      return ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.only(
+                          top: AppSpacing.s2,
+                          bottom: AppSpacing.s6,
+                        ),
+                        itemCount: days.length,
+                        itemBuilder: (context, i) {
+                          final day = days[i];
+                          final txs = grouped[day]!;
+                          return _DaySection(
+                            day: day,
+                            transactions: txs,
+                            // 首次进入页面时为所有 tile 触发错峰 fade-in,
+                            // _appeared 翻转后(filter 切换 / 滚动)不再重放
+                            animateStagger: !_appeared,
+                          );
+                        },
+                      );
+                    },
+                    loading: () => ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: const [
+                        SizedBox(height: 120),
+                        Center(child: CircularProgressIndicator()),
+                      ],
+                    ),
+                    error: (e, _) => ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        const SizedBox(height: 120),
+                        Center(child: Text('加载失败:$e')),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

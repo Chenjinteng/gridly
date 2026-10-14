@@ -24,6 +24,7 @@ import '../../../core/motion/app_motion.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/refresh_providers.dart';
 import '../../../core/widgets/staggered_fade_in.dart';
+import '../../../core/widgets/privacy_obscure.dart';
 import 'widgets/category_pie.dart';
 import 'widgets/budget_overview_chart.dart';
 import 'widgets/monthly_trend.dart';
@@ -76,79 +77,83 @@ class _StatsPageState extends ConsumerState<StatsPage> {
   @override
   Widget build(BuildContext context) {
     final view = ref.watch(statsViewProvider);
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('报表'),
-        actions: [
-          // 2026-10-12 视角选择:AppBar 右侧 3 段 underline indicator
-          // (ColorOS 16 风格)。
-          // ── 修复 ── (2026-10-12 UAT 截图反馈"title 不见 + 3 段不显示"):
-          //   1. 不能包 `Center`:Center 在 AppBar actions slot 里会强行
-          //      撑满横向空间,把 title 挤出可见区,只剩 actions 左对齐
-          //      的"支出"浮在左上
-          //   2. AppBar 自己会垂直居中 actions,不需要 Center
-          Padding(
-            padding: const EdgeInsets.only(right: AppSpacing.s2),
-            child: _CompactViewSegmented(
-              current: view,
-              onChange: (v) => ref.read(statsViewProvider.notifier).state = v,
-            ),
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: () async => refreshAllData(ref),
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.only(bottom: AppSpacing.s6),
-          children: [
-            // 视角特定内容 — 包 AnimatedSwitcher cross-fade,切视角(收支/资产)时
-            // 新旧 view 同时存在(Stack 同时透明),完全无缝过渡。
-            //
-            // 2026-10-12 修(第 6 次迭代):
-            //   - 之前 v5:duration 1100ms + cross-fade Stack,中间 ~550ms
-            //     两 view 都半透明重叠,user 反馈"页面消失的太慢,重叠了"
-            //   - v6(本版):duration 500ms,保留 cross-fade 但重叠窗口
-            //     缩到 ~250ms,既保留 ColorOS 水波过场感,又不再"两个
-            //     view 糊在一起"的长时间叠加
-            //   - StaggeredFadeIn 360ms 不动,它只在首次 mount 触发一次,
-            //     view 切换时不重放,跟 AnimatedSwitcher 节奏无冲突
-            //
-            // 2026-10-13 P6 第 7 次改(UAT 截图反馈"老问题又来了,500ms 还是
-            //   太长,重影"):
-            //   - duration 500ms → 200ms(200ms 重叠窗口 ~100ms,基本察觉不到)
-            //   - 切 view 是用户主动操作,要快(入场动画可以慢,view 切换要快)
-            //   - 入场动画(StaggeredFadeIn 360ms + AnimatedCounter 1200ms)
-            //     保持不变,它们只在 view 首次 mount 触发一次,不冲突
-            //
-            // 2026-10-13 P6 改:RangeTabs(本月/本年) + RangeSummary(收入/支出/结余)
-            //   只对 expense 视角显示。资产视角是"当前余额",不依赖时间窗口,
-            //   不显示这 2 个 section 更干净。
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              switchInCurve: AppMotion.aquaIn,
-              switchOutCurve: AppMotion.aquaOut,
-              // cross-fade:Stack 让 previous children 跟 current child 同时
-              // 渲染(各自带 FadeTransition),默认布局只显示 current 会有
-              // "先消失后出现"的空白帧。ColorOS 切 view 风格是 cross-fade。
-              layoutBuilder: (currentChild, previousChildren) {
-                return Stack(
-                  alignment: Alignment.topCenter,
-                  children: <Widget>[...previousChildren, ?currentChild],
-                );
-              },
-              transitionBuilder: (child, animation) {
-                return FadeTransition(opacity: animation, child: child);
-              },
-              child: KeyedSubtree(
-                key: ValueKey('view-${view.name}'),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: _viewContent(view, animateStagger: !_appeared),
-                ),
+    // 2026-10-14 D60:整页隐私覆盖 —— 关闭"显示金额"时,报表页整页盖半透明蒙版
+    //   (含 AppBar),block 全部点击。点蒙版任意位置 = 恢复显示。详情见 PrivacyObscure。
+    return PrivacyObscure(
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('报表'),
+          actions: [
+            // 2026-10-12 视角选择:AppBar 右侧 3 段 underline indicator
+            // (ColorOS 16 风格)。
+            // ── 修复 ── (2026-10-12 UAT 截图反馈"title 不见 + 3 段不显示"):
+            //   1. 不能包 `Center`:Center 在 AppBar actions slot 里会强行
+            //      撑满横向空间,把 title 挤出可见区,只剩 actions 左对齐
+            //      的"支出"浮在左上
+            //   2. AppBar 自己会垂直居中 actions,不需要 Center
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.s2),
+              child: _CompactViewSegmented(
+                current: view,
+                onChange: (v) => ref.read(statsViewProvider.notifier).state = v,
               ),
             ),
           ],
+        ),
+        body: RefreshIndicator(
+          onRefresh: () async => refreshAllData(ref),
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: AppSpacing.s6),
+            children: [
+              // 视角特定内容 — 包 AnimatedSwitcher cross-fade,切视角(收支/资产)时
+              // 新旧 view 同时存在(Stack 同时透明),完全无缝过渡。
+              //
+              // 2026-10-12 修(第 6 次迭代):
+              //   - 之前 v5:duration 1100ms + cross-fade Stack,中间 ~550ms
+              //     两 view 都半透明重叠,user 反馈"页面消失的太慢,重叠了"
+              //   - v6(本版):duration 500ms,保留 cross-fade 但重叠窗口
+              //     缩到 ~250ms,既保留 ColorOS 水波过场感,又不再"两个
+              //     view 糊在一起"的长时间叠加
+              //   - StaggeredFadeIn 360ms 不动,它只在首次 mount 触发一次,
+              //     view 切换时不重放,跟 AnimatedSwitcher 节奏无冲突
+              //
+              // 2026-10-13 P6 第 7 次改(UAT 截图反馈"老问题又来了,500ms 还是
+              //   太长,重影"):
+              //   - duration 500ms → 200ms(200ms 重叠窗口 ~100ms,基本察觉不到)
+              //   - 切 view 是用户主动操作,要快(入场动画可以慢,view 切换要快)
+              //   - 入场动画(StaggeredFadeIn 360ms + AnimatedCounter 1200ms)
+              //     保持不变,它们只在 view 首次 mount 触发一次,不冲突
+              //
+              // 2026-10-13 P6 改:RangeTabs(本月/本年) + RangeSummary(收入/支出/结余)
+              //   只对 expense 视角显示。资产视角是"当前余额",不依赖时间窗口,
+              //   不显示这 2 个 section 更干净。
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                switchInCurve: AppMotion.aquaIn,
+                switchOutCurve: AppMotion.aquaOut,
+                // cross-fade:Stack 让 previous children 跟 current child 同时
+                // 渲染(各自带 FadeTransition),默认布局只显示 current 会有
+                // "先消失后出现"的空白帧。ColorOS 切 view 风格是 cross-fade。
+                layoutBuilder: (currentChild, previousChildren) {
+                  return Stack(
+                    alignment: Alignment.topCenter,
+                    children: <Widget>[...previousChildren, ?currentChild],
+                  );
+                },
+                transitionBuilder: (child, animation) {
+                  return FadeTransition(opacity: animation, child: child);
+                },
+                child: KeyedSubtree(
+                  key: ValueKey('view-${view.name}'),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: _viewContent(view, animateStagger: !_appeared),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
