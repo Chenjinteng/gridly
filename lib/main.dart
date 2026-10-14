@@ -26,6 +26,9 @@ void main() async {
   // 2026-10-14 加:幂等 seed 债权段 1 cat(负债),
   //   跟福利同结构 —— 老 device 补 seed,UI 隐藏 + 自动 fallback
   await container.read(categoryRepositoryProvider).ensureReceivableCategories();
+  // 2026-10-14 D57 加:幂等 seed 其它段 1 cat(其它),
+  //   跟福利/债权同结构 —— 老 device 补 seed,UI 隐藏 + 自动 fallback
+  await container.read(categoryRepositoryProvider).ensureOtherCategories();
   // 2026-10-12 commit 110 加:首次启动 seed 3 个默认资产(现金/银行卡/微信支付)
   //   P1 阶段:资产表 NOT NULL 流水必须挂靠账户,App 启动兜底 seed,
   //   schemaVersion 3 升级路径上 onUpgrade 也 batch insert 了(老设备升级双保险)。

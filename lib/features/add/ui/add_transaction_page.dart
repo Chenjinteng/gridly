@@ -87,12 +87,15 @@ class AddTransactionPage extends StatelessWidget {
     //   - 福利 = 公司社保/医保/餐补等日常账户,跟 cash_flow 短按 + 同 pattern:无调拨
     // 2026-10-14 加:'receivable'(负债)也走 false(2 段)
     //   - 负债段账户不涉及日常调拨(股份期权 / 负债借贷 都是 receipt 类,无 balance)
-    //   - 其它 3 段(不动产/其它)暂仍走 true(3 段),后续单独适配
+    // 2026-10-14 D57 加:'other'(其它)走 false(2 段)
+    //   - 其它段跟福利同 pattern:兜底简化,只 支出/收入,无调拨
+    //   - 不动产 'fixed_asset' 段 D54 已从 Speed Dial 移除,不需考虑
     final effectiveAllowBalance =
         allowBalance ??
         (preselectedAssetType == null ||
                 preselectedAssetType == 'cash_flow' ||
                 preselectedAssetType == 'benefit' ||
+                preselectedAssetType == 'other' ||
                 preselectedAssetType == 'receivable'
             ? false
             : true);

@@ -108,6 +108,9 @@ class AppCategory {
   //   - receivable 段下只剩 1 cat,跟投资/福利同 pattern:UI 隐藏,自动 fallback
   //   - 红(警示我需还金额)跟 D16 支出红同系,语义一致
   static const Color liability = Color(0xFFEF4444); // 负债 — 红(警示)
+  // 2026-10-14 D57 加:其它 1 cat(其它)内置色,跟 AppSegment.other 同值(灰)
+  //   - 其它段跟福利/债权同 pattern:UI 隐藏 cat,DB NOT NULL 通过内置 cat 兜底
+  static const Color other = Color(0xFF71717A); // 其它 — 灰(跟 AppSegment.other 一致)
 
   // === 中性 ===
   static const Color neutral = AppGray.g400; // 其他 / 退款

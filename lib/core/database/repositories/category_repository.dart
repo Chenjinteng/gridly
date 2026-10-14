@@ -38,6 +38,10 @@ class CategoryRepository {
       for (final c in DefaultCategories.receivable) {
         batch.insert(_db.categories, _toCompanion(c));
       }
+      // 2026-10-14 D57 加:其它段 1 类(其它),UI 隐藏 + 自动 fallback(同福利/债权 pattern)
+      for (final c in DefaultCategories.other) {
+        batch.insert(_db.categories, _toCompanion(c));
+      }
     });
   }
 
@@ -78,6 +82,21 @@ class CategoryRepository {
     final names = existing.map((c) => c.name).toSet();
     await _db.batch((batch) {
       for (final c in DefaultCategories.receivable) {
+        if (!names.contains(c.name)) {
+          batch.insert(_db.categories, _toCompanion(c));
+        }
+      }
+    });
+  }
+
+  /// 2026-10-14 D57 加:其它段 1 cat 升级路径(其它),
+  /// 跟 ensureInvestmentCategories / ensureBenefitCategories / ensureReceivableCategories 同 pattern,
+  /// 幂等插入(老 device DB 没种子时补上)
+  Future<void> ensureOtherCategories() async {
+    final existing = await all();
+    final names = existing.map((c) => c.name).toSet();
+    await _db.batch((batch) {
+      for (final c in DefaultCategories.other) {
         if (!names.contains(c.name)) {
           batch.insert(_db.categories, _toCompanion(c));
         }
@@ -187,6 +206,14 @@ class CategoryRepository {
       }
       // 2026-10-14 加:债权段 1 cat 色同步(负债)
       for (final c in DefaultCategories.receivable) {
+        batch.update(
+          _db.categories,
+          CategoriesCompanion(color: Value(c.color.toARGB32())),
+          where: (cat) => cat.name.equals(c.name) & cat.isSystem.equals(true),
+        );
+      }
+      // 2026-10-14 D57 加:其它段 1 cat 色同步(其它,同福利/债权 pattern)
+      for (final c in DefaultCategories.other) {
         batch.update(
           _db.categories,
           CategoriesCompanion(color: Value(c.color.toARGB32())),

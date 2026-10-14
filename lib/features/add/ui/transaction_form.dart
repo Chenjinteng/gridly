@@ -154,12 +154,14 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   bool get _isReceivableContext => widget.preselectedAssetType == 'receivable';
 
   /// 2026-10-14 D55 加:其它场景标识(preselectedAssetType='other')
-  ///   - "其它" 是兜底 bucket,user 反馈:"这里是为了拟补一些没有考虑到的场景的"
-  ///   - 3 段 toggle(支出/收入/调拨,同 cash_flow + balance)
-  ///   - 资产账户类型不限:6 大类(cash_flow / investment / benefit / receivable /
-  ///     fixed_asset / other)都能选,_accountTypeFilter 返 null
-  ///   - 跟 cash_flow 区别:cash_flow 走 caller 默认(短按+'cash_flow',长按相应段),
-  ///     "其它"是 fallback,无 caller 预设,必须显式 null 才不被 caller 默认 'other' 覆盖
+  /// 2026-10-14 D57 改:"其它" 段参考福利 pattern,跟其它 5 大类资产场景脱钩
+  ///   - 之前 D55 想"6 大类账户都能选",user 反馈太复杂,改成跟福利同样的简化结构:
+  ///   - 2 段 toggle(支出/收入,无调拨;同 cash_flow 短按 +)
+  ///   - 账户 picker 只显示 'other' 类型账户(_accountTypeFilter='other')
+  ///   - UI 隐藏 cat 选择器(_needsCategory=false),自动 fallback 到 cat.type='other' 的 cat
+  ///   - 跟 cash_flow 区别:asset.type='other',cat.type='other';都跟"其它"对应
+  ///   - user:"如果要在其它这里考虑其它5个资产场景的话太复杂了,这里的其它就直接是其它的类型,
+  ///         只有支出收入,然后帐户能选择的是其它,然后分类类型默认是其它"
   bool get _isOtherContext => widget.preselectedAssetType == 'other';
 
   /// toggle segments 配置(2026-10-13 P8:caller 完全控制)
@@ -188,6 +190,13 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
           .where((s) => s.key != 'balance')
           .toList();
     }
+    if (_isOtherContext) {
+      // 2026-10-14 D57:其它 2 段:filter 掉 balance(同福利 pattern)
+      //   其它 = 兜底简化,无调拨,跟福利同结构
+      return TypeToggle.cashFlowSegments
+          .where((s) => s.key != 'balance')
+          .toList();
+    }
     if (widget.allowBalance) return TypeToggle.cashFlowSegments;
     // cash_flow + 不允许 balance → 过滤掉"调拨"
     return TypeToggle.cashFlowSegments
@@ -202,10 +211,13 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   ///   - 简化前:债权段有 2 cat(股份期权 / 负债借贷),user 主动选
   ///   - 简化后:user 反馈"期权直接去掉,放到投资中",只剩 1 cat"负债"
   ///   - 1 cat 跟投资/福利同样处理:UI 隐藏,自动 fallback 到 cat.type='liability' 的 cat
+  /// 2026-10-14 D57 加:其它场景也去掉分类选择器(跟福利/投资/债务同 pattern)
+  ///   - 自动 fallback 到 cat.type='other' 的 cat(1 个内置)
   bool get _needsCategory {
     if (_isInvestmentContext) return false;
     if (_isBenefitContext) return false;
     if (_isReceivableContext) return false;
+    if (_isOtherContext) return false; // D57:其它段 UI 隐藏 cat
     return true;
   }
 
@@ -227,49 +239,10 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     return false; // cash_flow 暂用单 accountId
   }
 
-  /// 2026-10-14 D56 加:其它段 选分类按账户 type 过滤
-  ///   user:"其它这里的选分类要注意,要按选择的不同的账户来进行展示,
-  ///        并且有一些是内置的并没有放出来可以让用户定制的,也需要在这里一并展示"
-  ///   - 当前 _type='expense'/'income'/'balance' 决定分类 filter(categoriesByTypeProvider)。
-  ///     其它段选了 investment 账户后,picker 仍只显示 cash_flow 的 expense/income cat,
-  ///     user 看不到 投资投入/投资收益(投资段 UI 隐藏的"内置 cat")
-  ///   - 修:其它段按 account.type → cat.type 映射,picker 显示对应内置 cat:
-  ///     cash_flow → _type(expense/income 跟 toggle 对齐)
-  ///     investment → 'investment'(内置:投资投入/投资收益,分类管理 UI 隐藏)
-  ///     benefit → 'benefit'(内置:福利,UI 隐藏)
-  ///     receivable → 'liability'(内置:债务,UI 隐藏)
-  ///     fixed_asset / other → _type(fallback,无专用 cat type)
-  ///   - 返回 null 表示走 _type(默认行为)
-  String? get _categoryFilterType {
-    if (!_isOtherContext) return null;
-    if (_accountId == null) return null;
-    final account = _findAccountById(_accountId!);
-    if (account == null) return null;
-    switch (account.type) {
-      case 'investment':
-        return 'investment';
-      case 'benefit':
-        return 'benefit';
-      case 'receivable':
-        return 'liability';
-      case 'cash_flow':
-      case 'fixed_asset':
-      case 'other':
-        return null; // 走 _type
-    }
-    return null;
-  }
-
-  /// D56 helper:按 id 在 allAssetsProvider 找账户对象(同步,从 cache 读)
-  ///   - 用于 _categoryFilterType / _firstCategoryId 等需要根据当前账户决定 cat 的场景
-  ///   - 复用 _actionRow 的 ref.watch 模式,这里用 ref.read 因为不在 build 阶段
-  Asset? _findAccountById(int id) {
-    final assets = ref.read(allAssetsProvider).valueOrNull ?? const [];
-    for (final a in assets) {
-      if (a.id == id) return a;
-    }
-    return null;
-  }
+  /// 2026-10-14 D56 废:其它段选分类按账户 type 过滤 —— 2026-10-14 D57 撤销
+  ///   - D56 假设"其它"段可选 6 大类账户,picker 跟随账户 type 显示内置 cat
+  ///   - D57 改:"其它"段跟福利同 pattern(只显示 other 账户 + cat UI 隐藏),不再需要这个逻辑
+  ///   - 代码已移除,留此注释记录设计变迁
 
   bool get _isEdit => widget.editTransaction != null;
 
@@ -384,8 +357,9 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   ///
   /// 2026-10-14 D51 v3:债务段调拨段不 filter(转出/转入都能选 现金 + 债务)
   ///   借出/借入段仍走 caller 默认(preselectedAssetType='receivable',只显示 债务账户)
-  /// 2026-10-14 D55 加:"其它" 段不 filter — user 兜底 bucket,6 大类账户都能选
-  ///   - 即使 caller 默认传 'other',这里也返 null 覆盖掉(同 D51 v3 receivable transfer)
+  /// 2026-10-14 D57 改:"其它" 段只显示 other 类型账户
+  ///   - 之前 D55 想"6 大类账户都能选",user 反馈太复杂,改成跟福利同样的简化结构
+  ///   - 其它 = 兜底简化,只显示 asset.type='other' 的账户(_accountTypeFilter='other')
   String? get _accountTypeFilter {
     if (_isInvestmentContext) {
       switch (_intent) {
@@ -400,10 +374,7 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     if (_isReceivableContext && _intent == 'transfer') {
       return null; // D51 v3:债务调拨源也能选 现金 + 债务,不限
     }
-    if (_isOtherContext) {
-      return null; // D55:其它段兜底,6 大类账户都能选
-    }
-    return widget.accountTypeFilter; // cash_flow:由 caller 决定
+    return widget.accountTypeFilter; // cash_flow / benefit / receivable / other:由 caller 决定
   }
 
   String? get _destinationTypeFilter {
@@ -748,10 +719,7 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
       ),
       builder: (_) => _CategoryPickerSheet(
-        // 2026-10-14 D56:其它段按选中的账户 type 决定 cat filter
-        //   _categoryFilterType 返非 null → 用账户映射的 cat type
-        //   _categoryFilterType 返 null → 走 _type(原行为,cash_flow 用 toggle 决定)
-        type: _categoryFilterType ?? _type,
+        type: _type,
         selected: _categoryId,
         onSelect: (id) {
           setState(() => _categoryId = id);
@@ -1085,10 +1053,9 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   ///   - DB schema NOT NULL 字段必须填,所以 fallback 是必要的,只是要选对分类
   /// 2026-10-14 加:福利场景 fallback 取 cat.type='benefit' 的第一个分类
   ///   - 跟 investment 同结构:UI 隐藏 + DB NOT NULL 字段必填,福利 1 个 cat 通用(支出/收入都 fallback 到它)
-  /// 2026-10-14 D56 加:其它段 fallback 按账户 type 映射(cat.type)
-  ///   - 跟 _categoryFilterType 同逻辑:investment→'investment', benefit→'benefit',
-  ///     receivable→'liability', cash_flow/fixed_asset/other → cash_flow 第一个 cat
-  ///   - 适用:其它段 user 没手动选 cat 直接保存,DB NOT NULL 兜底填对分类
+  /// 2026-10-14 D57 加:其它场景 fallback 取 cat.type='other' 的第一个分类
+  ///   - 跟福利/债权同 pattern:UI 隐藏 cat,DB NOT NULL 通过 1 个内置 cat 兜底
+  ///   - D56 旧版按账户 type 映射(6 类 cat 都考虑),D57 改成单一其它 cat
   Future<int?> _firstCategoryId() async {
     final repo = ref.read(categoryRepositoryProvider);
     final cats = await repo.all();
@@ -1120,27 +1087,13 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       // seed 失败兜底(同 investment / benefit)
       return cats.first.id;
     }
-    // 2026-10-14 D56:其它段按账户 type 选 fallback cat(同 picker 逻辑)
-    if (_isOtherContext && _accountId != null) {
-      final account = _findAccountById(_accountId!);
-      if (account != null) {
-        switch (account.type) {
-          case 'investment':
-            for (final c in cats) {
-              if (c.type == 'investment') return c.id;
-            }
-          case 'benefit':
-            for (final c in cats) {
-              if (c.type == 'benefit') return c.id;
-            }
-          case 'receivable':
-            for (final c in cats) {
-              if (c.type == 'liability') return c.id;
-            }
-          // cash_flow / fixed_asset / other → 走 cash_flow toggle 决定的 _type,
-          //   由 caller(_openCategoryPicker + save)处理,这里默认 fallback 到 first cat
-        }
+    if (_isOtherContext) {
+      // 2026-10-14 D57:其它:取 cat.type='other' 的第一个分类(其它),seed 出来
+      for (final c in cats) {
+        if (c.type == 'other') return c.id;
       }
+      // seed 失败兜底(同 investment / benefit / receivable)
+      return cats.first.id;
     }
     return cats.first.id;
   }
@@ -1165,11 +1118,10 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     //   - 债务调拨段:_accountTypeFilter 返 null → 不过滤(现金 + 债务都能选)
     //   - 现金短按+:_accountTypeFilter 返 null → fallback 到 'cash_flow'
     //   - 投资段:_accountTypeFilter 走投资 intent 限定(input='cash_flow', transfer=null)
-    // 2026-10-14 D55 加:"其它"段不 filter(兜底,6 大类都能选)
-    //   - _accountTypeFilter 已经返 null,但 `?? widget.accountTypeFilter` 会 fallback 到 caller 的 'other',
-    //   所以这里跟 D51 v4 receivable transfer 同 pattern 显式短路
-    final String? filter =
-        (_isReceivableContext && _intent == 'transfer') || _isOtherContext
+    //   - 其它段:caller 默认 'other'(走 widget.accountTypeFilter),显示 other 账户
+    // 2026-10-14 D57 废:_isOtherContext 短路 —— D55 假设"6 大类可选",
+    //   D57 改"只 other 账户",跟 caller 默认一致,不需要短路
+    final String? filter = _isReceivableContext && _intent == 'transfer'
         ? null
         : (_accountTypeFilter ?? widget.accountTypeFilter);
     showModalBottomSheet<void>(

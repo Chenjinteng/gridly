@@ -297,6 +297,22 @@ class DefaultCategories {
       sortOrder: 0,
     ),
   ];
+
+  /// 其它段 1 类 —— 2026-10-14 D57 加:
+  ///   - '其它':其它段账户(asset.type='other')的支出/收入都用同一个分类
+  ///   - UI 隐藏:TransactionForm 在 other context 不显示分类选择器,
+  ///     seed 出来只填 DB NOT NULL 字段(cat.type='other')
+  ///   - 跟 investment/benefit/receivable 同 pattern:UI 隐藏 + DB 必填,所以统一 fallback
+  ///   - DB schema 不动:cat.type 是 String,'other' 新值不需 migration
+  static const List<DefaultCategory> other = [
+    DefaultCategory(
+      name: '其它',
+      icon: 'category', // 复用 v1 几何 icons 里 'category'(label icon 语义)
+      color: AppCategory.other,
+      type: 'other',
+      sortOrder: 0,
+    ),
+  ];
 }
 
 /// v1 → v2 图标 key 迁移表,按 name 匹配老数据。
