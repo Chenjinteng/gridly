@@ -364,6 +364,13 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   ///   - 之前 D51 v3 债务调拨不限类型 → D58 user 推翻,改限定 cash_flow ↔ receivable,
   ///     picker 要能传"白名单多 type"(同 D50 互斥仍适用)
   ///   - 各 path 返单元素 list 而不是裸 string,统一 list 协议
+  /// 2026-10-14 D59 加:cash_flow 支出段允许 source 选 receivable 账户(信用卡/花呗场景)
+  ///   - user:"在记一笔现金流中可以选择的支出账号增加债务的资产"
+  ///   - 信用卡/花呗 是超前消费,本质是"支出但付款来源是负债账户"
+  ///   - balance -= amount(扣到更负 = 欠款增加,D49 校验例外已覆盖)
+  ///   - 走 cash_flow 支出段,cat 正常选真实分类(餐饮/购物等),报表分类统计准
+  ///   - 收入段保持 cash_flow 不变(信用卡收款语义错位,不允许)
+  ///   - 调拨段已被 D58 限定 cash_flow ↔ receivable(跟支出独立,无影响)
   List<String>? get _accountTypeFilter {
     if (_isInvestmentContext) {
       switch (_intent) {
@@ -378,6 +385,15 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     if (_isReceivableContext && _intent == 'transfer') {
       // D58:user 推翻 D51 v3 改限定 cash_flow ↔ receivable,转出/转入都按此
       //   之前的 v3 不限太松(能选投资/福利/不动产/其它,语义错位)
+      return ['cash_flow', 'receivable'];
+    }
+    if (widget.preselectedAssetType == 'cash_flow' && _intent == 'expense') {
+      // D59:cash_flow 支出段允许 source 选 receivable(信用卡/花呗)
+      //   - 之前:['_accountTypeFilter'] = ['cash_flow'] → 只显示现金账户
+      //   - 现在:['_cash_flow', 'receivable'] → 现金账户 + 信用卡/花呗
+      //   - D49 余额校验例外已覆盖(receivable 跳过),balance 扣到更负 = 负债增加
+      //   - 跟 D51 lend/borrow 语义不冲突 —— receivable 段保留给"我借出去/借入现金"用,
+      //     信用卡消费走 cash_flow 支出段,语义更自然("花出去"对应"支出")
       return ['cash_flow', 'receivable'];
     }
     if (widget.accountTypeFilter != null) {
