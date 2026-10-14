@@ -105,17 +105,20 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   ///     收益是账户自身的增长,没有"从哪到哪"的流向,跟转入转出语义无关
   ///   - 调拨(_intent='transfer'):type='balance',双账户(任意 ↔ 任意)
   ///   - 之前 P8→P17 一律存 'balance',收益也要 destinationAccountId(语义错)
-  /// - 2026-10-14 D51:receivable → 直接用 _intent('lend_out' / 'borrow_in'),1:1 对应 DB
+  /// - 2026-10-14 D51:receivable → 直接用 _intent('lend_out' / 'borrow_in' / 'transfer'),大部分 1:1
   ///   - 借出 = 'lend_out',accountId=负债账户,balance += amount
   ///   - 借入 = 'borrow_in',accountId=负债账户,balance -= amount
-  ///   - 单账户操作,无 destinationAccountId(跟现金支出/收入同 pattern)
+  ///   - 调拨 = 'balance',双账户(负债 source → 现金 dest,或反之),有 destinationAccountId
+  ///   - 借出/借入 单账户操作,无 destinationAccountId;调拨 跟 cash_flow 调拨同 schema
   String get _type {
     if (_isInvestmentContext) {
       if (_intent == 'output') return 'income'; // 收益:单账户增加
       return 'balance'; // 投入/调拨:source → dest
     }
     if (_isReceivableContext) {
-      return _intent; // 'lend_out' / 'borrow_in' 直接对应 DB
+      // D51 v2:调拨段走 'balance' 跟 cash_flow / investment 一致
+      if (_intent == 'transfer') return 'balance';
+      return _intent; // 'lend_out' / 'borrow_in' 1:1 对应 DB
     }
     return _intent;
   }
@@ -202,14 +205,15 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   ///   - 收益 → 单账户(只有 accountId)
   /// 收益是账户自身的增长,没有"从哪到哪"的流向,UI 上不显示转入转出 pill,
   ///   save() 时 destinationAccountId 传 null
-  /// 2026-10-14 D51:receivable 借出/借入 → 单账户(只有 accountId=负债账户)
-  ///   - 跟现金支出/收入同 pattern(无 destinationAccountId)
+  /// 2026-10-14 D51:receivable 借出/借入 → 单账户;调拨 → 双账户
+  ///   - 借出/借入:无 destinationAccountId(单账户记录,只动负债账户)
+  ///   - 调拨:有 destinationAccountId(负债 ↔ 现金 流转)
   bool get _needsDualAccount {
     if (_isInvestmentContext) {
       return _intent != 'output'; // 投入/调拨:双;收益:单
     }
     if (_isReceivableContext) {
-      return false; // 借出/借入都是单账户操作
+      return _intent == 'transfer'; // D51 v2:调拨是双账户,借出/借入都是单
     }
     return false; // cash_flow 暂用单 accountId
   }
@@ -348,6 +352,11 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
         case 'transfer':
           return null; // 调拨:不限制
       }
+    }
+    // 2026-10-14 D51 v2:债务段调拨默认只显示现金账户(收回借款 / 借入方还款)
+    //   user 反馈"调拨就是债务 ↔ 现金",其它段(投资/福利/不动产)跟债务没自然调拨关系
+    if (_isReceivableContext && _intent == 'transfer') {
+      return 'cash_flow';
     }
     return null; // cash_flow:无 destination
   }

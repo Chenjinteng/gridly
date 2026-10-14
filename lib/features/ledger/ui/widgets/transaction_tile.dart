@@ -63,15 +63,18 @@ class TransactionTile extends ConsumerWidget {
             isInvestmentRecord || (txAsset?.includeInTransactions == false);
         // 2026-10-12 P3 commit:balance 流水不显示 ± prefix
         //   (调拨可正可负,跟"支出=负 / 收入=正"的语义不同)
-        // 2026-10-14 D51 加:lend_out / borrow_in 也不显示 ± prefix
-        //   (借出/借入 amount 永远正,语义靠 type 区分,跟 balance 同样的"无 prefix"规则)
-        final showPrefix =
-            transaction.type != 'balance' &&
-            transaction.type != 'lend_out' &&
-            transaction.type != 'borrow_in';
+        // 2026-10-14 D51 v2 改:lend_out / borrow_in 显示 ± prefix
+        //   - 借出 lend_out = -"(我失去的钱,钱包出)
+        //   - 借入 borrow_in = +"(我借到的可支配钱,钱包入)
+        //   - balance 仍不显示 prefix(调拨,语义中性)
+        //   - 这跟资产记录里"借出 += amount / 借入 -= amount"是相反的
+        //     (ledger 走"现金流向"语义,asset 走"债务方向"语义,双视角)
+        final showPrefix = transaction.type != 'balance';
         final prefix = switch (transaction.type) {
           'income' => '+',
           'expense' => '-',
+          'lend_out' => '-', // D51 v2:借出 = 我失去的钱
+          'borrow_in' => '+', // D51 v2:借入 = 我借到的钱
           _ => '',
         };
         final theme = Theme.of(context);
@@ -131,8 +134,16 @@ class TransactionTile extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Expanded(
+                            // 2026-10-14 D51 v2 改:借出/借入 record 显示 transaction.type 标签
+                            //   而不是 cat.name("债务")
+                            //   - cat.name 全是"债务"(同 cat.type='liability' 1 cat),
+                            //     user 一眼看不出是哪类动作
+                            //   - 改显示 transaction.type 标签,让"借出 / 借入 / 调拨"清晰
+                            //   - 普通 record 仍走 cat.name(分类语义,如"餐饮"/"交通")
+                            //   - 投资 record(investment cat)cat.name 区分"投资投入"/"投资收益",
+                            //     也可走 cat.name;为了一致非 receivable 走 cat.name
                             child: Text(
-                              cat?.name ?? '未分类',
+                              _displayLabelFor(transaction.type, cat?.name),
                               style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w500,
@@ -259,6 +270,23 @@ class TransactionTile extends ConsumerWidget {
   ///     asset loaded 后会变正确段色
   static String _fallbackAccountType(String txType) {
     return 'cash_flow'; // 多数流水属 cash_flow 段
+  }
+
+  /// 2026-10-14 D51 v2 加:流水 tile 类型 label 优先走 transaction.type
+  ///   - 借出 / 借入:cat 全是"债务"(同 1 cat),不显示 cat.name,改显示 transaction.type
+  ///     (user:"类型应该就是 借入 和 借出")
+  ///   - 其它 record:仍走 cat.name(分类语义)
+  ///   - 调拨:balance type + destinationAccountId,显示 cat.name
+  ///     (调拨是"从 A 到 B"的中性动作,显示 cat.name 如"投资"等)
+  static String _displayLabelFor(String txType, String? catName) {
+    switch (txType) {
+      case 'lend_out':
+        return '借出';
+      case 'borrow_in':
+        return '借入';
+      default:
+        return catName ?? '未分类';
+    }
   }
 }
 
