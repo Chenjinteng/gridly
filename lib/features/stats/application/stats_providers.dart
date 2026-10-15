@@ -95,10 +95,18 @@ final statsSummaryProvider = Provider<StatsSummary>((ref) {
   double income = 0, expense = 0;
   for (final t in txs) {
     final cType = catTypeById[t.categoryId];
-    // D62:income / expense 必须 cat.type 与 tx.type 双向对齐,才是 cash_flow 收支
+    // D62:income 必须 cat.type 与 tx.type 双向对齐,才是 cash_flow 收入
     if (t.type == 'income' && cType == 'income') {
       income += t.amount;
-    } else if (t.type == 'expense' && cType == 'expense') {
+    } else if (
+    // D62.4:支出放宽口径 — 真支出(cash_flow expense) + 还款(现金→债务调拨)
+    //   - UAT 反馈:首页 monthSummaryProvider 已把还款算入支出(余额 = Σ 收入 - 真支出 - Σ 转出),
+    //     但报表 range_summary 算 7,009 不含还款,两处不一致
+    //   - user 原话:"用现金流进行还债务了,也算是支出" — 现金流出 = 支出,跟 destination 无关
+    //   - 投资投入(cat.type='investment' AND tx.type='balance')仍不计,跟 user D62 时口径一致
+    //   - 福利调拨 / 其它段调拨 也不计(只 debt 调拨算,跟支出分类饼图口径一致)
+    (t.type == 'expense' && cType == 'expense') ||
+        (t.type == 'balance' && cType == 'liability')) {
       expense += t.amount;
     }
   }
@@ -262,7 +270,9 @@ final dailyExpenseTrendProvider = FutureProvider<List<DailyExpense>>((
 });
 
 /// 过去 12 个月(含本月)的收入/支出趋势
-/// D62 同步口径:只算 cash_flow 收支,跟 statsSummaryProvider 一致
+/// D62.4 同步口径:跟 statsSummaryProvider / _periodSummary 一致
+///   - income:cat.type='income' AND tx.type='income'(只算 cash_flow 收入)
+///   - expense:cash_flow 真支出 + 还款(现金→债务调拨)
 final monthlyTrendProvider = FutureProvider<List<MonthlyTrend>>((ref) async {
   final db = ref.watch(databaseProvider);
   final cats = await ref.watch(allCategoriesProvider.future);
@@ -276,9 +286,11 @@ final monthlyTrendProvider = FutureProvider<List<MonthlyTrend>>((ref) async {
   final byMonth = <String, MonthlyTrend>{};
   for (final t in txs) {
     final cType = catTypeById[t.categoryId];
-    // D62:income / expense 必须 cat.type 与 tx.type 双向对齐
+    // D62.4:income 必须 cat.type 与 tx.type 双向对齐,expense 含真支出 + 还款
     final isIncome = t.type == 'income' && cType == 'income';
-    final isExpense = t.type == 'expense' && cType == 'expense';
+    final isExpense =
+        (t.type == 'expense' && cType == 'expense') ||
+        (t.type == 'balance' && cType == 'liability');
     if (!isIncome && !isExpense) continue;
     final key = '${t.occurredAt.year}-${t.occurredAt.month}';
     final cur =
@@ -381,7 +393,11 @@ class MonthlyYoY {
 }
 
 /// 区间 cash_flow 收支聚合(共用,monthly/yearly YoY 都用)
-///   D62 口径:cat.type 与 tx.type 双向对齐,只算 cash_flow 收支
+///   口径跟 statsSummaryProvider 完全一致:
+///     - income:cat.type='income' AND tx.type='income'(只算 cash_flow 收入)
+///     - expense:cash_flow 真支出 + 还款(现金→债务调拨,cat.type='liability' AND tx.type='balance')
+///   D62.4 改 expense 口径:跟首页 monthSummaryProvider 对齐,user 反馈
+///   "用现金流进行还债务了,也算是支出"
 Future<StatsSummary> _periodSummary(
   Ref ref,
   DateTime start,
@@ -397,7 +413,10 @@ Future<StatsSummary> _periodSummary(
   for (final t in txs) {
     final cType = catTypeById[t.categoryId];
     if (t.type == 'income' && cType == 'income') income += t.amount;
-    if (t.type == 'expense' && cType == 'expense') expense += t.amount;
+    if ((t.type == 'expense' && cType == 'expense') ||
+        (t.type == 'balance' && cType == 'liability')) {
+      expense += t.amount;
+    }
   }
   return StatsSummary(income: income, expense: expense);
 }
