@@ -257,6 +257,10 @@ class SettingsPage extends ConsumerWidget {
   void _openExportSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      // 2026-10-15 D64.20 加:useRootNavigator: false
+      //   - sheet 推到 settings tab 的 shell sub-navigator,而不是 root
+      //   - 跟 ledger pickers 同根因(D64.20 commit message),不再重复分析
+      useRootNavigator: false,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(

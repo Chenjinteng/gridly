@@ -20,6 +20,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/providers.dart';
@@ -239,7 +240,7 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
       // 广谱 invalidate(包含 asset 列表 + balances map)
       refreshAllData(ref);
       ref.invalidate(allAssetsProvider);
-      if (mounted) Navigator.pop(context);
+      if (mounted) context.pop();
     } catch (e) {
       if (mounted) _toast('保存失败:$e');
     } finally {
@@ -256,20 +257,12 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
     final theme = Theme.of(context);
     final isEdit = widget.existing != null;
 
-    // 2026-10-15 D64.18 加 PopScope:本页面通过 raw Navigator.push 进入,
-    //   不在 go_router 的 navigator 树上,Android 返回键触发 didPopRoute
-    //   会让 GoRouterDelegate._findCurrentNavigator 报 null → app exit
-    //   (同 advanced_filter_page 同一根因)。canPop: false +
-    //   onPopInvokedWithResult 手动 Navigator.pop 拦截。
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
-        Navigator.of(context).pop();
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(isEdit ? '编辑账户' : '新增账户'),
+    // 2026-10-15 D64.20 改:本页面从 raw Navigator.push 改为 context.push('/settings/assets/edit', extra: existing)
+    //   (app_router.dart 里走的 go_router 路线),所以不再需要 D64.18 加的 PopScope
+    //   拦截 back 键 —— go_router 自动处理路由 pop,Navigator.pop 改 context.pop。
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(isEdit ? '编辑账户' : '新增账户'),
           actions: [
             // 右上角"保存"按钮(2026-10-13 P6 整页重构后,AppBar 替代底部 FilledButton)
             IconButton(
@@ -504,7 +497,6 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
             ],
           ),
         ),
-      ),
     );
   }
 
@@ -542,7 +534,7 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
       refreshAllData(ref);
       ref.invalidate(allAssetsProvider);
       if (mounted) {
-        Navigator.pop(context); // 关闭 form page
+        context.pop(); // 关闭 form page
       }
     } catch (e) {
       if (mounted) _toast('删除失败:$e');

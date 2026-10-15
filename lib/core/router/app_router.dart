@@ -21,6 +21,7 @@ import '../../features/splash/splash_page.dart';
 import '../../features/shell/ui/main_shell.dart';
 import '../../features/home/ui/home_page.dart';
 import '../../features/ledger/ui/ledger_page.dart';
+import '../../features/ledger/ui/advanced_filter_page.dart';
 import '../../features/add/ui/add_transaction_page.dart';
 import '../../features/add/ui/edit_transaction_page.dart';
 import '../../features/stats/ui/stats_page.dart';
@@ -28,8 +29,10 @@ import '../../features/settings/ui/settings_page.dart';
 import '../../features/settings/ui/category_management_page.dart';
 import '../../features/settings/ui/budget_management_page.dart';
 import '../../features/settings/ui/assets_management_page.dart';
+import '../../features/settings/ui/widgets/asset_form_page.dart';
 import '../../features/settings/ui/about_page.dart';
 import '../motion/app_motion.dart';
+import '../database/app_database.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 // 2026-10-11 暴露:MainShell.onDestinationSelected 用它显式 popUntil 切 tab 时
@@ -244,6 +247,35 @@ final routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _pushSubPage(
           key: state.pageKey,
           child: const AssetsManagementPage(),
+        ),
+      ),
+      // 2026-10-15 D64.20 加:流水页"高级筛选"全屏路由
+      //   改自 raw Navigator.push(MaterialPageRoute(...)) → go_router 路线
+      //   原因:raw push 的页面在 shell sub-navigator 上,go_router 的
+      //   _findCurrentNavigator 找不到(canPop 因 PopScope 返 false),
+      //   Android 返回键直接退 app(见 D64.20 commit message)。
+      //   改走 context.push → 页面在 root navigator 栈上,go_router 能
+      //   正确路由 back 键 → dismiss → 回到 /ledger tab。
+      GoRoute(
+        path: '/ledger/advanced-filter',
+        name: 'ledgerAdvancedFilter',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => _pushSubPage(
+          key: state.pageKey,
+          child: const AdvancedFilterPage(),
+        ),
+      ),
+      // 2026-10-15 D64.20 加:资产表单全屏路由(替代 raw Navigator.push)
+      //   /settings/assets/edit 新增(existing=null) + /settings/assets/edit 携带 extra:Asset 编辑
+      //   existing Asset 对象通过 state.extra 传入(参考 /add 的 preselectedAssetType)
+      //   path 不带 :id 是因为编辑时 caller 直接传整个 Asset 对象(避免重复查 DB)
+      GoRoute(
+        path: '/settings/assets/edit',
+        name: 'assetForm',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => _pushSubPage(
+          key: state.pageKey,
+          child: AssetFormPage(existing: state.extra as Asset?),
         ),
       ),
     ],

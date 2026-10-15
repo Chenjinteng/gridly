@@ -68,6 +68,13 @@ Future<Object?> showSingleSelectSheet<T>(
   final listOptions = options.where((o) => o.$1 is! AllPicked).toList();
   return showModalBottomSheet<Object?>(
     context: context,
+    // 2026-10-15 D64.20 加:useRootNavigator: false
+    //   - sheet 推到 ledger tab 的 shell sub-navigator,而不是 root
+    //   - 跟 ledger_page 同 navigator 树 → go_router._findCurrentNavigator
+    //     能正确找到 shell → state.maybePop() 弹掉 sheet 而不是退出 app
+    //   - 之前 useRootNavigator: true(默认)把 sheet 推到 root,go_router 错把
+    //     shell 当作"可 pop 入口",back 键实际去 pop shell 下的 ledger_page → 退 app
+    useRootNavigator: false,
     isScrollControlled: true,
     backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(

@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/widgets/staggered_fade_in.dart';
@@ -15,7 +16,6 @@ import '../../../core/utils/formatters.dart';
 import '../../../core/utils/refresh_providers.dart';
 import '../../../core/utils/asset_balance_provider.dart';
 import '../application/transactions_providers.dart';
-import 'advanced_filter_page.dart';
 import 'filter_picker_sheets.dart';
 import 'widgets/transaction_tile.dart';
 
@@ -67,9 +67,15 @@ class _LedgerPageState extends ConsumerState<LedgerPage> {
   ///   - 移除 _openFilterSheet / _FilterSheet 旧的 modal sheet 实现
   ///   - 改用 Navigator.push 推全屏页 AdvancedFilterPage(替代)
   ///   - icon 在有任意筛选激活时 tint primary 色(不变)
+  ///
+  /// 2026-10-15 D64.20 改:Navigator.push → context.push('/ledger/advanced-filter')
+  ///   - 原因:raw Navigator.push 把页面推到 shell sub-navigator,go_router 的
+  ///     _findCurrentNavigator 找不到(canPop 因 PopScope 返 false) → Android
+  ///     返回键直接退 app。改走 go_router 路线,页面在 root navigator 栈上,
+  ///     back 键能正确路由。
+  ///   - 同时删除 D64.18 加的 PopScope(canPop: false, ...) 兜底,不再需要。
   void _openAdvancedFilter() {
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => const AdvancedFilterPage()));
+    context.push('/ledger/advanced-filter');
   }
 
   /// 最近 12 个月(含本月),按时间倒序
@@ -427,6 +433,9 @@ class _FilterBar extends ConsumerWidget {
   Future<void> _showCategoryPicker(BuildContext context) async {
     final selected = await showModalBottomSheet<Set<int>>(
       context: context,
+      // 2026-10-15 D64.20 加:useRootNavigator: false
+      //   - 同 showSingleSelectSheet,详见 filter_picker_sheets.dart 注释
+      useRootNavigator: false,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(

@@ -17,6 +17,7 @@
 // 跟 category_management_page.dart 镜像结构,确保 user 体验一致
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/providers.dart';
@@ -25,7 +26,6 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/asset_balance_provider.dart';
 import '../../../core/utils/gridly_banner.dart';
 import '../../../core/utils/refresh_providers.dart';
-import 'widgets/asset_form_page.dart';
 import 'widgets/asset_summary_card.dart';
 import 'widgets/asset_tile.dart';
 
@@ -144,12 +144,14 @@ class AssetsManagementPage extends ConsumerWidget {
     // - 页面太长(6 段类型 + 8 icon + 16 调色板 + 期初余额 + 计入开关),sheet 太挤
     // - sheet 没有明显关闭/返回按钮,user 容易卡死
     // - 整页后 AppBar 自动有返回箭头 + 右上角"保存"check,操作闭环
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => AssetFormPage(existing: existing),
-        fullscreenDialog: true, // 新增/编辑的整页用全屏 dialog 过渡
-      ),
-    );
+    //
+    // 2026-10-15 D64.20 改:Navigator.push → context.push('/settings/assets/edit', extra: existing)
+    //   - 原因:raw Navigator.push 把 AssetFormPage 推到 shell sub-navigator,
+    //     go_router 的 _findCurrentNavigator 找不到(canPop 因 PopScope 返 false)
+    //     → Android 返回键直接退 app(见 D64.20 commit message)。
+    //   - 改走 go_router 路线,AssetFormPage 在 root navigator 栈上,back 键正确路由。
+    //   - 同时删除 D64.18 加的 PopScope 兜底,不再需要。
+    context.push('/settings/assets/edit', extra: existing);
   }
 
   Future<void> _confirmDelete(
