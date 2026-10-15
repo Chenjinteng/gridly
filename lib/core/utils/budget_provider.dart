@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../database/app_database.dart';
 import '../database/providers.dart';
+import '../database/repositories/monthly_budget_repository.dart';
 
 const _kBudgetKey = 'monthly_budget';
 
@@ -13,29 +14,58 @@ const _kBudgetKey = 'monthly_budget';
 ///   - SharedPreferences 存"总额度"(原有)
 ///   - 数据库 CategoryBudgets 表存"分类子额度"(新)
 ///   - 共享剩余池 = 总额度 - 所有已配置分类子额度总和,所有未配置分类共享这个池
+///
+/// 2026-10-15 D64.21b 改:MonthlyBudgetNotifier 双写 SharedPreferences + monthly_budgets
+///   - 总额度不再只存 SharedPreferences 单值,每次 set 时按 (year, month) 同时
+///     落 monthly_budgets 表,作为"全年预算管理"报表的历史数据源。
+///   - 启动时读 SharedPreferences,如果当月 monthly_budgets 没记录 → 补一条
+///     (老 user 升级时 onUpgrade v7→v8 不回填历史,D64.21a 设计决定只在启动
+///     时由本 notifier 兜底回填当月 1 行,避免历史月份幻觉数据)。
 
 class MonthlyBudgetNotifier extends StateNotifier<double> {
-  MonthlyBudgetNotifier() : super(0) {
+  MonthlyBudgetNotifier(this._ref) : super(0) {
     _loadFromDisk();
   }
+
+  final Ref _ref;
 
   Future<void> _loadFromDisk() async {
     final prefs = await SharedPreferences.getInstance();
     final value = prefs.getDouble(_kBudgetKey) ?? 0;
     if (value != state) state = value;
+
+    // D64.21b:老 user 升级兜底 —— 当月 SharedPreferences 已有值但
+    // monthly_budgets 表没记录时,补一条当月行(避免报表"全年预算" tab
+    // 当月显示 0 但 home 顶部"还剩 ¥X"又显示有预算的不一致)。
+    if (value > 0) {
+      final repo = _ref.read(monthlyBudgetRepositoryProvider);
+      final now = DateTime.now();
+      final existing = await repo.byMonth(now.year, now.month);
+      if (existing == null) {
+        await repo.upsert(year: now.year, month: now.month, amount: value);
+      }
+    }
   }
 
   Future<void> set(double value) async {
-    if (value == state) return;
-    state = value < 0 ? 0 : value;
+    final normalized = value < 0 ? 0.0 : value;
+    if (normalized == state) return;
+    state = normalized;
+
+    // 写 SharedPreferences(快读 + 离线 fallback)
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_kBudgetKey, state);
+
+    // D64.21b:同时落 monthly_budgets 表当月行 —— "全年预算" tab 历史数据源
+    final repo = _ref.read(monthlyBudgetRepositoryProvider);
+    final now = DateTime.now();
+    await repo.upsert(year: now.year, month: now.month, amount: state);
   }
 }
 
 final monthlyBudgetProvider =
     StateNotifierProvider<MonthlyBudgetNotifier, double>((ref) {
-      return MonthlyBudgetNotifier();
+      return MonthlyBudgetNotifier(ref);
     });
 
 /// 分类预算 — 单分类的 summary
@@ -191,3 +221,12 @@ final budgetOverviewForMonthProvider =
         items: items,
       );
     });
+
+/// 2026-10-15 D64.21b 加:某年 12 月总额度历史 —— 报表"全年预算" tab 数据源
+///   - 返 `List<MonthlyBudgetEntry>` (12 项,缺失月 amount=0)
+///   - family 参数 = year(由 caller `statsCustomYearProvider` 传入)
+final monthlyBudgetHistoryProvider =
+    FutureProvider.family<List<MonthlyBudgetEntry>, int>((ref, year) async {
+  final repo = ref.watch(monthlyBudgetRepositoryProvider);
+  return repo.yearHistory(year);
+});

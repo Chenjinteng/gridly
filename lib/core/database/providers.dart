@@ -7,6 +7,7 @@ import 'repositories/asset_repository.dart';
 import 'repositories/transaction_repository.dart';
 import 'repositories/category_repository.dart';
 import 'repositories/category_budget_repository.dart';
+import 'repositories/monthly_budget_repository.dart';
 
 /// Database 单例 Provider
 final databaseProvider = Provider<AppDatabase>((ref) {
@@ -30,6 +31,11 @@ final categoryBudgetRepositoryProvider = Provider<CategoryBudgetRepository>((
   ref,
 ) {
   return CategoryBudgetRepository(ref.watch(databaseProvider));
+});
+
+/// MonthlyBudgetRepository Provider(D64.21b 加:总额度按月历史)
+final monthlyBudgetRepositoryProvider = Provider<MonthlyBudgetRepository>((ref) {
+  return MonthlyBudgetRepository(ref.watch(databaseProvider));
 });
 
 /// AssetRepository Provider(commit 110 加)
