@@ -7,6 +7,10 @@
 //
 // 2026-10-12 P5 commit 加同比箭头:本月维度显示 ▲▼ + 百分比(零除边界 = 绝对值 ±),
 // 本年维度不显示。月度汇总的"变"信息让 user 一眼看到趋势。
+//
+// 2026-10-15 D64.9 改:footer 行复用,左对齐储蓄率(= balance / income * 100),
+//   右对齐保留"同比上月/去年"。user UAT 反馈"同比提示一行很空,可以把储蓄率
+//   放左对齐"。储蓄率 % 跟结余同色逻辑(正 teal / 负 error / 零 neutral)。
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -37,6 +41,15 @@ class RangeSummary extends ConsumerWidget {
     //   - user 反馈"± 与上一个月的同比吗"(D62.2 起源)
     //   - D62.3 user 又要求"年度小卡片也需要" — 本年维度补 footer
     final yoyFooterLabel = range == StatsRange.thisMonth ? '同比上月' : '同比去年';
+    // 2026-10-15 D64.9:当月/当年储蓄率 = balance / income * 100
+    //   - income == 0 时给 0.0(不可计算,显示中性值,避免除 0)
+    //   - 颜色逻辑跟结余一致:正 teal(健康) / 负 error(超支) / 零 onSurfaceVariant
+    final savingsRate = s.income > 0 ? (s.balance / s.income) * 100 : 0.0;
+    final savingsRateColor = savingsRate > 0
+        ? AppBrand.teal
+        : savingsRate < 0
+        ? AppStatus.error
+        : Theme.of(context).colorScheme.onSurfaceVariant;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
       padding: const EdgeInsets.all(AppSpacing.s4),
@@ -97,13 +110,28 @@ class RangeSummary extends ConsumerWidget {
           // D62.2 + D62.3:右对齐灰色 10sp 小字,本月显示"同比上月",本年显示"同比去年"
           //   - user 反馈 ± 不知道是跟哪个维度对比,直接在卡片上明示
           //   - 本年维度 footer + 同比箭头同时存在(D62.3 加 yearlyYoYProvider)
+          // D64.9:左对齐加储蓄率(label 灰 + % 着色),同一行 footer 复用空间。
           const SizedBox(height: AppSpacing.s2),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              yoyFooterLabel,
-              style: const TextStyle(color: AppGray.g400, fontSize: 10),
-            ),
+          Row(
+            children: [
+              Text(
+                '储蓄率 ',
+                style: const TextStyle(color: AppGray.g400, fontSize: 10),
+              ),
+              Text(
+                '${savingsRate.toStringAsFixed(1)}%',
+                style: TextStyle(
+                  color: savingsRateColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                yoyFooterLabel,
+                style: const TextStyle(color: AppGray.g400, fontSize: 10),
+              ),
+            ],
           ),
         ],
       ),
