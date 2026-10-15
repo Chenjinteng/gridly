@@ -243,10 +243,10 @@ features/<name>/
   - `logo_horizontal.png` 2752×1536 — LOGO + "格子记账" 文字(横版品牌)
 - **Launcher icon**(5 个 mipmap-*/ic_launcher.png)当前从 `logo_primary.png` 派生,2026-10-10 改成白底风格
 
-### v0.3.5 P18 进度(2026-10-15 完成,62 commits)
+### v0.3.5 P18 进度(2026-10-15 完成,63 commits)
 
-- HEAD: `66d8a15 feat(stats): range_summary 本年维度也显示同比(同比去年整年) (D62.3)`,已推 `origin/main`
-- commit 范围:`7ea90d3..66d8a15`
+- HEAD: `60e5eed fix(stats): range_summary 支出口径放宽含现金→债务调拨(跟首页对齐) (D62.4)`,已推 `origin/main`
+- commit 范围:`7ea90d3..60e5eed`
 - 主要文件改动:
   - `lib/features/add/ui/transaction_form.dart` — 5 getter 三段拆分 / save() dest 收益不存 / initState pre-fill / D44 toggle 不清 cat(receivable 例外) / D45 `_actionRow` 全表查 cat / D49 余额校验扩所有非负债段 / D50 `_AccountPickerSheet` 加 `excludeId` / D51 v4 source picker 短路 / D52 / D53 popup overflow 修 / D55 `_isOtherContext` getter / D57 撤销 D56 `_categoryFilterType` + D55 `_accountTypeFilter` 返 null,改 `_toggleSegments` filter balance + `_needsCategory` 返 false + `_firstCategoryId` 简化 fallback(cat.type='other') / D58 `_AccountPickerSheet.accountTypeFilter` 改 `List<String>?`(多类型白名单)+ `_accountTypeFilter` / `_destinationTypeFilter` 返 `List<String>?` 统一协议,债务调拨限定 `['cash_flow', 'receivable']` / D59 cash_flow + expense 分支返 `['cash_flow', 'receivable']`(信用卡/花呗 source)
   - `lib/features/add/ui/add_transaction_page.dart` — `_appBarTitle` / `effectiveAllowBalance` 福利 / 债权 / 其它(D57)适配
@@ -277,8 +277,8 @@ features/<name>/
   - D46 清空后 assets 表为空,user 反馈如要自动 seed 默认 3 账户再 patch
   - D54 user 仍可在资产表单开 `includeInTransactions=true` 走短按 + cash_flow 调拨选 不动产 账户(后路,user 暂未要求封)
   - D60 其它页面的金额遮挡不全(transaction_tile / asset_tile / range_summary / top_expenses / category_pie / monthly_trend / assets_overview_chart / budget_sheet 等未接 `amountVisibilityProvider`),流水/报表被整页挡住影响小,user 反馈再补
-  - D62 range_summary 仍是 3 色块(user UAT 明确"上面收入|支出|结余不需要改"),还款只通过支出饼图虚拟分类体现,没单独卡片
-- 详情见 [`docs/ROADMAP.md`](docs/ROADMAP.md) v0.3.5 章节 + [`docs/DEV.md`](docs/DEV.md) D32-D62.3 决策记录
+  - D62.4 报表支出口径放宽含还款(跟首页一致),但首页 / 报表 income 口径仍可能不一致(首页 monthSummaryProvider 用旧口径包含投资/福利收入,报表 statsSummaryProvider 用 D62 收紧口径只算 cash_flow);user UAT 没抱怨收入端差异,暂时保留,后续反馈再统一
+- 详情见 [`docs/ROADMAP.md`](docs/ROADMAP.md) v0.3.5 章节 + [`docs/DEV.md`](docs/DEV.md) D32-D62.4 决策记录
 
 ### 这台机器的实际 host
 
