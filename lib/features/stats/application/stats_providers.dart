@@ -380,59 +380,90 @@ class MonthlyYoY {
   static const empty = MonthlyYoY();
 }
 
+/// 区间 cash_flow 收支聚合(共用,monthly/yearly YoY 都用)
+///   D62 口径:cat.type 与 tx.type 双向对齐,只算 cash_flow 收支
+Future<StatsSummary> _periodSummary(
+  Ref ref,
+  DateTime start,
+  DateTime end,
+) async {
+  final db = ref.watch(databaseProvider);
+  final cats = await ref.watch(allCategoriesProvider.future);
+  final catTypeById = {for (final c in cats) c.id: c.type};
+  final txs = await (db.select(
+    db.transactions,
+  )..where((t) => t.occurredAt.isBetweenValues(start, end))).get();
+  double income = 0, expense = 0;
+  for (final t in txs) {
+    final cType = catTypeById[t.categoryId];
+    if (t.type == 'income' && cType == 'income') income += t.amount;
+    if (t.type == 'expense' && cType == 'expense') expense += t.amount;
+  }
+  return StatsSummary(income: income, expense: expense);
+}
+
+/// 同比差额(共用)
+///   - 双方 0 → null(全 0 没意义)
+///   - 上期 0 + 本期非 0 → 绝对值 ±¥X.XX(避免 Infinity%)
+///   - 上期非 0 → 百分比 +X.X% / -X.X%
+YoYDelta? _yoyDelta(double a, double b) {
+  if (a == 0 && b == 0) return null;
+  if (b == 0) {
+    final diff = a.abs();
+    return YoYDelta(
+      isUp: a > 0,
+      text: '±¥${Formatters.amount(diff, withUnit: false)}',
+    );
+  }
+  final pct = (a - b) / b * 100;
+  return YoYDelta(
+    isUp: pct > 0,
+    text: '${pct > 0 ? '+' : ''}${pct.toStringAsFixed(1)}%',
+  );
+}
+
+MonthlyYoY _computeYoY(StatsSummary curr, StatsSummary prev) {
+  return MonthlyYoY(
+    income: _yoyDelta(curr.income, prev.income),
+    expense: _yoyDelta(curr.expense, prev.expense),
+    balance: _yoyDelta(curr.balance, prev.balance),
+  );
+}
+
+/// 本月 vs 上月 同比(本月维度)
+///   - 上月窗口:本月 1 日前推 1 秒 → 上月最后一天 → 推到上月 1 日
+///   - 跨年自动(1 月的上月 = 去年 12 月)
+///   - 本年维度调用时返 MonthlyYoY.empty(改用 yearlyYoYProvider)
 final monthlyYoYProvider = FutureProvider<MonthlyYoY>((ref) async {
   final range = ref.watch(statsRangeProvider);
   if (range != StatsRange.thisMonth) {
-    // 本年维度没有"同比上一整年"概念(commit 73 已弃用 yearly YoY)
     return MonthlyYoY.empty;
   }
   final w = ref.watch(statsWindowProvider);
-  // 上月窗口:本月 1 日前推 1 秒 → 上月最后一天 → 推到上月 1 日
   final prevEnd = w.start.subtract(const Duration(seconds: 1));
   final prevStart = DateTime(prevEnd.year, prevEnd.month, 1);
+  final curr = await _periodSummary(ref, w.start, w.end);
+  final prev = await _periodSummary(ref, prevStart, prevEnd);
+  return _computeYoY(curr, prev);
+});
 
-  final db = ref.watch(databaseProvider);
-  // D62 同步口径:跟 statsSummaryProvider 一样只算 cash_flow 收支
-  // - income:cat.type='income' AND tx.type='income'
-  // - expense:cat.type='expense' AND tx.type='expense'
-  final cats = await ref.watch(allCategoriesProvider.future);
-  final catTypeById = {for (final c in cats) c.id: c.type};
-  Future<StatsSummary> summary(DateTime start, DateTime end) async {
-    final txs = await (db.select(
-      db.transactions,
-    )..where((t) => t.occurredAt.isBetweenValues(start, end))).get();
-    double income = 0, expense = 0;
-    for (final t in txs) {
-      final cType = catTypeById[t.categoryId];
-      if (t.type == 'income' && cType == 'income') income += t.amount;
-      if (t.type == 'expense' && cType == 'expense') expense += t.amount;
-    }
-    return StatsSummary(income: income, expense: expense);
+/// 本年 vs 去年整年 同比(本年维度)
+///   - 本年 1-12 月 vs 去年 1-12 月(同期对比)
+///   - 跨年自动:`statsCustomYearProvider` 提供年份(默认 DateTime.now().year)
+///   - 去年窗口:DateTime(year-1, 1, 1) 至 DateTime(year, 1, 1) - 1s
+///   - 本月维度调用时返 MonthlyYoY.empty(改用 monthlyYoYProvider)
+///   D62.3 加:之前本年维度不显示同比(UAT 反馈"年度小卡片也需要")
+final yearlyYoYProvider = FutureProvider<MonthlyYoY>((ref) async {
+  final range = ref.watch(statsRangeProvider);
+  if (range != StatsRange.thisYear) {
+    return MonthlyYoY.empty;
   }
-
-  final curr = await summary(w.start, w.end);
-  final prev = await summary(prevStart, prevEnd);
-
-  YoYDelta? yoy(double a, double b) {
-    if (a == 0 && b == 0) return null;
-    if (b == 0) {
-      // 上月 0 → 绝对值差(走百分比会让显示 "Infinity%",不可读)
-      final diff = a.abs();
-      return YoYDelta(
-        isUp: a > 0,
-        text: '±¥${Formatters.amount(diff, withUnit: false)}',
-      );
-    }
-    final pct = (a - b) / b * 100;
-    return YoYDelta(
-      isUp: pct > 0,
-      text: '${pct > 0 ? '+' : ''}${pct.toStringAsFixed(1)}%',
-    );
-  }
-
-  return MonthlyYoY(
-    income: yoy(curr.income, prev.income),
-    expense: yoy(curr.expense, prev.expense),
-    balance: yoy(curr.balance, prev.balance),
-  );
+  final year = ref.watch(statsCustomYearProvider) ?? DateTime.now().year;
+  final currStart = DateTime(year, 1, 1);
+  final currEnd = DateTime(year + 1, 1, 1).subtract(const Duration(seconds: 1));
+  final prevStart = DateTime(year - 1, 1, 1);
+  final prevEnd = DateTime(year, 1, 1).subtract(const Duration(seconds: 1));
+  final curr = await _periodSummary(ref, currStart, currEnd);
+  final prev = await _periodSummary(ref, prevStart, prevEnd);
+  return _computeYoY(curr, prev);
 });

@@ -24,13 +24,19 @@ class RangeSummary extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(statsSummaryProvider);
-    final yoyAsync = ref.watch(monthlyYoYProvider);
+    final range = ref.watch(statsRangeProvider);
+    // D62.3:按 range 选对应同比 provider
+    //   - 本月 → monthlyYoYProvider(本月 vs 上月)
+    //   - 本年 → yearlyYoYProvider(本年 vs 去年整年)
+    final yoyAsync = ref.watch(
+      range == StatsRange.thisMonth ? monthlyYoYProvider : yearlyYoYProvider,
+    );
     final yoy = yoyAsync.valueOrNull ?? MonthlyYoY.empty;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    // D62.2 UAT 加:仅本月维度显示"同比上月"小字提示
-    //   - 本年维度没同比(provMonthlyYoYProvider 返 MonthlyYoY.empty),提示也不需要
-    //   - user 反馈"± 与上一个月的同比吗" — 直接在卡片上明示,免 user 猜
-    final isThisMonth = ref.watch(statsRangeProvider) == StatsRange.thisMonth;
+    // D62.2 UAT 加 footer 提示,D62.3 扩展:本月显示"同比上月",本年显示"同比去年"
+    //   - user 反馈"± 与上一个月的同比吗"(D62.2 起源)
+    //   - D62.3 user 又要求"年度小卡片也需要" — 本年维度补 footer
+    final yoyFooterLabel = range == StatsRange.thisMonth ? '同比上月' : '同比去年';
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
       padding: const EdgeInsets.all(AppSpacing.s4),
@@ -88,17 +94,17 @@ class RangeSummary extends ConsumerWidget {
               ),
             ],
           ),
-          // D62.2:右对齐灰色 10sp 小字"同比上月",提示 user ± 是跟上月对比
-          if (isThisMonth) ...[
-            const SizedBox(height: AppSpacing.s2),
-            const Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                '同比上月',
-                style: TextStyle(color: AppGray.g400, fontSize: 10),
-              ),
+          // D62.2 + D62.3:右对齐灰色 10sp 小字,本月显示"同比上月",本年显示"同比去年"
+          //   - user 反馈 ± 不知道是跟哪个维度对比,直接在卡片上明示
+          //   - 本年维度 footer + 同比箭头同时存在(D62.3 加 yearlyYoYProvider)
+          const SizedBox(height: AppSpacing.s2),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              yoyFooterLabel,
+              style: const TextStyle(color: AppGray.g400, fontSize: 10),
             ),
-          ],
+          ),
         ],
       ),
     );
