@@ -6,6 +6,10 @@
 //   - 复用 AnimatedPieChart 跟 category_pie 风格一致
 //
 // 2026-10-15 D63 加
+// 2026-10-15 D63.1 改:viewport-aware 触发动画 — 默认 mount 立即 forward
+//   会导致排在 stats_page 末尾的 expense_by_asset 在 user 滚到它时
+//   动画已播完。改为检测到 viewport 可见时再 forward,跟 monthly_trend
+//   _AnimatedBarChart 同样的入场策略。
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,11 +22,65 @@ import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/animated_pie_chart.dart';
 import '../../application/stats_providers.dart';
 
-class ExpenseByAssetChart extends ConsumerWidget {
+class ExpenseByAssetChart extends ConsumerStatefulWidget {
   const ExpenseByAssetChart({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ExpenseByAssetChart> createState() =>
+      _ExpenseByAssetChartState();
+}
+
+class _ExpenseByAssetChartState extends ConsumerState<ExpenseByAssetChart> {
+  // viewport-aware 触发(2026-10-15 D63.1):false → AnimatedPieChart.play=false 不 forward
+  //   true → 触发动画(用 _appeared 防重)
+  bool _appeared = false;
+  final GlobalKey _chartKey = GlobalKey();
+  ScrollPosition? _scrollPos;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _scrollPos = Scrollable.maybeOf(context)?.position;
+        _scrollPos?.addListener(_checkInView);
+        _checkInView();
+      }
+    });
+  }
+
+  void _checkInView() {
+    if (_appeared) return;
+    final ctx = _chartKey.currentContext;
+    if (ctx == null) return;
+    final box = ctx.findRenderObject() as RenderBox?;
+    if (box == null || !box.attached) return;
+    final scrollable = Scrollable.maybeOf(context);
+    if (scrollable == null) {
+      setState(() => _appeared = true);
+      return;
+    }
+    final scrollableBox = scrollable.context.findRenderObject() as RenderBox?;
+    if (scrollableBox == null) return;
+    final widgetTopInScrollable = box
+        .localToGlobal(Offset.zero, ancestor: scrollableBox)
+        .dy;
+    final widgetHeight = box.size.height;
+    final viewportHeight = scrollableBox.size.height;
+    if (widgetTopInScrollable < viewportHeight &&
+        widgetTopInScrollable + widgetHeight > 0) {
+      setState(() => _appeared = true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollPos?.removeListener(_checkInView);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final assetsAsync = ref.watch(expenseByAssetProvider);
     final theme = Theme.of(context);
     return Container(
@@ -85,8 +143,9 @@ class ExpenseByAssetChart extends ConsumerWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // 左侧圆环
+                    // 左侧圆环(viewport-aware 触发入场动画)
                     SizedBox(
+                      key: _chartKey,
                       width: 140,
                       height: 140,
                       child: Stack(
@@ -107,6 +166,8 @@ class ExpenseByAssetChart extends ConsumerWidget {
                             ),
                             innerRadius: 48,
                             outerRadius: 64,
+                            // D63.1:viewport-aware,_appeared=true 时才 forward 动画
+                            play: _appeared,
                             sections: shown
                                 .map(
                                   (e) => PieChartSectionData(

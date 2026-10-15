@@ -45,6 +45,7 @@ class AnimatedPieChart extends StatefulWidget {
     this.innerRadius = 48,
     this.outerRadius = 64,
     this.startDegreeOffset = -90,
+    this.play = true,
   });
 
   /// 数据扇区(value / color 用上,radius 字段保留为兼容性但不参与绘制)
@@ -58,6 +59,13 @@ class AnimatedPieChart extends StatefulWidget {
 
   /// 起始角(默认 -90° = 12 点钟方向,顺时针绕)
   final double startDegreeOffset;
+
+  /// 2026-10-15 D63.1 加:viewport-aware 触发
+  ///   - 默认 true(向后兼容,initState 后立即 forward)
+  ///   - false 时 widget mount 但不 forward;parent 通过 setState 改为 true
+  ///     时由 didUpdateWidget 触发 forward(用于 viewport-aware 触发场景)
+  ///   跟 AnimatedOverBudgetChart.play 同款设计
+  final bool play;
 
   @override
   State<AnimatedPieChart> createState() => _AnimatedPieChartState();
@@ -73,16 +81,38 @@ class _AnimatedPieChartState extends State<AnimatedPieChart>
   ///   8 个扇区每个 ~150ms 填充,aquaIn 阻尼前快后慢保留
   static const Duration _kDuration = Duration(milliseconds: 1200);
 
+  /// 2026-10-15 D63.1 加:防止 _play 被重复调用
+  bool _appeared = false;
+
   @override
   void initState() {
     super.initState();
     _ctrl = AnimationController(vsync: this, duration: _kDuration);
     _t = CurvedAnimation(parent: _ctrl, curve: AppMotion.aquaIn);
-    // 首次 mount:启动动画。postFrameCallback 让父级先 build 完成,
-    // 避免在 switch transition 中断动画。
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _ctrl.forward();
-    });
+    // play=true 时首次 mount 启动;play=false 时等 didUpdateWidget 触发。
+    if (widget.play) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _play();
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(AnimatedPieChart old) {
+    super.didUpdateWidget(old);
+    // play 由 false 变 true → 触发 forward(viewport-aware 场景)
+    if (widget.play && !_appeared) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _play();
+      });
+    }
+  }
+
+  /// 一次性 forward,触发后不再重播
+  void _play() {
+    if (_appeared) return;
+    _appeared = true;
+    _ctrl.forward();
   }
 
   @override
