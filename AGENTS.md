@@ -243,10 +243,10 @@ features/<name>/
   - `logo_horizontal.png` 2752×1536 — LOGO + "格子记账" 文字(横版品牌)
 - **Launcher icon**(5 个 mipmap-*/ic_launcher.png)当前从 `logo_primary.png` 派生,2026-10-10 改成白底风格
 
-### v0.3.5 P18 进度(2026-10-14 完成,58 commits)
+### v0.3.5 P18 进度(2026-10-15 完成,59 commits)
 
-- HEAD: `4e46087 feat(asset): receivable 段加'充当现金流'开关 + picker 过滤 (D61)`,已推 `origin/main`
-- commit 范围:`7ea90d3..4e46087`
+- HEAD: `d8472f8 feat(stats): 报表口径只算 cash_flow 收支 + 还款虚拟分类入支出饼图 (D62)`,已推 `origin/main`
+- commit 范围:`7ea90d3..d8472f8`
 - 主要文件改动:
   - `lib/features/add/ui/transaction_form.dart` — 5 getter 三段拆分 / save() dest 收益不存 / initState pre-fill / D44 toggle 不清 cat(receivable 例外) / D45 `_actionRow` 全表查 cat / D49 余额校验扩所有非负债段 / D50 `_AccountPickerSheet` 加 `excludeId` / D51 v4 source picker 短路 / D52 / D53 popup overflow 修 / D55 `_isOtherContext` getter / D57 撤销 D56 `_categoryFilterType` + D55 `_accountTypeFilter` 返 null,改 `_toggleSegments` filter balance + `_needsCategory` 返 false + `_firstCategoryId` 简化 fallback(cat.type='other') / D58 `_AccountPickerSheet.accountTypeFilter` 改 `List<String>?`(多类型白名单)+ `_accountTypeFilter` / `_destinationTypeFilter` 返 `List<String>?` 统一协议,债务调拨限定 `['cash_flow', 'receivable']` / D59 cash_flow + expense 分支返 `['cash_flow', 'receivable']`(信用卡/花呗 source)
   - `lib/features/add/ui/add_transaction_page.dart` — `_appBarTitle` / `effectiveAllowBalance` 福利 / 债权 / 其它(D57)适配
@@ -261,6 +261,7 @@ features/<name>/
   - `lib/features/settings/ui/widgets/asset_form_page.dart` — 6 段 radio 改走 `AppSegment`(D47) + icon picker 47 个扁平(D48 v2 去掉分组)
   - `lib/features/settings/ui/widgets/asset_tile.dart` — 6 段色 + label 统一走 `AppSegment`(D47) + `brandIcons` / `renderIcon`(D48 v2 银行 5→1)
   - `lib/features/stats/ui/widgets/assets_overview_chart.dart` — 6 段循环改走 `AppSegment`(D47)
+  - `lib/features/stats/application/stats_providers.dart` — D62 收入/支出口径收紧(`cat.type` + `tx.type` 双向对齐,只算 cash_flow 收支)+ `expenseByCategoryProvider` 加"还款"虚拟分类(现金→债务调拨,cat.type='liability' AND tx.type='balance')
   - `lib/features/ledger/ui/widgets/transaction_tile.dart` — 2×2 矩阵布局 / `_AccountBadge` 接受 destinationAccountId / 不计入流水 chip / D51 v2 借出=- 借入=+ `_displayLabelFor`
   - `lib/features/ledger/application/transactions_providers.dart` — monthSummary / filtered 排除投资 record + `includeInTransactions=false`
   - `lib/features/ledger/ui/ledger_page.dart` — `_DaySection` 同步排除规则
@@ -275,7 +276,8 @@ features/<name>/
   - D46 清空后 assets 表为空,user 反馈如要自动 seed 默认 3 账户再 patch
   - D54 user 仍可在资产表单开 `includeInTransactions=true` 走短按 + cash_flow 调拨选 不动产 账户(后路,user 暂未要求封)
   - D60 其它页面的金额遮挡不全(transaction_tile / asset_tile / range_summary / top_expenses / category_pie / monthly_trend / assets_overview_chart / budget_sheet 等未接 `amountVisibilityProvider`),流水/报表被整页挡住影响小,user 反馈再补
-- 详情见 [`docs/ROADMAP.md`](docs/ROADMAP.md) v0.3.5 章节 + [`docs/DEV.md`](docs/DEV.md) D32-D61 决策记录
+  - D62 range_summary 仍是 3 色块(user UAT 明确"上面收入|支出|结余不需要改"),还款只通过支出饼图虚拟分类体现,没单独卡片
+- 详情见 [`docs/ROADMAP.md`](docs/ROADMAP.md) v0.3.5 章节 + [`docs/DEV.md`](docs/DEV.md) D32-D62 决策记录
 
 ### 这台机器的实际 host
 
