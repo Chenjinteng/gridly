@@ -87,7 +87,7 @@ v0.3.5 增量(见下):投资场景三段拆分、调拨方向修正、6 段色�
 
 ### v0.3.5 · 资产 + 收支重构 ✅(2026-10-14 完成)
 
-**目标**:投资 record 走完整 schema(投入/收益/调拨三段)+ listTile 视觉重构 + 6 段色 token 化 + 报表口径只算 cash_flow 收支 + 还款虚拟分类入支出饼图 + Top 10 include 现金→债务调拨 + range_summary 加同比上月/去年提示 + 本年维度同比去年整年 + 报表支出口径放宽含现金→债务调拨(跟首页对齐) + 报表加 4 张卡(类别对比/周几支出/储蓄率/支付账户) + viewport-aware 入场动画 + 柱状图 tap 选柱虚线 + BarChart 抽到共享 AnimatedBarChart widget(图表库雏形) + ChartCard 容器 + PieChartCard 圆环+图例 wrapper + 5 个 widget 应用 ChartCard + top_expenses DefaultTabController 上提 + maxY + niceInterval 算法下沉到共享 AnimatedBarChart(修 2 个柱状图 Y 轴顶部小数 label 跟 0 重叠 bug)。共 70 个 commit,详细设计决策见 [`DEV.md`](DEV.md) D32-D64.5。
+**目标**:投资 record 走完整 schema(投入/收益/调拨三段)+ listTile 视觉重构 + 6 段色 token 化 + 报表口径只算 cash_flow 收支 + 还款虚拟分类入支出饼图 + Top 10 include 现金→债务调拨 + range_summary 加同比上月/去年提示 + 本年维度同比去年整年 + 报表支出口径放宽含现金→债务调拨(跟首页对齐) + 报表加 4 张卡(类别对比/周几支出/储蓄率/支付账户) + viewport-aware 入场动画 + 柱状图 tap 选柱虚线 + BarChart 抽到共享 AnimatedBarChart widget(图表库雏形) + ChartCard 容器 + PieChartCard 圆环+图例 wrapper + 5 个 widget 应用 ChartCard + top_expenses DefaultTabController 上提 + maxY + niceInterval 算法下沉到共享 AnimatedBarChart(修 2 个柱状图 Y 轴顶部小数 label 跟 0 重叠 bug) + 去储蓄率卡(跟 RangeSummary 重复) + 支付账户按 index 取固定 6 色 palette(原 asset.color 全同色看不出区别)。共 71 个 commit,详细设计决策见 [`DEV.md`](DEV.md) D32-D64.6。
 
 #### 1. 投资 record 三段拆分(`transaction_form.dart`)
 
