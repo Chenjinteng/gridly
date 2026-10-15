@@ -34,7 +34,6 @@ import 'widgets/assets_overview_chart.dart';
 import 'widgets/assets_radar.dart';
 import 'widgets/range_summary.dart';
 import 'widgets/range_tabs.dart';
-import 'widgets/savings_rate_card.dart';
 import 'widgets/top_expenses.dart';
 import 'widgets/weekday_expense.dart';
 import '../application/stats_providers.dart';
@@ -203,11 +202,12 @@ class _StatsPageState extends ConsumerState<StatsPage> {
         widgets.add(const SizedBox(height: AppSpacing.s3));
         // 2026-10-15 D63 加:4 个新视图,加在 MonthlyTrendChart 后面
         // - 类别对比(本月 vs 上月)→ 周几支出 → 储蓄率 → 支付账户
+        // 2026-10-15 D64.6 改:储蓄率(结余 / 收入)跟 RangeSummary
+        //   (收入 / 支出 / 结余)重复,user UAT 反馈"先不要"。
+        //   剩 3 个:类别对比 / 周几支出 / 支付账户。
         add(const CategoryCompareChart());
         widgets.add(const SizedBox(height: AppSpacing.s3));
         add(const WeekdayExpenseChart());
-        widgets.add(const SizedBox(height: AppSpacing.s3));
-        add(const SavingsRateCard());
         widgets.add(const SizedBox(height: AppSpacing.s3));
         add(const ExpenseByAssetChart());
       case StatsView.assets:
