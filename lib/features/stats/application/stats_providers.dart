@@ -75,6 +75,11 @@ final statsTransactionsProvider = FutureProvider<List<Transaction>>((
 });
 
 /// 当前时间窗内的汇总(收入/支出)
+// 2026-10-15 D62 改口径:
+//   - 只算 cash_flow 收支:income = cat.type='income' AND tx.type='income',
+//     expense = cat.type='expense' AND tx.type='expense'
+//   - 投资回报 / 福利增减 / 调拨(现金→债务) / 借出借入 / 其它段 → 都不计入
+//   - 流水页面里仍能看到所有 record(可编辑/删除),只是不进"收支汇总"
 class StatsSummary {
   const StatsSummary({required this.income, required this.expense});
   final double income;
@@ -84,11 +89,16 @@ class StatsSummary {
 
 final statsSummaryProvider = Provider<StatsSummary>((ref) {
   final txs = ref.watch(statsTransactionsProvider).valueOrNull ?? const [];
+  final cats = ref.watch(allCategoriesProvider).valueOrNull ?? const [];
+  // D62:用 catId → cat.type 映射区分段(cash_flow income/expense vs investment/benefit/liability/other)
+  final catTypeById = {for (final c in cats) c.id: c.type};
   double income = 0, expense = 0;
   for (final t in txs) {
-    if (t.type == 'income') {
+    final cType = catTypeById[t.categoryId];
+    // D62:income / expense 必须 cat.type 与 tx.type 双向对齐,才是 cash_flow 收支
+    if (t.type == 'income' && cType == 'income') {
       income += t.amount;
-    } else {
+    } else if (t.type == 'expense' && cType == 'expense') {
       expense += t.amount;
     }
   }
@@ -109,33 +119,52 @@ class CategoryExpense {
 }
 
 /// 支出按分类汇总(从大到小)
+/// 2026-10-15 D62 改:
+///   - 真支出:cat.type='expense' AND tx.type='expense'(跟 statsSummaryProvider 口径一致)
+///   - 现金 → 债务的调拨(receivable 段 transfer):cat.type='liability' AND tx.type='balance',
+///     作为"还款"虚拟分类混入饼图,让 user 在支出分类里能看到还债占比
+///   - 其它段(投资 / 福利 / 其它)不计
 final expenseByCategoryProvider = FutureProvider<List<CategoryExpense>>((
   ref,
 ) async {
   final txs = await ref.watch(statsTransactionsProvider.future);
   final cats = await ref.watch(allCategoriesProvider.future);
   if (cats.isEmpty) return const [];
+  final catById = {for (final c in cats) c.id: c};
+  final catTypeById = {for (final c in cats) c.id: c.type};
   final byCat = <int, double>{};
+  // D62:还款总额(虚拟分类),用 catType 判定 liability + txType 判定 balance
+  double repayment = 0;
   for (final t in txs) {
-    if (t.type == 'expense') {
+    final cType = catTypeById[t.categoryId];
+    if (t.type == 'expense' && cType == 'expense') {
       byCat[t.categoryId] = (byCat[t.categoryId] ?? 0) + t.amount;
+    } else if (t.type == 'balance' && cType == 'liability') {
+      repayment += t.amount;
     }
   }
   final out = <CategoryExpense>[];
   for (final e in byCat.entries) {
-    Category? c;
-    for (final cc in cats) {
-      if (cc.id == e.key) {
-        c = cc;
-        break;
-      }
-    }
+    final c = catById[e.key];
     out.add(
       CategoryExpense(
         categoryId: e.key,
         name: c?.name ?? '未分类',
         color: c?.color ?? 0xFFA1A1AA,
         amount: e.value,
+      ),
+    );
+  }
+  // D62:还款作为虚拟分类,categoryId=-1 标记(避免跟真实 cat.id 冲突)
+  // - 颜色用 AppCategory.liability(0xFFEF4444 红),跟分类语义"债务"对齐
+  // - 没还款数据时不加入(保持空饼图,不显示"还款 ¥0")
+  if (repayment > 0) {
+    out.add(
+      CategoryExpense(
+        categoryId: -1,
+        name: '还款',
+        color: 0xFFEF4444, // AppCategory.liability(债务色),hex 直写避免 toARGB32 版本兼容
+        amount: repayment,
       ),
     );
   }
@@ -214,8 +243,11 @@ final dailyExpenseTrendProvider = FutureProvider<List<DailyExpense>>((
 });
 
 /// 过去 12 个月(含本月)的收入/支出趋势
+/// D62 同步口径:只算 cash_flow 收支,跟 statsSummaryProvider 一致
 final monthlyTrendProvider = FutureProvider<List<MonthlyTrend>>((ref) async {
   final db = ref.watch(databaseProvider);
+  final cats = await ref.watch(allCategoriesProvider.future);
+  final catTypeById = {for (final c in cats) c.id: c.type};
   final now = DateTime.now();
   final start = DateTime(now.year, now.month - 11, 1);
   final txs = await (db.select(
@@ -224,6 +256,11 @@ final monthlyTrendProvider = FutureProvider<List<MonthlyTrend>>((ref) async {
 
   final byMonth = <String, MonthlyTrend>{};
   for (final t in txs) {
+    final cType = catTypeById[t.categoryId];
+    // D62:income / expense 必须 cat.type 与 tx.type 双向对齐
+    final isIncome = t.type == 'income' && cType == 'income';
+    final isExpense = t.type == 'expense' && cType == 'expense';
+    if (!isIncome && !isExpense) continue;
     final key = '${t.occurredAt.year}-${t.occurredAt.month}';
     final cur =
         byMonth[key] ??
@@ -233,8 +270,8 @@ final monthlyTrendProvider = FutureProvider<List<MonthlyTrend>>((ref) async {
           income: 0,
           expense: 0,
         );
-    final income = cur.income + (t.type == 'income' ? t.amount : 0);
-    final expense = cur.expense + (t.type == 'expense' ? t.amount : 0);
+    final income = cur.income + (isIncome ? t.amount : 0);
+    final expense = cur.expense + (isExpense ? t.amount : 0);
     byMonth[key] = MonthlyTrend(
       year: cur.year,
       month: cur.month,
@@ -336,14 +373,20 @@ final monthlyYoYProvider = FutureProvider<MonthlyYoY>((ref) async {
   final prevStart = DateTime(prevEnd.year, prevEnd.month, 1);
 
   final db = ref.watch(databaseProvider);
+  // D62 同步口径:跟 statsSummaryProvider 一样只算 cash_flow 收支
+  // - income:cat.type='income' AND tx.type='income'
+  // - expense:cat.type='expense' AND tx.type='expense'
+  final cats = await ref.watch(allCategoriesProvider.future);
+  final catTypeById = {for (final c in cats) c.id: c.type};
   Future<StatsSummary> summary(DateTime start, DateTime end) async {
     final txs = await (db.select(
       db.transactions,
     )..where((t) => t.occurredAt.isBetweenValues(start, end))).get();
     double income = 0, expense = 0;
     for (final t in txs) {
-      if (t.type == 'income') income += t.amount;
-      if (t.type == 'expense') expense += t.amount;
+      final cType = catTypeById[t.categoryId];
+      if (t.type == 'income' && cType == 'income') income += t.amount;
+      if (t.type == 'expense' && cType == 'expense') expense += t.amount;
     }
     return StatsSummary(income: income, expense: expense);
   }
