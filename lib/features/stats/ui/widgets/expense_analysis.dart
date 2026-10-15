@@ -1,10 +1,12 @@
-// lib/features/stats/ui/widgets/payment_analysis.dart
-// 报表"支付分析"模块 —— 2 个环形图合并成 1 张卡 + tab 切换。
+// lib/features/stats/ui/widgets/expense_analysis.dart
+// 报表"支出分析"模块 —— 2 个环形图合并成 1 张卡 + tab 切换。
 //
 // 2026-10-15 D64.11 改:把原来 2 张独立卡(支出分类 CategoryPie +
-// 支付账号 ExpenseByAssetChart)合并成"支付分析"模块,用 tab 切换
+// 支付账号 ExpenseByAssetChart)合并成模块,用 tab 切换
 // (分类 / 账户),tab 样式跟消费趋势 / top_expenses 同款(teal label +
 // indicatorSize.label 0 高 indicator)。
+// 原名"支付分析",2026-10-15 user UAT 反馈"不是支付分析,而是支出分析"
+// 改名 expense_analysis / ExpenseAnalysis / 标题"支出分析"。
 //
 // 2026-10-15 D64.12 改:tab body 直接用 `PieChartContent`(无 ChartCard
 // 嵌套),避免原 `PieChartCard` 在 SizedBox(height: 220) 内套 2 层卡
@@ -17,6 +19,8 @@
 //   case 留 48dp 空白(比 D64.12 的 240dp 少 20dp)。要彻底解决需
 //   重构 legend Column 让高度恒等于 ring 140dp(如 spaceEvenly),这是
 //   后续优化项,本次先回退稳。
+// 2026-10-15 D64.15 改:legend 紧凑(vertical:2 + fontSize:12) + 可滚动
+//   (SingleChildScrollView),>8 项 user 上滑看全部,圆环仍 take(8) 视觉清爽。
 //
 // - 分类 tab:复用 CategoryPie body(expenseByCategoryProvider + 类别色 token)
 // - 账户 tab:复用 ExpenseByAssetChart body(viewport-aware 圆环动画 +
@@ -30,16 +34,16 @@ import '../../../../core/widgets/charts/chart_card.dart';
 import '../../../../core/widgets/charts/pie_chart_card.dart';
 import '../../application/stats_providers.dart';
 
-/// "支付分析"模块容器 —— 1 张 ChartCard + 2 tabs(分类 / 账户)
-class PaymentAnalysis extends ConsumerWidget {
-  const PaymentAnalysis({super.key});
+/// "支出分析"模块容器 —— 1 张 ChartCard + 2 tabs(分类 / 账户)
+class ExpenseAnalysis extends ConsumerWidget {
+  const ExpenseAnalysis({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
       length: 2,
       child: ChartCard(
-        title: '支付分析',
+        title: '支出分析',
         showDivider: false,
         trailing: SizedBox(
           height: 36,

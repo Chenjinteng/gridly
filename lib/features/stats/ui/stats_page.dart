@@ -8,13 +8,15 @@
 // 下拉刷新:广谱 invalidate 所有依赖 provider(流水 / 月度汇总 / 分类)
 //
 // 视角路由:
-//   expense → CategoryPie + TopExpenses + ConsumptionTrend + PaymentAnalysis(+ thisMonth: BudgetOverviewChart)
+//   expense → CategoryPie + TopExpenses + ConsumptionTrend + ExpenseAnalysis(+ thisMonth: BudgetOverviewChart)
 //   assets  → 占位(2026-10-11 资产功能预留)
 // 2026-10-12 P5 commit 简化:删 income 段(2 段:收支 / 资产),IncomePie 文件同步删
 // 2026-10-15 D64.10 改:MonthlyTrendChart + CategoryCompareChart + WeekdayExpenseChart
 //   3 张独立卡合并成"消费趋势"1 张 tabbed 模块,本文件不再单独 import 它们。
 // 2026-10-15 D64.11 改:CategoryPie + ExpenseByAssetChart 2 张独立卡合并成
 //   "支付分析"1 张 tabbed 模块,本文件不再单独 import 它们。
+// 2026-10-15 D64.16 改:"支付分析" → "支出分析"(user UAT 反馈模块名),同时
+//   文件 / 类名 PaymentAnalysis → ExpenseAnalysis。
 //
 // 2026-10-12 报表 widget 错峰入场(用户反馈"想有类似流水的那种往上抬"):
 // _viewContent 内每个非 SizedBox widget 包 StaggeredFadeIn,首次 mount 时按
@@ -31,7 +33,7 @@ import '../../../core/widgets/staggered_fade_in.dart';
 import '../../../core/widgets/privacy_obscure.dart';
 import 'widgets/budget_overview_chart.dart';
 import 'widgets/consumption_trend.dart';
-import 'widgets/payment_analysis.dart';
+import 'widgets/expense_analysis.dart';
 import 'widgets/assets_overview_chart.dart';
 import 'widgets/assets_radar.dart';
 import 'widgets/range_summary.dart';
@@ -190,7 +192,9 @@ class _StatsPageState extends ConsumerState<StatsPage> {
         widgets.add(const SizedBox(height: AppSpacing.s3));
         // 2026-10-15 D64.11 改:CategoryPie + ExpenseByAssetChart 2 张独立
         //   卡合并成"支付分析"1 张 tabbed 模块(分类 / 账户)
-        add(const PaymentAnalysis());
+        // 2026-10-15 D64.16 改:模块名 PaymentAnalysis → ExpenseAnalysis
+        //   ("支付分析" → "支出分析",user UAT 反馈命名)
+        add(const ExpenseAnalysis());
         widgets.add(const SizedBox(height: AppSpacing.s3));
         add(const TopExpenses());
         widgets.add(const SizedBox(height: AppSpacing.s3));

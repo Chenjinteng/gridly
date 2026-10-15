@@ -12,7 +12,7 @@
 //   stats_page 顶部几乎都可见);`expense_by_asset` 业务 widget 自己控制。
 //
 // 2026-10-15 D64.12 改:抽出 `PieChartContent` —— 只含 ring + center + legend
-//   body,无 ChartCard 包装。给 tabbed 模块(payment_analysis.dart)直接用,
+//   body,无 ChartCard 包装。给 tabbed 模块(expense_analysis.dart)直接用,
 //   避免嵌套 "支出分类" 标题(原 PieChartCard 套 2 层 ChartCard 在
 //   SizedBox(height: 220) 内 overflow 28px)。`PieChartCard` 保留作为
 //   ChartCard + PieChartContent 的薄壳,向后兼容原调用。
@@ -43,7 +43,7 @@ class PieChartLegendItem {
 }
 
 /// 2026-10-15 D64.12:圆环 + 中心数字 + 右侧图例的纯 body widget,无卡片包装。
-/// 给 tabbed 模块(payment_analysis)直接放进 SizedBox 用,避免嵌套 ChartCard
+/// 给 tabbed 模块(expense_analysis)直接放进 SizedBox 用,避免嵌套 ChartCard
 /// 占 ~50dp title bar 导致 legend overflow。
 ///
 /// D64.15:legend 改成可滚动,>8 项时 user 上滑看全部。
@@ -220,7 +220,7 @@ class PieChartContent extends StatelessWidget {
 
 /// 带标题 + trailing 的完整卡片(ChartCard + PieChartContent)
 ///   - 老调用方(category_pie / expense_by_asset / 独立卡片场景)继续用
-///   - tabbed 模块(payment_analysis)直接用 PieChartContent 避免嵌套
+///   - tabbed 模块(expense_analysis)直接用 PieChartContent 避免嵌套
 class PieChartCard extends StatelessWidget {
   const PieChartCard({
     super.key,
