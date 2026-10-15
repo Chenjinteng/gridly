@@ -24,6 +24,7 @@ import 'package:drift/drift.dart' show Value;
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/providers.dart';
+import '../../../core/settings/amount_visibility_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -1629,6 +1630,10 @@ class _AccountPickerSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final assetsAsync = ref.watch(allAssetsProvider);
+    // 2026-10-15 D60.2:账户 sheet 里的余额数字也接 amountVisibilityProvider
+    //   user UAT 反馈:"上锁之后,通过记一笔时选择账户时还能看到金额,这里也要隐藏"
+    //   - 关闭"显示金额"时,这里 balance 走 •••••• 占位,跟 ledger / stats 一致
+    final hidden = !ref.watch(amountVisibilityProvider);
     return SafeArea(
       child: assetsAsync.when(
         loading: () => const Padding(
@@ -1823,13 +1828,20 @@ class _AccountPickerSheet extends ConsumerWidget {
                                             ),
                                           ),
                                           Text(
-                                            '¥${Formatters.amount(balance)}',
+                                            // 2026-10-15 D60.2:hidden 时用 •••••• 占位
+                                            hidden
+                                                ? '••••••'
+                                                : '¥${Formatters.amount(balance)}',
                                             style: TextStyle(
                                               fontSize: 13,
                                               fontWeight: FontWeight.w600,
-                                              color: AppSemantic.balanceFor(
-                                                balance,
-                                              ),
+                                              color: hidden
+                                                  ? theme
+                                                        .colorScheme
+                                                        .onSurfaceVariant
+                                                  : AppSemantic.balanceFor(
+                                                      balance,
+                                                    ),
                                             ),
                                           ),
                                           if (isSelected) ...[
