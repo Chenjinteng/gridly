@@ -14,11 +14,12 @@ import 'seeds/default_assets.dart';
 import 'tables/assets.dart';
 import 'tables/categories.dart';
 import 'tables/category_budgets.dart';
+import 'tables/monthly_budgets.dart';
 import 'tables/transactions.dart';
 
 part 'app_database.g.dart';
 
-@DriftDatabase(tables: [Categories, Transactions, CategoryBudgets, Assets])
+@DriftDatabase(tables: [Categories, Transactions, CategoryBudgets, Assets, MonthlyBudgets])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
@@ -29,8 +30,12 @@ class AppDatabase extends _$AppDatabase {
   //   - 这里"没数据"约束下,不需要老数据回填(commit 110 P1 默认场景)
   // 2026-10-13 P7:4 → 5,assets 加 isDefault 列(cash_flow 段"日常流水默认账户"标记)
   // 2026-10-13 P8:5 → 6,transactions 加 destinationAccountId 列(投资场景投入/收益/调拨双账户)
+  // 2026-10-15 D64.21a:7 → 8,新增 MonthlyBudgets 表(总额度按月历史,给"全年预算管理"报表 tab 用)
+  //   - 老 user 升级时:createTable + 启动时(main.dart)SharedPreferences 兜底回填当月 1 行
+  //     (不在 onUpgrade 里回填,避免耦合到 SharedPreferences 读取 → 由
+  //     MonthlyBudgetNotifier 启动逻辑统一处理,见 D64.21b)
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -100,6 +105,14 @@ class AppDatabase extends _$AppDatabase {
       //   这样保证"不可消费债务"不会因为升级而意外出现在记一笔 picker 里。
       if (from < 7) {
         await m.addColumn(assets, assets.actAsCashFlow);
+      }
+      // 7 → 8:D64.21a 加 MonthlyBudgets 表(总额度按月历史)
+      //   - 只 createTable,不在 onUpgrade 里回填历史(老 user 没有历史数据,
+      //     避免幻觉回填过去月份的假数据)。
+      //   - 当月回填由 MonthlyBudgetNotifier.init() 启动时统一处理(见 D64.21b):
+      //     读 SharedPreferences 单值,如果当月 MonthlyBudgets 没记录则补 1 条。
+      if (from < 8) {
+        await m.createTable(monthlyBudgets);
       }
     },
     beforeOpen: (details) async {
