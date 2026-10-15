@@ -1,20 +1,18 @@
 // lib/features/stats/ui/widgets/savings_rate_card.dart
 // 报表第 7 张卡:储蓄率(本月结余 / 收入 × 100%)
-//   - user 提议"还需要增加哪些视图" — 推荐 3
-//   - 储蓄率衡量"每月能存下多少",财务健康指标
 //   - 跟 range_summary 的"结余"区别:结余是绝对值,储蓄率是百分比,直观可比
 //   - 同比:本月储蓄率 vs 上月储蓄率(箭头 + 百分比)
 //   - 数据源:复用 statsSummaryProvider + monthlyYoYProvider(都是 D62/D62.4 口径)
 //
 // 2026-10-15 D63 加
+// 2026-10-15 D64.3 改:容器改用 `ChartCard`,trailing 传同比 badge
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/theme/card_shadows.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/charts/chart_card.dart';
 import '../../application/stats_providers.dart';
 
 class SavingsRateCard extends ConsumerWidget {
@@ -34,35 +32,18 @@ class SavingsRateCard extends ConsumerWidget {
         : savingsRate < 0
         ? AppStatus.error
         : Theme.of(context).colorScheme.onSurfaceVariant;
-    final theme = Theme.of(context);
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
-      padding: const EdgeInsets.all(AppSpacing.s4),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: AppRadius.brLg,
-        border: Border.all(color: theme.colorScheme.outlineVariant, width: 1.0),
-        boxShadow: CardShadows.light(context),
+    return ChartCard(
+      title: '储蓄率',
+      showDivider: false,
+      trailing: _SavingsYoYBadge(
+        currRate: savingsRate,
+        currBalance: s.balance,
+        currIncome: s.income,
+        yoy: yoy.balance,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                '储蓄率',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-              ),
-              // 同比储蓄率箭头(▲▼) + 文本(百分比 / ±绝对值 / "持平" / "上月 0 收入")
-              _SavingsYoYBadge(
-                currRate: savingsRate,
-                currBalance: s.balance,
-                currIncome: s.income,
-                yoy: yoy.balance,
-              ),
-            ],
-          ),
           const SizedBox(height: AppSpacing.s3),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,

@@ -3,27 +3,18 @@
 //   thisMonth → 按天支出柱状图(_DailyExpenseBarChart,看 dailyExpenseTrendProvider)
 //   thisYear  → 当年 1-12 月支出柱状图(_MonthlyBarChart,看 yearlyExpenseTrendProvider,单柱)
 //
-// 2026-10-12 redesign (commit 72):
-//   user "近 12 月趋势"反馈:
-//     - 本月维度不需要这个 12 月折线图 → 换按天柱状图(本月每天支出)
-//     - 本年维度才显示 12 个月柱状图(去掉折线,改成柱状)
-//   旧实现是单一 LineChart + 固定过去 12 月数据(不看 range),改成分支 + BarChart。
-//
 // 2026-10-15 D64 改:BarChart 业务逻辑全部抽到 `core/widgets/charts/animated_bar_chart.dart`,
 //   共享 `AnimatedBarChart`(viewport-aware + 触摸 + 虚线 + label + tooltip)。
-//   本文件只保留:
-//     - 容器 widget (MonthlyTrendChart,卡片样式 + range 标题切换)
-//     - 2 个数据 widget (_DailyExpenseBarChart / _MonthlyBarChart),用共享 widget
-//     - niceInterval 计算 helper
+// 2026-10-15 D64.3 改:容器改用 `ChartCard`(showDivider=false,无 trailing,
+//   整体 padding s4 — 跟原样式对齐:标题和图表同 padding 不用 Divider 隔开)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/theme/card_shadows.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/charts/animated_bar_chart.dart';
+import '../../../../core/widgets/charts/chart_card.dart';
 import '../../application/stats_providers.dart';
 
 /// 时间趋势卡片容器 —— 看 statsRange 自动切换 widget:
@@ -35,33 +26,14 @@ class MonthlyTrendChart extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final range = ref.watch(statsRangeProvider);
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
-      padding: const EdgeInsets.all(AppSpacing.s4),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: AppRadius.brLg,
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant,
-          width: 1.0,
-        ),
-        boxShadow: CardShadows.light(context),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            range == StatsRange.thisMonth ? '本月每日支出' : '近 12 月趋势',
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: AppSpacing.s3),
-          SizedBox(
-            height: 192,
-            child: range == StatsRange.thisMonth
-                ? const _DailyExpenseBarChart()
-                : const _MonthlyBarChart(),
-          ),
-        ],
+    return ChartCard(
+      title: range == StatsRange.thisMonth ? '本月每日支出' : '近 12 月趋势',
+      showDivider: false,
+      child: SizedBox(
+        height: 192,
+        child: range == StatsRange.thisMonth
+            ? const _DailyExpenseBarChart()
+            : const _MonthlyBarChart(),
       ),
     );
   }

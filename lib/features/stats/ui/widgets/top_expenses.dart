@@ -2,6 +2,8 @@
 // 报表页 Top 10 区域 —— 单笔 / 分类 两个 Tab 切换。
 // 单笔:每行 = 分类图标 + 名字 + 日期 + 金额(降序前 10)
 // 分类:复用 expenseByCategoryProvider,截取前 10,每行 = 图标 + 名字 + 金额 + 占比
+//
+// 2026-10-15 D64.3 改:容器改用 `ChartCard`,TabBar 放 trailing,showDivider=false
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -10,8 +12,8 @@ import '../../../../core/database/app_database.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/theme/card_shadows.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/charts/chart_card.dart';
 import '../../../../shared/constants/default_categories.dart';
 import '../../../ledger/application/transactions_providers.dart';
 import '../../application/stats_providers.dart';
@@ -21,61 +23,33 @@ class TopExpenses extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: AppRadius.brLg,
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant,
-          width: 1.0, // 全卡片统一:0.5 → 1.0
+    return ChartCard(
+      title: 'Top 10 支出',
+      showDivider: false,
+      trailing: SizedBox(
+        height: 36,
+        child: TabBar(
+          isScrollable: true,
+          indicatorSize: TabBarIndicatorSize.label,
+          labelPadding: const EdgeInsets.symmetric(horizontal: 8),
+          tabs: const [
+            Tab(text: '单笔'),
+            Tab(text: '分类'),
+          ],
+          labelColor: AppBrand.teal,
+          unselectedLabelColor: AppGray.g600,
+          indicatorColor: AppBrand.teal,
+          dividerHeight: 0,
         ),
-        boxShadow: CardShadows.light(context),
       ),
       child: DefaultTabController(
         length: 2,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.s4,
-                AppSpacing.s3,
-                AppSpacing.s4,
-                0,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Top 10 支出',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                  ),
-                  TabBar(
-                    isScrollable: true,
-                    indicatorSize: TabBarIndicatorSize.label,
-                    labelPadding: const EdgeInsets.symmetric(horizontal: 8),
-                    tabs: const [
-                      Tab(text: '单笔'),
-                      Tab(text: '分类'),
-                    ],
-                    labelColor: AppBrand.teal,
-                    unselectedLabelColor: AppGray.g600,
-                    indicatorColor: AppBrand.teal,
-                    dividerHeight: 0,
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(
-              height: 520,
-              child: const TabBarView(
-                physics: NeverScrollableScrollPhysics(),
-                children: [_TopList(), _TopByCategory()],
-              ),
-            ),
-          ],
+        child: SizedBox(
+          height: 520,
+          child: const TabBarView(
+            physics: NeverScrollableScrollPhysics(),
+            children: [_TopList(), _TopByCategory()],
+          ),
         ),
       ),
     );
