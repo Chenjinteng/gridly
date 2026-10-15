@@ -329,7 +329,7 @@ class _YearlyConsumptionTrend extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4,
+      length: 3,
       child: ChartCard(
         title: '消费趋势',
         showDivider: false,
@@ -343,7 +343,6 @@ class _YearlyConsumptionTrend extends StatelessWidget {
               Tab(text: '收支'),
               Tab(text: '结余'),
               Tab(text: '预算'),
-              Tab(text: '储蓄'),
             ],
             labelColor: AppBrand.teal,
             unselectedLabelColor: AppGray.g600,
@@ -359,7 +358,6 @@ class _YearlyConsumptionTrend extends StatelessWidget {
               _IncomeExpenseTab(),
               _BalanceTab(),
               _BudgetTab(),
-              _SavingsTab(),
             ],
           ),
         ),
@@ -596,95 +594,6 @@ class _BudgetTab extends ConsumerWidget {
           child: Text('加载失败:$e', style: const TextStyle(color: AppStatus.error)),
         ),
       ),
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Padding(
-        padding: const EdgeInsets.all(AppSpacing.s3),
-        child: Text('加载失败:$e', style: const TextStyle(color: AppStatus.error)),
-      ),
-    );
-  }
-}
-
-/// 储蓄 tab:某年 1-12 月的月度储蓄率走势
-///   - 储蓄率 = (income - expense) / income × 100%
-///   - 0% ~ 100%:正向储蓄(收入 > 支出,柱条朝上)
-///   - < 0%:负储蓄(支出 > 收入,柱条朝下,用 D64.21c 负轴)
-///   - 0% (income=0):不画柱
-///   - 颜色:正储蓄率 teal,负储蓄率 error 红(跟结余 tab 同款区分)
-///   - D64.25 加:跟结余 tab 不同,储蓄率看的是"赚的钱留了多少比例"
-class _SavingsTab extends ConsumerWidget {
-  const _SavingsTab();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final year = ref.watch(statsCustomYearProvider) ?? DateTime.now().year;
-    final trendAsync = ref.watch(yearlyMonthlyTrendProvider(year));
-    return trendAsync.when(
-      data: (data) {
-        if (data.every((d) => d.income == 0 && d.expense == 0)) {
-          return _EmptyHint(text: '本年暂无收支');
-        }
-        // 算每月储蓄率(%);income=0 该月 rate=null(不画柱)
-        final rates = <double?>[];
-        for (final m in data) {
-          if (m.income == 0) {
-            rates.add(null);
-          } else {
-            rates.add((m.income - m.expense) / m.income * 100);
-          }
-        }
-        // 取 max/min 时跳过 null
-        final validRates = rates.whereType<double>();
-        if (validRates.isEmpty) return _EmptyHint(text: '本年无收入');
-        final maxVal = validRates.fold<double>(0, (a, b) => a > b ? a : b);
-        final minVal = validRates.fold<double>(0, (a, b) => a < b ? a : b);
-        if (maxVal == 0 && minVal == 0) {
-          return _EmptyHint(text: '本年无储蓄');
-        }
-        return Padding(
-          padding: const EdgeInsets.all(AppSpacing.s4),
-          child: AnimatedBarChart(
-            bars: [
-              for (var i = 0; i < data.length; i++)
-                BarChartBar(
-                  label: '${data[i].month}月',
-                  // null = 0 高度柱(fl_chart 不支持 nullable bar value)
-                  value: rates[i] ?? 0,
-                ),
-            ],
-            maxVal: maxVal,
-            minVal: minVal < 0 ? minVal : null, // D64.21c 负轴
-            chartNeedsWan: false, // 百分比不会到万,强制不走 wan 缩写
-            // 颜色按正负区分:正储蓄率 teal,负储蓄率 error 红
-            barColorResolver: (i, b) =>
-                b.value >= 0 ? AppBrand.teal : AppStatus.error,
-            // D64.22 改:稀疏化到 1 / 6 / 12 三个月(起 / 中 / 末)
-            xLabelBuilder: (i, b) {
-              final m = data[i].month;
-              if (m != 1 && m != 6 && m != 12) return const SizedBox.shrink();
-              return Padding(
-                padding: const EdgeInsets.only(top: 1),
-                child: Text(
-                  b.label,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              );
-            },
-            touchedLabelBuilder: (i, b) => b.label,
-            tooltipBuilder: (i, b) {
-              final r = rates[i];
-              if (r == null) return '当月无收入';
-              final m = data[i];
-              return '储蓄率 ${r.toStringAsFixed(0)}% '
-                  '收 ¥${Formatters.amount(m.income)} '
-                  '支 ¥${Formatters.amount(m.expense)}';
-            },
-          ),
-        );
-      },
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Padding(
         padding: const EdgeInsets.all(AppSpacing.s3),
