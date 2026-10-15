@@ -49,6 +49,11 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
   // 2026-10-13 P6 加:资产是否计入日常流水开关(true = 显示在流水页,默认开)
   // 投资 / 福利 / 债权等"非日常"资产,user 关掉它,后面做调拨/理财报表时启用 filter
   late bool _includeInTransactions;
+  // 2026-10-15 D61 加:receivable 段"充当现金流"开关
+  //   - 只对 receivable 段有义:花呗/白条/信用卡等可消费债务 → 开,记一笔 cash_flow 支出能选
+  //   - 车贷/房贷/借款等不可消费债务 → 关,只走 receivable 段调拨还款
+  //   - 非 receivable 段恒为 false(切 type 时清零)
+  late bool _actAsCashFlow;
   // 2026-10-13 P7 加:cash_flow 段"日常流水默认账户"标记
   //   - 只有 cash_flow 段才有意义(其他段 IsDefaultCard 不显示)
   //   - save 后会调 setDefaultForCashFlow(id) 保证单例
@@ -157,6 +162,11 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
     _includeInTransactions = a?.includeInTransactions ?? isCashFlow;
     // 2026-10-13 P7:isDefault 默认 false,seed "现金" 通过 default_assets.dart 主动置 true
     _isDefault = a?.isDefault ?? false;
+    // 2026-10-15 D61:actAsCashFlow 初始化
+    //   - 新增模式 + receivable → false(花呗/白条/车贷/房贷都默认关,user 主动开)
+    //   - 新增模式 + 其它 type → false(此字段只对 receivable 有义,其它 type 永远是 false)
+    //   - 编辑模式 → 用已有值(用户已设定)
+    _actAsCashFlow = a?.actAsCashFlow ?? false;
   }
 
   @override
@@ -201,6 +211,9 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
           initialBalance: balance,
           includeInTransactions: _includeInTransactions,
           isDefault: markDefault,
+          // 2026-10-15 D61:receivable 段"充当现金流"开关
+          //   - 非 receivable 段 _actAsCashFlow 永远是 false(form 切 type 时已清零)
+          actAsCashFlow: _actAsCashFlow,
         );
       } else {
         final updated = widget.existing!.copyWith(
@@ -211,6 +224,8 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
           initialBalance: balance,
           includeInTransactions: _includeInTransactions,
           isDefault: markDefault,
+          // 2026-10-15 D61:同新增,所有 type 都传(非 receivable 段切到时已清零)
+          actAsCashFlow: _actAsCashFlow,
         );
         await repo.update(updated);
         savedId = updated.id;
@@ -294,6 +309,9 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
                 _type = v;
                 // 切到非 cash_flow 段 → 默认账户开关无意义,清掉避免存脏数据
                 if (v != 'cash_flow') _isDefault = false;
+                // 2026-10-15 D61:切到非 receivable 段 → 充当现金流开关无意义,清掉
+                //   (此字段只对 receivable 段有义,其它 type 永远是 false)
+                if (v != 'receivable') _actAsCashFlow = false;
               }),
             ),
             const SizedBox(height: AppSpacing.s4),
@@ -324,6 +342,20 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
               onChanged: (v) => setState(() => _includeInTransactions = v),
             ),
             const SizedBox(height: AppSpacing.s4),
+
+            // 2026-10-15 D61:充当现金流开关(仅 receivable 段显示)
+            //   - user UAT 反馈:"债务这里的属性还需要增加一个按钮,就是'充当现金流'",
+            //   区分"花呗/白条等可消费债务"(可作 cash_flow 支出 source)
+            //   vs"车贷/房贷等不可消费债务"(只能在 receivable 段调拨还款)。
+            //   - 只有开启了"充当现金流"的 receivable 账户才在记一笔 cash_flow 支出 picker 里出现
+            //   - 非 receivable 段此开关无意义,隐藏避免误操作(同 IsDefaultCard 套路)
+            if (_type == 'receivable') ...[
+              _ActAsCashFlowCard(
+                value: _actAsCashFlow,
+                onChanged: (v) => setState(() => _actAsCashFlow = v),
+              ),
+              const SizedBox(height: AppSpacing.s4),
+            ],
 
             // 期初余额(可负,代表初始欠款)
             // 2026-10-13 P6 改:
@@ -650,6 +682,85 @@ class _IsDefaultCard extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         value ? '记一笔时优先选中这条账户' : '关闭后,其他现金账户可设为默认',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppGray.g600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                AquaSwitch(value: value, onChanged: onChanged),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 2026-10-15 D61:充当现金流开关(仅 receivable 段账户显示)
+///   - user UAT 反馈:"债务这里的属性还需要增加一个按钮,就是'充当现金流'"
+///   - true:花呗/白条/信用卡等可消费债务,在记一笔 cash_flow 支出 picker 里能选
+///   - false:车贷/房贷/借款等不可消费债务,只走 receivable 段调拨还款,
+///     不会出现在 cash_flow 支出 picker 里
+///   - AquaSwitch 风格 + 16px 圆角 card,跟 _IsDefaultCard / _IncludeInTransactionsCard 一致
+class _ActAsCashFlowCard extends StatelessWidget {
+  const _ActAsCashFlowCard({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: AppRadius.brLg,
+        border: Border.all(color: theme.colorScheme.outlineVariant, width: 1),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => onChanged(!value),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.s3,
+              vertical: 14,
+            ),
+            child: Row(
+              children: [
+                // 信用卡 icon(语义:可作付款工具),与花呗/白条概念对应
+                Icon(
+                  value
+                      ? Icons.credit_card_rounded
+                      : Icons.credit_card_off_rounded,
+                  size: 20,
+                  color: value
+                      ? AppStatus.warning
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: AppSpacing.s3),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        '充当现金流',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        value
+                            ? '记一笔支出时可选这条账户(花呗/白条/信用卡等可消费债务)'
+                            : '仅在债务段调拨还款用(车贷/房贷/借款等不可消费债务)',
                         style: const TextStyle(
                           fontSize: 11,
                           color: AppGray.g600,

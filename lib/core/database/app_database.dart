@@ -30,7 +30,7 @@ class AppDatabase extends _$AppDatabase {
   // 2026-10-13 P7:4 → 5,assets 加 isDefault 列(cash_flow 段"日常流水默认账户"标记)
   // 2026-10-13 P8:5 → 6,transactions 加 destinationAccountId 列(投资场景投入/收益/调拨双账户)
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -90,6 +90,16 @@ class AppDatabase extends _$AppDatabase {
       //   老数据全为 null(向后兼容,不影响 cash_flow 已有 expense/income/balance)
       if (from < 6) {
         await m.addColumn(transactions, transactions.destinationAccountId);
+      }
+      // 6 → 7:assets 加 actAsCashFlow 列(默认 false)
+      //   2026-10-15 D61 user 反馈:"债务这里的属性还需要增加一个按钮,就是'充当现金流'",
+      //   区分"花呗/白条等可消费债务"(可作 cash_flow 支出 source)vs"车贷/房贷等不可消费债务"
+      //   (只能在 receivable 段调拨还款,不能进 cash_flow 支出 picker)。
+      //   老数据默认 false:已经存在的 receivable 账户(包括花呗/车贷等)首次升级后都是 false,
+      //   user 需要在资产管理手动给花呗/白条/信用卡开"充当现金流"。
+      //   这样保证"不可消费债务"不会因为升级而意外出现在记一笔 picker 里。
+      if (from < 7) {
+        await m.addColumn(assets, assets.actAsCashFlow);
       }
     },
     beforeOpen: (details) async {

@@ -72,6 +72,9 @@ class AssetRepository {
   ///   - 单例:cash_flow 段同时只能有 1 只 isDefault=true
   ///   - 由调用方负责调用 setDefaultForCashFlow() 在插入后同步
   ///     (insert + setDefault 在一个事务里更好,但当前 UI 流程允许短暂不一致,可接受)
+  /// 2026-10-15 D61:加 actAsCashFlow 参数(receivable 段"充当现金流"标记)
+  ///   - 默认 false,只有花呗/白条/信用卡这类可消费债务需要 user 主动开
+  ///   - 非 receivable 段恒为 false,asset_form_page 切 type 时清零
   Future<int> create({
     required String name,
     required String type,
@@ -81,6 +84,7 @@ class AssetRepository {
     bool includeInTransactions = true,
     int displayOrder = 0,
     bool isDefault = false,
+    bool actAsCashFlow = false,
   }) {
     return _db
         .into(_db.assets)
@@ -96,6 +100,10 @@ class AssetRepository {
             displayOrder: Value(displayOrder),
             // 2026-10-13 P7:记一笔默认账户标记(cash_flow 段单例)
             isDefault: Value(isDefault),
+            // 2026-10-15 D61:receivable 段"充当现金流"开关
+            //   - 区分可消费债务(花呗/信用卡,可作 cash_flow 支出 source)
+            //     vs 不可消费债务(车贷/房贷,只在 receivable 段调拨)
+            actAsCashFlow: Value(actAsCashFlow),
           ),
         );
   }

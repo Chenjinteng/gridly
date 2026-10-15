@@ -1150,6 +1150,14 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     final List<String>? filter =
         _accountTypeFilter ??
         (widget.accountTypeFilter == null ? null : [widget.accountTypeFilter!]);
+    // 2026-10-15 D61:只有 cash_flow 段 + 支出 intent 走"充当现金流"过滤
+    //   - 区分可消费债务(花呗/白条/信用卡,actAsCashFlow=true)和
+    //     不可消费债务(车贷/房贷,actAsCashFlow=false)
+    //   - 不可消费债务不应在 cash_flow 支出 picker 里出现(不可用 debt 付日常账)
+    //   - receivable 段(借出/借入/调拨)picker 不传,显示所有 debt 账户(不影响)
+    //   - 其它段(investment/benefit/other)picker 也不传
+    final actAsCashFlowOnly =
+        widget.preselectedAssetType == 'cash_flow' && _intent == 'expense';
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1163,6 +1171,7 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
         selected: _accountId,
         accountTypeFilter: filter,
         excludeId: _destinationAccountId,
+        actAsCashFlowOnly: actAsCashFlowOnly,
         onSelect: (id) {
           setState(() => _accountId = id);
           Navigator.of(context).pop();
@@ -1607,6 +1616,7 @@ class _AccountPickerSheet extends ConsumerWidget {
     required this.onSelect,
     this.accountTypeFilter,
     this.excludeId,
+    this.actAsCashFlowOnly = false,
   });
   final int? selected;
   final ValueChanged<int> onSelect;
@@ -1625,6 +1635,13 @@ class _AccountPickerSheet extends ConsumerWidget {
   ///   - dest picker 传 _accountId(已选 source 不能作 dest)
   ///   - 同一账户自转没意义 + 会引发 balanceDelta 双重扣款 bug
   final int? excludeId;
+
+  /// 2026-10-15 D61:receivable 段"充当现金流"过滤
+  ///   - true:receivable 段账户需 actAsCashFlow=true 才显示(花呗/白条/信用卡等)
+  ///   - false:receivable 段账户正常显示(包括不可消费债务)
+  ///   - 只对 cash_flow 段 picker 有意义(_openAccountPicker 在该处传 true)
+  ///   - receivable 段(借出/借入/调拨)picker 不传,走默认 false
+  final bool actAsCashFlowOnly;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1649,9 +1666,18 @@ class _AccountPickerSheet extends ConsumerWidget {
           // 2026-10-14 D50:再按 excludeId 排除(调拨 source / dest 互斥)
           // 2026-10-14 D58 改:accountTypeFilter 类型 String? → List<String>?,支持多类型
           //   白名单(membership check);null 不过滤,list 含 account.type 才显示
+          // 2026-10-15 D61:actAsCashFlowOnly 过滤 receivable 段的"非可消费"账户
+          //   - 区分花呗/白条(actAsCashFlow=true)vs 车贷/房贷(actAsCashFlow=false)
+          //   - 只在 cash_flow 段 picker 启用(_openAccountPicker 传 true),
+          //     receivable 段 picker 仍显示所有 debt 账户(不影响调拨/借出/借入)
           final filtered = assets.where((a) {
             if (accountTypeFilter != null &&
                 !accountTypeFilter!.contains(a.type)) {
+              return false;
+            }
+            if (actAsCashFlowOnly &&
+                a.type == 'receivable' &&
+                !a.actAsCashFlow) {
               return false;
             }
             if (excludeId != null && a.id == excludeId) {

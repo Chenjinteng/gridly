@@ -18,6 +18,15 @@
 //     - 单例:cash_flow 段同时只能有 1 只 isDefault=true(由 repo.setDefaultForCashFlow 维护)
 //     - 非 cash_flow 段恒为 false(记一笔只关心 cash_flow 段默认)
 //     - 老数据默认 false,需要 user 主动在资产列表"设为默认"开启,首次启动 seed 时给"现金"开
+// 2026-10-15 D61 加:
+//   - actAsCashFlow:BoolColumn,默认 false
+//     - 标记 receivable 段账户是否"充当现金流"(花呗/白条/信用卡等可消费债务)
+//     - true:在记一笔 cash_flow 段支出 picker 里能选(走 D59 逻辑);调拨也允许
+//     - false:不参与"现金流场景",只在 receivable 段(借出/借入/调拨)显示
+//       (车贷/房贷/借款,只走调拨还款,不让出现在 cash_flow 支出 source picker)
+//     - 新建 receivable 账户默认 false,user 主动在 form 勾选才开
+//     - 其它 type 字段恒为 false(只对 receivable 有意义)
+//     - 老设备升级默认 false(老数据不会被新列影响,需 user 显式开)
 import 'package:drift/drift.dart';
 
 class Assets extends Table {
@@ -42,6 +51,12 @@ class Assets extends Table {
   //   - 老数据默认 false,seed "现金" 时主动置 true
   //   - 非 cash_flow 段恒为 false(setDefaultForCashFlow 只动 cash_flow 段)
   BoolColumn get isDefault => boolean().withDefault(const Constant(false))();
+  // 2026-10-15 D61 加:receivable 段"充当现金流"开关
+  //   - true:可消费债务(花呗/白条/信用卡),在记一笔 cash_flow 支出 picker 里能选
+  //   - false:不可消费债务(车贷/房贷/借款),只走 receivable 段调拨
+  //   - 默认 false,user 主动勾选;非 receivable type 段恒为 false
+  BoolColumn get actAsCashFlow =>
+      boolean().withDefault(const Constant(false))();
   IntColumn get displayOrder => integer().withDefault(const Constant(0))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
