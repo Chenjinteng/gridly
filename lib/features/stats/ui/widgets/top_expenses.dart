@@ -23,30 +23,36 @@ class TopExpenses extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return ChartCard(
-      title: 'Top 10 支出',
-      showDivider: false,
-      trailing: SizedBox(
-        height: 36,
-        child: TabBar(
-          isScrollable: true,
-          indicatorSize: TabBarIndicatorSize.label,
-          labelPadding: const EdgeInsets.symmetric(horizontal: 8),
-          tabs: const [
-            Tab(text: '单笔'),
-            Tab(text: '分类'),
-          ],
-          labelColor: AppBrand.teal,
-          unselectedLabelColor: AppGray.g600,
-          indicatorColor: AppBrand.teal,
-          dividerHeight: 0,
+    // 2026-10-15 D64.4 修:DefaultTabController 必须包整个 widget,
+    // 这样 trailing 里的 TabBar 跟 child 里的 TabBarView 都在
+    // DefaultTabController 子树里,共享同一个 controller。
+    // 之前 D64.3 改成 ChartCard 之后,DefaultTabController 放在 child 里,
+    // 但 trailing 的 TabBar 在外面,Flutter 报:
+    //   "No TabController for TabBar"
+    return DefaultTabController(
+      length: 2,
+      child: ChartCard(
+        title: 'Top 10 支出',
+        showDivider: false,
+        trailing: SizedBox(
+          height: 36,
+          child: TabBar(
+            isScrollable: true,
+            indicatorSize: TabBarIndicatorSize.label,
+            labelPadding: const EdgeInsets.symmetric(horizontal: 8),
+            tabs: const [
+              Tab(text: '单笔'),
+              Tab(text: '分类'),
+            ],
+            labelColor: AppBrand.teal,
+            unselectedLabelColor: AppGray.g600,
+            indicatorColor: AppBrand.teal,
+            dividerHeight: 0,
+          ),
         ),
-      ),
-      child: DefaultTabController(
-        length: 2,
-        child: SizedBox(
+        child: const SizedBox(
           height: 520,
-          child: const TabBarView(
+          child: TabBarView(
             physics: NeverScrollableScrollPhysics(),
             children: [_TopList(), _TopByCategory()],
           ),
