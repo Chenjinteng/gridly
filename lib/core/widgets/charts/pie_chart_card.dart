@@ -10,6 +10,10 @@
 // 内部用 `AnimatedPieChart`(`core/widgets/animated_pie_chart.dart`)。
 // 数据源:业务 widget 把 `List<({String name, double value, int color})>`
 // 直接传进来,不需要自己转 PieChartSectionData。
+//
+// 2026-10-15 D64.7 加 `play` 参数:viewport-aware 触发圆环动画,跟
+//   BudgetOverviewChart 同模式。`category_pie` 默认 true(立即播,卡片在
+//   stats_page 顶部几乎都可见);`expense_by_asset` 业务 widget 自己控制。
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
@@ -39,6 +43,7 @@ class PieChartCard extends StatelessWidget {
     required this.centerLabel,
     required this.centerValueText,
     this.totalLabel,
+    this.play = true,
   });
 
   /// 卡片标题(左对齐)
@@ -58,6 +63,13 @@ class PieChartCard extends StatelessWidget {
 
   /// 标题右侧文案(可选,如 "共 ¥X" — null 时不显示)
   final String? totalLabel;
+
+  /// 2026-10-15 D64.7 加:是否触发圆环入场动画(viewport-aware 场景)。
+  /// 默认 true(向后兼容,initState 立即 forward);
+  /// false 时 widget mount 但不 forward,parent 通过 setState 改为 true
+  /// 时由 AnimatedPieChart.didUpdateWidget 触发 forward。
+  /// 参考 BudgetOverviewChart 的 `_appeared` flag 模式。
+  final bool play;
 
   @override
   Widget build(BuildContext context) {
@@ -117,6 +129,9 @@ class PieChartCard extends StatelessWidget {
                     ),
                     innerRadius: 48,
                     outerRadius: 64,
+                    // 2026-10-15 D64.7:透传 play(viewport-aware 触发,
+                    //   跟 BudgetOverviewChart 同模式)
+                    play: play,
                     sections: shown
                         .map(
                           (e) => PieChartSectionData(
