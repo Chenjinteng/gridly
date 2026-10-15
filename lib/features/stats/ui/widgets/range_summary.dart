@@ -173,22 +173,28 @@ class _YoYBadge extends StatelessWidget {
     }
     return Padding(
       padding: const EdgeInsets.only(top: 2),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 1),
-          Text(
-            y.text,
-            style: TextStyle(
-              fontSize: 11,
-              color: color,
-              fontWeight: FontWeight.w500,
-              height: 1.0,
+      // D62 UAT 修:同比文字过长(±¥20,000.0)时 _YoYBadge 自然宽 > parent column
+      // 宽,触发 RenderFlex overflow 0.323px。FittedBox(scaleDown) 只在溢出时缩放,
+      // 短文字(0.0% / +12.5%)保持原字号不变。
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 1),
+            Text(
+              y.text,
+              style: TextStyle(
+                fontSize: 11,
+                color: color,
+                fontWeight: FontWeight.w500,
+                height: 1.0,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

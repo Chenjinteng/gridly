@@ -155,15 +155,18 @@ final expenseByCategoryProvider = FutureProvider<List<CategoryExpense>>((
       ),
     );
   }
-  // D62:还款作为虚拟分类,categoryId=-1 标记(避免跟真实 cat.id 冲突)
-  // - 颜色用 AppCategory.liability(0xFFEF4444 红),跟分类语义"债务"对齐
-  // - 没还款数据时不加入(保持空饼图,不显示"还款 ¥0")
+  // D62:现金→债务的调拨作为虚拟分类混入饼图
+  // - name='债务' 跟流水 cat 名称一致(D51 v2:receivable 段 cat 系统 seed 为"债务"),
+  //   user 看饼图时跟流水的"债务" record 一眼对应,不引入新词
+  // - categoryId=-1 标记虚拟分类(避免跟真实 cat.id 冲突)
+  // - color=AppCategory.liability(0xFFEF4444 红),跟分类语义对齐
+  // - 没调拨数据时不加入(保持空饼图,不显示"债务 ¥0")
   if (repayment > 0) {
     out.add(
       CategoryExpense(
         categoryId: -1,
-        name: '还款',
-        color: 0xFFEF4444, // AppCategory.liability(债务色),hex 直写避免 toARGB32 版本兼容
+        name: '债务',
+        color: 0xFFEF4444,
         amount: repayment,
       ),
     );
@@ -173,18 +176,34 @@ final expenseByCategoryProvider = FutureProvider<List<CategoryExpense>>((
 });
 
 /// Top 10 支出单笔(从大到小,按当前时间窗)
+/// D62 改:口径跟 expenseByCategoryProvider 一致
+///   - tx.type='expense'(真支出,任何 cat.type)
+///   - 或 tx.type='balance' AND cat.type='liability'(现金→债务的调拨,即"债务" record)
+///   - 其它 balance(投资调拨)不计 — 投资账户之间转账不属于"支出"维度
+/// UI 显示:tx.type='expense' 走真 cat.name/颜色;balance+liability 走 receivable 段
+/// cat(系统 seed "债务",color=AppCategory.liability 红),跟饼图虚拟分类视觉一致。
 final topExpensesProvider = FutureProvider<List<Transaction>>((ref) async {
   final w = ref.watch(statsWindowProvider);
   final db = ref.watch(databaseProvider);
-  return (db.select(db.transactions)
-        ..where(
-          (t) =>
-              t.occurredAt.isBetweenValues(w.start, w.end) &
-              t.type.equals('expense'),
-        )
-        ..orderBy([(t) => OrderingTerm.desc(t.amount)])
-        ..limit(10))
-      .get();
+  // D62:用猫类型过滤 — 现金→债务调拨 cat.type='liability',从 cats 查 id 集合
+  final cats = await ref.watch(allCategoriesProvider.future);
+  final liabilityCatIds = cats
+      .where((c) => c.type == 'liability')
+      .map((c) => c.id)
+      .toSet();
+  // 全窗查 + 内存 filter + 排序 + limit 10(避免拼复杂 SQL,数据量小可接受)
+  final txs = await (db.select(
+    db.transactions,
+  )..where((t) => t.occurredAt.isBetweenValues(w.start, w.end))).get();
+  final filtered = txs.where((t) {
+    if (t.type == 'expense') return true;
+    if (t.type == 'balance' && liabilityCatIds.contains(t.categoryId)) {
+      return true;
+    }
+    return false;
+  }).toList();
+  filtered.sort((a, b) => b.amount.compareTo(a.amount));
+  return filtered.take(10).toList();
 });
 
 class MonthlyTrend {
