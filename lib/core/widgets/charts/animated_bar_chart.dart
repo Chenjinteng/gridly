@@ -9,6 +9,12 @@
 //   - 颜色支持 3 种:固定色(primaryColor + secondaryColor 双柱),
 //     或动态色(barColorResolver 单柱按 bar 算色,周几支出高亮最大值柱)
 //
+// 2026-10-15 D64.5 改:maxY + niceInterval 算法下沉到本 widget 内部。
+//   业务 widget 只传 `maxVal`(实际最大柱值),内部按整数倍规则算出
+//   maxY = (maxVal / niceInterval).ceil() * niceInterval,避免 fl_chart 在
+//   maxY 位置额外画一个小数 label 跟 0 重叠(原 `maxVal * 1.15` 非整数倍
+//   触发的 bug)。
+//
 // 行为(跟 monthly_trend._AnimatedBarChart 一致):
 //   - viewport-aware 触发入场动画(toY=0 → real via BarChart swap 600ms)
 //   - 触摸:
@@ -27,8 +33,7 @@
 //       label: '${d.day}日',
 //       value: d.expense,
 //     )).toList(),
-//     maxY: maxY,
-//     niceInterval: niceInterval,
+//     maxVal: maxVal,           // 实际最大柱值(非 maxY)
 //     chartNeedsWan: chartNeedsWan,
 //     xLabelBuilder: (i, b) => Text(...),  // 可选,X 轴 label widget
 //     touchedLabelBuilder: (i, b) => b.label,  // 触摸顶部 label
@@ -75,8 +80,7 @@ class AnimatedBarChart extends StatefulWidget {
   const AnimatedBarChart({
     super.key,
     required this.bars,
-    required this.maxY,
-    required this.niceInterval,
+    required this.maxVal,
     required this.chartNeedsWan,
     this.xLabelBuilder,
     this.touchedLabelBuilder,
@@ -90,8 +94,9 @@ class AnimatedBarChart extends StatefulWidget {
   });
 
   final List<BarChartBar> bars;
-  final double maxY;
-  final double niceInterval;
+
+  /// 实际最大柱值(非 maxY)。本 widget 内部按整数倍规则算出 maxY + niceInterval。
+  final double maxVal;
   final bool chartNeedsWan;
   final XLabelBuilder? xLabelBuilder;
   final TouchedLabelBuilder? touchedLabelBuilder;
@@ -130,6 +135,13 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
 
   /// 当前 touch 柱的 toY 值
   double? _touchedValue;
+
+  /// 2026-10-15 D64.5:由 maxVal 算 niceInterval + 整数倍 maxY。
+  /// 整数倍保证 fl_chart 不在 maxY 位置额外画 label(避免跟顶部 tick 重叠)。
+  late final double _niceInterval = _pickNiceInterval(widget.maxVal);
+  late final double _computedMaxY = widget.maxVal == 0
+      ? 1.0
+      : (widget.maxVal / _niceInterval).ceil() * _niceInterval;
 
   @override
   void initState() {
@@ -310,7 +322,7 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
       children: [
         BarChart(
           BarChartData(
-            maxY: widget.maxY,
+            maxY: _computedMaxY,
             minY: 0,
             alignment: BarChartAlignment.spaceBetween,
             groupsSpace: widget.groupsSpace,
@@ -327,7 +339,7 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
             gridData: FlGridData(
               show: true,
               drawVerticalLine: false,
-              horizontalInterval: widget.niceInterval,
+              horizontalInterval: _niceInterval,
               getDrawingHorizontalLine: (_) =>
                   FlLine(color: scheme.outlineVariant, strokeWidth: 0.5),
             ),
@@ -344,7 +356,7 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
                 sideTitles: SideTitles(
                   showTitles: true,
                   reservedSize: _leftReservedSize,
-                  interval: widget.niceInterval,
+                  interval: _niceInterval,
                   getTitlesWidget: (v, meta) => Text(
                     Formatters.amount(
                       v,
@@ -364,7 +376,9 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
               bottomTitles: AxisTitles(
                 sideTitles: SideTitles(
                   showTitles: true,
-                  reservedSize: 14,
+                  // 2026-10-15 D64.5:从 14 提到 18,留够 2 字中文 category label
+                  // (如"购物")的 padding(原 14 太紧,部分 label 被 fl_chart skip)。
+                  reservedSize: 18,
                   interval: 1,
                   getTitlesWidget: (v, meta) {
                     final idx = v.toInt();
@@ -546,3 +560,26 @@ class _DashedLinePainter extends CustomPainter {
 
 /// `Formatters.amount` from `core/utils/formatters.dart` ——
 /// 已 import 真 Formatters,上面 inline 的简化版删除。
+
+/// 2026-10-15 D64.5:从 monthly_trend.dart 移过来 —— 按 1/2/5 × 10^n 挑 niceInterval,
+/// 保证 maxY 是 niceInterval 的整数倍,避免 fl_chart 在 maxY 位置额外画 label。
+double _pickNiceInterval(double maxVal) {
+  if (maxVal <= 0) return 1;
+  final magnitude = _pow10(
+    (maxVal.abs().toString().split('.').first.length) - 1,
+  );
+  final candidates = <double>[magnitude, 2 * magnitude, 5 * magnitude];
+  for (final c in candidates) {
+    final tickCount = maxVal / c;
+    if (tickCount <= 4) return c;
+  }
+  return candidates.last;
+}
+
+double _pow10(int n) {
+  double r = 1;
+  for (var i = 0; i < n; i++) {
+    r *= 10;
+  }
+  return r;
+}

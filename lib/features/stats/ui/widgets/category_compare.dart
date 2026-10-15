@@ -2,6 +2,9 @@
 // 报表第 5 张卡:本月 vs 上月 各类别支出对比
 //
 // 2026-10-15 D64.3 改:用 `ChartCard` 容器替换重复的 Container 装饰
+// 2026-10-15 D64.5 改:maxY + niceInterval 算法下沉到 AnimatedBarChart,
+//   本文件只算 maxVal,去掉本地 _niceInterval / _pow10 helper(原 maxVal*1.15
+//   非整数倍触发了 fl_chart 在 maxY 位置画小数 label 跟 0 tick 重叠的 bug)。
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -56,8 +59,6 @@ class CategoryCompareChart extends ConsumerWidget {
             ),
           );
         }
-        final maxY = maxVal * 1.15;
-        final niceInterval = _niceInterval(maxY);
         final chartNeedsWan = maxVal >= Formatters.wanThreshold;
         return ChartCard(
           title: '类别对比',
@@ -75,8 +76,7 @@ class CategoryCompareChart extends ConsumerWidget {
                       secondaryValue: c.prevAmount,
                     ),
                 ],
-                maxY: maxY,
-                niceInterval: niceInterval,
+                maxVal: maxVal,
                 chartNeedsWan: chartNeedsWan,
                 primaryColor: AppStatus.error,
                 secondaryColor: AppGray.g200,
@@ -163,20 +163,5 @@ class _LegendDot extends StatelessWidget {
   }
 }
 
-double _niceInterval(double maxY) {
-  if (maxY <= 0) return 100;
-  final v = maxY / 5;
-  if (v <= 0) return 1;
-  final exp = v.toString().split('.').first.length - 1;
-  final n = _pow10(exp < 0 ? 0 : exp);
-  final cands = [n.toDouble(), (2 * n).toDouble(), (5 * n).toDouble()];
-  return cands.reduce((a, b) => (a - v).abs() < (b - v).abs() ? a : b);
-}
-
-int _pow10(int n) {
-  int r = 1;
-  for (int i = 0; i < n; i++) {
-    r *= 10;
-  }
-  return r;
-}
+/// 2026-10-15 D64.5:_niceInterval / _pow10 已下沉到
+/// `core/widgets/charts/animated_bar_chart.dart`,本文件不再需要。

@@ -7,6 +7,8 @@
 //   共享 `AnimatedBarChart`(viewport-aware + 触摸 + 虚线 + label + tooltip)。
 // 2026-10-15 D64.3 改:容器改用 `ChartCard`(showDivider=false,无 trailing,
 //   整体 padding s4 — 跟原样式对齐:标题和图表同 padding 不用 Divider 隔开)
+// 2026-10-15 D64.5 改:maxY + niceInterval 算法下沉到 AnimatedBarChart,
+//   本文件只算 maxVal,去掉本地 _pickNiceInterval / _pow10 helper。
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -65,10 +67,6 @@ class _DailyExpenseBarChart extends ConsumerWidget {
         final maxVal = data
             .map((d) => d.expense)
             .fold<double>(0, (a, b) => a > b ? a : b);
-        final niceInterval = _pickNiceInterval(maxVal);
-        final maxY = maxVal == 0
-            ? 1.0
-            : (maxVal / niceInterval).ceil() * niceInterval;
         final chartNeedsWan = maxVal >= Formatters.wanThreshold;
         return Padding(
           padding: const EdgeInsets.only(top: AppSpacing.s2),
@@ -77,8 +75,7 @@ class _DailyExpenseBarChart extends ConsumerWidget {
               for (final d in data)
                 BarChartBar(label: '${d.day}日', value: d.expense),
             ],
-            maxY: maxY,
-            niceInterval: niceInterval,
+            maxVal: maxVal,
             chartNeedsWan: chartNeedsWan,
             primaryColor: AppStatus.error,
             // 30 根柱全标 label 太密,稀疏化:1/5/10/15/20/25/30
@@ -136,10 +133,6 @@ class _MonthlyBarChart extends ConsumerWidget {
         final maxVal = data
             .map((d) => d.expense)
             .fold<double>(0, (a, b) => a > b ? a : b);
-        final niceInterval = _pickNiceInterval(maxVal);
-        final maxY = maxVal == 0
-            ? 1.0
-            : (maxVal / niceInterval).ceil() * niceInterval;
         final chartNeedsWan = maxVal >= Formatters.wanThreshold;
         return Padding(
           padding: const EdgeInsets.only(top: AppSpacing.s2),
@@ -148,8 +141,7 @@ class _MonthlyBarChart extends ConsumerWidget {
               for (final m in data)
                 BarChartBar(label: '${m.month}月', value: m.expense),
             ],
-            maxY: maxY,
-            niceInterval: niceInterval,
+            maxVal: maxVal,
             chartNeedsWan: chartNeedsWan,
             primaryColor: AppStatus.error,
             // 12 月全标 label
@@ -177,24 +169,5 @@ class _MonthlyBarChart extends ConsumerWidget {
   }
 }
 
-/// 2026-10-01 沿用:按"1/2/5 × 10^n"挑 niceInterval,避免 maxY 实际值出现
-double _pickNiceInterval(double maxVal) {
-  if (maxVal <= 0) return 1;
-  final magnitude = _pow10(
-    (maxVal.abs().toString().split('.').first.length) - 1,
-  );
-  final candidates = <double>[magnitude, 2 * magnitude, 5 * magnitude];
-  for (final c in candidates) {
-    final tickCount = maxVal / c;
-    if (tickCount <= 4) return c;
-  }
-  return candidates.last;
-}
-
-double _pow10(int n) {
-  double r = 1;
-  for (var i = 0; i < n; i++) {
-    r *= 10;
-  }
-  return r;
-}
+/// 2026-10-15 D64.5:_pickNiceInterval / _pow10 已下沉到
+/// `core/widgets/charts/animated_bar_chart.dart`,本文件不再需要。
