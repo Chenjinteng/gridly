@@ -396,8 +396,9 @@ class _IncomeExpenseTab extends ConsumerWidget {
             chartNeedsWan: chartNeedsWan,
             primaryColor: AppStatus.error,
             secondaryColor: AppGray.g200,
-            barWidth: 8,
-            barsSpace: 2,
+            // D64.23 改:barWidth 8 太宽,双柱互相重叠。改成跟 _DailyExpenseBars
+            // 同款默认细柱(barWidth=5),groupsSpace 用默认 4 跟月度每日一致
+            barsSpace: 1,
             // D64.22 改:12 月全标 label 太密,稀疏化到 1 / 6 / 12 三个月(起 / 中 / 末)
             xLabelBuilder: (i, b) {
               final m = data[i].month;
