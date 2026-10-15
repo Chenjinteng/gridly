@@ -502,8 +502,11 @@ class _BalanceTab extends ConsumerWidget {
   }
 }
 
-/// 预算 tab:某年 1-12 月的总额度(D64.21b 落库,可能 0)
-///   - 0 值仍显示空柱(保持 12 月等距,跟 RangeSummary 12 月走势风格一致)
+/// 预算 tab:某年 1-12 月的预算 vs 实际支出对比
+///   - 双柱:预算 teal + 实际支出 error 红
+///   - 一眼看出哪几个月超支(红柱超过 teal)
+///   - 缺失月份(amount=0)显示空柱,跟 RangeSummary 12 月走势风格一致
+///   - D64.24 改:之前只显示预算走势"没意义",补实际支出对比
 class _BudgetTab extends ConsumerWidget {
   const _BudgetTab();
 
@@ -511,47 +514,82 @@ class _BudgetTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final year = ref.watch(statsCustomYearProvider) ?? DateTime.now().year;
     final budgetAsync = ref.watch(monthlyBudgetHistoryProvider(year));
+    final expenseAsync = ref.watch(yearlyExpenseTrendProvider);
     return budgetAsync.when(
-      data: (data) {
-        if (data.every((d) => d.amount == 0)) {
-          return _EmptyHint(text: '本年未设置过预算');
-        }
-        final maxVal = data
-            .map((d) => d.amount)
-            .fold<double>(0, (a, b) => a > b ? a : b);
-        final chartNeedsWan = maxVal >= Formatters.wanThreshold;
-        return Padding(
-          padding: const EdgeInsets.all(AppSpacing.s4),
-          child: AnimatedBarChart(
-            bars: [
-              for (final m in data)
-                BarChartBar(label: '${m.month}月', value: m.amount),
-            ],
-            maxVal: maxVal,
-            chartNeedsWan: chartNeedsWan,
-            // 预算用 teal(品牌色),跟"还剩 ¥X"home 顶部配色对齐
-            primaryColor: AppBrand.teal,
-            // D64.22 改:稀疏化到 1 / 6 / 12 三个月(起 / 中 / 末)
-            xLabelBuilder: (i, b) {
-              final m = data[i].month;
-              if (m != 1 && m != 6 && m != 12) return const SizedBox.shrink();
-              return Padding(
-                padding: const EdgeInsets.only(top: 1),
-                child: Text(
-                  b.label,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+      data: (budgets) => expenseAsync.when(
+        data: (expenses) {
+          // 预算 + 实际支出 双数据合并
+          if (budgets.every((d) => d.amount == 0)) {
+            return _EmptyHint(text: '本年未设置过预算');
+          }
+          // 取 max(预算, 实际支出)算 maxVal
+          final maxVal = <double>[];
+          for (var i = 0; i < budgets.length; i++) {
+            maxVal.add(budgets[i].amount);
+            maxVal.add(expenses[i].expense);
+          }
+          final maxChart = maxVal.fold<double>(0, (a, b) => a > b ? a : b);
+          if (maxChart == 0) return _EmptyHint(text: '本年无预算数据');
+          final chartNeedsWan = maxChart >= Formatters.wanThreshold;
+          return Padding(
+            padding: const EdgeInsets.all(AppSpacing.s4),
+            child: AnimatedBarChart(
+              bars: [
+                for (var i = 0; i < budgets.length; i++)
+                  BarChartBar(
+                    label: '${budgets[i].month}月',
+                    // 主柱 = 预算,次柱 = 实际支出
+                    value: budgets[i].amount,
+                    secondaryValue: expenses[i].expense,
                   ),
-                ),
-              );
-            },
-            touchedLabelBuilder: (i, b) => b.label,
-            tooltipBuilder: (i, b) =>
-                '预算 ¥${Formatters.amount(b.value)}',
-          ),
-        );
-      },
+              ],
+              maxVal: maxChart,
+              chartNeedsWan: chartNeedsWan,
+              // 预算 teal(品牌色,跟"还剩 ¥X"home 顶部配色对齐)
+              primaryColor: AppBrand.teal,
+              // 实际支出 error 红(跟 range_summary 支出配色一致)
+              secondaryColor: AppStatus.error,
+              // 跟 收支 tab D64.23 同款细柱
+              barsSpace: 1,
+              // D64.22 改:稀疏化到 1 / 6 / 12 三个月(起 / 中 / 末)
+              xLabelBuilder: (i, b) {
+                final m = budgets[i].month;
+                if (m != 1 && m != 6 && m != 12) {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(top: 1),
+                  child: Text(
+                    b.label,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                );
+              },
+              touchedLabelBuilder: (i, b) => b.label,
+              tooltipBuilder: (i, b) {
+                final budget = budgets[i].amount;
+                final spent = expenses[i].expense;
+                final diff = budget - spent;
+                final pct = budget > 0 ? (spent / budget * 100) : 0;
+                final over = spent > budget;
+                return '${over ? '⚠ 超支 ' : ''}'
+                    '预算 ¥${Formatters.amount(budget)} '
+                    '实支 ¥${Formatters.amount(spent)} '
+                    '${diff >= 0 ? '剩' : '超'} ¥${Formatters.amount(diff.abs())}'
+                    ' (${pct.toStringAsFixed(0)}%)';
+              },
+            ),
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Padding(
+          padding: const EdgeInsets.all(AppSpacing.s3),
+          child: Text('加载失败:$e', style: const TextStyle(color: AppStatus.error)),
+        ),
+      ),
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Padding(
         padding: const EdgeInsets.all(AppSpacing.s3),
