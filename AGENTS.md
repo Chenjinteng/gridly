@@ -243,10 +243,10 @@ features/<name>/
   - `logo_horizontal.png` 2752×1536 — LOGO + "格子记账" 文字(横版品牌)
 - **Launcher icon**(5 个 mipmap-*/ic_launcher.png)当前从 `logo_primary.png` 派生,2026-10-10 改成白底风格
 
-### v0.3.5 P18 进度(2026-10-14 完成,56 commits)
+### v0.3.5 P18 进度(2026-10-14 完成,57 commits)
 
-- HEAD: `d3c27e0 fix(privacy): 隐私蒙版改主题色 + 完全不透明 + 简化文案 + 不响应点击 (D60.1)`,已推 `origin/main`
-- commit 范围:`7ea90d3..d3c27e0`
+- HEAD: `1ce7dae fix(form): 选账户 sheet 里的余额也接 amountVisibilityProvider (D60.2)`,已推 `origin/main`
+- commit 范围:`7ea90d3..1ce7dae`
 - 主要文件改动:
   - `lib/features/add/ui/transaction_form.dart` — 5 getter 三段拆分 / save() dest 收益不存 / initState pre-fill / D44 toggle 不清 cat(receivable 例外) / D45 `_actionRow` 全表查 cat / D49 余额校验扩所有非负债段 / D50 `_AccountPickerSheet` 加 `excludeId` / D51 v4 source picker 短路 / D52 / D53 popup overflow 修 / D55 `_isOtherContext` getter / D57 撤销 D56 `_categoryFilterType` + D55 `_accountTypeFilter` 返 null,改 `_toggleSegments` filter balance + `_needsCategory` 返 false + `_firstCategoryId` 简化 fallback(cat.type='other') / D58 `_AccountPickerSheet.accountTypeFilter` 改 `List<String>?`(多类型白名单)+ `_accountTypeFilter` / `_destinationTypeFilter` 返 `List<String>?` 统一协议,债务调拨限定 `['cash_flow', 'receivable']` / D59 cash_flow + expense 分支返 `['cash_flow', 'receivable']`(信用卡/花呗 source)
   - `lib/features/add/ui/add_transaction_page.dart` — `_appBarTitle` / `effectiveAllowBalance` 福利 / 债权 / 其它(D57)适配
@@ -274,7 +274,7 @@ features/<name>/
   - D46 清空后 assets 表为空,user 反馈如要自动 seed 默认 3 账户再 patch
   - D54 user 仍可在资产表单开 `includeInTransactions=true` 走短按 + cash_flow 调拨选 不动产 账户(后路,user 暂未要求封)
   - D60 其它页面的金额遮挡不全(transaction_tile / asset_tile / range_summary / top_expenses / category_pie / monthly_trend / assets_overview_chart / budget_sheet 等未接 `amountVisibilityProvider`),流水/报表被整页挡住影响小,user 反馈再补
-- 详情见 [`docs/ROADMAP.md`](docs/ROADMAP.md) v0.3.5 章节 + [`docs/DEV.md`](docs/DEV.md) D32-D60.1 决策记录
+- 详情见 [`docs/ROADMAP.md`](docs/ROADMAP.md) v0.3.5 章节 + [`docs/DEV.md`](docs/DEV.md) D32-D60.2 决策记录
 
 ### 这台机器的实际 host
 
