@@ -12,6 +12,12 @@
 //   - 中部:周日历(6 行 × 7 列),今天加描边、选中态实色填充
 //   - 底部:取消 / 确定(中文按钮,AppBrand.teal 主色)
 //   - 不允许跨月份(同月内只能选当月日期)
+//
+// 2026-10-15 D64.17 加:`lastDate` 默认今天,不允许选择未来日期。
+//   - user UAT 反馈"日期相关的选择,要限制一下,不要可以选择未来的日期"
+//   - 业务侧"记一笔"是过去发生的现金流,未来日期无意义
+//   - 右箭头在 lastDate 月份或之后禁用(避免切到一整片灰的未来月)
+//   - caller 显式传 `lastDate: null` 可关闭限制(目前未用,后续如有调度场景可开)
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
@@ -21,12 +27,18 @@ import '../../../../core/theme/app_spacing.dart';
 /// 弹出 gridly 自定义日期选择器
 ///
 /// 返回选中的 DateTime(时分秒归零);用户取消返回 null。
+///
+/// 2026-10-15 D64.17 加:`lastDate` 默认今天(记账场景不能选未来)。
+///   - 业务侧"记一笔"是过去发生的现金流,未来日期没意义
+///   - 若需要允许未来日期(暂未用到),caller 显式传 `lastDate: null` 关闭限制
 Future<DateTime?> showCustomDatePicker({
   required BuildContext context,
   required DateTime initialDate,
   DateTime? firstDate,
   DateTime? lastDate,
 }) {
+  // D64.17:caller 未传 lastDate 时默认今天(去掉未来日期选项)
+  final effectiveLastDate = lastDate ?? DateTime.now();
   return showModalBottomSheet<DateTime>(
     context: context,
     isScrollControlled: true,
@@ -34,7 +46,7 @@ Future<DateTime?> showCustomDatePicker({
     builder: (_) => CustomDatePickerSheet(
       initialDate: initialDate,
       firstDate: firstDate,
-      lastDate: lastDate,
+      lastDate: effectiveLastDate,
     ),
   );
 }
@@ -164,6 +176,12 @@ class _CustomDatePickerSheetState extends State<CustomDatePickerSheet> {
 
   void _shiftMonth(int delta) {
     final next = DateTime(_viewMonth.year, _viewMonth.month + delta, 1);
+    // D64.17:不允许切到未来月份(超出 lastDate 即今天),箭头 disable
+    //   防止用户切到下月看到一整片灰格
+    if (widget.lastDate != null) {
+      final lastMonth = DateTime(widget.lastDate!.year, widget.lastDate!.month);
+      if (next.isAfter(lastMonth)) return;
+    }
     setState(() => _viewMonth = next);
   }
 
@@ -205,6 +223,12 @@ class _CustomDatePickerSheetState extends State<CustomDatePickerSheet> {
   }
 
   Widget _buildHeader(ThemeData theme) {
+    // D64.17:viewMonth >= lastDate 月份时,右箭头禁用(避免切到一整片灰的未来月)
+    final isAtFutureEdge =
+        widget.lastDate != null &&
+        (_viewMonth.year > widget.lastDate!.year ||
+            (_viewMonth.year == widget.lastDate!.year &&
+                _viewMonth.month >= widget.lastDate!.month));
     return Row(
       children: [
         IconButton(
@@ -222,7 +246,8 @@ class _CustomDatePickerSheetState extends State<CustomDatePickerSheet> {
         ),
         IconButton(
           icon: const Icon(Icons.chevron_right_rounded),
-          onPressed: () => _shiftMonth(1),
+          // D64.17:在 lastDate 月份或之后右箭头禁用
+          onPressed: isAtFutureEdge ? null : () => _shiftMonth(1),
           // 2026-10-11 UAT:手机上没鼠标,tooltip 长按误触反而碍事,删掉。
         ),
       ],

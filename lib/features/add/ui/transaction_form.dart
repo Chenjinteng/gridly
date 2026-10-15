@@ -702,11 +702,11 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     //   - 全中文:年月日 / 快捷按钮 / 取消确定 / 周日一二三四五六
     //   - 卡片样式对齐 gridly(AppRadius.brXl + brand teal)
     //   - 顶部"今天/昨天/前天"快捷(覆盖记账 80% 场景)
+    // 2026-10-15 D64.17:不传 lastDate,默认今天(记账场景不能选未来日期)
     final picked = await showCustomDatePicker(
       context: context,
       initialDate: _occurredAt,
       firstDate: DateTime(2020),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
     );
     if (picked != null) {
       setState(() {
