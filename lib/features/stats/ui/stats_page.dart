@@ -38,6 +38,7 @@ import 'widgets/assets_overview_chart.dart';
 import 'widgets/assets_radar.dart';
 import 'widgets/range_summary.dart';
 import 'widgets/range_tabs.dart';
+import 'widgets/savings_trend.dart';
 import 'widgets/top_expenses.dart';
 import '../application/stats_providers.dart';
 
@@ -213,6 +214,12 @@ class _StatsPageState extends ConsumerState<StatsPage> {
         //   类别 tab 空态(provider thisYear 1 月 vs 12 月语义错),
         //   周几 tab 通用。
         add(const ConsumptionTrend());
+        // D64.27 加:储蓄走势折线图模块 —— 加到消费趋势后面,本年专属
+        //   (本年维度看全年趋势,本月维度没意义)
+        if (ref.watch(statsRangeProvider) == StatsRange.thisYear) {
+          widgets.add(const SizedBox(height: AppSpacing.s3));
+          add(const SavingsTrend());
+        }
       case StatsView.assets:
         // 2026-10-12 P4 commit:资产视角 = 总览卡 + 6 维雷达图(2026-10-13 P6 改 4 维 → 6 维)
         //   2026-10-13 P6:RangeTabs/RangeSummary 不在这里显示
