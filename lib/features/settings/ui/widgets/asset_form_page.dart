@@ -256,237 +256,253 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
     final theme = Theme.of(context);
     final isEdit = widget.existing != null;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(isEdit ? '编辑账户' : '新增账户'),
-        actions: [
-          // 右上角"保存"按钮(2026-10-13 P6 整页重构后,AppBar 替代底部 FilledButton)
-          IconButton(
-            tooltip: '保存',
-            icon: _saving
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.check_rounded),
-            onPressed: _saving ? null : _save,
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: EdgeInsets.fromLTRB(
-            AppSpacing.s4,
-            AppSpacing.s3,
-            AppSpacing.s4,
-            AppSpacing.s5,
-          ),
-          children: [
-            // 名字
-            TextField(
-              controller: _nameController,
-              maxLength: 24,
-              decoration: const InputDecoration(
-                labelText: '名称',
-                hintText: '如:招行 / 微信 / 公积金',
-                border: OutlineInputBorder(),
-                isDense: true,
+    // 2026-10-15 D64.18 加 PopScope:本页面通过 raw Navigator.push 进入,
+    //   不在 go_router 的 navigator 树上,Android 返回键触发 didPopRoute
+    //   会让 GoRouterDelegate._findCurrentNavigator 报 null → app exit
+    //   (同 advanced_filter_page 同一根因)。canPop: false +
+    //   onPopInvokedWithResult 手动 Navigator.pop 拦截。
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        Navigator.of(context).pop();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(isEdit ? '编辑账户' : '新增账户'),
+          actions: [
+            // 右上角"保存"按钮(2026-10-13 P6 整页重构后,AppBar 替代底部 FilledButton)
+            IconButton(
+              tooltip: '保存',
+              icon: _saving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.check_rounded),
+              onPressed: _saving ? null : _save,
+            ),
+          ],
+        ),
+        body: SafeArea(
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.s4,
+              AppSpacing.s3,
+              AppSpacing.s4,
+              AppSpacing.s5,
+            ),
+            children: [
+              // 名字
+              TextField(
+                controller: _nameController,
+                maxLength: 24,
+                decoration: const InputDecoration(
+                  labelText: '名称',
+                  hintText: '如:招行 / 微信 / 公积金',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
               ),
-            ),
-            const SizedBox(height: AppSpacing.s3),
-
-            // 类型(2026-10-13 P6 第 5 次改:外层大圆角 card + 单列 radio
-            //   - 第 4 版的 ListView + Divider 散开,user 反馈"用圆角矩形更柔和"
-            //   - 改 ColorOS 14 Aquamorphic Card-Styled Layout 标准
-            //   - 6 行包裹在 1 个 16px 圆角大 card 内,选中行 tint 0.10
-            //   2026-10-13 P7:onPick 同步重置 _isDefault(切走 cash_flow 强制清掉默认标记)
-            const _SectionLabel('类型'),
-            const SizedBox(height: AppSpacing.s2),
-            _TypeRadioList(
-              value: _type,
-              onPick: (v) => setState(() {
-                _type = v;
-                // 切到非 cash_flow 段 → 默认账户开关无意义,清掉避免存脏数据
-                if (v != 'cash_flow') _isDefault = false;
-                // 2026-10-15 D61:切到非 receivable 段 → 充当现金流开关无意义,清掉
-                //   (此字段只对 receivable 段有义,其它 type 永远是 false)
-                if (v != 'receivable') _actAsCashFlow = false;
-              }),
-            ),
-            const SizedBox(height: AppSpacing.s4),
-
-            // 2026-10-13 P7:默认账户开关(仅 cash_flow 显示)
-            //   - 切换用户最常用的现金账户为"日常流水默认",记一笔默认选中
-            //   - 非 cash_flow 段记一笔不会选中,该开关无意义,隐藏避免误操作
-            if (_type == 'cash_flow') ...[
-              const _SectionLabel('默认'),
-              const SizedBox(height: AppSpacing.s2),
-              _IsDefaultCard(
-                value: _isDefault,
-                onChanged: (v) => setState(() => _isDefault = v),
-              ),
-              const SizedBox(height: AppSpacing.s4),
-            ],
-
-            // 2026-10-13 P6 第 6 次改:计入日常流水
-            //   - user UAT:样式很奇怪,参考 settings_page.dart 的"显示金额"按钮
-            //   - 改 AquaSwitch(拟物风,44x26,带外发光 + thumb 阴影)替换 Switch.adaptive
-            //   - 整行用 16px 圆角 card 包裹,跟类型 card 风格统一(Aquamorphic Card-Styled)
-            //   - leading icon + 主标 + 副标(11sp 灰)+ trailing AquaSwitch
-            //   - 跟"显示金额"开关 ListTile 风格完全一致
-            const _SectionLabel('日常'),
-            const SizedBox(height: AppSpacing.s2),
-            _IncludeInTransactionsCard(
-              value: _includeInTransactions,
-              onChanged: (v) => setState(() => _includeInTransactions = v),
-            ),
-            const SizedBox(height: AppSpacing.s4),
-
-            // 2026-10-15 D61:充当现金流开关(仅 receivable 段显示)
-            //   - user UAT 反馈:"债务这里的属性还需要增加一个按钮,就是'充当现金流'",
-            //   区分"花呗/白条等可消费债务"(可作 cash_flow 支出 source)
-            //   vs"车贷/房贷等不可消费债务"(只能在 receivable 段调拨还款)。
-            //   - 只有开启了"充当现金流"的 receivable 账户才在记一笔 cash_flow 支出 picker 里出现
-            //   - 非 receivable 段此开关无意义,隐藏避免误操作(同 IsDefaultCard 套路)
-            if (_type == 'receivable') ...[
-              _ActAsCashFlowCard(
-                value: _actAsCashFlow,
-                onChanged: (v) => setState(() => _actAsCashFlow = v),
-              ),
-              const SizedBox(height: AppSpacing.s4),
-            ],
-
-            // 期初余额(可负,代表初始欠款)
-            // 2026-10-13 P6 改:
-            //   - inputFormatter 实时拒绝超过 9,999,999.99 的输入(超过不让进)
-            //   - 输入框下面红字提示"上限 9,999,999.99"作为说明(永远显示)
-            //   - _save() 不再校验上限(inputFormatter 已经卡住,重复了)
-            const _SectionLabel('期初余额'),
-            const SizedBox(height: AppSpacing.s2),
-            TextField(
-              controller: _balanceController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-                signed: true,
-              ),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[\d.\-]')),
-                _BalanceLimitFormatter(),
-              ],
-              decoration: const InputDecoration(
-                hintText: '默认 0;负债可填负数',
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-            ),
-            // 2026-10-13 P6:输入框下面红字"上限 9,999,999.99"提示
-            // 跟 inputFormatter 联动:超过不让进,所以红字只是说明性提示
-            const Padding(
-              padding: EdgeInsets.only(top: 4, left: 4),
-              child: Text(
-                '上限 9,999,999.99',
-                style: TextStyle(fontSize: 11, color: AppStatus.error),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.s3),
-
-            // 图标(2026-10-14 D48 续:扁平 Wrap,43 个 icon 不分类)
-            //   - 之前分组 + 子 label,user 反馈"图标不需要分类,不用指导用户"
-            //   - 改成扁平 Wrap,user 自己挑
-            //   - 走 AssetTile.renderIcon() 统一入口(material + brand 自动判别)
-            const _SectionLabel('图标'),
-            const SizedBox(height: AppSpacing.s2),
-            Wrap(
-              spacing: AppSpacing.s2,
-              runSpacing: AppSpacing.s2,
-              children: _iconKeys.map((k) {
-                final selected = _icon == k;
-                final isBrand = AssetTile.isBrandKey(k);
-                return InkWell(
-                  onTap: () => setState(() => _icon = k),
-                  borderRadius: AppRadius.brMd,
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      // brand chip 已有品牌背景,picker 底色用 surfaceContainerLow
-                      // 避免双重色块冲突
-                      color: !isBrand && selected
-                          ? Color(_color).withValues(alpha: 0.18)
-                          : theme.colorScheme.surfaceContainerLow,
-                      borderRadius: AppRadius.brMd,
-                      border: Border.all(
-                        color: selected ? Color(_color) : Colors.transparent,
-                        width: 2,
-                      ),
-                    ),
-                    alignment: Alignment.center,
-                    // brand chip 内部渲染:不再套 tint,让品牌色透出来
-                    child: isBrand
-                        ? AssetTile.renderIcon(k, size: 28)
-                        : Icon(
-                            AssetTile.icons[k] ??
-                                Icons.account_balance_wallet_rounded,
-                            color: selected ? Color(_color) : AppGray.g600,
-                            size: 22,
-                          ),
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: AppSpacing.s1),
-
-            // 颜色
-            const _SectionLabel('颜色'),
-            const SizedBox(height: AppSpacing.s2),
-            Wrap(
-              spacing: AppSpacing.s2,
-              runSpacing: AppSpacing.s2,
-              children: _colorOptions.map((c) {
-                final color = Color(c);
-                final selected = _color == c;
-                return InkWell(
-                  onTap: () => setState(() => _color = c),
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: color,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: selected ? AppBrand.ink : Colors.transparent,
-                        width: 3,
-                      ),
-                    ),
-                    child: selected
-                        ? const Icon(Icons.check, color: Colors.white, size: 18)
-                        : null,
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: AppSpacing.s5),
-
-            // 编辑模式才显示"删除账户"按钮(2026-10-13 P6 加,整页后才有空间)
-            if (isEdit) ...[
               const SizedBox(height: AppSpacing.s3),
-              SizedBox(
-                width: double.infinity,
-                child: TextButton.icon(
-                  onPressed: _saving ? null : _confirmDelete,
-                  icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                  label: const Text('删除账户'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppStatus.error,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: AppSpacing.s3,
+
+              // 类型(2026-10-13 P6 第 5 次改:外层大圆角 card + 单列 radio
+              //   - 第 4 版的 ListView + Divider 散开,user 反馈"用圆角矩形更柔和"
+              //   - 改 ColorOS 14 Aquamorphic Card-Styled Layout 标准
+              //   - 6 行包裹在 1 个 16px 圆角大 card 内,选中行 tint 0.10
+              //   2026-10-13 P7:onPick 同步重置 _isDefault(切走 cash_flow 强制清掉默认标记)
+              const _SectionLabel('类型'),
+              const SizedBox(height: AppSpacing.s2),
+              _TypeRadioList(
+                value: _type,
+                onPick: (v) => setState(() {
+                  _type = v;
+                  // 切到非 cash_flow 段 → 默认账户开关无意义,清掉避免存脏数据
+                  if (v != 'cash_flow') _isDefault = false;
+                  // 2026-10-15 D61:切到非 receivable 段 → 充当现金流开关无意义,清掉
+                  //   (此字段只对 receivable 段有义,其它 type 永远是 false)
+                  if (v != 'receivable') _actAsCashFlow = false;
+                }),
+              ),
+              const SizedBox(height: AppSpacing.s4),
+
+              // 2026-10-13 P7:默认账户开关(仅 cash_flow 显示)
+              //   - 切换用户最常用的现金账户为"日常流水默认",记一笔默认选中
+              //   - 非 cash_flow 段记一笔不会选中,该开关无意义,隐藏避免误操作
+              if (_type == 'cash_flow') ...[
+                const _SectionLabel('默认'),
+                const SizedBox(height: AppSpacing.s2),
+                _IsDefaultCard(
+                  value: _isDefault,
+                  onChanged: (v) => setState(() => _isDefault = v),
+                ),
+                const SizedBox(height: AppSpacing.s4),
+              ],
+
+              // 2026-10-13 P6 第 6 次改:计入日常流水
+              //   - user UAT:样式很奇怪,参考 settings_page.dart 的"显示金额"按钮
+              //   - 改 AquaSwitch(拟物风,44x26,带外发光 + thumb 阴影)替换 Switch.adaptive
+              //   - 整行用 16px 圆角 card 包裹,跟类型 card 风格统一(Aquamorphic Card-Styled)
+              //   - leading icon + 主标 + 副标(11sp 灰)+ trailing AquaSwitch
+              //   - 跟"显示金额"开关 ListTile 风格完全一致
+              const _SectionLabel('日常'),
+              const SizedBox(height: AppSpacing.s2),
+              _IncludeInTransactionsCard(
+                value: _includeInTransactions,
+                onChanged: (v) => setState(() => _includeInTransactions = v),
+              ),
+              const SizedBox(height: AppSpacing.s4),
+
+              // 2026-10-15 D61:充当现金流开关(仅 receivable 段显示)
+              //   - user UAT 反馈:"债务这里的属性还需要增加一个按钮,就是'充当现金流'",
+              //   区分"花呗/白条等可消费债务"(可作 cash_flow 支出 source)
+              //   vs"车贷/房贷等不可消费债务"(只能在 receivable 段调拨还款)。
+              //   - 只有开启了"充当现金流"的 receivable 账户才在记一笔 cash_flow 支出 picker 里出现
+              //   - 非 receivable 段此开关无意义,隐藏避免误操作(同 IsDefaultCard 套路)
+              if (_type == 'receivable') ...[
+                _ActAsCashFlowCard(
+                  value: _actAsCashFlow,
+                  onChanged: (v) => setState(() => _actAsCashFlow = v),
+                ),
+                const SizedBox(height: AppSpacing.s4),
+              ],
+
+              // 期初余额(可负,代表初始欠款)
+              // 2026-10-13 P6 改:
+              //   - inputFormatter 实时拒绝超过 9,999,999.99 的输入(超过不让进)
+              //   - 输入框下面红字提示"上限 9,999,999.99"作为说明(永远显示)
+              //   - _save() 不再校验上限(inputFormatter 已经卡住,重复了)
+              const _SectionLabel('期初余额'),
+              const SizedBox(height: AppSpacing.s2),
+              TextField(
+                controller: _balanceController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                  signed: true,
+                ),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[\d.\-]')),
+                  _BalanceLimitFormatter(),
+                ],
+                decoration: const InputDecoration(
+                  hintText: '默认 0;负债可填负数',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+              ),
+              // 2026-10-13 P6:输入框下面红字"上限 9,999,999.99"提示
+              // 跟 inputFormatter 联动:超过不让进,所以红字只是说明性提示
+              const Padding(
+                padding: EdgeInsets.only(top: 4, left: 4),
+                child: Text(
+                  '上限 9,999,999.99',
+                  style: TextStyle(fontSize: 11, color: AppStatus.error),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.s3),
+
+              // 图标(2026-10-14 D48 续:扁平 Wrap,43 个 icon 不分类)
+              //   - 之前分组 + 子 label,user 反馈"图标不需要分类,不用指导用户"
+              //   - 改成扁平 Wrap,user 自己挑
+              //   - 走 AssetTile.renderIcon() 统一入口(material + brand 自动判别)
+              const _SectionLabel('图标'),
+              const SizedBox(height: AppSpacing.s2),
+              Wrap(
+                spacing: AppSpacing.s2,
+                runSpacing: AppSpacing.s2,
+                children: _iconKeys.map((k) {
+                  final selected = _icon == k;
+                  final isBrand = AssetTile.isBrandKey(k);
+                  return InkWell(
+                    onTap: () => setState(() => _icon = k),
+                    borderRadius: AppRadius.brMd,
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        // brand chip 已有品牌背景,picker 底色用 surfaceContainerLow
+                        // 避免双重色块冲突
+                        color: !isBrand && selected
+                            ? Color(_color).withValues(alpha: 0.18)
+                            : theme.colorScheme.surfaceContainerLow,
+                        borderRadius: AppRadius.brMd,
+                        border: Border.all(
+                          color: selected ? Color(_color) : Colors.transparent,
+                          width: 2,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      // brand chip 内部渲染:不再套 tint,让品牌色透出来
+                      child: isBrand
+                          ? AssetTile.renderIcon(k, size: 28)
+                          : Icon(
+                              AssetTile.icons[k] ??
+                                  Icons.account_balance_wallet_rounded,
+                              color: selected ? Color(_color) : AppGray.g600,
+                              size: 22,
+                            ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: AppSpacing.s1),
+
+              // 颜色
+              const _SectionLabel('颜色'),
+              const SizedBox(height: AppSpacing.s2),
+              Wrap(
+                spacing: AppSpacing.s2,
+                runSpacing: AppSpacing.s2,
+                children: _colorOptions.map((c) {
+                  final color = Color(c);
+                  final selected = _color == c;
+                  return InkWell(
+                    onTap: () => setState(() => _color = c),
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: selected ? AppBrand.ink : Colors.transparent,
+                          width: 3,
+                        ),
+                      ),
+                      child: selected
+                          ? const Icon(
+                              Icons.check,
+                              color: Colors.white,
+                              size: 18,
+                            )
+                          : null,
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: AppSpacing.s5),
+
+              // 编辑模式才显示"删除账户"按钮(2026-10-13 P6 加,整页后才有空间)
+              if (isEdit) ...[
+                const SizedBox(height: AppSpacing.s3),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton.icon(
+                    onPressed: _saving ? null : _confirmDelete,
+                    icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                    label: const Text('删除账户'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppStatus.error,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: AppSpacing.s3,
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

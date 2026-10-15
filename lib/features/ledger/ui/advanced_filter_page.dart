@@ -205,215 +205,227 @@ class _AdvancedFilterPageState extends ConsumerState<AdvancedFilterPage> {
         ? allCats
         : allCats.where((c) => typeFilter.contains(c.type)).toList();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('高级筛选'),
-        leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        actions: [
-          TextButton(
-            onPressed: _anyFilterActive() ? _clearAll : null,
-            child: const Text('清空'),
+    // 2026-10-15 D64.18 加 PopScope:本页面通过 raw Navigator.push 进入,
+    //   不在 go_router 的 navigator 树上,Android 返回键触发 didPopRoute
+    //   会让 GoRouterDelegate._findCurrentNavigator 报 null → app exit
+    //   (报错 "Null check operator used on a null value" 在 delegate.dart:114)。
+    //   canPop: false + onPopInvokedWithResult 手动 Navigator.pop 拦截。
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        Navigator.of(context).pop();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('高级筛选'),
+          leading: IconButton(
+            icon: const Icon(Icons.close_rounded),
+            onPressed: () => Navigator.of(context).pop(),
           ),
-          const SizedBox(width: AppSpacing.s2),
-        ],
-      ),
-      body: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          // 搜索框
-          Padding(
+          actions: [
+            TextButton(
+              onPressed: _anyFilterActive() ? _clearAll : null,
+              child: const Text('清空'),
+            ),
+            const SizedBox(width: AppSpacing.s2),
+          ],
+        ),
+        body: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            // 搜索框
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.s4,
+                AppSpacing.s3,
+                AppSpacing.s4,
+                AppSpacing.s2,
+              ),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (v) =>
+                    ref.read(ledgerSearchQueryProvider.notifier).state = v,
+                decoration: InputDecoration(
+                  hintText: '搜备注 / 分类',
+                  hintStyle: const TextStyle(color: AppGray.g400, fontSize: 14),
+                  prefixIcon: const Icon(
+                    Icons.search_rounded,
+                    size: 18,
+                    color: AppGray.g600,
+                  ),
+                  suffixIcon: _searchController.text.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            size: 16,
+                            color: AppGray.g600,
+                          ),
+                          onPressed: () {
+                            _searchController.clear();
+                            ref.read(ledgerSearchQueryProvider.notifier).state =
+                                '';
+                          },
+                        ),
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.s2,
+                    vertical: AppSpacing.s2,
+                  ),
+                  filled: true,
+                  fillColor: theme.colorScheme.surfaceContainerLow,
+                  border: OutlineInputBorder(
+                    borderRadius: AppRadius.brMd,
+                    borderSide: BorderSide(
+                      color: theme.colorScheme.outlineVariant,
+                      width: 0.5,
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: AppRadius.brMd,
+                    borderSide: BorderSide(
+                      color: theme.colorScheme.outlineVariant,
+                      width: 0.5,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const Divider(height: 1),
+            // ============ 类型 row(多选,空 = 全部)============
+            _SectionHeader(
+              icon: Icons.category_outlined,
+              label: '类型',
+              value: _typeLabel(),
+              active: typeFilter.isNotEmpty,
+              expanded: _expanded == 'type',
+              onTap: () => _toggleSection('type'),
+            ),
+            _ExpandableList(
+              expanded: _expanded == 'type',
+              child: _CheckboxOptionList<String>(
+                options: const [
+                  ('expense', '支出'),
+                  ('income', '收入'),
+                  ('balance', '调拨'),
+                ],
+                selected: typeFilter,
+                onToggle: _toggleType,
+              ),
+            ),
+            const Divider(
+              height: 1,
+              indent: AppSpacing.s4,
+              endIndent: AppSpacing.s4,
+            ),
+            // ============ 月份 row(多选,空 = 全部)============
+            _SectionHeader(
+              icon: Icons.calendar_today_outlined,
+              label: '月份',
+              value: _monthLabel(),
+              active: monthFilter.isNotEmpty,
+              expanded: _expanded == 'month',
+              onTap: () => _toggleSection('month'),
+            ),
+            _ExpandableList(
+              expanded: _expanded == 'month',
+              child: _CheckboxOptionList<int>(
+                options: _recentMonthKeys()
+                    .map((k) => (k, '${k ~/ 100} 年 ${k % 100} 月'))
+                    .toList(),
+                selected: monthFilter,
+                onToggle: _toggleMonth,
+              ),
+            ),
+            const Divider(
+              height: 1,
+              indent: AppSpacing.s4,
+              endIndent: AppSpacing.s4,
+            ),
+            // ============ 分类 row(多选)============
+            _SectionHeader(
+              icon: Icons.local_offer_outlined,
+              label: '分类',
+              value: _categoryLabel(catsForType),
+              active: categoryFilter.isNotEmpty,
+              expanded: _expanded == 'category',
+              onTap: () => _toggleSection('category'),
+            ),
+            _ExpandableList(
+              expanded: _expanded == 'category',
+              child: _CheckboxCategoryList(
+                categories: catsForType,
+                selected: categoryFilter,
+                onToggle: _toggleCategory,
+              ),
+            ),
+            const Divider(
+              height: 1,
+              indent: AppSpacing.s4,
+              endIndent: AppSpacing.s4,
+            ),
+            // ============ 资产 row(多选)============
+            _SectionHeader(
+              icon: Icons.account_balance_wallet_outlined,
+              label: '资产',
+              value: _assetLabel(allAssets),
+              active: assetFilter.isNotEmpty,
+              expanded: _expanded == 'asset',
+              onTap: () => _toggleSection('asset'),
+            ),
+            _ExpandableList(
+              expanded: _expanded == 'asset',
+              child: _CheckboxAssetList(
+                assets: allAssets,
+                selected: assetFilter,
+                onToggle: _toggleAsset,
+              ),
+            ),
+            const Divider(height: 1),
+            // 底部留空,避免列表被应用按钮遮挡
+            const SizedBox(height: 80),
+          ],
+        ),
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: Container(
             padding: const EdgeInsets.fromLTRB(
               AppSpacing.s4,
-              AppSpacing.s3,
-              AppSpacing.s4,
               AppSpacing.s2,
+              AppSpacing.s4,
+              AppSpacing.s3,
             ),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (v) =>
-                  ref.read(ledgerSearchQueryProvider.notifier).state = v,
-              decoration: InputDecoration(
-                hintText: '搜备注 / 分类',
-                hintStyle: const TextStyle(color: AppGray.g400, fontSize: 14),
-                prefixIcon: const Icon(
-                  Icons.search_rounded,
-                  size: 18,
-                  color: AppGray.g600,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              border: Border(
+                top: BorderSide(
+                  color: theme.colorScheme.outlineVariant,
+                  width: 0.5,
                 ),
-                suffixIcon: _searchController.text.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(
-                          Icons.close_rounded,
-                          size: 16,
-                          color: AppGray.g600,
-                        ),
-                        onPressed: () {
-                          _searchController.clear();
-                          ref.read(ledgerSearchQueryProvider.notifier).state =
-                              '';
-                        },
-                      ),
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.s2,
-                  vertical: AppSpacing.s2,
+              ),
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: FilledButton.styleFrom(
+                  backgroundColor: theme.brightness == Brightness.dark
+                      ? AppSecondary.cream
+                      : AppBrand.ink,
+                  foregroundColor: theme.brightness == Brightness.dark
+                      ? AppBrand.ink
+                      : null,
+                  padding: const EdgeInsets.symmetric(vertical: AppSpacing.s3),
+                  shape: RoundedRectangleBorder(borderRadius: AppRadius.brLg),
                 ),
-                filled: true,
-                fillColor: theme.colorScheme.surfaceContainerLow,
-                border: OutlineInputBorder(
-                  borderRadius: AppRadius.brMd,
-                  borderSide: BorderSide(
-                    color: theme.colorScheme.outlineVariant,
-                    width: 0.5,
+                child: const Text(
+                  '应用筛选',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
                   ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: AppRadius.brMd,
-                  borderSide: BorderSide(
-                    color: theme.colorScheme.outlineVariant,
-                    width: 0.5,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const Divider(height: 1),
-          // ============ 类型 row(多选,空 = 全部)============
-          _SectionHeader(
-            icon: Icons.category_outlined,
-            label: '类型',
-            value: _typeLabel(),
-            active: typeFilter.isNotEmpty,
-            expanded: _expanded == 'type',
-            onTap: () => _toggleSection('type'),
-          ),
-          _ExpandableList(
-            expanded: _expanded == 'type',
-            child: _CheckboxOptionList<String>(
-              options: const [
-                ('expense', '支出'),
-                ('income', '收入'),
-                ('balance', '调拨'),
-              ],
-              selected: typeFilter,
-              onToggle: _toggleType,
-            ),
-          ),
-          const Divider(
-            height: 1,
-            indent: AppSpacing.s4,
-            endIndent: AppSpacing.s4,
-          ),
-          // ============ 月份 row(多选,空 = 全部)============
-          _SectionHeader(
-            icon: Icons.calendar_today_outlined,
-            label: '月份',
-            value: _monthLabel(),
-            active: monthFilter.isNotEmpty,
-            expanded: _expanded == 'month',
-            onTap: () => _toggleSection('month'),
-          ),
-          _ExpandableList(
-            expanded: _expanded == 'month',
-            child: _CheckboxOptionList<int>(
-              options: _recentMonthKeys()
-                  .map((k) => (k, '${k ~/ 100} 年 ${k % 100} 月'))
-                  .toList(),
-              selected: monthFilter,
-              onToggle: _toggleMonth,
-            ),
-          ),
-          const Divider(
-            height: 1,
-            indent: AppSpacing.s4,
-            endIndent: AppSpacing.s4,
-          ),
-          // ============ 分类 row(多选)============
-          _SectionHeader(
-            icon: Icons.local_offer_outlined,
-            label: '分类',
-            value: _categoryLabel(catsForType),
-            active: categoryFilter.isNotEmpty,
-            expanded: _expanded == 'category',
-            onTap: () => _toggleSection('category'),
-          ),
-          _ExpandableList(
-            expanded: _expanded == 'category',
-            child: _CheckboxCategoryList(
-              categories: catsForType,
-              selected: categoryFilter,
-              onToggle: _toggleCategory,
-            ),
-          ),
-          const Divider(
-            height: 1,
-            indent: AppSpacing.s4,
-            endIndent: AppSpacing.s4,
-          ),
-          // ============ 资产 row(多选)============
-          _SectionHeader(
-            icon: Icons.account_balance_wallet_outlined,
-            label: '资产',
-            value: _assetLabel(allAssets),
-            active: assetFilter.isNotEmpty,
-            expanded: _expanded == 'asset',
-            onTap: () => _toggleSection('asset'),
-          ),
-          _ExpandableList(
-            expanded: _expanded == 'asset',
-            child: _CheckboxAssetList(
-              assets: allAssets,
-              selected: assetFilter,
-              onToggle: _toggleAsset,
-            ),
-          ),
-          const Divider(height: 1),
-          // 底部留空,避免列表被应用按钮遮挡
-          const SizedBox(height: 80),
-        ],
-      ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.s4,
-            AppSpacing.s2,
-            AppSpacing.s4,
-            AppSpacing.s3,
-          ),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            border: Border(
-              top: BorderSide(
-                color: theme.colorScheme.outlineVariant,
-                width: 0.5,
-              ),
-            ),
-          ),
-          child: SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: FilledButton.styleFrom(
-                backgroundColor: theme.brightness == Brightness.dark
-                    ? AppSecondary.cream
-                    : AppBrand.ink,
-                foregroundColor: theme.brightness == Brightness.dark
-                    ? AppBrand.ink
-                    : null,
-                padding: const EdgeInsets.symmetric(vertical: AppSpacing.s3),
-                shape: RoundedRectangleBorder(borderRadius: AppRadius.brLg),
-              ),
-              child: const Text(
-                '应用筛选',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
                 ),
               ),
             ),
