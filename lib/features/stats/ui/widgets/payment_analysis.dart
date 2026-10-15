@@ -6,16 +6,15 @@
 // (分类 / 账户),tab 样式跟消费趋势 / top_expenses 同款(teal label +
 // indicatorSize.label 0 高 indicator)。
 //
+// 2026-10-15 D64.12 改:tab body 直接用 `PieChartContent`(无 ChartCard
+// 嵌套),避免原 `PieChartCard` 在 SizedBox(height: 220) 内套 2 层卡
+// 触发 BOTTOM OVERFLOWED BY 28px + 嵌套"支出分类"标题。tab body 高
+// 度提到 240dp 容 8 项 legend。"共 ¥X" trailing 留在外层 ChartCard
+// 的 trailing slot(替代原嵌套 title + totalLabel)。
+//
 // - 分类 tab:复用 CategoryPie body(expenseByCategoryProvider + 类别色 token)
 // - 账户 tab:复用 ExpenseByAssetChart body(viewport-aware 圆环动画 +
 //   6 色 palette by index,D64.6/D64.7 已修)
-//
-// 设计要点:
-// - DefaultTabController(length: 2) 包整个 widget(D64.4 教训)
-// - 高度统一 220,两个 tab 内容尺寸稳定
-// - 分类 tab 立即播动画(卡片顶部,通常在 viewport 内),账户 tab 保留
-//   viewport-aware(_appeared flag + Scrollable.maybeOf 监听),跟 D64.7 行为一致
-// - 沿用 PieChartCard 共享容器,本身只保留数据接入 + tab 框架
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -52,10 +51,10 @@ class PaymentAnalysis extends ConsumerWidget {
             dividerHeight: 0,
           ),
         ),
-        // 高度 220:PieChartCard 内 Padding(s4) + Row(140×140 ring vs 8 行 legend),
-        // legend 取最大 8 项 × ~24dp ≈ 192dp,加 padding 约 220,跟消费趋势对齐
+        // D64.12:PieChartContent body(无嵌套 card),高度 240 容 8 项 legend
+        //   (vertical:3 padding × 2 + 13sp text ≈ 19dp/item × 8 = 152dp < 240-32=208)
         child: const SizedBox(
-          height: 220,
+          height: 240,
           child: TabBarView(
             physics: NeverScrollableScrollPhysics(),
             children: [_CategoryTab(), _AccountTab()],
@@ -66,7 +65,7 @@ class PaymentAnalysis extends ConsumerWidget {
   }
 }
 
-/// 分类 tab:支出分类圆环图 + 图例(沿用 CategoryPie 逻辑)
+/// 分类 tab:支出分类圆环图 + 图例(沿用 CategoryPie body 逻辑)
 class _CategoryTab extends ConsumerWidget {
   const _CategoryTab();
 
@@ -76,8 +75,7 @@ class _CategoryTab extends ConsumerWidget {
     return expensesAsync.when(
       data: (data) {
         final total = data.fold<double>(0, (s, e) => s + e.amount);
-        return PieChartCard(
-          title: '支出分类',
+        return PieChartContent(
           items: buildPieChartItems<CategoryExpense>(
             data,
             nameOf: (e) => e.name,
@@ -87,27 +85,22 @@ class _CategoryTab extends ConsumerWidget {
           total: total,
           centerLabel: '总支出',
           centerValueText: '¥${Formatters.amount(total)}',
-          totalLabel: data.isEmpty ? null : '共 ¥${Formatters.amount(total)}',
           // 分类 tab 在 stats_page 顶部通常已在 viewport,立即播
           play: true,
         );
       },
-      loading: () => const PieChartCard(
-        title: '支出分类',
+      loading: () => const PieChartContent(
         items: [],
         total: 0,
         centerLabel: '总支出',
         centerValueText: '¥0',
-        totalLabel: null,
         play: true,
       ),
-      error: (e, _) => PieChartCard(
-        title: '支出分类',
+      error: (e, _) => PieChartContent(
         items: const [],
         total: 0,
         centerLabel: '总支出',
         centerValueText: '加载失败',
-        totalLabel: null,
         play: true,
       ),
     );
@@ -187,17 +180,12 @@ class _AccountTabState extends ConsumerState<_AccountTab> {
   @override
   Widget build(BuildContext context) {
     final assetsAsync = ref.watch(expenseByAssetProvider);
-    // D64.7:KeyedSubtree 给 _checkInView 用此 key 拿 widget 在 scrollable
-    //   坐标系中的位置,任意部分进入 viewport 时 setState(_appeared) → 圆环动画开始
     return KeyedSubtree(
       key: _chartKey,
       child: assetsAsync.when(
         data: (data) {
           final total = data.fold<double>(0, (s, e) => s + e.amount);
-          return PieChartCard(
-            title: '支付账户',
-            // D64.6:不走 buildPieChartItems(其 colorOf 没有 index 参数),
-            //   直接 map 按 index 取 palette 色,保证 N 个账户视觉区分
+          return PieChartContent(
             items: [
               for (int i = 0; i < data.length; i++)
                 PieChartLegendItem(
@@ -209,27 +197,22 @@ class _AccountTabState extends ConsumerState<_AccountTab> {
             total: total,
             centerLabel: '总支出',
             centerValueText: '¥${Formatters.amount(total)}',
-            totalLabel: data.isEmpty ? null : '共 ¥${Formatters.amount(total)}',
             // D64.7:viewport-aware 触发圆环动画
             play: _appeared,
           );
         },
-        loading: () => const PieChartCard(
-          title: '支付账户',
+        loading: () => const PieChartContent(
           items: [],
           total: 0,
           centerLabel: '总支出',
           centerValueText: '¥0',
-          totalLabel: null,
           play: false,
         ),
-        error: (e, _) => PieChartCard(
-          title: '支付账户',
+        error: (e, _) => PieChartContent(
           items: const [],
           total: 0,
           centerLabel: '总支出',
           centerValueText: '加载失败',
-          totalLabel: null,
           play: false,
         ),
       ),
