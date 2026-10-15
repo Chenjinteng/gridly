@@ -8,9 +8,12 @@
 //
 // 2026-10-15 D64.12 改:tab body 直接用 `PieChartContent`(无 ChartCard
 // 嵌套),避免原 `PieChartCard` 在 SizedBox(height: 220) 内套 2 层卡
-// 触发 BOTTOM OVERFLOWED BY 28px + 嵌套"支出分类"标题。tab body 高
-// 度提到 240dp 容 8 项 legend。"共 ¥X" trailing 留在外层 ChartCard
-// 的 trailing slot(替代原嵌套 title + totalLabel)。
+// 触发 BOTTOM OVERFLOWED BY 28px + 嵌套"支出分类"标题。"共 ¥X" trailing
+// 留在外层 ChartCard 的 trailing slot(替代原嵌套 title + totalLabel)。
+// 2026-10-15 D64.13 改:tab body 用 IntrinsicHeight 替代 SizedBox(240)。
+//   固定高度 240 在 8 项 legend 时正好,但 3 项(账户 tab)留 68dp 空白;
+//   IntrinsicHeight 让 TabBarView 按 max(各 tab intrinsic)算高度,3 项
+//   case 空白缩到 ~44dp。
 //
 // - 分类 tab:复用 CategoryPie body(expenseByCategoryProvider + 类别色 token)
 // - 账户 tab:复用 ExpenseByAssetChart body(viewport-aware 圆环动画 +
@@ -51,10 +54,14 @@ class PaymentAnalysis extends ConsumerWidget {
             dividerHeight: 0,
           ),
         ),
-        // D64.12:PieChartContent body(无嵌套 card),高度 240 容 8 项 legend
-        //   (vertical:3 padding × 2 + 13sp text ≈ 19dp/item × 8 = 152dp < 240-32=208)
-        child: const SizedBox(
-          height: 240,
+        // D64.12 → D64.13:PieChartContent body(无嵌套 card)。
+        // 用 IntrinsicHeight 让 TabBarView 按内容算最大高度:
+        //   - 8 项 legend(分类 tab):高度 = 32 padding + max(140 ring, 184 legend) = 216dp
+        //   - 3 项 legend(账户 tab):相同 216dp,但内容只 172dp,
+        //     顶部对齐留下 ~44dp 空白(原 240dp 固定留 68dp)
+        // 之前用 SizedBox(height: 240) 固定高度时,3 项 case 留 68dp 空白
+        // user UAT 反馈"高度比之前高,有空白" → IntrinsicHeight 自适应
+        child: const IntrinsicHeight(
           child: TabBarView(
             physics: NeverScrollableScrollPhysics(),
             children: [_CategoryTab(), _AccountTab()],
