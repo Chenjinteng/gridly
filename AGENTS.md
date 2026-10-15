@@ -243,10 +243,10 @@ features/<name>/
   - `logo_horizontal.png` 2752×1536 — LOGO + "格子记账" 文字(横版品牌)
 - **Launcher icon**(5 个 mipmap-*/ic_launcher.png)当前从 `logo_primary.png` 派生,2026-10-10 改成白底风格
 
-### v0.3.5 P18 进度(2026-10-15 完成,65 commits)
+### v0.3.5 P18 进度(2026-10-15 完成,66 commits)
 
-- HEAD: `1a007e0 feat(stats): D63.1 圆环 + 柱状图加 viewport-aware 入场动画 + 柱状图 tap 选柱虚线 (D63.1)`,已推 `origin/main`
-- commit 范围:`7ea90d3..1a007e0`
+- HEAD: `f323e7e refactor(stats): 抽 BarChart 业务到共享 AnimatedBarChart (D64) - 3 widget 共 1793 → 1115 行 (-38%)`,已推 `origin/main`
+- commit 范围:`7ea90d3..f323e7e`
 - 主要文件改动:
   - `lib/features/add/ui/transaction_form.dart` — 5 getter 三段拆分 / save() dest 收益不存 / initState pre-fill / D44 toggle 不清 cat(receivable 例外) / D45 `_actionRow` 全表查 cat / D49 余额校验扩所有非负债段 / D50 `_AccountPickerSheet` 加 `excludeId` / D51 v4 source picker 短路 / D52 / D53 popup overflow 修 / D55 `_isOtherContext` getter / D57 撤销 D56 `_categoryFilterType` + D55 `_accountTypeFilter` 返 null,改 `_toggleSegments` filter balance + `_needsCategory` 返 false + `_firstCategoryId` 简化 fallback(cat.type='other') / D58 `_AccountPickerSheet.accountTypeFilter` 改 `List<String>?`(多类型白名单)+ `_accountTypeFilter` / `_destinationTypeFilter` 返 `List<String>?` 统一协议,债务调拨限定 `['cash_flow', 'receivable']` / D59 cash_flow + expense 分支返 `['cash_flow', 'receivable']`(信用卡/花呗 source)
   - `lib/features/add/ui/add_transaction_page.dart` — `_appBarTitle` / `effectiveAllowBalance` 福利 / 债权 / 其它(D57)适配
