@@ -15,6 +15,16 @@
 //   maxY 位置额外画一个小数 label 跟 0 重叠(原 `maxVal * 1.15` 非整数倍
 //   触发的 bug)。
 //
+// 2026-10-15 D64.21c 改:支持负轴
+//   - 新增 `minVal` 参数(可空,null/0 = 老逻辑,负值启用负轴)
+//   - niceInterval 算法:`max(|minVal|, |maxVal|)` 取 max,保证 min/max 区间
+//     都按整数倍铺开
+//   - computedMinY = (minVal / niceInterval).floor() * niceInterval(向下取整)
+//   - computedMaxY = (maxVal / niceInterval).ceil() * niceInterval(向上取整)
+//   - 0 轴线(当启用负轴):gridData 在 v=0 时画 outline 1px(其他 grid 0.5px
+//     outlineVariant),视觉上区别"坐标中线"vs"普通网格线"
+//   - bar borderRadius:正值圆顶,负值圆底,跟柱条方向匹配
+//
 // 行为(跟 monthly_trend._AnimatedBarChart 一致):
 //   - viewport-aware 触发入场动画(toY=0 → real via BarChart swap 600ms)
 //   - 触摸:
@@ -34,12 +44,15 @@
 //       value: d.expense,
 //     )).toList(),
 //     maxVal: maxVal,           // 实际最大柱值(非 maxY)
+//     minVal: ...,              // D64.21c 加:实际最小柱值(负值启用负轴,默认 0)
 //     chartNeedsWan: chartNeedsWan,
 //     xLabelBuilder: (i, b) => Text(...),  // 可选,X 轴 label widget
 //     touchedLabelBuilder: (i, b) => b.label,  // 触摸顶部 label
 //     tooltipBuilder: (i, b) => '¥${b.value}',  // 触摸金额 tooltip
 //     barColorResolver: (i, b) => b.value == maxVal ? AppStatus.error : AppGray.g200,
 //   )
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
@@ -82,6 +95,7 @@ class AnimatedBarChart extends StatefulWidget {
     required this.bars,
     required this.maxVal,
     required this.chartNeedsWan,
+    this.minVal, // D64.21c 加:实际最小柱值,负值启用负轴;null/0 = 老逻辑
     this.xLabelBuilder,
     this.touchedLabelBuilder,
     this.tooltipBuilder,
@@ -97,6 +111,10 @@ class AnimatedBarChart extends StatefulWidget {
 
   /// 实际最大柱值(非 maxY)。本 widget 内部按整数倍规则算出 maxY + niceInterval。
   final double maxVal;
+
+  /// D64.21c 加:实际最小柱值(非 minY)。负值启用负轴,内部按整数倍规则算出
+  /// minY = (minVal / niceInterval).floor() * niceInterval。
+  final double? minVal;
   final bool chartNeedsWan;
   final XLabelBuilder? xLabelBuilder;
   final TouchedLabelBuilder? touchedLabelBuilder;
@@ -138,10 +156,22 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
 
   /// 2026-10-15 D64.5:由 maxVal 算 niceInterval + 整数倍 maxY。
   /// 整数倍保证 fl_chart 不在 maxY 位置额外画 label(避免跟顶部 tick 重叠)。
-  late final double _niceInterval = _pickNiceInterval(widget.maxVal);
-  late final double _computedMaxY = widget.maxVal == 0
+  ///
+  /// 2026-10-15 D64.21c:负轴支持 —— niceInterval 取 max(|minVal|, |maxVal|)
+  /// 算,保证 min..max 区间按整数倍铺开。computedMinY 向下取整,floor 保证
+  /// minVal 永远被包含在视图内。
+  late final bool _hasNegativeAxis = (widget.minVal ?? 0) < 0;
+  late final double _niceInterval = _pickNiceInterval(
+    _hasNegativeAxis
+        ? math.max(widget.maxVal.abs(), (widget.minVal ?? 0).abs())
+        : widget.maxVal,
+  );
+  late final double _computedMaxY = widget.maxVal == 0 && !_hasNegativeAxis
       ? 1.0
       : (widget.maxVal / _niceInterval).ceil() * _niceInterval;
+  late final double _computedMinY = _hasNegativeAxis
+      ? ((widget.minVal ?? 0) / _niceInterval).floor() * _niceInterval
+      : 0.0;
 
   @override
   void initState() {
@@ -323,7 +353,7 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
         BarChart(
           BarChartData(
             maxY: _computedMaxY,
-            minY: 0,
+            minY: _computedMinY,
             alignment: BarChartAlignment.spaceBetween,
             groupsSpace: widget.groupsSpace,
             barTouchData: BarTouchData(
@@ -340,8 +370,20 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
               show: true,
               drawVerticalLine: false,
               horizontalInterval: _niceInterval,
-              getDrawingHorizontalLine: (_) =>
-                  FlLine(color: scheme.outlineVariant, strokeWidth: 0.5),
+              getDrawingHorizontalLine: (v) {
+                // D64.21c:0 轴线(当启用负轴)用 outline 1px,
+                // 区别于普通网格线的 outlineVariant 0.5px
+                if (_hasNegativeAxis && v == 0) {
+                  return FlLine(
+                    color: scheme.outline,
+                    strokeWidth: 1,
+                  );
+                }
+                return FlLine(
+                  color: scheme.outlineVariant,
+                  strokeWidth: 0.5,
+                );
+              },
             ),
             borderData: FlBorderData(show: false),
             titlesData: FlTitlesData(
@@ -506,8 +548,10 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
               toY: _appeared ? b.value : 0.0,
               color: primaryColor,
               width: widget.barWidth,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(2),
+              // D64.21c:正值圆顶、负值圆底,跟柱条方向匹配
+              borderRadius: BorderRadius.vertical(
+                top: b.value >= 0 ? const Radius.circular(2) : Radius.zero,
+                bottom: b.value >= 0 ? Radius.zero : const Radius.circular(2),
               ),
             ),
             if (isSecondary)
@@ -515,8 +559,13 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
                 toY: _appeared ? b.secondaryValue! : 0.0,
                 color: widget.secondaryColor ?? const Color(0xFFE4E4E7), // g200
                 width: widget.barWidth,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(2),
+                borderRadius: BorderRadius.vertical(
+                  top: (b.secondaryValue ?? 0) >= 0
+                      ? const Radius.circular(2)
+                      : Radius.zero,
+                  bottom: (b.secondaryValue ?? 0) >= 0
+                      ? Radius.zero
+                      : const Radius.circular(2),
                 ),
               ),
           ],
