@@ -57,18 +57,11 @@ class PaymentAnalysis extends ConsumerWidget {
             dividerHeight: 0,
           ),
         ),
-        // D64.12 → D64.13 → D64.14:
-        //   D64.12:SizedBox(height: 240) 固定,3 项 case 留 68dp 空白
-        //   D64.13:改 IntrinsicHeight 自适应 → 触发 Flutter 布局断言
-        //     `_debugRelayoutBoundaryAlreadyMarkedNeedsLayout` 和
-        //     `child._parent == this`(TabBarView 内部 PageView 在
-        //     IntrinsicHeight 计算 intrinsic 时跟 viewport 管理冲突,
-        //     user UAT 反馈"收支页面全空白"红屏)
-        //   D64.14:回退 SizedBox,折中 220dp(8 项 216dp+4dp slack,3 项 172dp+48dp slack)
-        //     比 240dp 少 20dp 空白,但仍非完美 —— TabBarView 本身需要
-        //     所有 tab 同高度,无法做到按内容自适应
+        // D64.15:legend 紧凑(vertical:2 + fontSize:12)后,8 项总高 ~200dp
+        //   8 项(分类 tab):200dp,0 slack
+        //   3 项(账户 tab):172dp,28dp slack(比 D64.14 的 48dp 少 20dp)
         child: const SizedBox(
-          height: 220,
+          height: 200,
           child: TabBarView(
             physics: NeverScrollableScrollPhysics(),
             children: [_CategoryTab(), _AccountTab()],

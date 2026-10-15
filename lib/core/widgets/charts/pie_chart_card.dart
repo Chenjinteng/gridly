@@ -5,7 +5,7 @@
 //   - 标题栏(标题 + 可选 trailing "共 ¥X")
 //   - 140×140 圆环 + 中心"总支出" + "¥X" 数字
 //   - 右侧图例列表(色块 10×10 + name + 百分比)
-//   - 自动 take(8) 截取前 8 个,跟原 widget 行为一致
+//   - 圆环限制 8 段(>8 段薄片难辨认);legend 显示全部并可滚动
 //
 // 2026-10-15 D64.7 加 `play` 参数:viewport-aware 触发圆环动画,跟
 //   BudgetOverviewChart 同模式。`category_pie` 默认 true(立即播,卡片在
@@ -16,6 +16,12 @@
 //   避免嵌套 "支出分类" 标题(原 PieChartCard 套 2 层 ChartCard 在
 //   SizedBox(height: 220) 内 overflow 28px)。`PieChartCard` 保留作为
 //   ChartCard + PieChartContent 的薄壳,向后兼容原调用。
+//
+// 2026-10-15 D64.15 改:legend vertical:3 → 2,name fontSize:13 → 12 紧凑(每项
+//   节省 4dp),legend 改成 SingleChildScrollView 支持 >8 项滚动(圆环仍 take(8)
+//   视觉清爽)。user UAT 反馈"分类后面一定会很多,如果超过了要做成图例滑动的
+//   操作"。固定 SizedBox(height: 168)= 8 紧凑项正好填满,<8 项自然空,<8=
+//   不滚,>8 项内部滚。
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
@@ -39,6 +45,8 @@ class PieChartLegendItem {
 /// 2026-10-15 D64.12:圆环 + 中心数字 + 右侧图例的纯 body widget,无卡片包装。
 /// 给 tabbed 模块(payment_analysis)直接放进 SizedBox 用,避免嵌套 ChartCard
 /// 占 ~50dp title bar 导致 legend overflow。
+///
+/// D64.15:legend 改成可滚动,>8 项时 user 上滑看全部。
 class PieChartContent extends StatelessWidget {
   const PieChartContent({
     super.key,
@@ -49,7 +57,7 @@ class PieChartContent extends StatelessWidget {
     this.play = true,
   });
 
-  /// 全部数据项(超过 8 个时只显示前 8)
+  /// 全部数据项(legend 显示全部,圆环 take(8))
   final List<PieChartLegendItem> items;
 
   /// 总金额(用于计算百分比)
@@ -64,6 +72,9 @@ class PieChartContent extends StatelessWidget {
   /// 是否触发圆环入场动画(viewport-aware 场景)。参考 D64.7。
   final bool play;
 
+  /// D64.15:圆环固定 8 段(>8 段薄片难辨认,legend 显示全部可滚动看完整数据)
+  static const int _ringMaxSections = 8;
+
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) {
@@ -77,7 +88,7 @@ class PieChartContent extends StatelessWidget {
         ),
       );
     }
-    final shown = items.take(8).toList();
+    final ringShown = items.take(_ringMaxSections).toList();
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.s4),
       child: Row(
@@ -92,7 +103,7 @@ class PieChartContent extends StatelessWidget {
               children: [
                 AnimatedPieChart(
                   key: pieChartKeyForSections(
-                    shown
+                    ringShown
                         .map(
                           (e) => PieChartSectionData(
                             value: e.value,
@@ -106,7 +117,7 @@ class PieChartContent extends StatelessWidget {
                   innerRadius: 48,
                   outerRadius: 64,
                   play: play,
-                  sections: shown
+                  sections: ringShown
                       .map(
                         (e) => PieChartSectionData(
                           value: e.value,
@@ -138,55 +149,67 @@ class PieChartContent extends StatelessWidget {
             ),
           ),
           const SizedBox(width: AppSpacing.s4),
-          // 右侧图例(最多 8 条)
+          // 右侧图例:D64.15 可滚动
+          //   - SizedBox(height: 168) 固定 = 8 紧凑项(vertical:2 + fontSize:12 = 21dp/项)正好填满
+          //   - 8 项内:Column 自然高度 < 168,顶部对齐,下方空白(可接受,<8 时本来就不满)
+          //   - 8 项:Column 自然高度 = 168,完美填满
+          //   - >8 项:Column 自然高度 > 168,SingleChildScrollView 内部滚动
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: shown.map((e) {
-                final pct = total == 0 ? 0 : (e.value / total * 100);
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 3),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: Color(e.color),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          e.name,
-                          style: const TextStyle(fontSize: 13),
-                          maxLines: 1,
-                          softWrap: false,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      // D64.12:固定宽度 36dp 防止百分比 Text 撑爆 Row 触发右侧
-                      //   overflow 9.9px("100%" 4 字 × 7sp ≈ 28dp + 默认 padding)
-                      SizedBox(
-                        width: 36,
-                        child: Text(
-                          '${pct.toStringAsFixed(0)}%',
-                          textAlign: TextAlign.right,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppGray.g600,
-                            fontWeight: FontWeight.w500,
+            child: SizedBox(
+              height: 168,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: items.map((e) {
+                    final pct = total == 0 ? 0 : (e.value / total * 100);
+                    return Padding(
+                      // D64.15:vertical: 3 → 2,name fontSize: 13 → 12 紧凑
+                      //   节省每项 ~4dp,8 项共 ~32dp
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              color: Color(e.color),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
                           ),
-                          maxLines: 1,
-                          softWrap: false,
-                          overflow: TextOverflow.visible,
-                        ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              e.name,
+                              style: const TextStyle(fontSize: 12),
+                              maxLines: 1,
+                              softWrap: false,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          // D64.12:固定宽度 36dp 防止百分比 Text 撑爆 Row 触发右侧
+                          //   overflow 9.9px("100%" 4 字 × 7sp ≈ 28dp + 默认 padding)
+                          SizedBox(
+                            width: 36,
+                            child: Text(
+                              '${pct.toStringAsFixed(0)}%',
+                              textAlign: TextAlign.right,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppGray.g600,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              softWrap: false,
+                              overflow: TextOverflow.visible,
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                );
-              }).toList(),
+                    );
+                  }).toList(),
+                ),
+              ),
             ),
           ),
         ],
@@ -213,7 +236,7 @@ class PieChartCard extends StatelessWidget {
   /// 卡片标题(左对齐)
   final String title;
 
-  /// 全部数据项(超过 8 个时只显示前 8)
+  /// 全部数据项(legend 显示全部,圆环 take(8),D64.15)
   final List<PieChartLegendItem> items;
 
   /// 总金额(用于计算百分比)
