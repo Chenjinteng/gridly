@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/providers.dart';
+import '../../../core/utils/asset_balance_provider.dart';
 import '../../../core/utils/formatters.dart';
 import '../../ledger/application/transactions_providers.dart';
 
@@ -362,6 +363,184 @@ final yearlyExpenseTrendProvider = FutureProvider<List<YearlyExpense>>((
     12,
     (i) => YearlyExpense(month: i + 1, expense: byMonth[i + 1] ?? 0),
   );
+});
+
+/// 2026-10-15 D63 加:本月 vs 上月 各类别支出对比(报表第 5 张卡,跟月度趋势互补)
+///   - 类别维度:每类本月 + 上月 双柱,看"哪类涨 / 哪类降"
+///   - 跟 12 月月度趋势区别:monthlyTrendProvider 看时间维度(每月总额),这个看类别维度
+///   - 口径跟 statsSummaryProvider / _periodSummary 一致:
+///     expense = cash_flow 真支出(cat.type='expense' AND tx.type='expense')
+///             + 还款(cat.type='liability' AND tx.type='balance')
+///   - 投资 / 福利 / 其它段不计入
+///   - 跨年自动:本月 1 月 → 上月 = 去年 12 月
+class CategoryCompare {
+  const CategoryCompare({
+    required this.categoryId,
+    required this.name,
+    required this.color,
+    required this.currAmount,
+    required this.prevAmount,
+  });
+  final int categoryId;
+  final String name;
+  final int color;
+  final double currAmount;
+  final double prevAmount;
+  double get delta => currAmount - prevAmount;
+  double get pct =>
+      prevAmount > 0 ? (currAmount - prevAmount) / prevAmount * 100 : 0;
+}
+
+final categoryCompareProvider = FutureProvider<List<CategoryCompare>>((
+  ref,
+) async {
+  final w = ref.watch(statsWindowProvider);
+  final db = ref.watch(databaseProvider);
+  final cats = await ref.watch(allCategoriesProvider.future);
+  if (cats.isEmpty) return const [];
+  final catById = {for (final c in cats) c.id: c};
+  final catTypeById = {for (final c in cats) c.id: c.type};
+
+  // 上月窗口
+  final prevEnd = w.start.subtract(const Duration(seconds: 1));
+  final prevStart = DateTime(prevEnd.year, prevEnd.month, 1);
+
+  final txs = await (db.select(
+    db.transactions,
+  )..where((t) => t.occurredAt.isBetweenValues(prevStart, w.end))).get();
+
+  // 按 catId 聚合,内部用 'curr' / 'prev' 两个 bucket
+  final byCat = <int, Map<String, double>>{};
+  for (final t in txs) {
+    final cType = catTypeById[t.categoryId];
+    // D63 口径:真支出(cash_flow expense)+ 还款(liability balance)
+    final isCashExpense = t.type == 'expense' && cType == 'expense';
+    final isRepayment = t.type == 'balance' && cType == 'liability';
+    if (!isCashExpense && !isRepayment) continue;
+    final bucketKey = t.occurredAt.isAfter(prevEnd) ? 'curr' : 'prev';
+    final catBucket = byCat.putIfAbsent(t.categoryId, () => {});
+    catBucket[bucketKey] = (catBucket[bucketKey] ?? 0) + t.amount;
+  }
+
+  final out = <CategoryCompare>[];
+  for (final entry in byCat.entries) {
+    final cat = catById[entry.key];
+    out.add(
+      CategoryCompare(
+        categoryId: entry.key,
+        name: cat?.name ?? '未分类',
+        color: cat?.color ?? 0xFFA1A1AA,
+        currAmount: entry.value['curr'] ?? 0,
+        prevAmount: entry.value['prev'] ?? 0,
+      ),
+    );
+  }
+  // 按本月+上月合计从大到小
+  out.sort(
+    (a, b) =>
+        (b.currAmount + b.prevAmount).compareTo(a.currAmount + a.prevAmount),
+  );
+  return out;
+});
+
+/// 2026-10-15 D63 加:周几支出分布(Mon-Sun 7 柱)
+///   - user 想知道"哪天爱花钱"
+///   - 口径跟 statsSummaryProvider 一致(真支出 + 还款)
+///   - 仅本月维度有意义(本年维度按月聚合,weekday 不直观),本年维度返本月数据复用
+class WeekdayExpense {
+  const WeekdayExpense({required this.weekday, required this.expense});
+
+  /// 1 = Mon, 7 = Sun(DateTime.weekday 周一=1)
+  final int weekday;
+  final double expense;
+}
+
+final weekdayExpenseProvider = FutureProvider<List<WeekdayExpense>>((
+  ref,
+) async {
+  final w = ref.watch(statsWindowProvider);
+  final db = ref.watch(databaseProvider);
+  final cats = await ref.watch(allCategoriesProvider.future);
+  final catTypeById = {for (final c in cats) c.id: c.type};
+
+  final txs = await (db.select(
+    db.transactions,
+  )..where((t) => t.occurredAt.isBetweenValues(w.start, w.end))).get();
+
+  // byWeekday[1..7] = sum
+  final byWeekday = <int, double>{};
+  for (final t in txs) {
+    final cType = catTypeById[t.categoryId];
+    final isCashExpense = t.type == 'expense' && cType == 'expense';
+    final isRepayment = t.type == 'balance' && cType == 'liability';
+    if (!isCashExpense && !isRepayment) continue;
+    final wd = t.occurredAt.weekday;
+    byWeekday[wd] = (byWeekday[wd] ?? 0) + t.amount;
+  }
+  // 强制 7 行(周一..周日),没数据的为 0
+  return List.generate(
+    7,
+    (i) => WeekdayExpense(weekday: i + 1, expense: byWeekday[i + 1] ?? 0),
+  );
+});
+
+/// 2026-10-15 D63 加:按支付账户/资产聚合支出(类似 category_pie 但按账户)
+///   - user 多账户场景:看现金账户 / 各信用卡 / 花呗 各花了多少
+///   - 口径跟 statsSummaryProvider 一致(真支出 + 还款)
+///   - 还款(现金→债务调拨)accountId 是 source 现金账户,所以归到现金账户,不算 receivable 账户
+///     — 跟 user 视角一致:还款是"现金账户花出去的"
+class ExpenseByAsset {
+  const ExpenseByAsset({
+    required this.assetId,
+    required this.name,
+    required this.color,
+    required this.amount,
+  });
+  final int assetId;
+  final String name;
+  final int color;
+  final double amount;
+}
+
+final expenseByAssetProvider = FutureProvider<List<ExpenseByAsset>>((
+  ref,
+) async {
+  final w = ref.watch(statsWindowProvider);
+  final db = ref.watch(databaseProvider);
+  final cats = await ref.watch(allCategoriesProvider.future);
+  final catTypeById = {for (final c in cats) c.id: c.type};
+  final assets = await ref.watch(allAssetsProvider.future);
+  if (assets.isEmpty) return const [];
+  final assetById = {for (final a in assets) a.id: a};
+
+  final txs = await (db.select(
+    db.transactions,
+  )..where((t) => t.occurredAt.isBetweenValues(w.start, w.end))).get();
+
+  // 按 accountId(source 账户)聚合支出
+  final byAsset = <int, double>{};
+  for (final t in txs) {
+    final cType = catTypeById[t.categoryId];
+    final isCashExpense = t.type == 'expense' && cType == 'expense';
+    final isRepayment = t.type == 'balance' && cType == 'liability';
+    if (!isCashExpense && !isRepayment) continue;
+    byAsset[t.accountId] = (byAsset[t.accountId] ?? 0) + t.amount;
+  }
+
+  final out = <ExpenseByAsset>[];
+  for (final entry in byAsset.entries) {
+    final asset = assetById[entry.key];
+    out.add(
+      ExpenseByAsset(
+        assetId: entry.key,
+        name: asset?.name ?? '未知账户',
+        color: asset?.color ?? 0xFFA1A1AA,
+        amount: entry.value,
+      ),
+    );
+  }
+  out.sort((a, b) => b.amount.compareTo(a.amount));
+  return out;
 });
 
 /// 2026-10-12 P5 commit 加:同比箭头 + 百分比(本月 vs 上月)

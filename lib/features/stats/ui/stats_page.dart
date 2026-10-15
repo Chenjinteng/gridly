@@ -27,12 +27,16 @@ import '../../../core/widgets/staggered_fade_in.dart';
 import '../../../core/widgets/privacy_obscure.dart';
 import 'widgets/category_pie.dart';
 import 'widgets/budget_overview_chart.dart';
+import 'widgets/category_compare.dart';
+import 'widgets/expense_by_asset.dart';
 import 'widgets/monthly_trend.dart';
 import 'widgets/assets_overview_chart.dart';
 import 'widgets/assets_radar.dart';
 import 'widgets/range_summary.dart';
 import 'widgets/range_tabs.dart';
+import 'widgets/savings_rate_card.dart';
 import 'widgets/top_expenses.dart';
+import 'widgets/weekday_expense.dart';
 import '../application/stats_providers.dart';
 
 class StatsPage extends ConsumerStatefulWidget {
@@ -196,6 +200,16 @@ class _StatsPageState extends ConsumerState<StatsPage> {
           widgets.add(const SizedBox(height: AppSpacing.s3));
         }
         add(const MonthlyTrendChart());
+        widgets.add(const SizedBox(height: AppSpacing.s3));
+        // 2026-10-15 D63 加:4 个新视图,加在 MonthlyTrendChart 后面
+        // - 类别对比(本月 vs 上月)→ 周几支出 → 储蓄率 → 支付账户
+        add(const CategoryCompareChart());
+        widgets.add(const SizedBox(height: AppSpacing.s3));
+        add(const WeekdayExpenseChart());
+        widgets.add(const SizedBox(height: AppSpacing.s3));
+        add(const SavingsRateCard());
+        widgets.add(const SizedBox(height: AppSpacing.s3));
+        add(const ExpenseByAssetChart());
       case StatsView.assets:
         // 2026-10-12 P4 commit:资产视角 = 总览卡 + 6 维雷达图(2026-10-13 P6 改 4 维 → 6 维)
         //   2026-10-13 P6:RangeTabs/RangeSummary 不在这里显示
