@@ -8,9 +8,11 @@
 // 下拉刷新:广谱 invalidate 所有依赖 provider(流水 / 月度汇总 / 分类)
 //
 // 视角路由:
-//   expense → CategoryPie + TopExpenses + MonthlyTrendChart(+ thisMonth: BudgetOverviewChart)
+//   expense → CategoryPie + TopExpenses + ConsumptionTrend(+ thisMonth: BudgetOverviewChart)
 //   assets  → 占位(2026-10-11 资产功能预留)
 // 2026-10-12 P5 commit 简化:删 income 段(2 段:收支 / 资产),IncomePie 文件同步删
+// 2026-10-15 D64.10 改:MonthlyTrendChart + CategoryCompareChart + WeekdayExpenseChart
+//   3 张独立卡合并成"消费趋势"1 张 tabbed 模块,本文件不再单独 import 它们。
 //
 // 2026-10-12 报表 widget 错峰入场(用户反馈"想有类似流水的那种往上抬"):
 // _viewContent 内每个非 SizedBox widget 包 StaggeredFadeIn,首次 mount 时按
@@ -27,15 +29,13 @@ import '../../../core/widgets/staggered_fade_in.dart';
 import '../../../core/widgets/privacy_obscure.dart';
 import 'widgets/category_pie.dart';
 import 'widgets/budget_overview_chart.dart';
-import 'widgets/category_compare.dart';
+import 'widgets/consumption_trend.dart';
 import 'widgets/expense_by_asset.dart';
-import 'widgets/monthly_trend.dart';
 import 'widgets/assets_overview_chart.dart';
 import 'widgets/assets_radar.dart';
 import 'widgets/range_summary.dart';
 import 'widgets/range_tabs.dart';
 import 'widgets/top_expenses.dart';
-import 'widgets/weekday_expense.dart';
 import '../application/stats_providers.dart';
 
 class StatsPage extends ConsumerStatefulWidget {
@@ -198,16 +198,14 @@ class _StatsPageState extends ConsumerState<StatsPage> {
           add(const BudgetOverviewChart());
           widgets.add(const SizedBox(height: AppSpacing.s3));
         }
-        add(const MonthlyTrendChart());
-        widgets.add(const SizedBox(height: AppSpacing.s3));
-        // 2026-10-15 D63 加:4 个新视图,加在 MonthlyTrendChart 后面
-        // - 类别对比(本月 vs 上月)→ 周几支出 → 储蓄率 → 支付账户
-        // 2026-10-15 D64.6 改:储蓄率(结余 / 收入)跟 RangeSummary
-        //   (收入 / 支出 / 结余)重复,user UAT 反馈"先不要"。
-        //   剩 3 个:类别对比 / 周几支出 / 支付账户。
-        add(const CategoryCompareChart());
-        widgets.add(const SizedBox(height: AppSpacing.s3));
-        add(const WeekdayExpenseChart());
+        // 2026-10-15 D64.10 改:把原来 MonthlyTrendChart(thisMonth 才显示按天
+        // 柱状) + CategoryCompareChart + WeekdayExpenseChart 3 张独立卡合并
+        // 成 1 张"消费趋势"模块(tab 切换 每日/类别/周几),沿用
+        // top_expenses "单笔/分类"同款 tab 样式(teal label + 0 高 indicator)。
+        // 本年维度:每日 tab 显示 12 月聚合(原 monthly_trend thisYear 行为),
+        //   类别 tab 空态(provider thisYear 1 月 vs 12 月语义错),
+        //   周几 tab 通用。
+        add(const ConsumptionTrend());
         widgets.add(const SizedBox(height: AppSpacing.s3));
         add(const ExpenseByAssetChart());
       case StatsView.assets:
