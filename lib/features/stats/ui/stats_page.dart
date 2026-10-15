@@ -8,11 +8,13 @@
 // 下拉刷新:广谱 invalidate 所有依赖 provider(流水 / 月度汇总 / 分类)
 //
 // 视角路由:
-//   expense → CategoryPie + TopExpenses + ConsumptionTrend(+ thisMonth: BudgetOverviewChart)
+//   expense → CategoryPie + TopExpenses + ConsumptionTrend + PaymentAnalysis(+ thisMonth: BudgetOverviewChart)
 //   assets  → 占位(2026-10-11 资产功能预留)
 // 2026-10-12 P5 commit 简化:删 income 段(2 段:收支 / 资产),IncomePie 文件同步删
 // 2026-10-15 D64.10 改:MonthlyTrendChart + CategoryCompareChart + WeekdayExpenseChart
 //   3 张独立卡合并成"消费趋势"1 张 tabbed 模块,本文件不再单独 import 它们。
+// 2026-10-15 D64.11 改:CategoryPie + ExpenseByAssetChart 2 张独立卡合并成
+//   "支付分析"1 张 tabbed 模块,本文件不再单独 import 它们。
 //
 // 2026-10-12 报表 widget 错峰入场(用户反馈"想有类似流水的那种往上抬"):
 // _viewContent 内每个非 SizedBox widget 包 StaggeredFadeIn,首次 mount 时按
@@ -27,10 +29,9 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/refresh_providers.dart';
 import '../../../core/widgets/staggered_fade_in.dart';
 import '../../../core/widgets/privacy_obscure.dart';
-import 'widgets/category_pie.dart';
 import 'widgets/budget_overview_chart.dart';
 import 'widgets/consumption_trend.dart';
-import 'widgets/expense_by_asset.dart';
+import 'widgets/payment_analysis.dart';
 import 'widgets/assets_overview_chart.dart';
 import 'widgets/assets_radar.dart';
 import 'widgets/range_summary.dart';
@@ -187,7 +188,9 @@ class _StatsPageState extends ConsumerState<StatsPage> {
         add(const RangeTabs());
         add(const RangeSummary());
         widgets.add(const SizedBox(height: AppSpacing.s3));
-        add(const CategoryPie());
+        // 2026-10-15 D64.11 改:CategoryPie + ExpenseByAssetChart 2 张独立
+        //   卡合并成"支付分析"1 张 tabbed 模块(分类 / 账户)
+        add(const PaymentAnalysis());
         widgets.add(const SizedBox(height: AppSpacing.s3));
         add(const TopExpenses());
         widgets.add(const SizedBox(height: AppSpacing.s3));
@@ -206,8 +209,6 @@ class _StatsPageState extends ConsumerState<StatsPage> {
         //   类别 tab 空态(provider thisYear 1 月 vs 12 月语义错),
         //   周几 tab 通用。
         add(const ConsumptionTrend());
-        widgets.add(const SizedBox(height: AppSpacing.s3));
-        add(const ExpenseByAssetChart());
       case StatsView.assets:
         // 2026-10-12 P4 commit:资产视角 = 总览卡 + 6 维雷达图(2026-10-13 P6 改 4 维 → 6 维)
         //   2026-10-13 P6:RangeTabs/RangeSummary 不在这里显示
