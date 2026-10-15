@@ -1,38 +1,59 @@
 // lib/features/stats/ui/widgets/consumption_trend.dart
-// 报表"消费趋势"模块 —— 3 个柱状图合并成 1 张卡 + tab 切换。
+// 报表"消费趋势"模块 —— 同一 ChartCard 根据 statsRangeProvider 切换 3 tab 内容。
 //
 // 2026-10-15 D64.10 改:把原本 3 张独立卡(本月每日支出 / 类别对比 / 周几支出)
 //   合并成"消费趋势"模块,用 tab 切换(每日 / 类别 / 周几),tab 样式照搬
-//   `top_expenses.dart` 的"单笔/分类"段。3 段共用 1 个 ChartCard,降低视觉碎片。
+//   `top_expenses.dart` 的"单笔/分类"段。
 //
-// - 每日 tab:本月 → 按天支出(dailyExpenseTrendProvider);本年 → 按月支出
-//   (yearlyExpenseTrendProvider,替代原 monthly_trend thisYear 行为)
-// - 类别 tab:本月 → 本月 vs 上月各类支出(categoryCompareProvider);
-//   本年 → 空态("切到本月查看对比"),原 provider thisYear 1 月 vs 12 月语义错
-// - 周几 tab:weekdayExpenseProvider,本月 / 本年通用(本年是 12 月按 weekday 聚合)
+// 2026-10-15 D64.21d 改:range-aware 切换 tab 内容。
+//   - 本月模式(StatsRange.thisMonth):3 tab = 每日 / 类别 / 周几(原有逻辑保留)
+//   - 本年模式(StatsRange.thisYear):3 tab = 收支 / 结余 / 预算(新增)
+//   - 整体结构保持 1 张 ChartCard,trailing TabBar + TabBarView,只是 tabs
+//     列表和对应 body widget 根据 range 切换。
+//
+// 本年模式 3 tab 数据源:
+//   - 收支:yearlyMonthlyTrendProvider.family<year>(income + expense 双柱)
+//   - 结余:yearlyMonthlyTrendProvider 同上,UI 层算 income - expense(可负)
+//   - 预算:monthlyBudgetHistoryProvider.family<year>(D64.21b,可能负或 0)
 //
 // 设计要点:
 // - DefaultTabController(length: 3) 必须包整个 widget(D64.4 教训),trailing TabBar
 //   跟 child TabBarView 共享 controller
 // - 所有 tab 高度统一 220(SizedBox),切换 tab 时卡片高度不变 → 视觉稳定
-// - 沿用 monthly_trend / category_compare / weekday_expense 原 widget 的全部逻辑
-//   (providers + bar chart 配置),本文件取代那 3 个文件
+// - 全年 3 tab 复用 AnimatedBarChart + D64.21c 新增的 minY 负轴支持
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/utils/budget_provider.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/charts/animated_bar_chart.dart';
 import '../../../../core/widgets/charts/chart_card.dart';
 import '../../application/stats_providers.dart';
 
-/// "消费趋势"模块容器 —— 1 张 ChartCard + 3 tabs(每日 / 类别 / 周几)
+/// "消费趋势"模块容器 —— range-aware 切换 tab 内容:
+///   本月 → 每日/类别/周几(原 D64.10)
+///   本年 → 收支/结余/预算(新 D64.21d)
 class ConsumptionTrend extends ConsumerWidget {
   const ConsumptionTrend({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final range = ref.watch(statsRangeProvider);
+    return range == StatsRange.thisYear
+        ? const _YearlyConsumptionTrend()
+        : const _MonthlyConsumptionTrend();
+  }
+}
+
+/// ========== 本月模式(D64.10 原 3 tab 逻辑保留) ==========
+
+class _MonthlyConsumptionTrend extends StatelessWidget {
+  const _MonthlyConsumptionTrend();
+
+  @override
+  Widget build(BuildContext context) {
     return DefaultTabController(
       length: 3,
       child: ChartCard(
@@ -55,8 +76,6 @@ class ConsumptionTrend extends ConsumerWidget {
             dividerHeight: 0,
           ),
         ),
-        // 固定高度 220 让 3 个 tab 切换时卡片高度不抖动(原 3 张卡分别是
-        // 192 / 220 / 200,统一到 220 容下类别对比的 padding)
         child: const SizedBox(
           height: 220,
           child: TabBarView(
@@ -290,6 +309,230 @@ class _WeekdayTab extends ConsumerWidget {
             ),
             touchedLabelBuilder: (i, b) => '周${_weekdayLabels[i]}',
             tooltipBuilder: (i, b) => '¥${Formatters.amount(b.value)}',
+          ),
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Padding(
+        padding: const EdgeInsets.all(AppSpacing.s3),
+        child: Text('加载失败:$e', style: const TextStyle(color: AppStatus.error)),
+      ),
+    );
+  }
+}
+
+/// ========== 本年模式(D64.21d 新增 3 tab) ==========
+
+class _YearlyConsumptionTrend extends StatelessWidget {
+  const _YearlyConsumptionTrend();
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 3,
+      child: ChartCard(
+        title: '消费趋势',
+        showDivider: false,
+        trailing: SizedBox(
+          height: 36,
+          child: TabBar(
+            isScrollable: true,
+            indicatorSize: TabBarIndicatorSize.label,
+            labelPadding: const EdgeInsets.symmetric(horizontal: 8),
+            tabs: const [
+              Tab(text: '收支'),
+              Tab(text: '结余'),
+              Tab(text: '预算'),
+            ],
+            labelColor: AppBrand.teal,
+            unselectedLabelColor: AppGray.g600,
+            indicatorColor: AppBrand.teal,
+            dividerHeight: 0,
+          ),
+        ),
+        child: const SizedBox(
+          height: 220,
+          child: TabBarView(
+            physics: NeverScrollableScrollPhysics(),
+            children: [_IncomeExpenseTab(), _BalanceTab(), _BudgetTab()],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 收支 tab:某年 1-12 月的 income + expense 双柱(全年)
+class _IncomeExpenseTab extends ConsumerWidget {
+  const _IncomeExpenseTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final year = ref.watch(statsCustomYearProvider) ?? DateTime.now().year;
+    final trendAsync = ref.watch(yearlyMonthlyTrendProvider(year));
+    return trendAsync.when(
+      data: (data) {
+        if (data.every((d) => d.income == 0 && d.expense == 0)) {
+          return _EmptyHint(text: '本年暂无收支');
+        }
+        final maxVal = data
+            .map((d) => d.income > d.expense ? d.income : d.expense)
+            .fold<double>(0, (a, b) => a > b ? a : b);
+        final chartNeedsWan = maxVal >= Formatters.wanThreshold;
+        return Padding(
+          padding: const EdgeInsets.all(AppSpacing.s4),
+          child: AnimatedBarChart(
+            bars: [
+              for (final m in data)
+                BarChartBar(
+                  label: '${m.month}月',
+                  // 主柱 = expense(支出,关心花多少),次柱 = income(收入)
+                  // 颜色:expense 用 error 红、income 用 secondaryColor(默认 g200 灰)
+                  value: m.expense,
+                  secondaryValue: m.income,
+                ),
+            ],
+            maxVal: maxVal,
+            chartNeedsWan: chartNeedsWan,
+            primaryColor: AppStatus.error,
+            secondaryColor: AppGray.g200,
+            barWidth: 8,
+            barsSpace: 2,
+            xLabelBuilder: (i, b) => Padding(
+              padding: const EdgeInsets.only(top: 1),
+              child: Text(
+                b.label,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            touchedLabelBuilder: (i, b) => b.label,
+            tooltipBuilder: (i, b) =>
+                '支 ¥${Formatters.amount(data[i].expense)} '
+                '收 ¥${Formatters.amount(data[i].income)}',
+          ),
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Padding(
+        padding: const EdgeInsets.all(AppSpacing.s3),
+        child: Text('加载失败:$e', style: const TextStyle(color: AppStatus.error)),
+      ),
+    );
+  }
+}
+
+/// 结余 tab:某年 1-12 月的 (income - expense),可负
+///   - 0 轴线由 D64.21c AnimatedBarChart 自动画(minVal < 0 时启用)
+///   - 正柱用 secondaryColor(灰,代表正向结余),负柱用 error(红,代表负向结余)
+class _BalanceTab extends ConsumerWidget {
+  const _BalanceTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final year = ref.watch(statsCustomYearProvider) ?? DateTime.now().year;
+    final trendAsync = ref.watch(yearlyMonthlyTrendProvider(year));
+    return trendAsync.when(
+      data: (data) {
+        if (data.every((d) => d.income == 0 && d.expense == 0)) {
+          return _EmptyHint(text: '本年暂无收支');
+        }
+        final balances = data.map((d) => d.income - d.expense).toList();
+        final maxVal = balances
+            .fold<double>(0, (a, b) => a > b ? a : b);
+        final minVal = balances
+            .fold<double>(0, (a, b) => a < b ? a : b);
+        if (maxVal == 0 && minVal == 0) {
+          return _EmptyHint(text: '本年无结余');
+        }
+        final chartNeedsWan =
+            maxVal.abs() >= Formatters.wanThreshold ||
+                minVal.abs() >= Formatters.wanThreshold;
+        return Padding(
+          padding: const EdgeInsets.all(AppSpacing.s4),
+          child: AnimatedBarChart(
+            bars: [
+              for (var i = 0; i < data.length; i++)
+                BarChartBar(
+                  label: '${data[i].month}月',
+                  value: balances[i],
+                ),
+            ],
+            maxVal: maxVal,
+            minVal: minVal, // D64.21c 负轴:负柱(支出>收入)自动朝下
+            chartNeedsWan: chartNeedsWan,
+            // 颜色按正负区分:正结余用 teal(正向),负结余用 error 红
+            barColorResolver: (i, b) =>
+                b.value >= 0 ? AppBrand.teal : AppStatus.error,
+            xLabelBuilder: (i, b) => Padding(
+              padding: const EdgeInsets.only(top: 1),
+              child: Text(
+                b.label,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            touchedLabelBuilder: (i, b) => b.label,
+            tooltipBuilder: (i, b) =>
+                '结余 ¥${Formatters.amount(b.value)}',
+          ),
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Padding(
+        padding: const EdgeInsets.all(AppSpacing.s3),
+        child: Text('加载失败:$e', style: const TextStyle(color: AppStatus.error)),
+      ),
+    );
+  }
+}
+
+/// 预算 tab:某年 1-12 月的总额度(D64.21b 落库,可能 0)
+///   - 0 值仍显示空柱(保持 12 月等距,跟 RangeSummary 12 月走势风格一致)
+class _BudgetTab extends ConsumerWidget {
+  const _BudgetTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final year = ref.watch(statsCustomYearProvider) ?? DateTime.now().year;
+    final budgetAsync = ref.watch(monthlyBudgetHistoryProvider(year));
+    return budgetAsync.when(
+      data: (data) {
+        if (data.every((d) => d.amount == 0)) {
+          return _EmptyHint(text: '本年未设置过预算');
+        }
+        final maxVal = data
+            .map((d) => d.amount)
+            .fold<double>(0, (a, b) => a > b ? a : b);
+        final chartNeedsWan = maxVal >= Formatters.wanThreshold;
+        return Padding(
+          padding: const EdgeInsets.all(AppSpacing.s4),
+          child: AnimatedBarChart(
+            bars: [
+              for (final m in data)
+                BarChartBar(label: '${m.month}月', value: m.amount),
+            ],
+            maxVal: maxVal,
+            chartNeedsWan: chartNeedsWan,
+            // 预算用 teal(品牌色),跟"还剩 ¥X"home 顶部配色对齐
+            primaryColor: AppBrand.teal,
+            xLabelBuilder: (i, b) => Padding(
+              padding: const EdgeInsets.only(top: 1),
+              child: Text(
+                b.label,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            touchedLabelBuilder: (i, b) => b.label,
+            tooltipBuilder: (i, b) =>
+                '预算 ¥${Formatters.amount(b.value)}',
           ),
         );
       },

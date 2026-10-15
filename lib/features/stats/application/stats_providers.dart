@@ -365,6 +365,51 @@ final yearlyExpenseTrendProvider = FutureProvider<List<YearlyExpense>>((
   );
 });
 
+/// 2026-10-15 D64.21d 加:某年 1-12 月的 income + expense(全年报表"收支" tab 用)
+///   - 跟 monthlyTrendProvider(滚动近 12 月)结构一致(都返 MonthlyTrend)
+///     但范围限定到 natural year,family 参数 = year
+///   - 数据来源:transactions 表 by (year, month),income/expense 同 monthlyTrendProvider
+///     口径(cat.type 双向对齐 + 还款入 expense)
+final yearlyMonthlyTrendProvider =
+    FutureProvider.family<List<MonthlyTrend>, int>((ref, year) async {
+  final db = ref.watch(databaseProvider);
+  final cats = await ref.watch(allCategoriesProvider.future);
+  final catTypeById = {for (final c in cats) c.id: c.type};
+  final start = DateTime(year, 1, 1);
+  final end = DateTime(year + 1, 1, 1).subtract(const Duration(seconds: 1));
+
+  final txs = await (db.select(
+    db.transactions,
+  )..where((t) => t.occurredAt.isBetweenValues(start, end))).get();
+
+  final byMonth = <int, MonthlyTrend>{};
+  for (final t in txs) {
+    final cType = catTypeById[t.categoryId];
+    final isIncome = t.type == 'income' && cType == 'income';
+    final isExpense =
+        (t.type == 'expense' && cType == 'expense') ||
+        (t.type == 'balance' && cType == 'liability');
+    if (!isIncome && !isExpense) continue;
+    final m = t.occurredAt.month;
+    final cur =
+        byMonth[m] ??
+        MonthlyTrend(year: year, month: m, income: 0, expense: 0);
+    byMonth[m] = MonthlyTrend(
+      year: cur.year,
+      month: cur.month,
+      income: cur.income + (isIncome ? t.amount : 0),
+      expense: cur.expense + (isExpense ? t.amount : 0),
+    );
+  }
+
+  // 强制 12 行(1..12 月),没数据的月 income/expense = 0
+  return List.generate(
+    12,
+    (i) => byMonth[i + 1] ??
+        MonthlyTrend(year: year, month: i + 1, income: 0, expense: 0),
+  );
+});
+
 /// 2026-10-15 D63 加:本月 vs 上月 各类别支出对比(报表第 5 张卡,跟月度趋势互补)
 ///   - 类别维度:每类本月 + 上月 双柱,看"哪类涨 / 哪类降"
 ///   - 跟 12 月月度趋势区别:monthlyTrendProvider 看时间维度(每月总额),这个看类别维度
