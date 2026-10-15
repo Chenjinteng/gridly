@@ -27,6 +27,10 @@ class RangeSummary extends ConsumerWidget {
     final yoyAsync = ref.watch(monthlyYoYProvider);
     final yoy = yoyAsync.valueOrNull ?? MonthlyYoY.empty;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    // D62.2 UAT 加:仅本月维度显示"同比上月"小字提示
+    //   - 本年维度没同比(provMonthlyYoYProvider 返 MonthlyYoY.empty),提示也不需要
+    //   - user 反馈"± 与上一个月的同比吗" — 直接在卡片上明示,免 user 猜
+    final isThisMonth = ref.watch(statsRangeProvider) == StatsRange.thisMonth;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
       padding: const EdgeInsets.all(AppSpacing.s4),
@@ -41,43 +45,60 @@ class RangeSummary extends ConsumerWidget {
         // 黑底卡:重阴影,与月度汇总卡保持一致(dark mode 自动切白阴影)
         boxShadow: CardShadows.dark(context),
       ),
-      // 同比加在 _Stat 里后,Column 变高(3 行:label / number / yoy)。
-      // 分隔线高度硬编码 32(不要 stretch — ListView 无限高度 + Row.stretch +
-      // 无 height 子项会触发 BoxConstraints forces an infinite height 异常,
-      // 整个 RangeSummary 抛错 → 报表页全空白)
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: _Stat(
-              label: Formatters.labelledUnit('收入', s.income),
-              amount: s.income,
-              color: AppBrand.gold,
-              yoy: yoy.income,
-            ),
+          // 同比加在 _Stat 里后,Column 变高(3 行:label / number / yoy)。
+          // 分隔线高度硬编码 32(不要 stretch — ListView 无限高度 + Row.stretch +
+          // 无 height 子项会触发 BoxConstraints forces an infinite height 异常,
+          // 整个 RangeSummary 抛错 → 报表页全空白)
+          Row(
+            children: [
+              Expanded(
+                child: _Stat(
+                  label: Formatters.labelledUnit('收入', s.income),
+                  amount: s.income,
+                  color: AppBrand.gold,
+                  yoy: yoy.income,
+                ),
+              ),
+              Container(width: 1, height: 32, color: AppGray.g600),
+              Expanded(
+                child: _Stat(
+                  label: Formatters.labelledUnit('支出', s.expense),
+                  amount: s.expense,
+                  color: AppStatus.error,
+                  yoy: yoy.expense,
+                ),
+              ),
+              Container(width: 1, height: 32, color: AppGray.g600),
+              Expanded(
+                child: _Stat(
+                  label: Formatters.labelledUnit('结余', s.balance),
+                  amount: s.balance,
+                  // 结余按值动态选色(正 teal / 负 error / 零 cream)
+                  // 2026-10-11 UAT:之前的常量 cream 让 -3726 这种重要数字"白底白字"
+                  // 不直观。颜色主题与设计稿保持一致:
+                  //   绿/正 → AppBrand.teal #14B8A6
+                  //   红/负 → AppStatus.error #EF4444
+                  color: AppSemantic.balanceFor(s.balance),
+                  yoy: yoy.balance,
+                ),
+              ),
+            ],
           ),
-          Container(width: 1, height: 32, color: AppGray.g600),
-          Expanded(
-            child: _Stat(
-              label: Formatters.labelledUnit('支出', s.expense),
-              amount: s.expense,
-              color: AppStatus.error,
-              yoy: yoy.expense,
+          // D62.2:右对齐灰色 10sp 小字"同比上月",提示 user ± 是跟上月对比
+          if (isThisMonth) ...[
+            const SizedBox(height: AppSpacing.s2),
+            const Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                '同比上月',
+                style: TextStyle(color: AppGray.g400, fontSize: 10),
+              ),
             ),
-          ),
-          Container(width: 1, height: 32, color: AppGray.g600),
-          Expanded(
-            child: _Stat(
-              label: Formatters.labelledUnit('结余', s.balance),
-              amount: s.balance,
-              // 结余按值动态选色(正 teal / 负 error / 零 cream)
-              // 2026-10-11 UAT:之前的常量 cream 让 -3726 这种重要数字"白底白字"
-              // 不直观。颜色主题与设计稿保持一致:
-              //   绿/正 → AppBrand.teal #14B8A6
-              //   红/负 → AppStatus.error #EF4444
-              color: AppSemantic.balanceFor(s.balance),
-              yoy: yoy.balance,
-            ),
-          ),
+          ],
         ],
       ),
     );
