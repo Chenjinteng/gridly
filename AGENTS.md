@@ -243,10 +243,10 @@ features/<name>/
   - `logo_horizontal.png` 2752×1536 — LOGO + "格子记账" 文字(横版品牌)
 - **Launcher icon**(5 个 mipmap-*/ic_launcher.png)当前从 `logo_primary.png` 派生,2026-10-10 改成白底风格
 
-### v0.3.5 P18 进度(2026-10-15 完成,60 commits)
+### v0.3.5 P18 进度(2026-10-15 完成,61 commits)
 
-- HEAD: `81c6bfe fix(stats): range_summary 同比箭头防 overflow + 饼图分类名改"债务" + Top 10 include 现金→债务调拨 (D62.1)`,已推 `origin/main`
-- commit 范围:`7ea90d3..81c6bfe`
+- HEAD: `858540e fix(stats): range_summary 加右对齐灰色小字'同比上月'提示 (D62.2)`,已推 `origin/main`
+- commit 范围:`7ea90d3..858540e`
 - 主要文件改动:
   - `lib/features/add/ui/transaction_form.dart` — 5 getter 三段拆分 / save() dest 收益不存 / initState pre-fill / D44 toggle 不清 cat(receivable 例外) / D45 `_actionRow` 全表查 cat / D49 余额校验扩所有非负债段 / D50 `_AccountPickerSheet` 加 `excludeId` / D51 v4 source picker 短路 / D52 / D53 popup overflow 修 / D55 `_isOtherContext` getter / D57 撤销 D56 `_categoryFilterType` + D55 `_accountTypeFilter` 返 null,改 `_toggleSegments` filter balance + `_needsCategory` 返 false + `_firstCategoryId` 简化 fallback(cat.type='other') / D58 `_AccountPickerSheet.accountTypeFilter` 改 `List<String>?`(多类型白名单)+ `_accountTypeFilter` / `_destinationTypeFilter` 返 `List<String>?` 统一协议,债务调拨限定 `['cash_flow', 'receivable']` / D59 cash_flow + expense 分支返 `['cash_flow', 'receivable']`(信用卡/花呗 source)
   - `lib/features/add/ui/add_transaction_page.dart` — `_appBarTitle` / `effectiveAllowBalance` 福利 / 债权 / 其它(D57)适配
@@ -262,7 +262,7 @@ features/<name>/
   - `lib/features/settings/ui/widgets/asset_tile.dart` — 6 段色 + label 统一走 `AppSegment`(D47) + `brandIcons` / `renderIcon`(D48 v2 银行 5→1)
   - `lib/features/stats/ui/widgets/assets_overview_chart.dart` — 6 段循环改走 `AppSegment`(D47)
   - `lib/features/stats/application/stats_providers.dart` — D62 收入/支出口径收紧(`cat.type` + `tx.type` 双向对齐,只算 cash_flow 收支)+ `expenseByCategoryProvider` 加"债务"虚拟分类(现金→债务调拨,cat.type='liability' AND tx.type='balance')+ D62.1 `topExpensesProvider` 扩展口径 include 现金→债务调拨
-  - `lib/features/stats/ui/widgets/range_summary.dart` — D62.1 `_YoYBadge` 加 `FittedBox(scaleDown)` 防同比文字 overflow
+  - `lib/features/stats/ui/widgets/range_summary.dart` — D62.1 `_YoYBadge` 加 `FittedBox(scaleDown)` 防同比文字 overflow + D62.2 Container child 改 Column[Row(3 色块) + footer "同比上月" 灰色 10sp 右对齐,仅本月维度显示]
   - `lib/features/ledger/ui/widgets/transaction_tile.dart` — 2×2 矩阵布局 / `_AccountBadge` 接受 destinationAccountId / 不计入流水 chip / D51 v2 借出=- 借入=+ `_displayLabelFor`
   - `lib/features/ledger/application/transactions_providers.dart` — monthSummary / filtered 排除投资 record + `includeInTransactions=false`
   - `lib/features/ledger/ui/ledger_page.dart` — `_DaySection` 同步排除规则
@@ -278,7 +278,7 @@ features/<name>/
   - D54 user 仍可在资产表单开 `includeInTransactions=true` 走短按 + cash_flow 调拨选 不动产 账户(后路,user 暂未要求封)
   - D60 其它页面的金额遮挡不全(transaction_tile / asset_tile / range_summary / top_expenses / category_pie / monthly_trend / assets_overview_chart / budget_sheet 等未接 `amountVisibilityProvider`),流水/报表被整页挡住影响小,user 反馈再补
   - D62 range_summary 仍是 3 色块(user UAT 明确"上面收入|支出|结余不需要改"),还款只通过支出饼图虚拟分类体现,没单独卡片
-- 详情见 [`docs/ROADMAP.md`](docs/ROADMAP.md) v0.3.5 章节 + [`docs/DEV.md`](docs/DEV.md) D32-D62.1 决策记录
+- 详情见 [`docs/ROADMAP.md`](docs/ROADMAP.md) v0.3.5 章节 + [`docs/DEV.md`](docs/DEV.md) D32-D62.2 决策记录
 
 ### 这台机器的实际 host
 
