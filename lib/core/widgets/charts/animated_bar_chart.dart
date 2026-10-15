@@ -319,25 +319,27 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
               touchTooltipData: BarTouchTooltipData(
                 getTooltipItem: (_, _, _, _) => null,
               ),
-              touchExtraThreshold:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              touchExtraThreshold: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 4,
+              ),
             ),
             gridData: FlGridData(
               show: true,
               drawVerticalLine: false,
               horizontalInterval: widget.niceInterval,
-              getDrawingHorizontalLine: (_) => FlLine(
-                color: scheme.outlineVariant,
-                strokeWidth: 0.5,
-              ),
+              getDrawingHorizontalLine: (_) =>
+                  FlLine(color: scheme.outlineVariant, strokeWidth: 0.5),
             ),
             borderData: FlBorderData(show: false),
             titlesData: FlTitlesData(
               show: true,
-              topTitles:
-                  const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              rightTitles:
-                  const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              topTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+              rightTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
               leftTitles: AxisTitles(
                 sideTitles: SideTitles(
                   showTitles: true,
@@ -371,7 +373,8 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
                     }
                     final b = widget.xLabelBuilder;
                     if (b != null) {
-                      return b(idx, widget.bars[idx]) ?? const SizedBox.shrink();
+                      return b(idx, widget.bars[idx]) ??
+                          const SizedBox.shrink();
                     }
                     return Padding(
                       padding: const EdgeInsets.only(top: 1),
@@ -411,15 +414,11 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
             width: 56,
             child: Center(
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: scheme.surface,
                   borderRadius: BorderRadius.circular(4),
-                  border: Border.all(
-                    color: scheme.outlineVariant,
-                    width: 0.5,
-                  ),
+                  border: Border.all(color: scheme.outlineVariant, width: 0.5),
                 ),
                 child: Text(
                   widget.touchedLabelBuilder?.call(

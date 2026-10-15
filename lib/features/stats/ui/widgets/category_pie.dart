@@ -3,19 +3,13 @@
 // 圆环中心显示"总支出"金额,右侧前 8 个分类按金额排序列出来。
 // 容器套外框 + 标题栏,延续"格子"Excel 主题风格。
 //
-// 2026-10-12 ColorOS 扇区入场:PieChartData 加 swapAnimationDuration
-// 800ms + swapAnimationCurve aquaIn。fl_chart 内置动画让扇区从 0 角度
-// 展开到目标角度,首次进入 + 切换视角 / 月份时都自然过渡。
-import 'package:fl_chart/fl_chart.dart';
+// 2026-10-15 D64.2 改:用 `ChartCard` + `PieChartCard`(`core/widgets/charts/`)
+//   共用通用圆环+图例 widget,本身只保留数据接入逻辑。
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/widgets/animated_pie_chart.dart';
-import '../../../../core/theme/app_radius.dart';
-import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/theme/card_shadows.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/charts/pie_chart_card.dart';
 import '../../application/stats_providers.dart';
 
 class CategoryPie extends ConsumerWidget {
@@ -24,186 +18,38 @@ class CategoryPie extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final expensesAsync = ref.watch(expenseByCategoryProvider);
-    final theme = Theme.of(context);
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: AppRadius.brLg,
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant,
-          width: 1.0, // 全卡片统一:0.5 → 1.0
-        ),
-        boxShadow: CardShadows.light(context),
+    return expensesAsync.when(
+      data: (data) {
+        final total = data.fold<double>(0, (s, e) => s + e.amount);
+        return PieChartCard(
+          title: '支出分类',
+          items: buildPieChartItems<CategoryExpense>(
+            data,
+            nameOf: (e) => e.name,
+            valueOf: (e) => e.amount,
+            colorOf: (e) => e.color,
+          ),
+          total: total,
+          centerLabel: '总支出',
+          centerValueText: '¥${Formatters.amount(total)}',
+          totalLabel: data.isEmpty ? null : '共 ¥${Formatters.amount(total)}',
+        );
+      },
+      loading: () => PieChartCard(
+        title: '支出分类',
+        items: const [],
+        total: 0,
+        centerLabel: '总支出',
+        centerValueText: '¥0',
+        totalLabel: null,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.s4,
-              AppSpacing.s3,
-              AppSpacing.s4,
-              AppSpacing.s2,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  '支出分类',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                ),
-                expensesAsync.maybeWhen(
-                  data: (data) {
-                    if (data.isEmpty) return const SizedBox.shrink();
-                    final total = data.fold<double>(0, (s, e) => s + e.amount);
-                    return Text(
-                      '共 ¥${Formatters.amount(total)}',
-                      style: const TextStyle(fontSize: 12, color: AppGray.g600),
-                    );
-                  },
-                  orElse: () => const SizedBox.shrink(),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1, thickness: 0.5),
-          expensesAsync.when(
-            data: (data) {
-              if (data.isEmpty) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: AppSpacing.s5),
-                  child: Center(
-                    child: Text(
-                      '该时段无支出',
-                      style: TextStyle(color: AppGray.g600, fontSize: 13),
-                    ),
-                  ),
-                );
-              }
-              final total = data.fold<double>(0, (s, e) => s + e.amount);
-              final shown = data.take(8).toList();
-              return Padding(
-                padding: const EdgeInsets.all(AppSpacing.s4),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // 左侧圆环
-                    SizedBox(
-                      width: 140,
-                      height: 140,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          AnimatedPieChart(
-                            key: pieChartKeyForSections(
-                              shown
-                                  .map(
-                                    (e) => PieChartSectionData(
-                                      value: e.amount,
-                                      color: Color(e.color),
-                                      title: '',
-                                      radius: 18,
-                                    ),
-                                  )
-                                  .toList(),
-                            ),
-                            innerRadius: 48,
-                            outerRadius: 64,
-                            sections: shown
-                                .map(
-                                  (e) => PieChartSectionData(
-                                    value: e.amount,
-                                    color: Color(e.color),
-                                    title: '',
-                                    radius: 18,
-                                  ),
-                                )
-                                .toList(),
-                          ),
-                          // 中心"总支出"文字
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Text(
-                                '总支出',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: AppGray.g600,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '¥${Formatters.amount(total)}',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.s4),
-                    // 右侧图例(最多 8 条)
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: shown.map((e) {
-                          final pct = (e.amount / total * 100);
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 10,
-                                  height: 10,
-                                  decoration: BoxDecoration(
-                                    color: Color(e.color),
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    e.name,
-                                    style: const TextStyle(fontSize: 13),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                Text(
-                                  '${pct.toStringAsFixed(0)}%',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppGray.g600,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-            loading: () => const Padding(
-              padding: EdgeInsets.symmetric(vertical: AppSpacing.s6),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (e, _) => Padding(
-              padding: const EdgeInsets.all(AppSpacing.s3),
-              child: Text(
-                '加载失败:$e',
-                style: const TextStyle(color: AppStatus.error),
-              ),
-            ),
-          ),
-        ],
+      error: (e, _) => PieChartCard(
+        title: '支出分类',
+        items: const [],
+        total: 0,
+        centerLabel: '总支出',
+        centerValueText: '加载失败',
+        totalLabel: null,
       ),
     );
   }
