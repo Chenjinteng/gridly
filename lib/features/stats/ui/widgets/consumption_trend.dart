@@ -398,16 +398,21 @@ class _IncomeExpenseTab extends ConsumerWidget {
             secondaryColor: AppGray.g200,
             barWidth: 8,
             barsSpace: 2,
-            xLabelBuilder: (i, b) => Padding(
-              padding: const EdgeInsets.only(top: 1),
-              child: Text(
-                b.label,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+            // D64.22 改:12 月全标 label 太密,稀疏化到 1 / 6 / 12 三个月(起 / 中 / 末)
+            xLabelBuilder: (i, b) {
+              final m = data[i].month;
+              if (m != 1 && m != 6 && m != 12) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: Text(
+                  b.label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
             touchedLabelBuilder: (i, b) => b.label,
             tooltipBuilder: (i, b) =>
                 '支 ¥${Formatters.amount(data[i].expense)} '
@@ -466,16 +471,21 @@ class _BalanceTab extends ConsumerWidget {
             // 颜色按正负区分:正结余用 teal(正向),负结余用 error 红
             barColorResolver: (i, b) =>
                 b.value >= 0 ? AppBrand.teal : AppStatus.error,
-            xLabelBuilder: (i, b) => Padding(
-              padding: const EdgeInsets.only(top: 1),
-              child: Text(
-                b.label,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+            // D64.22 改:稀疏化到 1 / 6 / 12 三个月(起 / 中 / 末)
+            xLabelBuilder: (i, b) {
+              final m = data[i].month;
+              if (m != 1 && m != 6 && m != 12) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: Text(
+                  b.label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
             touchedLabelBuilder: (i, b) => b.label,
             tooltipBuilder: (i, b) =>
                 '结余 ¥${Formatters.amount(b.value)}',
@@ -520,16 +530,21 @@ class _BudgetTab extends ConsumerWidget {
             chartNeedsWan: chartNeedsWan,
             // 预算用 teal(品牌色),跟"还剩 ¥X"home 顶部配色对齐
             primaryColor: AppBrand.teal,
-            xLabelBuilder: (i, b) => Padding(
-              padding: const EdgeInsets.only(top: 1),
-              child: Text(
-                b.label,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+            // D64.22 改:稀疏化到 1 / 6 / 12 三个月(起 / 中 / 末)
+            xLabelBuilder: (i, b) {
+              final m = data[i].month;
+              if (m != 1 && m != 6 && m != 12) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: Text(
+                  b.label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
-              ),
-            ),
+              );
+            },
             touchedLabelBuilder: (i, b) => b.label,
             tooltipBuilder: (i, b) =>
                 '预算 ¥${Formatters.amount(b.value)}',
