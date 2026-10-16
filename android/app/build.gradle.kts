@@ -17,7 +17,11 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "cn.jinteng.gridly"
-    compileSdk = flutter.compileSdkVersion
+    // D68.1 改:file_picker 8.x 拉的 flutter_plugin_android_lifecycle 2.0.35
+    //   AAR metadata 要求 compileSdk ≥ 36。Flutter 3.47.7 默认 35 还不够,
+    //   显式设 36。compileSdk 只是"我编译时能用到的 API 等级",升它无副作用,
+    //   targetSdk 仍走 Flutter 默认(行为切换门槛,不动)。
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
