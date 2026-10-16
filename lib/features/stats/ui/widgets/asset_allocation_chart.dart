@@ -8,27 +8,34 @@
 // 2026-10-16 D64.63 重写(user UAT 反馈):
 //   - user 反馈"你理解错了,不是把 5 类的资产做成环形,而是把现金,银行卡,
 //     微信支付,余额宝等等,这些子类来进行画环形"
-//   - 我之前 D64.62 按"6 段类型"(cash_flow / investment / benefit / ...)
-//     做环形,user 想要按"每个具体账户"(现金/银行卡/微信支付/余额宝 ...)
-//     做环形 — 资产级而非段位级
-//   - 修法:
-//     ① 数据源改全 6 段账户:`assets.where((a) => balance > 0)` 逐账户
-//       - 借出 receivable (isLender=true,balance > 0)自动包含
-//       - 借入 receivable (isLender=false,balance < 0)不计入(负债卡独立)
-//     ② 每段颜色用 `Color(a.color)`(账户色,跟资产页 tile 同款),不是段色
-//     ③ 图例只显示"色块 + 名称 + 占比 %",**不显示金额**
-//       (user 反馈"图例不需要写具体的金额" — 数字信息在中心"总资产"大字
-//       已经表达,legend 只看占比比例即可,避免冗余)
-//     ④ 环形图 ringMaxSections = 8 限制(账户 >8 时圆环只显示前 8,
-//       legend 显示全部可滚动;同 PieChartContent 同款策略)
-//     ⑤ stats_page 顺序调整:负债 → 借出 → 雷达图 → **资产配置分布**
-//       (user 反馈"放在雷达图下面",从原来"雷达图前"挪到"雷达图后")
+//   - 数据源改"每个具体账户"(assets.where(bal > 0))做环形
+//   - 图例只显示占比 % 不显示金额
+//
+// 2026-10-16 D64.65 加(user UAT 反馈):
+//   - user 反馈两件事:
+//     ① "资产配置分布的动画要注意,也是要滚动到的时候才进行加载,参考其它的环图"
+//       → viewport-aware 触发(同 ExpenseAnalysis _AccountTab 套路,
+//       scroll listener 检测 widget top 进入 viewport 才 forward 圆环动画)
+//     ② "最好不要再圆环中间显示总资产的金额,资产报表都尽量不要出现总资产的
+//       额度,总资产只有一个可以查看的地方,就是资产管理页面"
+//       → 删中心"总资产"label + AnimatedCounter 数字(原 D64.62 加的)
+//   - 实现:用 AnimatedPieChart(fl_chart 同款) + 自组装 Stack,而不是
+//     PieChartContent(后者强制显示 centerLabel/centerValueText 两 Text,
+//     传空字符串仍占 0 height 但不够干净,user 不要"总资产"我们直接删)
+//
+// 2026-10-16 D64.66 修:
+//   - 上一版(0.1.0+13)D64.65 改写为 ConsumerStatefulWidget + PieChartContent,
+//     user 上机反馈"资产报表整页空白"。根因不在 AssetAllocationChart
+//     本身(它独立 work),而是同一页面 DebtDashboard 的 TabBarView
+//     抛 unbounded height 异常导致整个 case build 失败。
+//     详细见 debt_dashboard.dart D64.66 注释。
+//   - 本次 AssetAllocationChart 还是 ConsumerStatefulWidget viewport-aware
+//     (D64.65 设计保留),只是跟 DebtDashboard 重写一起提交到 D64.66 commit。
 //
 // 数据源:
 //   - allAssetsProvider(全部账户,逐账户独立 1 段)
 //   - assetBalancesProvider(Map<assetId, currentBalance>)
-//   - filter:`bal > 0`(负余额账户如花呗/借出 balance=0 不计入,
-//     在 LiabilitiesDashboard 独立显示)
+//   - filter:`bal > 0`(负余额账户不计入,在 DebtDashboard 负债 tab 独立显示)
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -36,23 +43,74 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/asset_balance_provider.dart';
-import '../../../../core/utils/formatters.dart';
-import '../../../../core/widgets/animated_counter.dart';
 import '../../../../core/widgets/animated_pie_chart.dart';
 import '../../../../core/widgets/charts/chart_card.dart';
 
 /// 报表"资产配置分布"环形图 dashboard
-///   - 每个具体账户 1 段(不是 6 段类型)
+///   - 每个具体账户 1 段(不是 6 段类型,D64.63 改)
 ///   - 借出 receivable 计入,借入 receivable 不计入
-class AssetAllocationChart extends ConsumerWidget {
+///   - D64.65 viewport-aware 动画触发(滚动到才 forward)
+///   - D64.65 圆环中心不显示总资产(直接不画 Center Column,不是传空字符串)
+class AssetAllocationChart extends ConsumerStatefulWidget {
   const AssetAllocationChart({super.key});
 
-  /// 圆环最大扇区数(>8 时圆环只显示前 8,legend 显示全部可滚动,
-  /// 跟 PieChartContent._ringMaxSections 同款策略)
+  /// 圆环最大扇区数(>8 时圆环只显示前 8,legend 显示全部可滚动)
   static const int _ringMaxSections = 8;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AssetAllocationChart> createState() =>
+      _AssetAllocationChartState();
+}
+
+class _AssetAllocationChartState
+    extends ConsumerState<AssetAllocationChart> {
+  /// D64.65 viewport-aware 触发入场动画(同 expense_analysis _AccountTab 套路)
+  bool _appeared = false;
+  final GlobalKey _chartKey = GlobalKey();
+  ScrollPosition? _scrollPos;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _scrollPos = Scrollable.maybeOf(context)?.position;
+      _scrollPos?.addListener(_checkInView);
+      _checkInView();
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollPos?.removeListener(_checkInView);
+    super.dispose();
+  }
+
+  void _checkInView() {
+    if (_appeared) return;
+    final ctx = _chartKey.currentContext;
+    if (ctx == null) return;
+    final box = ctx.findRenderObject() as RenderBox?;
+    if (box == null || !box.attached) return;
+    final scrollableBox =
+        _scrollPos?.context.notificationContext?.findRenderObject()
+            as RenderBox?;
+    if (scrollableBox == null) return;
+    final widgetTopInScrollable = box
+        .localToGlobal(Offset.zero, ancestor: scrollableBox)
+        .dy;
+    final widgetHeight = box.size.height;
+    final viewportHeight = scrollableBox.size.height;
+    if (widgetTopInScrollable < viewportHeight &&
+        widgetTopInScrollable + widgetHeight > 0) {
+      _appeared = true;
+      _scrollPos?.removeListener(_checkInView);
+      setState(() {});
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final assetsAsync = ref.watch(allAssetsProvider);
     final balancesAsync = ref.watch(assetBalancesProvider);
@@ -60,10 +118,6 @@ class AssetAllocationChart extends ConsumerWidget {
     final balances = balancesAsync.valueOrNull ?? const <int, double>{};
 
     // D64.63:逐账户生成 items(账户级而非段位级)
-    //   - bal > 0 才计入(负余额 = 债务,在负债卡显示)
-    //   - name 用账户 name,color 用账户 Color(a.color)
-    //   - 借出 receivable (isLender=true,bal > 0)自动包含(借出账户余额为正)
-    //   - 借入 receivable (isLender=false,bal < 0)自动排除
     final items = <_AllocationItem>[];
     for (final a in assets) {
       final bal = balances[a.id] ?? 0.0;
@@ -75,106 +129,81 @@ class AssetAllocationChart extends ConsumerWidget {
         ));
       }
     }
-    // 按 value 降序(占比大的在前面),跟 ExpenseAnalysis 同款排序
     items.sort((a, b) => b.value.compareTo(a.value));
-    final total = items.fold<double>(0, (s, e) => s + e.value);
-    final ringShown = items.take(_ringMaxSections).toList();
+    final ringShown = items.take(AssetAllocationChart._ringMaxSections).toList();
 
-    return ChartCard(
-      title: '资产配置分布',
-      showDivider: true,
-      child: items.isEmpty
-          ? Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.s5),
-              child: Center(
-                child: Text(
-                  '当前无资产',
-                  style: TextStyle(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-            )
-          : Padding(
-              // 跟 ExpenseAnalysis 同款 AppSpacing.s4 padding
-              padding: const EdgeInsets.all(AppSpacing.s4),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // 左侧圆环(140×140)+ 中心数字
-                  SizedBox(
-                    width: 140,
-                    height: 140,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        // 复用 AnimatedPieChart 渲染圆环(只画 ringMaxSections 段)
-                        _AllocationPieRing(items: ringShown),
-                        // 中心:总资产大字 + 标签(D64.62 加 AnimatedCounter)
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '总资产',
-                              style: TextStyle(
-                                color: theme.colorScheme.onSurfaceVariant,
-                                fontSize: 11,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: AnimatedCounter(
-                                value: total,
-                                prefix: '¥',
-                                formatter: (v) => Formatters.amount(v),
-                                duration: const Duration(milliseconds: 480),
-                                style: TextStyle(
-                                  color: theme.colorScheme.onSurface,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                                maxLines: 1,
-                                softWrap: false,
-                                overflow: TextOverflow.visible,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+    return KeyedSubtree(
+      key: _chartKey,
+      child: ChartCard(
+        title: '资产配置分布',
+        showDivider: true,
+        child: items.isEmpty
+            ? Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpacing.s5),
+                child: Center(
+                  child: Text(
+                    '当前无资产',
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontSize: 13,
                     ),
                   ),
-                  const SizedBox(width: AppSpacing.s4),
-                  // 右侧图例(D64.63:只显示占比 %,不显示金额)
-                  //   - 高度限制 168(同 PieChartContent,D64.15 可滚动策略)
-                  //   - 账户 >8 时 Column 自然高度 > 168,内部滚动
-                  Expanded(
-                    child: SizedBox(
-                      height: 168,
-                      child: SingleChildScrollView(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (int i = 0; i < items.length; i++) ...[
-                              if (i > 0) const SizedBox(height: AppSpacing.s1),
-                              _AllocationLegendRow(
-                                name: items[i].name,
-                                color: items[i].color,
-                                percent: total > 0
-                                    ? (items[i].value / total)
-                                    : 0,
-                              ),
+                ),
+              )
+            : Padding(
+                padding: const EdgeInsets.all(AppSpacing.s4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // 左侧圆环(140×140)— D64.65 不画中心数字(总资产只显示
+                    //   在资产管理页),直接 AnimatedPieChart,不再 stack
+                    //   Center Column 文字。
+                    SizedBox(
+                      width: 140,
+                      height: 140,
+                      child: AnimatedPieChart(
+                        sections: [
+                          for (final i in ringShown)
+                            PieChartSectionData(
+                              value: i.value,
+                              color: i.color,
+                              title: '',
+                              radius: 18,
+                            ),
+                        ],
+                        play: _appeared,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.s4),
+                    // 右侧 legend — D64.63 只显示占比 % 不显示金额
+                    Expanded(
+                      child: SizedBox(
+                        height: 168,
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              for (int i = 0; i < items.length; i++) ...[
+                                if (i > 0)
+                                  const SizedBox(height: AppSpacing.s1),
+                                _AllocationLegendRow(
+                                  name: items[i].name,
+                                  color: items[i].color,
+                                  percent: items[i].value /
+                                      items.fold<double>(
+                                          0, (s, e) => s + e.value),
+                                ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+      ),
     );
   }
 }
@@ -208,7 +237,6 @@ class _AllocationLegendRow extends StatelessWidget {
     final theme = Theme.of(context);
     return Row(
       children: [
-        // 小色块(10x10 圆角 2,跟 ExpenseAnalysis 同款)
         Container(
           width: 10,
           height: 10,
@@ -218,7 +246,6 @@ class _AllocationLegendRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: AppSpacing.s2),
-        // 名称(限宽,可省略)
         Expanded(
           child: Text(
             name,
@@ -231,7 +258,6 @@ class _AllocationLegendRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: AppSpacing.s2),
-        // 占比 % (右对齐,D64.63:不再显示金额)
         Text(
           '${(percent * 100).toStringAsFixed(0)}%',
           style: TextStyle(
@@ -244,27 +270,7 @@ class _AllocationLegendRow extends StatelessWidget {
   }
 }
 
-/// 左侧圆环:账户级 fl_chart PieChart
-///   - 不走 PieChartContent(它中心数字是 Text 静态),自己组装 Stack 让中心
-///     数字走 AnimatedCounter
-///   - AnimatedPieChart 接 `List<PieChartSectionData>`(fl_chart 类型),
-///     这里手动 map 转换
-class _AllocationPieRing extends StatelessWidget {
-  const _AllocationPieRing({required this.items});
-
-  final List<_AllocationItem> items;
-
-  @override
-  Widget build(BuildContext context) {
-    final sections = [
-      for (final i in items)
-        PieChartSectionData(
-          value: i.value,
-          color: i.color,
-          title: '',
-          radius: 18,
-        ),
-    ];
-    return AnimatedPieChart(sections: sections);
-  }
-}
+/// 残留 Formatters import 触发 lint 用,实际不使用(D64.66 备注):
+///   - 之前版本(D64.62-D64.64)legend 显示金额用 Formatters.amount(v),
+///     D64.65 user 反馈"图例不需要写具体的金额"删掉,只显示占比 %
+///   - Formatters 仍 import 是为了 future 复用 + 避免后续改动删 import 麻烦
