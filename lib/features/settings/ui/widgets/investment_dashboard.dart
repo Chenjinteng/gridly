@@ -151,6 +151,11 @@ class _NetTotalHeader extends StatelessWidget {
     return netTotalAsync.when(
       data: (net) {
         final isProfit = net >= 0;
+        // 2026-10-16 D65.3 改:整段累计净收益全红/全绿对齐
+        //   - 之前:仅 +/- 符号用 isProfit 颜色,¥ + number 硬编 AppGray.g900(灰)
+        //   - 视觉割裂:用户看到"− 红 + 数字灰"会迟疑这个数字到底代表什么
+        //   - 改:整段(符号 + ¥ + 数字)统一用 isProfit 颜色,跟 footer "净 ±¥X" 全红/全绿 呼应
+        final profitColor = isProfit ? AppStatus.success : AppStatus.error;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -172,16 +177,16 @@ class _NetTotalHeader extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
-                    color: isProfit ? AppStatus.success : AppStatus.error,
+                    color: profitColor,
                   ),
                 ),
                 const SizedBox(width: AppSpacing.s05),
-                const Text(
+                Text(
                   '¥',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
-                    color: AppGray.g900,
+                    color: profitColor, // D65.3:跟随 isProfit 颜色
                   ),
                 ),
                 Expanded(
@@ -192,10 +197,10 @@ class _NetTotalHeader extends StatelessWidget {
                       value: net.abs(),
                       prefix: '',
                       formatter: (v) => Formatters.amount(v),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w700,
-                        color: AppGray.g900,
+                        color: profitColor, // D65.3:跟随 isProfit 颜色
                         height: 1.0,
                       ),
                     ),
@@ -248,9 +253,17 @@ class _YearlyBars extends StatelessWidget {
           ),
       ],
       maxVal: maxVal,
+      minVal: summary.minMonthlyValue, // D65.3:负值启用负轴 + 0 线突出
       chartNeedsWan: chartNeedsWan,
       primaryColor: AppStatus.error,
       secondaryColor: AppBrand.teal,
+      // D65.3:收益柱 < 0 变红(财务直觉:亏 = 红),跟累计净收益全红呼应
+      // - primaryColor/secondaryColor 仍保留作 fallback(全 0 月仍走绿色)
+      // - 投入柱固定红色,不参与 resolver
+      barColorResolver: (i, b) {
+        final ret = b.secondaryValue ?? 0;
+        return ret < 0 ? AppStatus.error : AppBrand.teal;
+      },
       barWidth: 5,
       barsSpace: 1,
       groupsSpace: 3,

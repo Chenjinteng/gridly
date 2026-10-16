@@ -41,18 +41,24 @@ class MonthlyInvestment {
 ///   - 一次 fold 算 3 个聚合(之前 _YearTotals 跟 _YearlyBars 各 fold 一次,O(N) 重复)
 ///   - 之前 _YearTotals 算 invested/returned/net,_YearlyBars 算 maxVal,各 fold 一次
 ///     → 改汇总后 1 次 fold,3 个 widget 读字段 0 额外算
+///
+/// 2026-10-16 D65.3 加:`minMonthlyValue`(12 月 min(invested, returned),可负)
+///   - 投资亏损 record 出现时,returned < 0,需要负轴才能完整显示柱条
+///   - 跟 AnimatedBarChart.minVal(D64.21c)配套:传 < 0 启用 0 线突出 + 圆角方向
 class InvestmentYearSummary {
   const InvestmentYearSummary({
     required this.monthly,
     required this.investedYTD,
     required this.returnedYTD,
     required this.maxMonthlyValue,
+    required this.minMonthlyValue,
   });
   final List<MonthlyInvestment> monthly;
   final double investedYTD;
   final double returnedYTD;
   double get netYTD => returnedYTD - investedYTD;
   final double maxMonthlyValue; // 12 月 max(invested, returned),Y 轴 scale
+  final double minMonthlyValue; // 12 月 min(invested, returned),Y 轴 scale,可负
 }
 
 /// 本年(过去 12 月)投资数据
@@ -79,12 +85,13 @@ final investmentMonthlyProvider =
       .map((c) => c.id)
       .toSet();
   if (investCatIds.isEmpty) {
-    // 没投资分类 → 12 月全 0 + 3 个聚合 0
+    // 没投资分类 → 12 月全 0 + 4 个聚合 0
     return const InvestmentYearSummary(
       monthly: [],
       investedYTD: 0,
       returnedYTD: 0,
       maxMonthlyValue: 0,
+      minMonthlyValue: 0,
     );
   }
 
@@ -112,17 +119,26 @@ final investmentMonthlyProvider =
       ),
   ];
   // D64.88:3 个 widget 各 fold 一次 → 这里一次算 3 聚合,widget 读字段 0 额外算
+  // 2026-10-16 D65.3:扩展为 4 聚合(加 minMonthlyValue),D64.88 思路延续
   final investedYTD = monthly.fold<double>(0, (s, m) => s + m.invested);
   final returnedYTD = monthly.fold<double>(0, (s, m) => s + m.returned);
   final maxMonthlyValue = monthly.fold<double>(0, (a, m) {
     final mMax = m.invested > m.returned ? m.invested : m.returned;
     return a > mMax ? a : mMax;
   });
+  // D65.3:min 初始用 maxMonthlyValue(全 0 月时不会误判成 min=0),逐月取 min
+  final minMonthlyValue = maxMonthlyValue == 0
+      ? 0.0
+      : monthly.fold<double>(maxMonthlyValue, (a, m) {
+          final mMin = m.invested < m.returned ? m.invested : m.returned;
+          return a < mMin ? a : mMin;
+        });
   return InvestmentYearSummary(
     monthly: monthly,
     investedYTD: investedYTD,
     returnedYTD: returnedYTD,
     maxMonthlyValue: maxMonthlyValue,
+    minMonthlyValue: minMonthlyValue,
   );
 });
 
