@@ -17,6 +17,13 @@
 //
 // 数据源:budgetOverviewForMonthProvider(commit 91 加)
 // 数据流:用户在 BudgetSheet(commit 92)改 → refreshAllData → widget 重建
+//
+// 2026-10-16 D64.30 改:月份跟随 user 在 RangeTabs 选的(年, 月)
+//   - monthKey 改读 `statsWindowProvider.start`(由 statsCustomMonthProvider
+//     驱动,默认 thisMonth,跟 stats 其它模块一致)
+//   - title 跟月份变:'本月预算' (custom=null/当月) / 'X 年 X 月预算'
+//     (其它月),跟 RangeSummary 数字跟随月份一致,user 看过去月份数据时
+//     不会被 '本月预算' 误导
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -29,6 +36,7 @@ import '../../../../core/utils/budget_provider.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/animated_pie_chart.dart';
 import '../../../../shared/constants/default_categories.dart';
+import '../../application/stats_providers.dart';
 
 import 'package:fl_chart/fl_chart.dart';
 
@@ -37,9 +45,21 @@ class BudgetOverviewChart extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final now = DateTime.now();
-    final monthKey = BudgetMonthKey(now.year, now.month);
+    // D64.30:跟 stats 其它模块一样,从 statsWindowProvider 拿 monthKey
+    //   - statsWindowProvider 在 thisMonth 模式读 statsCustomMonthProvider,
+    //     default = DateTime.now()(本年),所以没选 = 本月
+    final w = ref.watch(statsWindowProvider);
+    final monthKey = BudgetMonthKey(w.start.year, w.start.month);
     final overviewAsync = ref.watch(budgetOverviewForMonthProvider(monthKey));
+    final customMonth = ref.watch(statsCustomMonthProvider);
+    final now = DateTime.now();
+    // title 归一:default/当月 → '本月预算',其它月 → 'X 年 X 月预算'
+    final isDefaultMonth =
+        customMonth == null ||
+        (customMonth.year == now.year && customMonth.month == now.month);
+    final titleText = isDefaultMonth
+        ? '本月预算'
+        : '${customMonth.year} 年 ${customMonth.month} 月预算';
     final theme = Theme.of(context);
 
     return Container(
@@ -71,16 +91,18 @@ class BudgetOverviewChart extends ConsumerWidget {
             style: const TextStyle(color: AppStatus.error),
           ),
         ),
-        data: (overview) => _BudgetOverviewBody(overview: overview),
+        data: (overview) =>
+            _BudgetOverviewBody(overview: overview, titleText: titleText),
       ),
     );
   }
 }
 
 class _BudgetOverviewBody extends StatefulWidget {
-  const _BudgetOverviewBody({required this.overview});
+  const _BudgetOverviewBody({required this.overview, required this.titleText});
 
   final BudgetOverview overview;
+  final String titleText;
 
   @override
   State<_BudgetOverviewBody> createState() => _BudgetOverviewBodyState();
@@ -202,9 +224,14 @@ class _BudgetOverviewBodyState extends State<_BudgetOverviewBody> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                '本月预算',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              Text(
+                // D64.30:title 跟月份变,default/当月 → '本月预算',
+                // 其它月 → 'X 年 X 月预算'(跟 RangeSummary 跟月份一致)
+                widget.titleText,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               if (_hasBudget)
                 Text(

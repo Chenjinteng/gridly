@@ -178,9 +178,30 @@ final expenseCategoriesForBudgetProvider =
     });
 
 /// 某年某月预算总览(给 BudgetSheet UI 用)
+///   - 总额度来源 D64.30 分支:
+///     - 当月(key.year+key.month == now.year+now.month):走
+///       `monthlyBudgetProvider`(SharedPreferences 单值,
+///       `MonthlyBudgetNotifier.set()` 实时更新),保证 BudgetSheet
+///       调总额度后不用刷新页就能看见新值。
+///     - 其它月(过去 / 未来):走 `monthlyBudgetRepository.byMonth()`
+///       查 monthly_budgets 表(D64.21b Schema v8 加的"(year, month)
+///       历史档案"表);缺失 → 0(没设过预算的老月份,UI 显示 0)。
+///   - 这层"当月 = SP 单值 / 其它月 = 表"的二分让 SP 跟表两类存储各自管自己
+///     的语义,UI 只看 key 算 context,不用关心底层存哪。
 final budgetOverviewForMonthProvider =
     FutureProvider.family<BudgetOverview, BudgetMonthKey>((ref, key) async {
-      final totalBudget = ref.watch(monthlyBudgetProvider);
+      final now = DateTime.now();
+      double totalBudget;
+      if (key.year == now.year && key.month == now.month) {
+        // 当月:SharedPreferences(被 MonthlyBudgetNotifier 维护,set() 实时
+        // 反映)
+        totalBudget = ref.watch(monthlyBudgetProvider);
+      } else {
+        // 其它月:monthly_budgets 表(D64.21b)
+        final repo = ref.watch(monthlyBudgetRepositoryProvider);
+        final entry = await repo.byMonth(key.year, key.month);
+        totalBudget = entry?.amount ?? 0;
+      }
       final budgets = await ref.watch(
         categoryBudgetsForMonthProvider(key).future,
       );
@@ -227,6 +248,6 @@ final budgetOverviewForMonthProvider =
 ///   - family 参数 = year(由 caller `statsCustomYearProvider` 传入)
 final monthlyBudgetHistoryProvider =
     FutureProvider.family<List<MonthlyBudgetEntry>, int>((ref, year) async {
-  final repo = ref.watch(monthlyBudgetRepositoryProvider);
-  return repo.yearHistory(year);
-});
+      final repo = ref.watch(monthlyBudgetRepositoryProvider);
+      return repo.yearHistory(year);
+    });
