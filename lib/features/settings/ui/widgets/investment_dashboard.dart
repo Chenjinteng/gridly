@@ -298,6 +298,12 @@ class _YearTotals extends StatelessWidget {
     final returned = monthly.fold<double>(0, (a, m) => a + m.returned);
     final net = returned - invested;
     final isProfit = net >= 0;
+    // 2026-10-16 D64.71 修:投资情况 dashboard footer overflow 39px
+    //   - 之前外层 Row 直接 spaceBetween ["本年合计" 44px] + 内层 Row[3 段金额 200+px]
+    //   - 数据规模 4.7 万级 → 总宽 278px,撑爆 chart card 249px 可用宽度
+    //   - 修法:右侧整块用 Flexible + FittedBox(scaleDown) 兜底
+    //     - 不溢出时按 11sp 原样显示
+    //     - 溢出时按比例缩小字号(最小 ~9sp),保留 3 段信息不省略
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -308,27 +314,34 @@ class _YearTotals extends StatelessWidget {
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
-        Row(
-          children: [
-            Text(
-              '投 ¥${Formatters.amount(invested)}',
-              style: const TextStyle(fontSize: 11, color: AppGray.g600),
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '投 ¥${Formatters.amount(invested)}',
+                  style: const TextStyle(fontSize: 11, color: AppGray.g600),
+                ),
+                const SizedBox(width: AppSpacing.s3),
+                Text(
+                  '收 ¥${Formatters.amount(returned)}',
+                  style: const TextStyle(fontSize: 11, color: AppGray.g600),
+                ),
+                const SizedBox(width: AppSpacing.s3),
+                Text(
+                  '净 ${isProfit ? '+' : '−'}¥${Formatters.amount(net.abs())}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: isProfit ? AppStatus.success : AppStatus.error,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: AppSpacing.s3),
-            Text(
-              '收 ¥${Formatters.amount(returned)}',
-              style: const TextStyle(fontSize: 11, color: AppGray.g600),
-            ),
-            const SizedBox(width: AppSpacing.s3),
-            Text(
-              '净 ${isProfit ? '+' : '−'}¥${Formatters.amount(net.abs())}',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: isProfit ? AppStatus.success : AppStatus.error,
-              ),
-            ),
-          ],
+          ),
         ),
       ],
     );
