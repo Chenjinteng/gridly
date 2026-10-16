@@ -184,6 +184,24 @@
 //     D64.48 段是"作废"说明 + 新逻辑
 //   - 业务侧(资产 / 流水 tile)按需调 padding 让 tile 高度 >= 64 让按钮
 //     贴合;当前 52 让按钮居中浮,visual 接受,user 反馈再调
+// 2026-10-17 D67 改(user UAT 反馈):
+//   - user 反馈"资产的 tile 还是改回主题白吧,这个灰不好看"——
+//     D64.43.5 navy 0xFF1B2A41 深空蓝被 user 感知为"灰",想回到主题白(亮主题)
+//   - 改法:卡片底色 `AppBrand.navy` → `theme.colorScheme.surfaceContainerLow`
+//     (跟流水 tile 同款,白底 surface),联动调整:
+//     ① border `Colors.white.withValues(alpha: 0.15/0.30)` →
+//        `theme.colorScheme.outlineVariant`(1.0) (M3 主题标准描边,深/浅主题自适应)
+//     ② shadow `CardShadows.dark(context)` → `CardShadows.light(context)`
+//     ③ name 文字色 `Colors.white` → `theme.colorScheme.onSurface`
+//     ④ amount 颜色:正数 `Colors.white`(在白底不可读)→
+//        `AppSegment.colorFor(asset.type)`(段位色,跟下方 type chip 同款,语义一致);
+//        0 → `AppGray.g400`(主题灰,弱化);负数 `error 0.95 alpha` → `AppStatus.error`
+//     ⑤ logo tinted box 底色 alpha `0.28` → `0.12`(白底上 0.28 太重),
+//        border alpha `0.45` → `0.3`(白底上 0.45 太重),跟 ledger tile 一致
+//     ⑥ chip 底色 alpha `0.25` → `0.18`(白底上 0.25 太重,跟 ledger tile D64.43.4
+//        navy 期 teal 底上 0.18 一致)
+//   - 视觉/交互/SwipeToActions/leading 尺寸/padding 全不动,只换配色 + 联动 5 处
+//   - 顶部 D64.43.2/3/4/47/48/49/60/82 历史注释保留作反思留档,D67 段是新决策
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -351,7 +369,6 @@ class AssetTile extends ConsumerWidget {
     final balanceAsync = ref.watch(assetBalanceProvider(asset.id));
     final balance = balanceAsync.valueOrNull ?? 0.0;
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     // D64.42:tile 整段 wrap 进 SwipeToActions,左滑露 [编辑][删除] 按钮(共享 widget,跟 transaction_tile 同套交互)
     // D64.43:不再用 ListTile(3 列 leading + title+subtitle + trailing slot),改成自绘 2 列
     //   Row(leading + name Expanded + amount) + Wrap(chips),整体高度由自然内容决定,
@@ -374,22 +391,22 @@ class AssetTile extends ConsumerWidget {
           vertical: AppSpacing.s1,
         ),
         decoration: BoxDecoration(
-          // D64.43.5:底色 `AppBrand.teal`(明亮青,0xFF14B8A6,user UAT 否决
-          //   "跟 asset.color 默认 teal 撞色,看 logo 不出")→ `AppBrand.navy`
-          //   夜蓝(0xFF1B2A41,user 16:00 4 候选 HTML demo 选定 A)。
-          //   - navy = 深空蓝,跟 teal chip 色互补,chip 最跳;深但不是黑
-          //   - 4 张 HTML demo 给 user 实测,A 在跟 teal chip 同框下视觉最稳
-          //   - 其他参数(outline / amount color / chip alpha / logo alpha /
-          //     shadow)保持 D64.43.4 teal 版原本已调好的对比度,跟 navy 同档
-          color: AppBrand.navy,
+          // D67:底色改回主题白 —— user 反馈"这个灰不好看"
+          //   `AppBrand.navy`(0xFF1B2A41 深空蓝,被 user 感知为"灰")
+          //   → `theme.colorScheme.surfaceContainerLow`(跟流水 tile 同款,
+          //   M3 标准亮主题 surface,深/浅主题自适应)
+          color: theme.colorScheme.surfaceContainerLow,
           borderRadius: AppRadius.brLg,
-          // D64.43.4:rim border 白色 alpha 调整:浅色主题 0.30 / 深色主题 0.15
-          //   (teal 比 ink 浅,需要更强 outline 区分边缘)
+          // D67:border 改 `theme.colorScheme.outlineVariant`(M3 标准描边),
+          //   之前 `Colors.white.withValues(alpha: 0.15/0.30)` 是 navy 底上
+          //   的 rim border,白底上白边不可见
           border: Border.all(
-            color: Colors.white.withValues(alpha: isDark ? 0.15 : 0.30),
+            color: theme.colorScheme.outlineVariant,
             width: 1.0,
           ),
-          boxShadow: CardShadows.dark(context),
+          // D67:shadow 改 `CardShadows.light`,navy 底用 dark shadow 营造
+          //   浮起感,白底用 light shadow 保持轻盈
+          boxShadow: CardShadows.light(context),
         ),
         // D64.43.3:padding s3 → s2(8),跟流水卡片 default contentPadding 8 对齐
         // D64.49:padding s2(8) → s3(12),跟流水 tile padding 重新对齐
@@ -431,11 +448,14 @@ class AssetTile extends ConsumerWidget {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      // D64.43.4:teal 亮底上 alpha 提到 0.28 增强 logo 辨识
-                      color: color.withValues(alpha: 0.28),
+                      // D67:白底上 logo tinted 底色 alpha 0.28 → 0.12
+                      //   (跟 ledger tile line 110 一致),
+                      //   0.28 在白底上偏重
+                      color: color.withValues(alpha: 0.12),
                       borderRadius: AppRadius.brSm,
                       border: Border.all(
-                        color: color.withValues(alpha: 0.45),
+                        // D67:0.45 → 0.3(白底上 0.45 边线太重)
+                        color: color.withValues(alpha: 0.3),
                         width: 0.5,
                       ),
                     ),
@@ -459,12 +479,12 @@ class AssetTile extends ConsumerWidget {
                       Expanded(
                         child: Text(
                           asset.name,
-                          style: const TextStyle(
+                          style: TextStyle(
                             // D64.43.3:name 字号 15 → 14,跟流水卡片对齐
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
-                            // D64.43.4:teal 底上用 Colors.white 比 cream 更清晰
-                            color: Colors.white,
+                            // D67:navy 底用 Colors.white,白底改 onSurface
+                            color: theme.colorScheme.onSurface,
                           ),
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
@@ -472,20 +492,22 @@ class AssetTile extends ConsumerWidget {
                       ),
                       const SizedBox(width: AppSpacing.s2),
                       // amount:右对齐,w600 14sp(跟流水卡片对齐)
-                      // D64.43.4:teal 底上余额颜色调整:
-                      //   正数(原 teal)= Colors.white(teal 底同色消失)
-                      //   负数(error 红)= 0.95 alpha 加亮
-                      //   0(g400 浅灰)= Colors.white54 弱化
+                      // D67:navy 底颜色(white/white54/error 0.95)在白底不可读,
+                      //   改用主题 onSurface 体系:
+                      //   - 正数 → AppSegment.colorFor(asset.type) 段位色
+                      //     (跟下方 type chip 同款,语义一致,可一眼看出"这账户是哪个段")
+                      //   - 0 → AppGray.g400 主题灰,弱化
+                      //   - 负数 → AppStatus.error 保持
                       Text(
                         '¥${Formatters.amount(balance)}',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: balance == 0
-                              ? Colors.white54
+                              ? AppGray.g400
                               : balance > 0
-                              ? Colors.white
-                              : AppStatus.error.withValues(alpha: 0.95),
+                              ? typeColor
+                              : AppStatus.error,
                         ),
                       ),
                     ],
@@ -559,8 +581,9 @@ class _TileChip extends StatelessWidget {
       // D64.43.3:padding horizontal 6 → 4 vertical 1 → 0,更紧凑
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
       decoration: BoxDecoration(
-        // D64.43.4:teal 亮底上 chip 底色 alpha 0.20 → 0.25 更显眼
-        color: color.withValues(alpha: 0.25),
+        // D67:chip 底色 alpha 0.25 → 0.18(白底上 0.25 太重,
+        //   跟 ledger tile 一致)
+        color: color.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
