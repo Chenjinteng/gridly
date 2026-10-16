@@ -9,7 +9,7 @@
 //     当 6 段数据接近时(9990 vs 10000),差异被挤在最外 1 tick 内视觉放大
 //   - 改方案 B:用 CustomPainter 自绘雷达图,**归一化用 `value / maxValue` 直接除**:
 //       maxValue = max(values) = 10000
-//       现金流 ratio = 9990 / 10000 = 0.999 (99.9% 半径,几乎贴边)
+//       流动资金 ratio = 9990 / 10000 = 0.999 (99.9% 半径,几乎贴边)(D64.40 改"流动资金")
 //       其它 ratio = 1.0 (贴最外圈)
 //       0.1% 真实差异 → 0.1% 视觉差异,不再放大
 //   - 自绘所有元素:6 边形 grid(4 圈)+ 6 spoke + 6 label + 数据多边形 + 6 entry 圆点
@@ -160,8 +160,9 @@ class _AssetsRadarState extends ConsumerState<AssetsRadar> {
                 //
                 // D64.38:算 5 段真资产 sum 作分母,每段算百分比
                 //   - 分母跟净资产卡 D64.36 "总资产"口径一致(不含 receivable 负债段)
-                //   - 某段为负(如现金流花光成负):百分比自然为负,反映"负贡献"
+                //   - 某段为负(如流动资金花光成负,D64.40 cash_flow 改"流动资金"):百分比自然为负,反映"负贡献"
                 //   - 5 段全 0 走空态 early-return,不会到这里
+                // D64.40:5 段 label 改走 AppSegment.labelFor,统一中文命名(流动资金/投资/福利/不动产/其它)
                 final totalAssets =
                     totals.totalCashFlow +
                     totals.totalInvestment +
@@ -172,31 +173,31 @@ class _AssetsRadarState extends ConsumerState<AssetsRadar> {
                     totalAssets == 0 ? 0 : (v / totalAssets) * 100;
                 final entries = <_RadarEntry>[
                   _RadarEntry(
-                    label: '现金流',
+                    label: AppSegment.labelFor('cash_flow'),
                     value: totals.totalCashFlow,
-                    color: AppBrand.teal,
+                    color: AppBrand.teal, // 保持原色 0xFF14B8A6 亮青绿,跟 brand 一致
                     percent: pctOf(totals.totalCashFlow),
                   ),
                   _RadarEntry(
-                    label: '投资',
+                    label: AppSegment.labelFor('investment'),
                     value: totals.totalInvestment,
                     color: AppBrand.gold,
                     percent: pctOf(totals.totalInvestment),
                   ),
                   _RadarEntry(
-                    label: '福利',
+                    label: AppSegment.labelFor('benefit'),
                     value: totals.totalBenefit,
                     color: AppStatus.success,
                     percent: pctOf(totals.totalBenefit),
                   ),
                   _RadarEntry(
-                    label: '不动产',
+                    label: AppSegment.labelFor('fixed_asset'),
                     value: totals.totalFixedAsset,
                     color: AppStatus.info,
                     percent: pctOf(totals.totalFixedAsset),
                   ),
                   _RadarEntry(
-                    label: '其它',
+                    label: AppSegment.labelFor('other'),
                     value: totals.totalOther,
                     color: AppGray.g600,
                     percent: pctOf(totals.totalOther),
@@ -426,7 +427,7 @@ class _RadarPainter extends CustomPainter {
   /// D64.38:2 行布局 — 上行原 label(类型名 w600 11sp),下行 percent(百分比 w500 10sp 灰)
   ///   - 两个 TextPainter 分别 layout,组合高度 = labelH + percentH
   ///   - anchor 偏移仍按 angle 调整,但 dy 改为基于组合高度的一半
-  ///   - 视觉上"现金流 75%" 紧凑显示,label 占主,percent 副
+  ///   - 视觉上"流动资金 75%" 紧凑显示,label 占主,percent 副(D64.40 cash_flow 改"流动资金")
   void _drawLabel(
     Canvas canvas,
     Offset labelPos,

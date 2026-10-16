@@ -5,7 +5,7 @@
 //   - 跟 settings_page "关于"卡片 / range_summary 同款黑底(ink)风格,大数居中
 //   - 2026-10-13 P6:总资产 = 6 大类余额总和(累加,不抵消)
 //   - 6 行 type chip:icon + type 中文名 + 余额(color 按 type 配色)
-//     顺序:现金流 / 投资 / 福利 / 债权 / 不动产 / 其它
+//     顺序:流动资金 / 投资 / 福利 / 债权 / 不动产 / 其它(D64.40 cash_flow 改"流动资金")
 //   - 进场:跟 range_summary 一样 fade-in,300ms aquaIn
 //   - 空态:只显示总资产 0,6 行 type chip 都显示 0
 //

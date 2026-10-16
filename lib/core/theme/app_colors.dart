@@ -141,7 +141,7 @@ class AppCategory {
 ///   - user 反馈:6 段颜色不够明显,流水颜色不跟资产大类一致
 class AppSegment {
   AppSegment._();
-  static const Color cashFlow = Color(0xFF0EA5E9); // 现金流 — 亮蓝
+  static const Color cashFlow = Color(0xFF0EA5E9); // 流动资金 — 亮蓝
   static const Color investment = Color(0xFFA855F7); // 投资 — 紫
   static const Color benefit = Color(0xFFEC4899); // 福利 — 粉
   static const Color receivable = Color(0xFFF59E0B); // 负债(原"债权/借出")— 橙
@@ -176,10 +176,14 @@ class AppSegment {
   ///     "负债"是会计负债(legal accounting),用户口语"债务"更直观
   ///   - 跟 "会计/记账 app 词汇:债权/期权/负债借贷统一叫'负债'" 偏好 supersede:
   ///     "负债"内部技术命名 OK,UI label 改 "债务" 更自然
+  ///   - 2026-10-16 D64.40:user 反馈"现金流叫法不太合理",6 段第 1 段从"现金流"
+  ///     改为"流动资金"。"现金流"是会计现金流量表用语,易跟"收支流水"混淆;
+  ///     "流动资金"指"可即时动用的钱"(银行卡/钱包/现金),语义更直接
+  ///   - DB enum 仍是 'cash_flow'(技术稳定),仅 UI label 改"流动资金"
   static String labelFor(String type) {
     switch (type) {
       case 'cash_flow':
-        return '现金流';
+        return '流动资金'; // D64.40:从"现金流"改"流动资金"
       case 'investment':
         return '投资';
       case 'benefit':

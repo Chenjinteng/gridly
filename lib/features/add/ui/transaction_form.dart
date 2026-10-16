@@ -1842,7 +1842,7 @@ class _AccountPickerSheet extends ConsumerWidget {
                                                 ),
                                                 const SizedBox(height: 2),
                                                 Text(
-                                                  _typeLabel(a.type),
+                                                  AppSegment.labelFor(a.type),
                                                   style: TextStyle(
                                                     fontSize: 11,
                                                     color: theme
@@ -1921,24 +1921,10 @@ class _AccountPickerSheet extends ConsumerWidget {
   ///   之前只识别 cash_flow / fixed_asset / liability,其它 3 段(investment / benefit /
   ///   receivable / other)全 fallback 到'其他',导致选账户 picker 显示账户 type 标签错
   ///   (基金/黄金/保险都标'其他',实际是 investment 类型)
-  String _typeLabel(String t) {
-    switch (t) {
-      case 'cash_flow':
-        return '现金流';
-      case 'investment':
-        return '投资';
-      case 'benefit':
-        return '福利';
-      case 'receivable':
-        return '债务'; // D51 v2:从"债权"改"债务",user 反馈更直观
-      case 'fixed_asset':
-        return '不动产';
-      case 'other':
-        return '其他';
-      case 'liability':
-        return '债务'; // D51 v2:从"负债"改"债务",user 反馈更直观
-      default:
-        return t; // 未知值原样返回,避免 silent fallback 掩盖新 type
-    }
-  }
+  ///
+  /// 2026-10-16 D64.40:删除此重复 switch,改走 AppSegment.labelFor 统一数据源
+  ///   - 之前 P18 因 AppSegment.labelFor 还没扩到 6 段,所以这里自己 switch
+  ///   - 现在 AppSegment.labelFor 已扩到 6 段 + 'other' 兜底 + 'cash_flow'='流动资金' D64.40,
+  ///     不需要本文件 hardcode 重复 switch
+  ///   - 调用方 line 1845 已替换为 AppSegment.labelFor(a.type)
 }

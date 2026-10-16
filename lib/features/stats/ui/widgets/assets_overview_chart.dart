@@ -6,7 +6,7 @@
 //     (GlobalKey + Scrollable.position 监听,任意部分进入 viewport 才触发)
 //   - 顶部"总资产" + 大数字 0→total 滚动(1200ms aquaIn)
 //   - 6 行 type chip:icon + 类型名 + 余额(纯展示,点击无效果)
-//     顺序:现金流 / 投资 / 福利 / 债权 / 不动产 / 其它
+//     顺序:流动资金 / 投资 / 福利 / 债权 / 不动产 / 其它(D64.40 cash_flow 改"流动资金")
 //   - 黑底卡片(ink 风格,跟 settings_page "关于"卡 / range_summary 一致)
 //
 // 2026-10-13 P6 改 4 段 → 6 段(跟 asset_form 6 段同步,删"负债"加投资/福利/债权)
@@ -214,7 +214,7 @@ class _AssetsOverviewChartState extends ConsumerState<AssetsOverviewChart> {
               const SizedBox(height: AppSpacing.s3),
               // 2026-10-14 改(D47):6 大类汇总改走 AppSegment 集中数据源
               //   - 之前硬编码 icon / color / label,跟资产页不一致:
-              //     - 现金流:teal(老) vs cashFlow 亮蓝(AppSegment)
+              //     - 流动资金:teal(老) vs cashFlow 亮蓝(AppSegment)(D64.40 cash_flow UI label 改"流动资金")
               //     - 投资:gold(老) vs investment 紫
               //     - 福利:success(老) vs benefit 粉
               //     - 不动产:info(老) vs fixedAsset 青

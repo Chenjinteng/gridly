@@ -8,16 +8,18 @@
 // 跟本页同架构 —— 2026-10-11 改:之前用 modal sheet 路线因 Numpad 行为不一致被换掉。
 //
 // 2026-10-13 P11 UAT:AppBar 标题按 preselectedAssetType 场景化
-//     - 短按 cash_flow / null → "记一笔(现金流)"
+//     - 短按 cash_flow / null → "记一笔(流动资金)" (D64.40:从"现金流"改"流动资金")
 //     - 长按 investment → "记一笔(投资)"
 //     - 长按 benefit / receivable / fixed_asset / other → "记一笔(福利/债权/不动产/其它)"
 //     user:"日常现金流水只关注支出收入,如果是这样,你在每个场景弹出来的
 //          记一笔都要定义标题,比如短按就是默认现金流,弹出来的就是
 //          记一笔(现金流),然后投资的场景,就是记一笔(投资)"
+//     (user 原话里的"现金流"是会计术语,保留;D64.40 仅改 UI label 字符串)
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/database/app_database.dart';
+import '../../../core/theme/app_colors.dart';
 import 'transaction_form.dart';
 
 class AddTransactionPage extends StatelessWidget {
@@ -53,29 +55,19 @@ class AddTransactionPage extends StatelessWidget {
 
   /// 2026-10-13 P11 UAT:按 preselectedAssetType 推导 AppBar 标题
   ///   - user:"每个场景弹出来的记一笔都要定义标题"
-  ///   - 短按 cash_flow / null → 记一笔(现金流)
+  ///   - 短按 cash_flow / null → 记一笔(流动资金) (D64.40:从"现金流"改"流动资金")
   ///   - 长按 investment → 记一笔(投资)
   ///   - 长按 benefit / receivable / fixed_asset / other → 记一笔(<label>)
   /// 2026-10-14 D51 v2 改:case 'receivable' 返回 "记一笔(债务)"
   ///   - user 反馈:"记一笔页面还是记一笔(负债) 这里应该是(债务)" —— 跟所有 UI label 同步
   ///   - DB key 仍是 'receivable'(API enum 内部不变),只改 UI label
+  /// 2026-10-16 D64.40 改:删重复 switch,改走 AppSegment.labelFor 中心数据源
+  ///   - 之前因 AppSegment.labelFor 还没扩到 6 段,自己 hardcode
+  ///   - 现在 AppSegment.labelFor 已扩 + cash_flow = "流动资金",所有 6 段都跟中心对齐
   String get _appBarTitle {
-    switch (preselectedAssetType) {
-      case 'investment':
-        return '记一笔(投资)';
-      case 'benefit':
-        return '记一笔(福利)';
-      case 'receivable':
-        return '记一笔(债务)'; // D51 v2:从"负债"改"债务"
-      case 'fixed_asset':
-        return '记一笔(不动产)';
-      case 'other':
-        return '记一笔(其它)';
-      case null:
-      case 'cash_flow':
-      default:
-        return '记一笔(现金流)';
-    }
+    // null 走 cash_flow 兼容(短按 + 默认),其它走对应段
+    final type = preselectedAssetType ?? 'cash_flow';
+    return '记一笔(${AppSegment.labelFor(type)})';
   }
 
   @override
@@ -118,7 +110,7 @@ class AddTransactionPage extends StatelessWidget {
       // 简化成"始终显示 + 键盘自然覆盖"是 2026-10-11 UAT 最终方案。
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
-        // 2026-10-13 P11 UAT:按场景显示标题(短按 现金流 / 投资 场景 投资 / etc.)
+        // 2026-10-13 P11 UAT:按场景显示标题(短按 流动资金 / 投资 场景 投资 / etc.,D64.40 cash_flow 改"流动资金")
         title: Text(_appBarTitle),
         leading: IconButton(
           icon: const Icon(Icons.close),

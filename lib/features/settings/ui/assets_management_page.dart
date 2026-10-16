@@ -4,7 +4,7 @@
 // 2026-10-12 P2 commit 加:
 //   - 全屏路由版(类比 budget_management_page),viewInsets 由 Scaffold 处理
 //   - 顶部 AssetSummaryCard(总资产 + 6 大类汇总)
-//   - 6 段 _Group 按 type 分(现金流 / 投资 / 福利 / 债权 / 不动产 / 其它),无资产段不显示标题
+//   - 6 段 _Group 按 type 分(流动资金 / 投资 / 福利 / 债权 / 不动产 / 其它,D64.40 cash_flow UI label 改"流动资金"),无资产段不显示标题
 //   - AppBar 加号按钮 → AssetFormPage(null) 新增
 //   - 点 tile 或编辑 IconButton → AssetFormPage(existing) 编辑
 //   - 删除 IconButton → confirmDelete dialog(FK check:被引用流水数 > 0 提示先改)
@@ -48,7 +48,7 @@ class AssetsManagementPage extends ConsumerWidget {
       body: assetsAsync.when(
         data: (assets) {
           // 2026-10-13 P6:4 段 → 6 段分组(去'负债',加'投资/福利/债权')
-          // 顺序按日常查看频度排:现金流 → 投资 → 福利 → 债权 → 不动产 → 其它
+          // 顺序按日常查看频度排:流动资金 → 投资 → 福利 → 债权 → 不动产 → 其它(D64.40)
           final cash = assets.where((a) => a.type == 'cash_flow').toList();
           final invest = assets.where((a) => a.type == 'investment').toList();
           final benefit = assets.where((a) => a.type == 'benefit').toList();
@@ -62,7 +62,8 @@ class AssetsManagementPage extends ConsumerWidget {
               const SizedBox(height: AppSpacing.s4),
               if (cash.isNotEmpty)
                 _Group(
-                  title: '现金流',
+                  // D64.40:从 "现金流" 改 "流动资金"
+                  title: '流动资金',
                   items: cash,
                   onEdit: (a) => _showForm(context, a),
                   onDelete: (a) => _confirmDelete(context, ref, a),
