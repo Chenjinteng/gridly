@@ -59,8 +59,11 @@ class ReceivablesDashboard extends ConsumerWidget {
     final theme = Theme.of(context); // D64.64:删 isDark(原 Container border alpha 用)
     final assetsAsync = ref.watch(allAssetsProvider);
     final balancesAsync = ref.watch(assetBalancesProvider);
+    // 2026-10-16 D65.5 加:借出占比分母需要 cash_flow 段余额
+    final totalsAsync = ref.watch(assetTotalsProvider);
     final assets = assetsAsync.valueOrNull ?? const <Asset>[];
     final balances = balancesAsync.valueOrNull ?? const <int, double>{};
+    final totals = totalsAsync.valueOrNull;
 
     // 提取 isLender=true 的 receivable 段账户,累加 balance(全是正数,我是债权人)
     final receivableItems = <_LendItem>[];
@@ -81,6 +84,21 @@ class ReceivablesDashboard extends ConsumerWidget {
     // 按 balance 降序,最大的在前面
     receivableItems.sort((a, b) => b.balance.compareTo(a.balance));
     final totalLend = receivableItems.fold<double>(0, (s, e) => s + e.balance);
+
+    // 2026-10-16 D65.5 加:借出占比 = 借出总额 / 流动资产(cash_flow 段余额)
+    //   - 跟 负债率(分子 = 负债 / 分母 = 总资产)镜像,但:
+    //     - 分子:借出总额(正数,我是债权人)
+    //     - 分母:**流动资产**(cash_flow 段余额累加),非"总资产"
+    //   - user 反馈"借出去多少了,有没有影响我的流动资金" — 用 cash_flow 段最贴
+    //     个人财务语义:流动资金 ≈ "我能立刻动用的现金"(现金/银行卡/微信支付等)
+    //   - 投资账户(余额宝/基金账户)不算流动资金:lock 期内不能即时取
+    //   - 房产/汽车/公积金/其它 也不算
+    //   - 防除 0:totalCashFlow = 0 → 0%(我没流动资金,显示 0% 避免 NaN)
+    //   - 跟 负债率 算法 1:1 镜像(分子/分母/防除 0 模式一致),不 clamp 上限 100%
+    //     (借出 > 流动资金 时正确显示 100%+,跟 负债率 行为对齐)
+    final totalCashFlow = totals?.totalCashFlow ?? 0.0;
+    final lendRatio = totalCashFlow > 0 ? (totalLend / totalCashFlow) : 0.0;
+    final lendRatioStr = (lendRatio * 100).toStringAsFixed(0);
 
     // D64.64:纯 body 返回,无 Container 包装 + 无标题(由 DebtDashboard 提供)
     return Column(
@@ -110,6 +128,23 @@ class ReceivablesDashboard extends ConsumerWidget {
               overflow: TextOverflow.visible,
             ),
           ),
+          // 2026-10-16 D65.5 加:借出占比(大字下面副标题,镜像 负债率)
+          //   - 公式:借出总额 / 流动资产(cash_flow 段)
+          //   - 视觉跟 负债率 完全一致(13sp w500 onSurfaceVariant)
+          //   - 加在 SizedBox(s3) 前面,跟 负债率 占据同样的垂直空间
+          //   - 有数据时显示;empty state 不显示(✓ "当前无借出" 已隐含 0%)
+          //   - 加完后:借出 tab 跟 负债 tab 大字下面结构完全镜像,卡片高度一致
+          if (receivableItems.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.s1),
+            Text(
+              '借出占比 $lendRatioStr%',
+              style: TextStyle(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
           const SizedBox(height: AppSpacing.s3),
           // empty state 跟有数据分两路
           if (receivableItems.isEmpty) ...[
