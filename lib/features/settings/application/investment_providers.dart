@@ -34,10 +34,33 @@ class MonthlyInvestment {
   double get net => returned - invested;
 }
 
+/// 2026-10-16 D64.88 加:本年投资活动汇总(返回 widget 一次拿全 4 个聚合)
+///   - monthly:12 月(给 _YearlyBars 12 柱)
+///   - investedYTD / returnedYTD:本年累计投入 / 收益(给 _YearTotals 底部合计)
+///   - maxMonthlyValue:12 月 max(invested, returned)(给 _YearlyBars Y 轴 scale)
+///   - 一次 fold 算 3 个聚合(之前 _YearTotals 跟 _YearlyBars 各 fold 一次,O(N) 重复)
+///   - 之前 _YearTotals 算 invested/returned/net,_YearlyBars 算 maxVal,各 fold 一次
+///     → 改汇总后 1 次 fold,3 个 widget 读字段 0 额外算
+class InvestmentYearSummary {
+  const InvestmentYearSummary({
+    required this.monthly,
+    required this.investedYTD,
+    required this.returnedYTD,
+    required this.maxMonthlyValue,
+  });
+  final List<MonthlyInvestment> monthly;
+  final double investedYTD;
+  final double returnedYTD;
+  double get netYTD => returnedYTD - investedYTD;
+  final double maxMonthlyValue; // 12 月 max(invested, returned),Y 轴 scale
+}
+
 /// 本年(过去 12 月)投资数据
 ///   - 横轴:月 1-12
 ///   - 双柱:invested(投入) + returned(收益)
-final investmentMonthlyProvider = FutureProvider<List<MonthlyInvestment>>((ref) async {
+/// 2026-10-16 D64.88 改:返 InvestmentYearSummary 元组,3 个 widget 一次拿全聚合
+final investmentMonthlyProvider =
+    FutureProvider<InvestmentYearSummary>((ref) async {
   final now = DateTime.now();
   final year = now.year;
   // 起始:本年 1 月 1 日 00:00:00
@@ -56,14 +79,16 @@ final investmentMonthlyProvider = FutureProvider<List<MonthlyInvestment>>((ref) 
       .map((c) => c.id)
       .toSet();
   if (investCatIds.isEmpty) {
-    // 没投资分类 → 12 月全 0
-    return List.generate(
-      12,
-      (i) => MonthlyInvestment(year: year, month: i + 1, invested: 0, returned: 0),
+    // 没投资分类 → 12 月全 0 + 3 个聚合 0
+    return const InvestmentYearSummary(
+      monthly: [],
+      investedYTD: 0,
+      returnedYTD: 0,
+      maxMonthlyValue: 0,
     );
   }
 
-  // 累加到月
+  // 累加到月(单次 fold 算 monthly + investedYTD + returnedYTD + max)
   final invested = List<double>.filled(12, 0);
   final returned = List<double>.filled(12, 0);
   for (final t in txs) {
@@ -77,7 +102,7 @@ final investmentMonthlyProvider = FutureProvider<List<MonthlyInvestment>>((ref) 
       returned[mIdx] += t.amount;
     }
   }
-  return [
+  final monthly = [
     for (var i = 0; i < 12; i++)
       MonthlyInvestment(
         year: year,
@@ -86,6 +111,19 @@ final investmentMonthlyProvider = FutureProvider<List<MonthlyInvestment>>((ref) 
         returned: returned[i],
       ),
   ];
+  // D64.88:3 个 widget 各 fold 一次 → 这里一次算 3 聚合,widget 读字段 0 额外算
+  final investedYTD = monthly.fold<double>(0, (s, m) => s + m.invested);
+  final returnedYTD = monthly.fold<double>(0, (s, m) => s + m.returned);
+  final maxMonthlyValue = monthly.fold<double>(0, (a, m) {
+    final mMax = m.invested > m.returned ? m.invested : m.returned;
+    return a > mMax ? a : mMax;
+  });
+  return InvestmentYearSummary(
+    monthly: monthly,
+    investedYTD: investedYTD,
+    returnedYTD: returnedYTD,
+    maxMonthlyValue: maxMonthlyValue,
+  );
 });
 
 /// 累计净收益(全时间,所有投资活动)

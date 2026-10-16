@@ -31,16 +31,16 @@ class InvestmentDashboard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final monthlyAsync = ref.watch(investmentMonthlyProvider);
+    final summaryAsync = ref.watch(investmentMonthlyProvider);
     final netTotalAsync = ref.watch(investmentNetTotalProvider);
 
     // loading 态:不画(避免卡片高度跳动)
-    if (monthlyAsync.isLoading || netTotalAsync.isLoading) {
+    if (summaryAsync.isLoading || netTotalAsync.isLoading) {
       return const SizedBox.shrink();
     }
-    final monthly = monthlyAsync.valueOrNull;
-    if (monthly == null) return const SizedBox.shrink();
-    final hasAny = monthly.any((m) => m.invested > 0 || m.returned > 0);
+    final summary = summaryAsync.valueOrNull;
+    if (summary == null) return const SizedBox.shrink();
+    final hasAny = summary.monthly.any((m) => m.invested > 0 || m.returned > 0);
 
     final theme = Theme.of(context);
     // 空态也画卡片(跟 stats 其他 widget 一致 — 永远展示容器,内部分支)
@@ -80,7 +80,7 @@ class InvestmentDashboard extends ConsumerWidget {
                     AppSpacing.s2,
                     AppSpacing.s4,
                   ),
-                  child: _YearlyBars(monthly: monthly),
+                  child: _YearlyBars(summary: summary),
                 ),
                 // 底部补充说明(本年投入/收益合计)
                 Padding(
@@ -90,7 +90,12 @@ class InvestmentDashboard extends ConsumerWidget {
                     AppSpacing.s4,
                     AppSpacing.s3,
                   ),
-                  child: _YearTotals(monthly: monthly, theme: theme),
+                  child: _YearTotals(
+                    invested: summary.investedYTD,
+                    returned: summary.returnedYTD,
+                    net: summary.netYTD,
+                    theme: theme,
+                  ),
                 ),
               ],
             )
@@ -214,22 +219,16 @@ class _NetTotalHeader extends StatelessWidget {
 }
 
 /// 本年 12 月双柱
+/// 2026-10-16 D64.88 改:接 `InvestmentYearSummary` 而不是 `List<MonthlyInvestment>`,
+///   maxVal 直接从 summary.maxMonthlyValue 读,不再本地 fold
 class _YearlyBars extends StatelessWidget {
-  const _YearlyBars({required this.monthly});
-  final List<MonthlyInvestment> monthly;
+  const _YearlyBars({required this.summary});
+  final InvestmentYearSummary summary;
 
   @override
   Widget build(BuildContext context) {
-    // 2026-10-16 D64.72 删:外层 `InvestmentDashboard.build:43` 已 `hasAny` 守,
-    //   此函数只在 hasAny=true 时被调,内部 maxVal==0 不可达
-    //   (D64.68 author 注释也承认 dead branch,本轮顺手清掉)
-    final maxVal = monthly.fold<double>(
-      0,
-      (a, m) {
-        final mMax = m.invested > m.returned ? m.invested : m.returned;
-        return a > mMax ? a : mMax;
-      },
-    );
+    final monthly = summary.monthly;
+    final maxVal = summary.maxMonthlyValue;
     final chartNeedsWan = maxVal >= Formatters.wanThreshold;
     // D64.69 修:必须包 SizedBox(height: 200) 给 AnimatedBarChart 显式高度
     //   - 直接在 Column(ChartCard child, unbounded vertical max)里放 chart
@@ -280,15 +279,23 @@ class _YearlyBars extends StatelessWidget {
 
 /// 底部本年合计
 class _YearTotals extends StatelessWidget {
-  const _YearTotals({required this.monthly, required this.theme});
-  final List<MonthlyInvestment> monthly;
+  // 2026-10-16 D64.88 改:接 invested/returned/net 直接,不再 fold
+  //   - 之前从 List<MonthlyInvestment> monthly 自己 fold 算 3 个聚合
+  //   - 改:InvestmentDashboard.build 传 investment/returned/net 进来,跟 _YearlyBars
+  //     一样从 summary 字段读(provider 一次性算,不在 widget 重复 fold)
+  const _YearTotals({
+    required this.invested,
+    required this.returned,
+    required this.net,
+    required this.theme,
+  });
+  final double invested;
+  final double returned;
+  final double net;
   final ThemeData theme;
 
   @override
   Widget build(BuildContext context) {
-    final invested = monthly.fold<double>(0, (a, m) => a + m.invested);
-    final returned = monthly.fold<double>(0, (a, m) => a + m.returned);
-    final net = returned - invested;
     final isProfit = net >= 0;
     // 2026-10-16 D64.71 修:投资情况 dashboard footer overflow 39px
     //   - 之前外层 Row 直接 spaceBetween ["本年合计" 44px] + 内层 Row[3 段金额 200+px]
