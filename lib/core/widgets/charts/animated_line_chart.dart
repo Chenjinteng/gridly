@@ -454,6 +454,64 @@ class _AnimatedLineChartState extends State<AnimatedLineChart>
               ),
             ),
           ),
+          // D64.53 加:tooltip 显示(挂在顶部 label 下方,140 宽 居中)
+          //   - 之前 `tooltipBuilder` 在 savings_trend.dart 等业务 widget
+          //     定义了但 animated_line_chart.dart 触摸 overlay 从没消费它,
+          //     触碰后只有顶部月份 label + 虚线,没看到金额/百分比 → user
+          //     反馈"触碰后没有数值显示"
+          //   - 修法:触摸 overlay 加一个 Positioned widget 调用 tooltipBuilder,
+          //     宽度 140(top: 28 距 label 4px),多行文字自然换行 maxLines 3
+          //   - 居中:left = _xPosition - 70(idx 居中位置),超出图表边界时
+          //     接受 cut-off(用户正常触摸屏幕中间区域,边界 touch 不常见)
+          //   - savings_trend tooltipBuilder 输出 "储蓄率 X% 收 ¥X 支 ¥X"
+          //     约 30-40 字符 10sp,140 宽自动换行 2-3 行
+          if (widget.tooltipBuilder != null)
+            Positioned(
+              left:
+                  _xPosition(_touchedIdx!, _chartWidth!) +
+                  _leftReservedSize -
+                  70,
+              top: 28,
+              width: 140,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: scheme.surface,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: scheme.outlineVariant,
+                      width: 0.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    widget.tooltipBuilder!(
+                          _touchedIdx!,
+                          widget.points[_touchedIdx!],
+                        ) ??
+                        '',
+                    textAlign: TextAlign.center,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 10,
+                      height: 1.4,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ],
     );

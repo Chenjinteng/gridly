@@ -93,7 +93,9 @@ class SavingsTrend extends ConsumerWidget {
               minVal: minVal < 0 ? minVal : null, // D64.21c 负轴
               chartNeedsWan: false, // 百分比不会到万
               // D64.29 加:整数百分比(替代 Formatters.amount 出 "189.02")
-              axisLabelBuilder: (v, _) => v.toStringAsFixed(0),
+              // D64.53 改:加 `%` 单位,user UAT 反馈"单位是什么,我看到还有
+              //   负数的" — Y 轴 60/40/-80 没标% user 困惑,加 % 让单位明确
+              axisLabelBuilder: (v, _) => '${v.toStringAsFixed(0)}%',
               lineColor: AppBrand.teal,
               // 节点颜色:正储蓄率 teal,负储蓄率 error 红
               pointColorResolver: (i, p) =>
