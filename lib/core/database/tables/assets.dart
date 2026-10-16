@@ -27,6 +27,18 @@
 //     - 新建 receivable 账户默认 false,user 主动在 form 勾选才开
 //     - 其它 type 字段恒为 false(只对 receivable 有意义)
 //     - 老设备升级默认 false(老数据不会被新列影响,需 user 显式开)
+// 2026-10-16 D64.58 加:
+//   - isLender:BoolColumn,默认 false
+//     - receivable 段账户的"债权人/负债方"标记,默认 false = 借入(我是负债方)
+//     - true:借出账户(我是债权人,余额为正,例如借给老王)
+//     - false:借入账户(我是负债方,余额为负,例如花呗/车贷/房贷/借款)
+//     - 新建 receivable 账户默认 false,user 主动在 form 勾选才开
+//     - 其它 type 字段恒为 false(form 切 type 时清零)
+//     - 老设备升级默认 false(老数据不会被新列影响,需 user 显式开)
+//   - 本次 D64.58 只做 label 落地(form 加 toggle UI + DB 列);后续 D64.59+
+//     展开"基于 isLender 的进一步分析"(transaction_form 默认值联动 /
+//     AssetTile 显示借出 chip / AssetSummaryCard receivable 拆应收+负债 /
+//     LiabilitiesDashboard 加应收卡)
 import 'package:drift/drift.dart';
 
 class Assets extends Table {
@@ -56,6 +68,12 @@ class Assets extends Table {
   //   - false:不可消费债务(车贷/房贷/借款),只走 receivable 段调拨
   //   - 默认 false,user 主动勾选;非 receivable type 段恒为 false
   BoolColumn get actAsCashFlow =>
+      boolean().withDefault(const Constant(false))();
+  // 2026-10-16 D64.58 加:receivable 段"借出"开关(默认 false = 借入)
+  //   - true:借出账户(我是债权人,余额为正,例如借给老王)
+  //   - false:借入账户(我是负债方,余额为负,例如花呗/车贷/房贷/借款)
+  //   - 默认 false,user 主动勾选;非 receivable type 段恒为 false(form 切 type 时清零)
+  BoolColumn get isLender =>
       boolean().withDefault(const Constant(false))();
   IntColumn get displayOrder => integer().withDefault(const Constant(0))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();

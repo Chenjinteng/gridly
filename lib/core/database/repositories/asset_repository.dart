@@ -75,6 +75,10 @@ class AssetRepository {
   /// 2026-10-15 D61:加 actAsCashFlow 参数(receivable 段"充当现金流"标记)
   ///   - 默认 false,只有花呗/白条/信用卡这类可消费债务需要 user 主动开
   ///   - 非 receivable 段恒为 false,asset_form_page 切 type 时清零
+  /// 2026-10-16 D64.58:加 isLender 参数(receivable 段"借出"标记,默认 false = 借入)
+  ///   - false:借入账户(我是负债方,余额为负,花呗/车贷/房贷/借款等)
+  ///   - true:借出账户(我是债权人,余额为正,例如借给老王)
+  ///   - 非 receivable 段恒为 false,asset_form_page 切 type 时清零
   Future<int> create({
     required String name,
     required String type,
@@ -85,6 +89,7 @@ class AssetRepository {
     int displayOrder = 0,
     bool isDefault = false,
     bool actAsCashFlow = false,
+    bool isLender = false,
   }) {
     return _db
         .into(_db.assets)
@@ -104,6 +109,10 @@ class AssetRepository {
             //   - 区分可消费债务(花呗/信用卡,可作 cash_flow 支出 source)
             //     vs 不可消费债务(车贷/房贷,只在 receivable 段调拨)
             actAsCashFlow: Value(actAsCashFlow),
+            // 2026-10-16 D64.58:receivable 段"借出"开关
+            //   - true:借出账户(我是债权人,余额为正,例如借给老王)
+            //   - false:借入账户(我是负债方,余额为负,例如花呗/车贷/房贷/借款)
+            isLender: Value(isLender),
           ),
         );
   }

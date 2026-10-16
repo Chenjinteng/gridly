@@ -35,7 +35,7 @@ class AppDatabase extends _$AppDatabase {
   //     (不在 onUpgrade 里回填,避免耦合到 SharedPreferences 读取 → 由
   //     MonthlyBudgetNotifier 启动逻辑统一处理,见 D64.21b)
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -113,6 +113,17 @@ class AppDatabase extends _$AppDatabase {
       //     读 SharedPreferences 单值,如果当月 MonthlyBudgets 没记录则补 1 条。
       if (from < 8) {
         await m.createTable(monthlyBudgets);
+      }
+      // 8 → 9:assets 加 isLender 列(默认 false)
+      //   2026-10-16 D64.58 user 反馈:"还需要为债务的资产类型增加一个开关,
+      //   默认是借入,打开的时候是借出,就是应对借给老王的这种债权人情况,
+      //   先有 label,然后才能做进一步的分析"
+      //   老数据默认 false:已存在的 receivable 账户(花呗/车贷等)首次升级后都是 false,
+      //   user 需要在资产管理手动给"借给老王"这种债权人账户开"借出"。
+      //   后续 D64.59+ 才基于 isLender 展开联动(transaction_form 默认值 /
+      //   AssetTile chip / AssetSummaryCard receivable 拆分 / LiabilitiesDashboard 应收卡)。
+      if (from < 9) {
+        await m.addColumn(assets, assets.isLender);
       }
     },
     beforeOpen: (details) async {

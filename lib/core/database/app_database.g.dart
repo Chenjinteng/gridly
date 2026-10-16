@@ -1705,6 +1705,21 @@ class $AssetsTable extends Assets with TableInfo<$AssetsTable, Asset> {
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _isLenderMeta = const VerificationMeta(
+    'isLender',
+  );
+  @override
+  late final GeneratedColumn<bool> isLender = GeneratedColumn<bool>(
+    'is_lender',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_lender" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _displayOrderMeta = const VerificationMeta(
     'displayOrder',
   );
@@ -1752,6 +1767,7 @@ class $AssetsTable extends Assets with TableInfo<$AssetsTable, Asset> {
     includeInTransactions,
     isDefault,
     actAsCashFlow,
+    isLender,
     displayOrder,
     createdAt,
     updatedAt,
@@ -1832,6 +1848,12 @@ class $AssetsTable extends Assets with TableInfo<$AssetsTable, Asset> {
         ),
       );
     }
+    if (data.containsKey('is_lender')) {
+      context.handle(
+        _isLenderMeta,
+        isLender.isAcceptableOrUnknown(data['is_lender']!, _isLenderMeta),
+      );
+    }
     if (data.containsKey('display_order')) {
       context.handle(
         _displayOrderMeta,
@@ -1898,6 +1920,10 @@ class $AssetsTable extends Assets with TableInfo<$AssetsTable, Asset> {
         DriftSqlType.bool,
         data['${effectivePrefix}act_as_cash_flow'],
       )!,
+      isLender: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_lender'],
+      )!,
       displayOrder: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}display_order'],
@@ -1929,6 +1955,7 @@ class Asset extends DataClass implements Insertable<Asset> {
   final bool includeInTransactions;
   final bool isDefault;
   final bool actAsCashFlow;
+  final bool isLender;
   final int displayOrder;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -1942,6 +1969,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     required this.includeInTransactions,
     required this.isDefault,
     required this.actAsCashFlow,
+    required this.isLender,
     required this.displayOrder,
     required this.createdAt,
     required this.updatedAt,
@@ -1958,6 +1986,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     map['include_in_transactions'] = Variable<bool>(includeInTransactions);
     map['is_default'] = Variable<bool>(isDefault);
     map['act_as_cash_flow'] = Variable<bool>(actAsCashFlow);
+    map['is_lender'] = Variable<bool>(isLender);
     map['display_order'] = Variable<int>(displayOrder);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -1975,6 +2004,7 @@ class Asset extends DataClass implements Insertable<Asset> {
       includeInTransactions: Value(includeInTransactions),
       isDefault: Value(isDefault),
       actAsCashFlow: Value(actAsCashFlow),
+      isLender: Value(isLender),
       displayOrder: Value(displayOrder),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
@@ -1998,6 +2028,7 @@ class Asset extends DataClass implements Insertable<Asset> {
       ),
       isDefault: serializer.fromJson<bool>(json['isDefault']),
       actAsCashFlow: serializer.fromJson<bool>(json['actAsCashFlow']),
+      isLender: serializer.fromJson<bool>(json['isLender']),
       displayOrder: serializer.fromJson<int>(json['displayOrder']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -2016,6 +2047,7 @@ class Asset extends DataClass implements Insertable<Asset> {
       'includeInTransactions': serializer.toJson<bool>(includeInTransactions),
       'isDefault': serializer.toJson<bool>(isDefault),
       'actAsCashFlow': serializer.toJson<bool>(actAsCashFlow),
+      'isLender': serializer.toJson<bool>(isLender),
       'displayOrder': serializer.toJson<int>(displayOrder),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -2032,6 +2064,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     bool? includeInTransactions,
     bool? isDefault,
     bool? actAsCashFlow,
+    bool? isLender,
     int? displayOrder,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -2045,6 +2078,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     includeInTransactions: includeInTransactions ?? this.includeInTransactions,
     isDefault: isDefault ?? this.isDefault,
     actAsCashFlow: actAsCashFlow ?? this.actAsCashFlow,
+    isLender: isLender ?? this.isLender,
     displayOrder: displayOrder ?? this.displayOrder,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -2066,6 +2100,7 @@ class Asset extends DataClass implements Insertable<Asset> {
       actAsCashFlow: data.actAsCashFlow.present
           ? data.actAsCashFlow.value
           : this.actAsCashFlow,
+      isLender: data.isLender.present ? data.isLender.value : this.isLender,
       displayOrder: data.displayOrder.present
           ? data.displayOrder.value
           : this.displayOrder,
@@ -2086,6 +2121,7 @@ class Asset extends DataClass implements Insertable<Asset> {
           ..write('includeInTransactions: $includeInTransactions, ')
           ..write('isDefault: $isDefault, ')
           ..write('actAsCashFlow: $actAsCashFlow, ')
+          ..write('isLender: $isLender, ')
           ..write('displayOrder: $displayOrder, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -2104,6 +2140,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     includeInTransactions,
     isDefault,
     actAsCashFlow,
+    isLender,
     displayOrder,
     createdAt,
     updatedAt,
@@ -2121,6 +2158,7 @@ class Asset extends DataClass implements Insertable<Asset> {
           other.includeInTransactions == this.includeInTransactions &&
           other.isDefault == this.isDefault &&
           other.actAsCashFlow == this.actAsCashFlow &&
+          other.isLender == this.isLender &&
           other.displayOrder == this.displayOrder &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -2136,6 +2174,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
   final Value<bool> includeInTransactions;
   final Value<bool> isDefault;
   final Value<bool> actAsCashFlow;
+  final Value<bool> isLender;
   final Value<int> displayOrder;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
@@ -2149,6 +2188,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     this.includeInTransactions = const Value.absent(),
     this.isDefault = const Value.absent(),
     this.actAsCashFlow = const Value.absent(),
+    this.isLender = const Value.absent(),
     this.displayOrder = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -2163,6 +2203,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     this.includeInTransactions = const Value.absent(),
     this.isDefault = const Value.absent(),
     this.actAsCashFlow = const Value.absent(),
+    this.isLender = const Value.absent(),
     this.displayOrder = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -2178,6 +2219,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     Expression<bool>? includeInTransactions,
     Expression<bool>? isDefault,
     Expression<bool>? actAsCashFlow,
+    Expression<bool>? isLender,
     Expression<int>? displayOrder,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -2193,6 +2235,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
         'include_in_transactions': includeInTransactions,
       if (isDefault != null) 'is_default': isDefault,
       if (actAsCashFlow != null) 'act_as_cash_flow': actAsCashFlow,
+      if (isLender != null) 'is_lender': isLender,
       if (displayOrder != null) 'display_order': displayOrder,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -2209,6 +2252,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     Value<bool>? includeInTransactions,
     Value<bool>? isDefault,
     Value<bool>? actAsCashFlow,
+    Value<bool>? isLender,
     Value<int>? displayOrder,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
@@ -2224,6 +2268,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
           includeInTransactions ?? this.includeInTransactions,
       isDefault: isDefault ?? this.isDefault,
       actAsCashFlow: actAsCashFlow ?? this.actAsCashFlow,
+      isLender: isLender ?? this.isLender,
       displayOrder: displayOrder ?? this.displayOrder,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -2262,6 +2307,9 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     if (actAsCashFlow.present) {
       map['act_as_cash_flow'] = Variable<bool>(actAsCashFlow.value);
     }
+    if (isLender.present) {
+      map['is_lender'] = Variable<bool>(isLender.value);
+    }
     if (displayOrder.present) {
       map['display_order'] = Variable<int>(displayOrder.value);
     }
@@ -2286,6 +2334,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
           ..write('includeInTransactions: $includeInTransactions, ')
           ..write('isDefault: $isDefault, ')
           ..write('actAsCashFlow: $actAsCashFlow, ')
+          ..write('isLender: $isLender, ')
           ..write('displayOrder: $displayOrder, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -3469,6 +3518,7 @@ typedef $$AssetsTableCreateCompanionBuilder =
       Value<bool> includeInTransactions,
       Value<bool> isDefault,
       Value<bool> actAsCashFlow,
+      Value<bool> isLender,
       Value<int> displayOrder,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -3484,6 +3534,7 @@ typedef $$AssetsTableUpdateCompanionBuilder =
       Value<bool> includeInTransactions,
       Value<bool> isDefault,
       Value<bool> actAsCashFlow,
+      Value<bool> isLender,
       Value<int> displayOrder,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -3540,6 +3591,11 @@ class $$AssetsTableFilterComposer
 
   ColumnFilters<bool> get actAsCashFlow => $composableBuilder(
     column: $table.actAsCashFlow,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isLender => $composableBuilder(
+    column: $table.isLender,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3613,6 +3669,11 @@ class $$AssetsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isLender => $composableBuilder(
+    column: $table.isLender,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get displayOrder => $composableBuilder(
     column: $table.displayOrder,
     builder: (column) => ColumnOrderings(column),
@@ -3671,6 +3732,9 @@ class $$AssetsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get isLender =>
+      $composableBuilder(column: $table.isLender, builder: (column) => column);
+
   GeneratedColumn<int> get displayOrder => $composableBuilder(
     column: $table.displayOrder,
     builder: (column) => column,
@@ -3720,6 +3784,7 @@ class $$AssetsTableTableManager
                 Value<bool> includeInTransactions = const Value.absent(),
                 Value<bool> isDefault = const Value.absent(),
                 Value<bool> actAsCashFlow = const Value.absent(),
+                Value<bool> isLender = const Value.absent(),
                 Value<int> displayOrder = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -3733,6 +3798,7 @@ class $$AssetsTableTableManager
                 includeInTransactions: includeInTransactions,
                 isDefault: isDefault,
                 actAsCashFlow: actAsCashFlow,
+                isLender: isLender,
                 displayOrder: displayOrder,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -3748,6 +3814,7 @@ class $$AssetsTableTableManager
                 Value<bool> includeInTransactions = const Value.absent(),
                 Value<bool> isDefault = const Value.absent(),
                 Value<bool> actAsCashFlow = const Value.absent(),
+                Value<bool> isLender = const Value.absent(),
                 Value<int> displayOrder = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -3761,6 +3828,7 @@ class $$AssetsTableTableManager
                 includeInTransactions: includeInTransactions,
                 isDefault: isDefault,
                 actAsCashFlow: actAsCashFlow,
+                isLender: isLender,
                 displayOrder: displayOrder,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
