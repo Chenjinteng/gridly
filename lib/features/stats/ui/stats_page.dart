@@ -9,7 +9,12 @@
 //
 // 视角路由:
 //   expense → CategoryPie + TopExpenses + ConsumptionTrend + ExpenseAnalysis(+ thisMonth: BudgetOverviewChart)
-//   assets  → 占位(2026-10-11 资产功能预留)
+//   assets  → LiabilitiesDashboard + AssetsRadar
+// 2026-10-16 D64.56 加:报表资产 tab 顶部新增"负债情况" dashboard(user UAT 反馈),
+//   镜像 AssetSummaryCard 视觉系统(ink 底 + 1px outline + CardShadows.dark),
+//   总负债大字 + 每 receivable 账户 1 行(按 debt 降序)+ 横向条 + 占比 + 金额;
+//   雷达图保持 5 维真资产占比(radar 5 维不含 receivable,现在拆出来给负债卡)
+//   显示;负债卡 + 雷达图 = "我欠多少 + 我有什么" 两张独立模块。
 // 2026-10-12 P5 commit 简化:删 income 段(2 段:收支 / 资产),IncomePie 文件同步删
 // 2026-10-15 D64.10 改:MonthlyTrendChart + CategoryCompareChart + WeekdayExpenseChart
 //   3 张独立卡合并成"消费趋势"1 张 tabbed 模块,本文件不再单独 import 它们。
@@ -35,6 +40,7 @@ import 'widgets/budget_overview_chart.dart';
 import 'widgets/consumption_trend.dart';
 import 'widgets/expense_analysis.dart';
 import 'widgets/assets_radar.dart';
+import 'widgets/liabilities_dashboard.dart';
 import 'widgets/range_summary.dart';
 import 'widgets/range_tabs.dart';
 import 'widgets/savings_trend.dart';
@@ -229,7 +235,12 @@ class _StatsPageState extends ConsumerState<StatsPage> {
         //   - 2026-10-12 P4 commit:资产视角 = 总览卡 + 6 维雷达图(2026-10-13 P6 改 4 维 → 6 维)
         //   - 2026-10-13 P6:RangeTabs/RangeSummary 不在这里显示
         //   - D64.33:雷达图 6 维 → 5 维(摘出 receivable 债务段),D64.37 摘出 D64.28 AssetsByType
-        // 单卡独立,跟 expense 视角放预算等单一 widget 风格一致
+        // D64.56(user UAT 反馈):雷达图保留 5 维真资产占比(radar 5 维不含 receivable);
+        //   receivable 段单独抽出给 LiabilitiesDashboard —— "我欠多少"用 dashboard
+        //   详细列每 receivable 账户 + 横向条,"我有什么"用 radar 显示 5 段占比。
+        //   两张独立模块风格跟 expense 视角单卡 widget 一致。
+        add(const LiabilitiesDashboard());
+        widgets.add(const SizedBox(height: AppSpacing.s3));
         add(const AssetsRadar());
     }
     return widgets;
