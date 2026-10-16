@@ -16,6 +16,16 @@
 //     ⑤ 负债率分子:`totalLiab.abs()`(数值同原 totalDebt,只是包了 abs,
 //       防止负百分比 0% 显示)
 //
+// 2026-10-16 D64.64 改(user UAT 反馈):
+//   - user 反馈"负债和借出这两个卡片可以合起来用一个 tab 切换的方式,
+//     卡片名就叫债务情况,两个tab,负债|借出"
+//   - 修法:本 widget 改成"纯 body"(无 Container + 无标题),由
+//     DebtDashboard(新建)统一包 ink 底卡片 + 顶部 tab 切换器 +
+//     body 切本 widget / ReceivablesDashboard
+//   - 删:外层 Container + 标题"负债情况" Text + 顶部 SizedBox(s4 边距 +
+//     s1 标题字间距,合并不再需要)
+//   - 保留:大字 + 负债率 + Divider + empty state + 列表 + empty state 行
+//
 // 2026-10-16 D64.56 加(user UAT 反馈):
 //   - user 反馈"资产报表里面,我需要增加一个新的 dashboard,关于负债的,
 //     大概是这样的形式:
@@ -69,7 +79,6 @@ import '../../../../core/database/app_database.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/theme/card_shadows.dart';
 import '../../../../core/utils/asset_balance_provider.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/animated_counter.dart';
@@ -83,7 +92,8 @@ class LiabilitiesDashboard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // D64.64:删 isDark 变量(原 Container border alpha 用,现在 Container
+    //   移到 DebtDashboard 统一管理,本 widget 是纯 body 不需要判断深浅)
     final theme = Theme.of(context);
     final assetsAsync = ref.watch(allAssetsProvider);
     final balancesAsync = ref.watch(assetBalancesProvider);
@@ -152,32 +162,14 @@ class LiabilitiesDashboard extends ConsumerWidget {
     final ratio = totalAssets > 0 ? (totalDebt / totalAssets) : 0.0;
     final debtRatio = (ratio * 100).toStringAsFixed(0);
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
-      padding: const EdgeInsets.all(AppSpacing.s4),
-      decoration: BoxDecoration(
-        color: AppBrand.ink,
-        borderRadius: AppRadius.brLg,
-        // rim light border + 阴影,跟 AssetSummaryCard / 净资产卡一致
-        border: Border.all(
-          color: Colors.white.withValues(alpha: isDark ? 0.08 : 0.15),
-          width: 1.0,
-        ),
-        boxShadow: CardShadows.dark(context),
-      ),
-      child: Column(
+    // D64.64:纯 body 返回,无 Container 包装 + 无标题(由 DebtDashboard 提供)
+    //   - 外层容器(ink 底 + outline + shadow + 边距)在 DebtDashboard 统一管理
+    //   - 标题"负债情况"删掉(现在 DebtDashboard 顶部统一叫"债务情况" + tab 切换)
+    //   - 顶部 SizedBox(s1) 字间距删掉(没有标题行,不需要)
+    return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 标题
-          const Text(
-            '负债情况',
-            style: TextStyle(
-              color: AppGray.g400,
-              fontSize: 11,
-              letterSpacing: 0.4,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.s1),
+          // (D64.64:删"负债情况"标题 Text + SizedBox(s1) 顶部间距,DebtDashboard 提供)
           // 总负债大字(D64.61:负数警示 + D64.62:数字跳动动画)
           //   - D64.61 显示 `∑ balance`(负数累加),Formatters.amount 自动 "-X,XXX.XX"
           //     颜色 error 红警示
@@ -261,7 +253,6 @@ class LiabilitiesDashboard extends ConsumerWidget {
           //     已是"全量 = 总负债" 不需要"小字备注总资产"
           //   - 故末尾不画小字,保持简洁
         ],
-      ),
     );
   }
 }

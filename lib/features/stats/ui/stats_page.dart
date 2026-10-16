@@ -41,8 +41,7 @@ import 'widgets/consumption_trend.dart';
 import 'widgets/expense_analysis.dart';
 import 'widgets/asset_allocation_chart.dart';
 import 'widgets/assets_radar.dart';
-import 'widgets/liabilities_dashboard.dart';
-import 'widgets/receivables_dashboard.dart';
+import 'widgets/debt_dashboard.dart';
 import 'widgets/range_summary.dart';
 import 'widgets/range_tabs.dart';
 import 'widgets/savings_trend.dart';
@@ -252,11 +251,14 @@ class _StatsPageState extends ConsumerState<StatsPage> {
         //     图例只显示占比 % 不显示金额
         //   - 移动:从 D64.62 "雷达图前"挪到 D64.63 "雷达图后",
         //     user 反馈"放在雷达图下面"
-        // 最终顺序:负债(警示) → 借出(应收) → 雷达图(真资产配比) →
-        //   资产配置分布(账户级环形)
-        add(const LiabilitiesDashboard());
-        widgets.add(const SizedBox(height: AppSpacing.s3));
-        add(const ReceivablesDashboard());
+        // D64.64(user UAT 反馈):负债 + 借出 合并成 1 张 tabbed 卡片
+        //   - user 反馈"负债和借出这两个卡片可以合起来用一个 tab 切换的方式,
+        //     卡片名就叫债务情况,两个tab,负债|借出"
+        //   - 之前 D64.56/D64.62 是两张独立卡(LiabilitiesDashboard + ReceivablesDashboard),
+        //     user 觉得冗余;合并成 DebtDashboard(ink 底 + 顶部 TabBar 切 2 段),
+        //     LiabilitiesDashboard / ReceivablesDashboard 改成"纯 body"(去掉外层 Container)
+        // 最终顺序:债务情况(tabbed) → 雷达图(真资产配比) → 资产配置分布(账户级环形)
+        add(const DebtDashboard());
         widgets.add(const SizedBox(height: AppSpacing.s3));
         add(const AssetsRadar());
         widgets.add(const SizedBox(height: AppSpacing.s3));

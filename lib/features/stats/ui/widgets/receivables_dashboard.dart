@@ -1,5 +1,14 @@
 // lib/features/stats/ui/widgets/receivables_dashboard.dart
-// 报表"资产"视角 dashboard —— 借出情况
+// 报表"资产"视角 dashboard —— 借出情况(纯 body,D64.64 改)
+//
+// 2026-10-16 D64.64 改(user UAT 反馈):
+//   - user 反馈"负债和借出这两个卡片可以合起来用一个 tab 切换的方式,
+//     卡片名就叫债务情况,两个tab,负债|借出"
+//   - 修法:本 widget 改成"纯 body"(无 Container + 无标题),由
+//     DebtDashboard(新建)统一包 ink 底卡片 + 顶部 tab 切换器 +
+//     body 切本 widget / LiabilitiesDashboard
+//   - 删:外层 Container + 标题"借出情况" Text + 顶部 SizedBox(s1)
+//   - 保留:大字 + empty state + Divider + 列表
 //
 // 2026-10-16 D64.62 加(user UAT 反馈):
 //   - user 反馈"现在资产那边已经增加了借入借出的情况,所以在报表中可以
@@ -34,7 +43,6 @@ import '../../../../core/database/app_database.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/theme/card_shadows.dart';
 import '../../../../core/utils/asset_balance_provider.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/animated_counter.dart';
@@ -49,8 +57,7 @@ class ReceivablesDashboard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final theme = Theme.of(context);
+    final theme = Theme.of(context); // D64.64:删 isDark(原 Container border alpha 用)
     final assetsAsync = ref.watch(allAssetsProvider);
     final balancesAsync = ref.watch(assetBalancesProvider);
     final assets = assetsAsync.valueOrNull ?? const <Asset>[];
@@ -75,36 +82,11 @@ class ReceivablesDashboard extends ConsumerWidget {
     receivableItems.sort((a, b) => b.balance.compareTo(a.balance));
     final totalLend = receivableItems.fold<double>(0, (s, e) => s + e.balance);
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
-      padding: const EdgeInsets.all(AppSpacing.s4),
-      decoration: BoxDecoration(
-        // 白底(surface),对比 LiabilitiesDashboard 的 ink 黑底
-        // 浅色主题 surface = 白,深色主题 surface = 深灰 — 都能清晰区分借出/负债
-        color: theme.colorScheme.surface,
-        borderRadius: AppRadius.brLg,
-        // rim light border:浅色主题 0.08 / 深色主题 0.15(白底用 0.08 更克制,
-        // 跟其他白底卡保持一致的"细线"质感)
-        border: Border.all(
-          color: Colors.black.withValues(alpha: isDark ? 0.15 : 0.08),
-          width: 1.0,
-        ),
-        // 白底用轻阴影(深色阴影在白底上看起来脏)
-        boxShadow: CardShadows.light(context),
-      ),
-      child: Column(
+    // D64.64:纯 body 返回,无 Container 包装 + 无标题(由 DebtDashboard 提供)
+    return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 标题
-          Text(
-            '借出情况',
-            style: TextStyle(
-              color: theme.colorScheme.onSurfaceVariant,
-              fontSize: 11,
-              letterSpacing: 0.4,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.s1),
+          // (D64.64:删"借出情况"标题 Text + SizedBox(s1) 顶部间距,DebtDashboard 提供)
           // 总借出大字(D64.62 数字跳动动画)
           //   - 颜色 AppBrand.teal(债权/收入侧,跟 receivable 段 type chip 同款)
           //   - 白底上 teal 文字对比度好(黑底用的是 cream,白底改成 teal 更跳)
@@ -164,7 +146,6 @@ class ReceivablesDashboard extends ConsumerWidget {
             ],
           ],
         ],
-      ),
     );
   }
 }
