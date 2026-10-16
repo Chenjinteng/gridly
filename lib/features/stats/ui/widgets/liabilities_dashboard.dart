@@ -77,12 +77,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/asset_balance_provider.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/animated_counter.dart';
-import '../../../settings/ui/widgets/asset_tile.dart' show AssetTile;
+import '../../../../core/widgets/rows/asset_metric_row.dart';
 
 /// 报表"负债情况" dashboard
 ///   - 总负债大字(∑ debt over all receivable accounts)
@@ -127,6 +126,7 @@ class LiabilitiesDashboard extends ConsumerWidget {
         receivableItems.add(_DebtItem(
           id: a.id,
           name: a.name,
+          iconKey: a.icon, // D64.76:从 Asset.icon 字段取
           color: Color(a.color),
           balance: bal, // D64.61:负数原始值,显示时 Formatters.amount 自动加 "-"
           debt: debt, // 横向条比例用 abs
@@ -258,18 +258,24 @@ class _DebtItem {
   const _DebtItem({
     required this.id,
     required this.name,
+    required this.iconKey,
     required this.color,
     required this.balance,
     required this.debt,
   });
   final int id;
   final String name;
+  // 2026-10-16 D64.76 加:从 Asset.icon 字段取,D64.73 前用 item.name 是 bug
+  //   (账户名基本不在 AssetTile.icons 集中表里,fallback 到 wallet_rounded)
+  final String iconKey;
   final Color color;
   final double balance;
   final double debt;
 }
 
 /// 单行展示:icon chip + name + 横向条 + 占比 + 金额
+/// 2026-10-16 D64.76 改:原本文件内 inline _HorizontalBar 跟 _LendHorizontalBar
+///   完全一样,统一抽到 core/widgets/rows/asset_metric_row.dart 共享
 class _DebtRow extends StatelessWidget {
   const _DebtRow({required this.item, required this.totalDebt});
 
@@ -278,109 +284,17 @@ class _DebtRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final percent = totalDebt > 0 ? item.debt / totalDebt : 0.0;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // icon chip(跟 AssetSummaryCard _TypeRow 同款 28x28 + alpha 0.18)
-        Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            color: item.color.withValues(alpha: 0.18),
-            borderRadius: AppRadius.brXs,
-          ),
-          child: Icon(
-            AssetTile.icons[item.name] ??
-                Icons.account_balance_wallet_rounded,
-            color: item.color,
-            size: 16,
-          ),
-        ),
-        const SizedBox(width: AppSpacing.s3),
-        // 名称(限宽,可省略)
-        SizedBox(
-          width: 60,
-          child: Text(
-            item.name,
-            style: const TextStyle(color: AppGray.g400, fontSize: 13),
-            overflow: TextOverflow.ellipsis,
-            maxLines: 1,
-          ),
-        ),
-        // 横向条(占中间剩余空间,按 percent 比例)
-        Expanded(
-          child: _HorizontalBar(
-            percent: percent,
-            color: item.color,
-          ),
-        ),
-        const SizedBox(width: AppSpacing.s2),
-        // 占比 + 金额(右对齐,固定宽度)
-        SizedBox(
-          width: 80,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '${(percent * 100).toStringAsFixed(0)}%',
-                style: TextStyle(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontSize: 10,
-                ),
-              ),
-              const SizedBox(height: 1),
-              // D64.61:列表金额显示原始 balance(负数),Formatters.amount 自动
-              // 加负号前缀,颜色 error 红警示(跟大字一致)
-              Text(
-                '¥${Formatters.amount(item.balance)}',
-                style: TextStyle(
-                  color: AppStatus.error,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// 横向条形图 —— 1px outline 浅色 track + 内嵌彩色 fill(按 percent)
-///   - 高度 8,圆角 4,跟 CardShadows.light 卡片有"subtle depth"风格统一
-///   - 颜色用 item.color(6 段主色,跟 AssetSummaryCard segment chip 同色)
-class _HorizontalBar extends StatelessWidget {
-  const _HorizontalBar({required this.percent, required this.color});
-
-  final double percent;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    // 限幅 [0, 1]
-    final p = percent.clamp(0.0, 1.0);
-    return Container(
-      height: 8,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(4),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: FractionallySizedBox(
-            widthFactor: p,
-            heightFactor: 1,
-            child: Container(color: color),
-          ),
-        ),
-      ),
+    return AssetMetricRow(
+      iconKey: item.iconKey,
+      name: item.name,
+      color: item.color,
+      amount: item.balance,
+      // D64.61:列表金额显示原始 balance(负数),Formatters.amount 自动
+      // 加负号前缀,颜色 error 红警示(跟大字一致)
+      amountColor: AppStatus.error,
+      totalForPercent: totalDebt,
+      // 在 ink 底卡片里名字用 g400(对比度更好,跟白底 onSurfaceVariant 区分)
+      nameColor: AppGray.g400,
     );
   }
 }

@@ -41,12 +41,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/asset_balance_provider.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/animated_counter.dart';
-import '../../../settings/ui/widgets/asset_tile.dart' show AssetTile;
+import '../../../../core/widgets/rows/asset_metric_row.dart';
 
 /// 报表"借出情况" dashboard
 ///   - 总借出大字(∑ balance over isLender=true receivable)
@@ -73,6 +72,7 @@ class ReceivablesDashboard extends ConsumerWidget {
         receivableItems.add(_LendItem(
           id: a.id,
           name: a.name,
+          iconKey: a.icon, // D64.76:从 Asset.icon 字段取
           color: Color(a.color),
           balance: bal,
         ));
@@ -155,16 +155,21 @@ class _LendItem {
   const _LendItem({
     required this.id,
     required this.name,
+    required this.iconKey,
     required this.color,
     required this.balance,
   });
   final int id;
   final String name;
+  // 2026-10-16 D64.76 加:从 Asset.icon 字段取
+  final String iconKey;
   final Color color;
   final double balance;
 }
 
 /// 单行展示:icon chip + name + 横向条 + 占比 + 金额
+/// 2026-10-16 D64.76 改:跟 _DebtRow 一并用 AssetMetricRow 共享 widget,
+///   跟 LiabilitiesDashboard _HorizontalBar 重复文件一并清理
 class _LendRow extends StatelessWidget {
   const _LendRow({required this.item, required this.totalLend});
 
@@ -173,115 +178,15 @@ class _LendRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final percent = totalLend > 0 ? item.balance / totalLend : 0.0;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // icon chip(跟 LiabilitiesDashboard _DebtRow 同款 28x28 + alpha 0.18)
-        Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            color: item.color.withValues(alpha: 0.18),
-            borderRadius: AppRadius.brXs,
-          ),
-          child: Icon(
-            AssetTile.icons[item.name] ??
-                Icons.account_balance_wallet_rounded,
-            color: item.color,
-            size: 16,
-          ),
-        ),
-        const SizedBox(width: AppSpacing.s3),
-        // 名称(限宽,可省略)
-        SizedBox(
-          width: 60,
-          child: Text(
-            item.name,
-            style: TextStyle(
-              color: theme.colorScheme.onSurfaceVariant,
-              fontSize: 13,
-            ),
-            overflow: TextOverflow.ellipsis,
-            maxLines: 1,
-          ),
-        ),
-        // 横向条(占中间剩余空间,按 percent 比例)
-        Expanded(
-          child: _LendHorizontalBar(
-            percent: percent,
-            color: item.color,
-            trackColor: theme.colorScheme.surfaceContainerHigh,
-          ),
-        ),
-        const SizedBox(width: AppSpacing.s2),
-        // 占比 + 金额(右对齐,固定宽度)
-        SizedBox(
-          width: 80,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '${(percent * 100).toStringAsFixed(0)}%',
-                style: TextStyle(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontSize: 10,
-                ),
-              ),
-              const SizedBox(height: 1),
-              // 借出金额:正数 teal(跟大字一致)
-              Text(
-                '¥${Formatters.amount(item.balance)}',
-                style: const TextStyle(
-                  color: AppBrand.teal,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// 横向条形图 —— 1px outline 浅色 track + 内嵌彩色 fill(按 percent)
-///   - 白底场景:track 用 surfaceContainerHigh(浅灰,跟白底区分但不重)
-class _LendHorizontalBar extends StatelessWidget {
-  const _LendHorizontalBar({
-    required this.percent,
-    required this.color,
-    required this.trackColor,
-  });
-
-  final double percent;
-  final Color color;
-  final Color trackColor;
-
-  @override
-  Widget build(BuildContext context) {
-    // 限幅 [0, 1]
-    final p = percent.clamp(0.0, 1.0);
-    return Container(
-      height: 8,
-      decoration: BoxDecoration(
-        color: trackColor,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(4),
-        child: Align(
-          alignment: Alignment.centerLeft,
-          child: FractionallySizedBox(
-            widthFactor: p,
-            heightFactor: 1,
-            child: Container(color: color),
-          ),
-        ),
-      ),
+    return AssetMetricRow(
+      iconKey: item.iconKey,
+      name: item.name,
+      color: item.color,
+      amount: item.balance,
+      // 借出金额:正数 teal(跟大字一致)
+      amountColor: AppBrand.teal,
+      totalForPercent: totalLend,
+      // 白底卡片用 onSurfaceVariant(默认)
     );
   }
 }
