@@ -23,6 +23,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/widgets/show_app_modal_sheet.dart';
 
 /// 弹出 gridly 自定义日期选择器
 ///
@@ -39,7 +40,7 @@ Future<DateTime?> showCustomDatePicker({
 }) {
   // D64.17:caller 未传 lastDate 时默认今天(去掉未来日期选项)
   final effectiveLastDate = lastDate ?? DateTime.now();
-  return showModalBottomSheet<DateTime>(
+  return showAppModalBottomSheet<DateTime>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,

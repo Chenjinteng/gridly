@@ -12,6 +12,7 @@ import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/card_shadows.dart';
 import '../../../core/utils/gridly_banner.dart';
+import '../../../core/widgets/show_app_modal_sheet.dart';
 import '../../../shared/constants/default_categories.dart';
 import '../../ledger/application/transactions_providers.dart';
 import 'widgets/category_form_sheet.dart';
@@ -70,7 +71,7 @@ class CategoryManagementPage extends ConsumerWidget {
   }
 
   void _showForm(BuildContext context, Category? existing) {
-    showModalBottomSheet(
+    showAppModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,

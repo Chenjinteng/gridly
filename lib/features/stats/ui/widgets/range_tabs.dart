@@ -26,6 +26,7 @@ import '../../../../core/haptics/app_haptics.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/widgets/show_app_modal_sheet.dart';
 import '../../application/stats_providers.dart';
 
 class RangeTabs extends ConsumerWidget {
@@ -186,7 +187,7 @@ class RangeTabs extends ConsumerWidget {
     ({int year, int month})? current,
   ) async {
     final now = DateTime.now();
-    final picked = await showModalBottomSheet<({int year, int month})>(
+    final picked = await showAppModalBottomSheet<({int year, int month})>(
       context: context,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
@@ -210,7 +211,7 @@ class RangeTabs extends ConsumerWidget {
     int? currentYear,
   ) async {
     final now = DateTime.now();
-    final picked = await showModalBottomSheet<int>(
+    final picked = await showAppModalBottomSheet<int>(
       context: context,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(

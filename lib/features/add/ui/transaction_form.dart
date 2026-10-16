@@ -33,6 +33,7 @@ import '../../../core/utils/asset_balance_provider.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/gridly_banner.dart';
 import '../../../core/utils/refresh_providers.dart';
+import '../../../core/widgets/show_app_modal_sheet.dart';
 import '../../../shared/constants/default_categories.dart';
 import '../../ledger/application/transactions_providers.dart';
 import '../../settings/ui/widgets/asset_tile.dart';
@@ -313,8 +314,9 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
           t.destinationAccountId != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) async {
           if (!mounted) return;
-          final sourceAsset =
-              await ref.read(assetRepositoryProvider).byId(t.accountId);
+          final sourceAsset = await ref
+              .read(assetRepositoryProvider)
+              .byId(t.accountId);
           if (!mounted) return;
           // source=cash_flow 视为投入(input),其它视为调拨(transfer)
           if (sourceAsset?.type == 'cash_flow') {
@@ -776,7 +778,7 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     // 2026-10-14 简化:之前 receivable context 透传 forcedCategories(2 cat 选),
     //   现已跟福利/投资同 pattern(UI 隐藏 + 自动 fallback),不再需要选分类
     //   —— 这里不再处理 forcedCategories,picker 走默认 type filter
-    showModalBottomSheet<void>(
+    showAppModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -1187,7 +1189,7 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     //   - 其它段(investment/benefit/other)picker 也不传
     final actAsCashFlowOnly =
         widget.preselectedAssetType == 'cash_flow' && _intent == 'expense';
-    showModalBottomSheet<void>(
+    showAppModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -1215,7 +1217,7 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   /// 2026-10-14 D50:dest picker 排除已选 source,user 反馈"如果原 A 选了,转入不能再出现 A"
   void _openDestinationAccountPicker() {
     final filter = _destinationTypeFilter;
-    showModalBottomSheet<void>(
+    showAppModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -1874,7 +1876,9 @@ class _AccountPickerSheet extends ConsumerWidget {
                                                     fontWeight: FontWeight.w500,
                                                   ),
                                                 ),
-                                                const SizedBox(height: AppSpacing.s05),
+                                                const SizedBox(
+                                                  height: AppSpacing.s05,
+                                                ),
                                                 Text(
                                                   AppSegment.labelFor(a.type),
                                                   style: TextStyle(

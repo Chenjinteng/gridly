@@ -12,6 +12,7 @@ import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/aqua_switch.dart';
 import '../../../core/widgets/gridly_mark.dart';
+import '../../../core/widgets/show_app_modal_sheet.dart';
 import '../../../core/theme/theme_mode_provider.dart';
 import '../../../core/utils/budget_provider.dart';
 import '../../../core/utils/formatters.dart';
@@ -255,12 +256,10 @@ class SettingsPage extends ConsumerWidget {
   }
 
   void _openExportSheet(BuildContext context) {
-    showModalBottomSheet(
+    // D66:showAppModalBottomSheet 已封 useRootNavigator:false + PopScope,
+    //   替 D64.20 这里手动 useRootNavigator:false(系统返回键仍退 app)。
+    showAppModalBottomSheet<void>(
       context: context,
-      // 2026-10-15 D64.20 加:useRootNavigator: false
-      //   - sheet 推到 settings tab 的 shell sub-navigator,而不是 root
-      //   - 跟 ledger pickers 同根因(D64.20 commit message),不再重复分析
-      useRootNavigator: false,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(

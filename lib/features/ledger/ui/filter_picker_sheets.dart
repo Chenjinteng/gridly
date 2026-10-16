@@ -23,6 +23,7 @@ import '../../../core/database/app_database.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/show_app_modal_sheet.dart';
 
 /// Sentinel —— ModalBottomSheet dismiss 时返回,跟"选了全部"区分开
 class SheetDismissed {
@@ -66,15 +67,12 @@ Future<Object?> showSingleSelectSheet<T>(
 }) {
   // 2026-10-13 P11:list 过滤掉 AllPicked 项 → 不与底部"显示全部"按钮重复
   final listOptions = options.where((o) => o.$1 is! AllPicked).toList();
-  return showModalBottomSheet<Object?>(
+  // D66:showAppModalBottomSheet 已封 useRootNavigator:false + PopScope 自包含
+  //   back handler(详 lib/core/widgets/show_app_modal_sheet.dart),
+  //   替代 D64.20 这里的手动 useRootNavigator: false(系统返回键仍退 app,D66 加
+  //   PopScope 双保险才真修)。
+  return showAppModalBottomSheet<Object?>(
     context: context,
-    // 2026-10-15 D64.20 加:useRootNavigator: false
-    //   - sheet 推到 ledger tab 的 shell sub-navigator,而不是 root
-    //   - 跟 ledger_page 同 navigator 树 → go_router._findCurrentNavigator
-    //     能正确找到 shell → state.maybePop() 弹掉 sheet 而不是退出 app
-    //   - 之前 useRootNavigator: true(默认)把 sheet 推到 root,go_router 错把
-    //     shell 当作"可 pop 入口",back 键实际去 pop shell 下的 ledger_page → 退 app
-    useRootNavigator: false,
     isScrollControlled: true,
     backgroundColor: Theme.of(context).colorScheme.surface,
     shape: const RoundedRectangleBorder(

@@ -21,6 +21,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/budget_provider.dart';
 import '../../../../core/utils/refresh_providers.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/show_app_modal_sheet.dart';
 import '../../../../shared/constants/default_categories.dart';
 
 class BudgetSheet extends ConsumerStatefulWidget {
@@ -124,7 +125,7 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
         .toList();
     if (available.isEmpty) return;
 
-    final picked = await showModalBottomSheet<Category>(
+    final picked = await showAppModalBottomSheet<Category>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,

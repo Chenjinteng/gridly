@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/widgets/staggered_fade_in.dart';
 import '../../../core/widgets/privacy_obscure.dart';
+import '../../../core/widgets/show_app_modal_sheet.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -431,11 +432,10 @@ class _FilterBar extends ConsumerWidget {
 
   // ============ 弹层:分类(多选) ============
   Future<void> _showCategoryPicker(BuildContext context) async {
-    final selected = await showModalBottomSheet<Set<int>>(
+    // D66:showAppModalBottomSheet 已封 useRootNavigator:false + PopScope,
+    //   替 D64.20 这里手动 useRootNavigator:false(仍退 app)。
+    final selected = await showAppModalBottomSheet<Set<int>>(
       context: context,
-      // 2026-10-15 D64.20 加:useRootNavigator: false
-      //   - 同 showSingleSelectSheet,详见 filter_picker_sheets.dart 注释
-      useRootNavigator: false,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
