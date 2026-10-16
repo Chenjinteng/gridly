@@ -51,7 +51,8 @@ final assetBalanceProvider = FutureProvider.family<double, int>((
   return balances[assetId] ?? 0.0;
 });
 
-/// 2026-10-12 P4 commit 扩展:资产总览(给 P4 资产页雷达图 + AssetsOverviewChart 用)
+/// 2026-10-12 P4 commit 扩展:资产总览(给 P4 资产页雷达图 + 报表净资产卡用)
+///   2026-10-16 D64.45:报表净资产卡移除,这里仍供 AssetsRadar 雷达 + 资产页 AssetSummaryCard 使用
 ///   - 2026-10-13 P6 扩到 6 段:总现金 / 总投资 / 总福利 / 总债权 / 总不动产 / 总其它
 ///   - 累加不取 abs(让 user 看到"实际欠多少/待收多少",正值/负值都反映)
 ///   - 雷达图单独取 abs 用以显示对比幅度

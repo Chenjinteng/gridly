@@ -34,7 +34,6 @@ import '../../../core/widgets/privacy_obscure.dart';
 import 'widgets/budget_overview_chart.dart';
 import 'widgets/consumption_trend.dart';
 import 'widgets/expense_analysis.dart';
-import 'widgets/assets_overview_chart.dart';
 import 'widgets/assets_radar.dart';
 import 'widgets/range_summary.dart';
 import 'widgets/range_tabs.dart';
@@ -222,10 +221,15 @@ class _StatsPageState extends ConsumerState<StatsPage> {
           add(const SavingsTrend());
         }
       case StatsView.assets:
-        // 2026-10-12 P4 commit:资产视角 = 总览卡 + 6 维雷达图(2026-10-13 P6 改 4 维 → 6 维)
-        //   2026-10-13 P6:RangeTabs/RangeSummary 不在这里显示
-        add(const AssetsOverviewChart());
-        widgets.add(const SizedBox(height: AppSpacing.s3));
+        // D64.45(user UAT 反馈):
+        //   - 报表资产视角原本有"净资产 + 5 段资产 + 债务 + 总资产小字"的总览卡,
+        //     跟"我的 -> 资产"页顶部 AssetSummaryCard(总资产 + 6 大类)内容重复
+        //   - user 反馈"两个内容其实都差不多,不要冲突,把这个卡片放回资产页面"
+        //   - 修法:删 AssetsOverviewChart,报表资产 tab 只留雷达图
+        //   - 2026-10-12 P4 commit:资产视角 = 总览卡 + 6 维雷达图(2026-10-13 P6 改 4 维 → 6 维)
+        //   - 2026-10-13 P6:RangeTabs/RangeSummary 不在这里显示
+        //   - D64.33:雷达图 6 维 → 5 维(摘出 receivable 债务段),D64.37 摘出 D64.28 AssetsByType
+        // 单卡独立,跟 expense 视角放预算等单一 widget 风格一致
         add(const AssetsRadar());
     }
     return widgets;
