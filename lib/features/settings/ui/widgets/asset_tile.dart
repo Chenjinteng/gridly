@@ -21,6 +21,15 @@
 //   - 位置:type chip 之后(语义高亮,"默认账户"是比"是否计入"更突出的状态)
 //   - 配色:AppBrand.gold(跟 _IsDefaultCard + 计入 chip 同款,视觉语言统一)
 //   - 配合 Assets.isDefault 字段(3309b23),user 在资产 form 开启默认后,资产列表一眼能看到"哪条是默认"
+// 2026-10-16 D64.41 改(UAT 反馈):
+//   - 截图反馈"现金"账户 tile 第一行 3 chip(流动资金 + 默认 + 计入流水)
+//     + 2 个 trailing icon 总宽超 ListTile 可用宽度,触发 `RIGHT OVERFLOWED BY 71 PIXELS`
+//   - 修法:subtitle 第一行 chips Row → Wrap(chips 多时换行)
+//     - spacing: 6(水平间距,跟原 Row SizedBox(width:6) 一致)
+//     - runSpacing: 4(换行垂直间距)
+//     - 短 chip (1-2 个) 保持一行,长 chip (3-4 个或文字超长) 自动换行
+//     - Wrap 替代 Row 是 Flutter 标准 "horizontal overflow → 多行" 解法
+//   - 不改 chip 文字 / padding / fontSize,只换 layout,保持视觉风格不变
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -245,7 +254,10 @@ class AssetTile extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               // 第一行:chips
-              Row(
+              // D64.41:用 Wrap 替代 Row,chip 多时自动换行,避免 ListTile 右侧 71px overflow
+              Wrap(
+                spacing: 6, // 水平间距(跟原 Row SizedBox(width:6) 一致)
+                runSpacing: 4, // 换行垂直间距
                 children: [
                   // type chip(同款胶囊,type 配色)
                   _TileChip(label: labelFor(asset.type), color: typeColor),
@@ -253,11 +265,8 @@ class AssetTile extends ConsumerWidget {
                   // - 位置:type chip 紧贴后(语义高亮,比"是否计入"更突出)
                   // - 配色:AppBrand.gold(跟 _IsDefaultCard + 计入 chip 同款)
                   // - "默认" 是记一笔的优先账户,user 在资产列表一眼能看到"哪条是默认"
-                  if (asset.isDefault && asset.type == 'cash_flow') ...[
-                    const SizedBox(width: 6),
+                  if (asset.isDefault && asset.type == 'cash_flow')
                     const _TileChip(label: '默认', color: AppBrand.gold),
-                  ],
-                  const SizedBox(width: 6),
                   // 2026-10-13 P6 第 2 次改:includeInTransactions chip
                   //   计入 = 主题黄(AppBrand.gold)
                   //   不计入 = 灰色(AppGray.g600)
