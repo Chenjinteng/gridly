@@ -1,19 +1,19 @@
 // lib/features/settings/data/csv_exporter.dart
 // 流水导出为 CSV 字符串
 //
-// 2026-10-16 D65.7 改:CSV 格式升级,支持完整 round-trip
+// 2026-10-16 D65.7→D65.9 改:CSV 格式升级,完全中文化给人工对账
 //   - 老格式:date,type,category,amount,note (5 列)
 //     - Bug 1:amount 用 Formatters.amount 带千分位逗号,没 quote,
 //       解析器把 1,618.41 拆成 2 字段,所有 ≥¥1,000 的行错位
 //     - Bug 2:type 压缩成 income/expense,balance/lend_out/borrow_in 全丢,
 //       重新导入时调拨/借出/借入 全部当 expense 算,数字炸
-//   - 新格式:date,type,category,amount,account,destination_account,note (7 列)
+//   - D65.9 当前格式:日期,类型,分类,金额,账户,目标账户,备注 (7 列,全中文)
+//     - 标题全中文(日期/类型/分类/金额/账户/目标账户/备注)
+//     - 类型值全中文(收入/支出/调拨/借出/借入,DB 5 个值 1:1 翻译)
 //     - amount 用 toStringAsFixed(2) 无千分位,无歧义
-//     - type 直接传 DB 5 个值,完整保留 income/expense/balance/lend_out/borrow_in
-//     - account / destination_account 人类可读的账户名
-//     - D65.8 改:account 跟 destination_account 用 name 而非 id
-//       (D65.7 用了 id,user 反馈"我要人类可读的",name 优先于 id
-//       —— 重命名后 re-import 会失效,但人工对账一眼看懂)
+//     - 账户用 name(D65.8),人类可读
+//   - 代价:re-import 需要 1 个反向 map(中→DB enum),目前项目无 import 功能,不做
+//   - 优先级:人工对账/Excel 看 > re-import 自动化(D65.7~D65.9 迭代方向)
 import 'package:drift/drift.dart';
 
 import '../../../core/database/app_database.dart';
@@ -21,6 +21,22 @@ import '../../../core/database/app_database.dart';
 class CsvExporter {
   CsvExporter(this._db);
   final AppDatabase _db;
+
+  /// D65.9:DB tx.type 5 个 enum → 中文标签映射
+  ///   - income → 收入
+  ///   - expense → 支出
+  ///   - balance → 调拨(源账户减,目标账户加)
+  ///   - lend_out → 借出(我是债主,balance 正数)
+  ///   - borrow_in → 借入(我是负债方,balance 正数)
+  ///   - user 反馈"标准的可读可分辨的",中文标签比 DB enum 直观
+  ///   - re-import 需要反向 map,目前项目无 import,不做
+  static const Map<String, String> _typeLabel = {
+    'income': '收入',
+    'expense': '支出',
+    'balance': '调拨',
+    'lend_out': '借出',
+    'borrow_in': '借入',
+  };
 
   /// 生成指定时间范围的 CSV 字符串
   Future<String> generate(DateTime start, DateTime end) async {
@@ -38,22 +54,20 @@ class CsvExporter {
     final assets = await _db.select(_db.assets).get();
     final assetMap = {for (final a in assets) a.id: a.name};
 
-    // D65.8:7 列 — 跟 D65.7 一样,只是 account / destination_account 改用 name
+    // D65.9:7 列,全中文 — user 反馈"标准的可读可分辨的"
+    //   标题:日期 / 类型 / 分类 / 金额 / 账户 / 目标账户 / 备注
+    //   类型:收入 / 支出 / 调拨 / 借出 / 借入(DB 5 个 enum 1:1 翻译)
     final buffer = StringBuffer()
-      ..writeln('date,type,category,amount,'
-          'account,destination_account,note');
+      ..writeln('日期,类型,分类,金额,'
+          '账户,目标账户,备注');
 
     for (final t in txs) {
       final date =
           '${t.occurredAt.year.toString().padLeft(4, "0")}-'
           '${t.occurredAt.month.toString().padLeft(2, "0")}-'
           '${t.occurredAt.day.toString().padLeft(2, "0")}';
-      // D65.7:tx.type 5 个值全传(原代码压缩成 income/expense 丢 3 个)
-      //   - income / expense:真收支
-      //   - balance:调拨(源账户减,目标账户加)
-      //   - lend_out:借出(我是债主,balance 正数)
-      //   - borrow_in:借入(我是负债方,balance 正数)
-      final type = t.type;
+      // D65.9:tx.type DB 5 个值 → 中文 1:1 翻译(走 _typeLabel 静态表)
+      final type = _typeLabel[t.type] ?? t.type;
       final category = _escape(catMap[t.categoryId] ?? '未分类');
       // D65.7:amount 改 toStringAsFixed(2) 替代 Formatters.amount
       //   - Formatters.amount 加千分位逗号("1,618.41"),CSV 无 quote → 错位
