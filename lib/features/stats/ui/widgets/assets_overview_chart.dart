@@ -22,6 +22,19 @@
 //     总资产 = 6 段(含 receivable,正负都加)—— user 看完 5 段资产 + 债务差值 +
 //     备注总资产能一眼看出"我实际拥有 X,我欠 Y,合计 X+Y"
 //
+// 2026-10-16 D64.36 改(user UAT 反馈 v3,口径重排):
+//   - user 反馈"净资产应该是总资产减去负债情况出来的,并且总资产不算负债"
+//   - 新口径(与 D64.32 相反):
+//     - 总资产 = 5 段真资产 sum(**不含 receivable**),末尾小字显示
+//     - 负债 = max(0, -receivable)(只算净欠款,正 receivable 不算负债)
+//     - 净资产 = 总资产 - 负债,大字显示
+//   - 视觉布局不变(5 段资产在前 → 白线 → 债务段 → 白线 → 总资产小字),
+//     只换大数字 / 小字对应的公式 + 标签
+//   - 实测数据(receivable = -¥1,392.49 时):
+//     总资产 = 767,737.97 / 负债 = 1,392.49 / 净资产 = 766,345.48
+//   - D64.35 seed receivable 净负带来的'总资产 ≠ 净资产'差值现在正是"负债"明细,
+//     跟新口径自然吻合
+//
 // 数据源:assetTotalsProvider
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -125,23 +138,27 @@ class _AssetsOverviewChartState extends ConsumerState<AssetsOverviewChart> {
           ),
         ),
         data: (totals) {
-          // D64.32:净资产 = 5 段(cash_flow + investment + benefit + fixed_asset +
-          //   other) + max(0, receivable)
-          //   - 应收(正 receivable)算资产;应付/欠债(负 receivable)不计入"我实际拥有"
-          //   - 应收/应付差额仍走下面 6 段明细(债务段)直观显示
+          // D64.36:净资产 = 总资产 - 负债(user 反馈口径 v3)
+          //   - 总资产 = 5 段真资产 sum(cash_flow + investment + benefit +
+          //     fixed_asset + other),**不含 receivable**(user 明确"总资产不算负债")
+          //   - 负债 = max(0, -receivable),只算净欠款:
+          //     - receivable 负(净欠)→ 负债 = |负值|
+          //     - receivable 正(净应收)→ 负债 = 0(应收不是负债)
+          //   - 净资产 = 总资产 - 负债,作为大字显示
           final totalCashFlow = totals.totalCashFlow;
           final totalInvestment = totals.totalInvestment;
           final totalBenefit = totals.totalBenefit;
           final totalFixedAsset = totals.totalFixedAsset;
           final totalOther = totals.totalOther;
           final totalReceivable = totals.totalReceivable;
-          final netAssets =
+          final totalAssets =
               totalCashFlow +
               totalInvestment +
               totalBenefit +
               totalFixedAsset +
-              totalOther +
-              (totalReceivable > 0 ? totalReceivable : 0.0);
+              totalOther;
+          final debt = totalReceivable < 0 ? -totalReceivable : 0.0;
+          final netAssets = totalAssets - debt;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -232,15 +249,12 @@ class _AssetsOverviewChartState extends ConsumerState<AssetsOverviewChart> {
                       : 0,
                 ),
               ],
-              // D64.32 v2:总资产备注行 —— 6 段 sum(正负都加,跟净资产口径区分)
-              //   = totalCashFlow + totalInvestment + totalBenefit +
-              //     totalFixedAsset + totalOther + totalReceivable
+              // D64.36:总资产备注行 —— 5 段真资产 sum(不含 receivable,作为"净资产 → 负债 → 总资产"公式链的源点)
+              //   - 跟净资产大字 + 负债明细 共同构成完整口径:
+              //     净资产(大字) = 总资产(小字) - 负债(receivable 净欠)
               //   - 字号 11sp + onSurfaceVariant 灰色(跟"6 大类"trailing 同款)
               //   - 位于第二道白线后,完整 layout:
               //     5段资产 —— 白线 —— 债务段 —— 顶 0padding —— 总资产备注
-              //   - 视觉跟净资产对比:
-              //     净资产(大字,数值已含 max(0, receivable))↗
-              //     总资产(小字,数值含 receivable 全量)↘ —— 差额 = 应付/欠债
               if (_appeared) ...[
                 const SizedBox(height: AppSpacing.s2),
                 // 末尾分隔线 —— 跟"5 段资产 vs 债务段"白线同款(alpha 0.15 white)
@@ -259,10 +273,9 @@ class _AssetsOverviewChartState extends ConsumerState<AssetsOverviewChart> {
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     Text(
-                      // 6 段总和(含 receivable 全量,正负都算)
-                      '总资产 ¥${Formatters.amount(totalCashFlow + totalInvestment + totalBenefit + totalFixedAsset + totalOther + totalReceivable)}',
+                      // D64.36:5 段真资产 sum(不含 receivable,跟 user "总资产不算负债"口径一致)
+                      '总资产 ¥${Formatters.amount(totalAssets)}',
                       style: TextStyle(
-                        // D64.32 v2:小字、灰、跟"6 大类"trailing 同款(11sp + g600)
                         fontSize: 11,
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -323,10 +336,11 @@ class _TypeRow extends StatelessWidget {
   }
 }
 
-/// 6 大类展示顺序(D64.32 v2:receivable 从第 4 位挪到末尾,跟下方
-///   "总资产"小字备注形成"净资产 → 债务 → 总资产"语义链)
+/// 6 大类展示顺序(D64.32 v2 + D64.36 保留:receivable 从第 4 位挪到末尾,
+///   跟下方"总资产"小字备注形成"净资产 → 负债 → 总资产"公式语义链)
 ///   - 5 段真资产在前:现金 / 投资 / 福利 / 不动产 / 其它
-///   - receivable(债务)挪到末尾,用白线切开,作为大白线前后"差量"
+///   - receivable(负债)挪到末尾,用白线切开,作为大白线前后"减项"
+///   - D64.36 公式:净资产(大字)= 总资产(5 段,小字)- 负债(receivable 净欠)
 const List<String> _segmentOrder = [
   'cash_flow',
   'investment',
