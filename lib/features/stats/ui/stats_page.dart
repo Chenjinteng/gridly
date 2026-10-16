@@ -34,7 +34,6 @@ import '../../../core/widgets/privacy_obscure.dart';
 import 'widgets/budget_overview_chart.dart';
 import 'widgets/consumption_trend.dart';
 import 'widgets/expense_analysis.dart';
-import 'widgets/assets_by_type.dart';
 import 'widgets/assets_overview_chart.dart';
 import 'widgets/assets_radar.dart';
 import 'widgets/range_summary.dart';
@@ -217,12 +216,10 @@ class _StatsPageState extends ConsumerState<StatsPage> {
         add(const ConsumptionTrend());
         // D64.27 加:储蓄走势折线图模块 —— 加到消费趋势后面,本年专属
         //   (本年维度看全年趋势,本月维度没意义)
+        // D64.37 删除 D64.28 AssetsByType(user UAT 反馈 95%+ 走现金,信息密度低)
         if (ref.watch(statsRangeProvider) == StatsRange.thisYear) {
           widgets.add(const SizedBox(height: AppSpacing.s3));
           add(const SavingsTrend());
-          // D64.28 加:按资产 6 段分析 —— 储蓄走势之后,本年专属
-          widgets.add(const SizedBox(height: AppSpacing.s3));
-          add(const AssetsByType());
         }
       case StatsView.assets:
         // 2026-10-12 P4 commit:资产视角 = 总览卡 + 6 维雷达图(2026-10-13 P6 改 4 维 → 6 维)
