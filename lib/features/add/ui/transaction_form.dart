@@ -588,9 +588,9 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       return;
     }
     if (_accountId == null) {
-      // 兜底:P2 阶段如果用户没在"我的"建任何账户,这里走 _firstCashAssetId
-      // 兜底为 0;但若 assets 表为空(种子还没跑),repo.add 会抛 StateError,
-      // 这里 banner 给用户清晰提示
+      // 2026-10-16 D64.72 修:删"P2 阶段兜底 _firstCashAssetId"旧注释
+      //   - 该方法在当前代码不存在,留着 grep 误导
+      //   - 实际行为就是 _toast 提示 user,assets 空时 repo.add 会抛 StateError
       _toast('先在"我的"里建账户');
       return;
     }

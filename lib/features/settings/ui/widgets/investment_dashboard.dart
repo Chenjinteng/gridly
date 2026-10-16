@@ -220,6 +220,9 @@ class _YearlyBars extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 2026-10-16 D64.72 删:外层 `InvestmentDashboard.build:43` 已 `hasAny` 守,
+    //   此函数只在 hasAny=true 时被调,内部 maxVal==0 不可达
+    //   (D64.68 author 注释也承认 dead branch,本轮顺手清掉)
     final maxVal = monthly.fold<double>(
       0,
       (a, m) {
@@ -227,17 +230,6 @@ class _YearlyBars extends StatelessWidget {
         return a > mMax ? a : mMax;
       },
     );
-    if (maxVal == 0) {
-      return const SizedBox(
-        height: 120,
-        child: Center(
-          child: Text(
-            '本年暂无投资',
-            style: TextStyle(fontSize: 12, color: AppGray.g400),
-          ),
-        ),
-      );
-    }
     final chartNeedsWan = maxVal >= Formatters.wanThreshold;
     // D64.69 修:必须包 SizedBox(height: 200) 给 AnimatedBarChart 显式高度
     //   - 直接在 Column(ChartCard child, unbounded vertical max)里放 chart

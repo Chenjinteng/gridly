@@ -140,6 +140,9 @@ class _AssetAllocationChartState
       }
     }
     items.sort((a, b) => b.value.compareTo(a.value));
+    // 2026-10-16 D64.72 修:图例百分比之前每行 O(N) 重算全表 sum(整体 O(N²))
+    // 提一次到 build 顶部,图例行直接除(避免账户数膨胀时 build 卡顿)
+    final totalValue = items.fold<double>(0, (s, e) => s + e.value);
     final ringShown = items.take(AssetAllocationChart._ringMaxSections).toList();
 
     return KeyedSubtree(
@@ -235,9 +238,7 @@ class _AssetAllocationChartState
                                 _AllocationLegendRow(
                                   name: items[i].name,
                                   color: items[i].color,
-                                  percent: items[i].value /
-                                      items.fold<double>(
-                                          0, (s, e) => s + e.value),
+                                  percent: items[i].value / totalValue,
                                 ),
                               ],
                             ],
@@ -315,7 +316,4 @@ class _AllocationLegendRow extends StatelessWidget {
   }
 }
 
-/// 残留 Formatters import 触发 lint 用,实际不使用(D64.66 备注):
-///   - 之前版本(D64.62-D64.64)legend 显示金额用 Formatters.amount(v),
-///     D64.65 user 反馈"图例不需要写具体的金额"删掉,只显示占比 %
-///   - Formatters 仍 import 是为了 future 复用 + 避免后续改动删 import 麻烦
+/// 图例行:小色块 + 名称 + 占比 %(D64.63 删金额字段)

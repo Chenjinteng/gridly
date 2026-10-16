@@ -150,26 +150,19 @@ class _DebtDashboardState extends ConsumerState<DebtDashboard> {
           //   不用 IndexedStack(避免 ListView unbounded height 异常),
           //   不用 TabBarView(同上),切 tab 时子 widget 重新 build,
           //   数字动画重新触发(符合 D64.62 设计:数字滚动做"警示/友好"反馈)
-          if (_index == 0)
-            const Padding(
-              padding: EdgeInsets.fromLTRB(
-                AppSpacing.s4,
-                0,
-                AppSpacing.s4,
-                AppSpacing.s4,
-              ),
-              child: LiabilitiesDashboard(),
-            )
-          else
-            const Padding(
-              padding: EdgeInsets.fromLTRB(
-                AppSpacing.s4,
-                0,
-                AppSpacing.s4,
-                AppSpacing.s4,
-              ),
-              child: ReceivablesDashboard(),
+          // 2026-10-16 D64.72 修:外层共享同一个 Padding + body widget
+          //   if/else,改 padding 改 1 处(之前两个一样 padding 容易漏改 1)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.s4,
+              0,
+              AppSpacing.s4,
+              AppSpacing.s4,
             ),
+            child: _index == 0
+                ? const LiabilitiesDashboard()
+                : const ReceivablesDashboard(),
+          ),
         ],
       ),
     );
