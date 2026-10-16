@@ -72,6 +72,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/card_shadows.dart';
 import '../../../../core/utils/asset_balance_provider.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/animated_counter.dart';
 import '../../../settings/ui/widgets/asset_tile.dart' show AssetTile;
 
 /// 报表"负债情况" dashboard
@@ -177,22 +178,32 @@ class LiabilitiesDashboard extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.s1),
-          // 总负债大字(D64.61:负数警示)
-          //   - 显示 `∑ balance`(负数累加),Formatters.amount 自动 "-X,XXX.XX"
-          //   - 颜色 error 红警示(替代原 cream 中性色)
-          //   - empty 时 totalLiab = 0,显示 "¥0"(不变,empty state 路径走下方
-          //     "当前无负债 ✓" 不显示大字本行 — 不,大字照常显示 0,跟之前一样)
+          // 总负债大字(D64.61:负数警示 + D64.62:数字跳动动画)
+          //   - D64.61 显示 `∑ balance`(负数累加),Formatters.amount 自动 "-X,XXX.XX"
+          //     颜色 error 红警示
+          //   - D64.62 加 AnimatedCounter 数字滚动:首次入场从 0 滚到目标值,
+          //     切月份/视角/数据更新时从旧值滚到新值(同 range_summary 套路)
+          //   - FittedBox scale-down 适配长数字("¥-22,157.95" vs "¥0"),
+          //     maxLines=1 + softWrap=false 跟 range_summary 一致避免换行
+          //   - empty 时 totalLiab = 0,大字照常显示 "¥0"(empty state 路径走下方
+          //     "当前无负债 ✓",跟之前一样)
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
-            child: Text(
-              '¥${Formatters.amount(totalLiab)}',
+            child: AnimatedCounter(
+              value: totalLiab,
+              prefix: '¥',
+              formatter: (v) => Formatters.amount(v),
+              duration: const Duration(milliseconds: 480),
               style: TextStyle(
                 color: AppStatus.error,
                 fontSize: 28,
                 fontWeight: FontWeight.w700,
                 height: 1.1,
               ),
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.visible,
             ),
           ),
           // D64.57:负债率(大字下面副标题,13sp w500 onSurfaceVariant)
