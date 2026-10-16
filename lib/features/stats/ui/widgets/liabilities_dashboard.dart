@@ -14,12 +14,25 @@
 //     但 radar 5 维只反映 5 段真资产占比,没专门展示"我欠多少"细节
 //   - 修法:新增本 widget,放进 stats_page 资产 tab 顶部(雷达图上方)
 //
+// 2026-10-16 D64.57 加(user UAT 反馈):
+//   - user 反馈"然后我再调整一下负债情况,增加负债率"
+//   - 公式:负债率 = (总负债 / 总资产) × 100%
+//     - 分子 = ∑ max(0, -balance) over all receivable accounts(同大字口径)
+//     - 分母 = 5 真资产累加(cash_flow / investment / benefit / fixed_asset / other,
+//       **不含 receivable**,跟 D64.36 总资产口径一致)
+//     - 防除 0:totalAssets = 0 且 totalDebt = 0 → 0%(无负债无资产,合规)
+//     - 兜底:totalAssets = 0 且 totalDebt > 0 → 0%(逻辑上"我没资产但有负债"
+//       罕见情况,避免 NaN/Infinity 显示)
+//   - 显示位置:大字下面独立一行(13sp w500 onSurfaceVariant 副标题),
+//     empty state 不显示负债率(✓ "当前无负债"已隐含 0%,避免冗余)
+//
 // 设计要点(跟 AssetSummaryCard 镜像):
 //   - ink 底 / AppRadius.brLg / 1px outline / CardShadows.dark
 //     跟"我的 -> 资产"顶部 AssetSummaryCard 视觉系统统一
 //   - 标题"负债情况" 11sp AppGray.g400(跟 AssetSummaryCard "净资产" 同款)
 //   - 大字 = 总负债(∑ max(0, -balance) over all receivable accounts),
 //     fontSize 28 w700 cream
+//   - 负债率 = 总负债 / 总资产 × 100%(D64.57),紧跟大字下面,13sp w500 灰
 //   - 列表(每个 receivable 账户 1 行,按 debt 降序):
 //     [icon chip 28x28]  [name Expanded]  [bar 60% flex 0..1]  [12% 8sp]  [¥X 12sp w600]
 //     bar 是横向 Container,宽度按 debt/totalDebt 比例,跟其它 segment 色同款
@@ -33,6 +46,7 @@
 //   - allAssetsProvider(receivable 段账户列表)
 //   - assetBalancesProvider(Map<assetId, currentBalance>)
 //   - 算 debt = max(0, -balance),跟 D64.36 净资产口径公式一致
+//   - D64.57 算 5 真资产累加 = totalAssets(不含 receivable),byType 累加模式
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -54,10 +68,28 @@ class LiabilitiesDashboard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
     final assetsAsync = ref.watch(allAssetsProvider);
     final balancesAsync = ref.watch(assetBalancesProvider);
     final assets = assetsAsync.valueOrNull ?? const <Asset>[];
     final balances = balancesAsync.valueOrNull ?? const <int, double>{};
+
+    // 按 type 累加 balance(跟 AssetSummaryCard 同款,后续可抽公共 provider —
+    // D64.58+ 复盘若 AssetSummaryCard 跟 LiabilitiesDashboard 两边重复累加
+    // 逻辑要 drift 时,提 netAssetsBreakdownProvider 共享;当前 5 真资产 +
+    // receivable 总累加就地实现)
+    final byType = <String, double>{
+      'cash_flow': 0.0,
+      'investment': 0.0,
+      'benefit': 0.0,
+      'receivable': 0.0,
+      'fixed_asset': 0.0,
+      'other': 0.0,
+    };
+    for (final a in assets) {
+      final bal = balances[a.id] ?? 0.0;
+      byType[a.type] = (byType[a.type] ?? 0.0) + bal;
+    }
 
     // 提取 receivable 段账户,算每账户的 debt = max(0, -balance)
     //   - 跟 D64.36 净资产口径公式一致:负债 = max(0, -receivable),
@@ -79,6 +111,23 @@ class LiabilitiesDashboard extends ConsumerWidget {
     // 按 debt 降序,最大的在前面
     receivableItems.sort((a, b) => b.debt.compareTo(a.debt));
     final totalDebt = receivableItems.fold<double>(0, (s, e) => s + e.debt);
+
+    // D64.57:总资产 = 5 真资产累加(**不含 receivable**,跟 D64.36 总资产口径一致)
+    //   - receivable 是借贷账户(余额可正可负,正=净应收 / 负=净应付),
+    //     不进"我有什么"累加(资产页 AssetSummaryCard 末尾小字"总资产"口径)
+    //   - 5 段真资产 = cash_flow / investment / benefit / fixed_asset / other
+    final totalAssets =
+        (byType['cash_flow'] ?? 0) +
+            (byType['investment'] ?? 0) +
+            (byType['benefit'] ?? 0) +
+            (byType['fixed_asset'] ?? 0) +
+            (byType['other'] ?? 0);
+    // D64.57:负债率 = (总负债 / 总资产) × 100%
+    //   - 防除 0:totalAssets = 0 且 totalDebt = 0 → 0%(无负债无资产,合规)
+    //   - 兜底:totalAssets = 0 且 totalDebt > 0 → 0%(逻辑上"我没资产但有负债"
+    //     罕见情况,避免 NaN/Infinity 显示)
+    final ratio = totalAssets > 0 ? (totalDebt / totalAssets) : 0.0;
+    final debtRatio = (ratio * 100).toStringAsFixed(0);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
@@ -120,6 +169,22 @@ class LiabilitiesDashboard extends ConsumerWidget {
               ),
             ),
           ),
+          // D64.57:负债率(大字下面副标题,13sp w500 onSurfaceVariant)
+          //   - 有数据时显示,empty state 不显示(避免冗余 — ✓ "当前无负债"
+          //     已隐含 0%)
+          //   - 颜色 onSurfaceVariant 跟 AssetSummaryCard 末尾"总资产"小字
+          //     同款灰,跨页一致
+          if (receivableItems.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.s1),
+            Text(
+              '负债率 $debtRatio%',
+              style: TextStyle(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
           const SizedBox(height: AppSpacing.s3),
           // empty state 跟有数据分两路(empty 不画 Divider,只画提示)
           if (receivableItems.isEmpty) ...[
