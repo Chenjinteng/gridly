@@ -15,7 +15,9 @@
 //   - 首页(月度汇总 monthTransactionsProvider)
 //   - 报表(statsTransactionsProvider / expenseByCategoryProvider /
 //     topExpensesProvider / monthlyTrendProvider /
-//     dailyExpenseTrendProvider / yearlyExpenseTrendProvider)
+//     dailyExpenseTrendProvider / yearlyExpenseTrendProvider /
+//     monthlyYoYProvider / yearlyYoYProvider / yearlyMonthlyTrendProvider /
+//     categoryCompareProvider / weekdayExpenseProvider / expenseByAssetProvider)
 //   - 分类页 / 关于页(allCategoriesProvider)
 //   - 分类预算(categoryBudgetsForMonthProvider /
 //     categoryBudgetUsageForMonthProvider / budgetOverviewForMonthProvider)
@@ -41,6 +43,21 @@ void refreshAllData(WidgetRef ref) {
   // 也要同步加到这里。
   ref.invalidate(dailyExpenseTrendProvider);
   ref.invalidate(yearlyExpenseTrendProvider);
+  // 2026-10-16 D64.83 补:D63 / D62.3 / D62.4 / D64.21d 加的 6 个 provider
+  //   之前漏加,user 编辑流水后报表这些 dashboard 都用旧缓存(跟 commit 84
+  //   同模式 bug 重复犯)
+  //   - monthlyYoYProvider:range_summary 本月维度同比箭头
+  //   - yearlyYoYProvider:range_summary 本年维度同比箭头
+  //   - yearlyMonthlyTrendProvider:本年维度 1-12 月收入支出柱
+  //   - categoryCompareProvider:类别对比卡(本月 vs 上月各类别)
+  //   - weekdayExpenseProvider:周几支出 7 柱
+  //   - expenseByAssetProvider:按支付账户支出圆环
+  ref.invalidate(monthlyYoYProvider);
+  ref.invalidate(yearlyYoYProvider);
+  ref.invalidate(yearlyMonthlyTrendProvider);
+  ref.invalidate(categoryCompareProvider);
+  ref.invalidate(weekdayExpenseProvider);
+  ref.invalidate(expenseByAssetProvider);
   ref.invalidate(allCategoriesProvider);
   // 2026-10-11 UAT bug fix:分类管理里 add/update/delete 后,记一笔页的分类
   // 选择器必须同步刷新;之前只 invalidate allCategoriesProvider,family 的
