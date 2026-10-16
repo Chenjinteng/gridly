@@ -16,17 +16,6 @@
 //
 // 跟 category_management_page.dart 镜像结构,确保 user 体验一致
 //
-// 2026-10-16 D64.68 改(user UAT 反馈):
-//   - user 反馈"资产页面开始增加投资的投入和收益情况的图"
-//   - 选定方案:汇总卡 + 12 月双柱(完整 dashboard,跟 stats 债务情况卡片同款结构)
-//   - 在 AssetSummaryCard 下方 / 第一段 _Group 上方插入
-//     `InvestmentDashboard`,只在 invest 段非空时显示
-//   - 数据源:transaction JOIN category.filter(type='investment'),
-//     投入 = tx.type='balance',收益 = tx.type='income',
-//     累计净收益 = sum(收益) - sum(投入),本年 12 月按月分组
-//   - 视觉:surface bg + outlineVariant border,跟 stats 图表容器 ChartCard 同款,
-//     跟资产页 surface 调一致(不破坏 navy 主题,跟 navy 投资 tile 互补)
-//
 // 2026-10-16 D64.50 改(user UAT 反馈):
 //   - user 反馈"另外,如果'显示金额'这个关闭上的话,即不显示金额时,
 //     打开资产管理这个页面也要隐藏所有的资产"
@@ -60,7 +49,6 @@ import '../../../core/utils/refresh_providers.dart';
 import '../../../core/widgets/privacy_obscure.dart';
 import 'widgets/asset_summary_card.dart';
 import 'widgets/asset_tile.dart';
-import 'widgets/investment_dashboard.dart';
 
 class AssetsManagementPage extends ConsumerWidget {
   const AssetsManagementPage({super.key});
@@ -110,12 +98,6 @@ class AssetsManagementPage extends ConsumerWidget {
                 children: [
                   const AssetSummaryCard(),
                   const SizedBox(height: AppSpacing.s4),
-                  // 2026-10-16 D64.68:投资情况 dashboard(汇总卡 + 12月双柱),
-                  //   只在有投资账户时显示(避免空态)
-                  if (invest.isNotEmpty) ...[
-                    const InvestmentDashboard(),
-                    const SizedBox(height: AppSpacing.s4),
-                  ],
                   if (cash.isNotEmpty)
                     _Group(
                       // D64.40:从 "现金流" 改 "流动资金"

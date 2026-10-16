@@ -42,6 +42,7 @@ import 'widgets/expense_analysis.dart';
 import 'widgets/asset_allocation_chart.dart';
 import 'widgets/assets_radar.dart';
 import 'widgets/debt_dashboard.dart';
+import '../../../features/settings/ui/widgets/investment_dashboard.dart';
 import 'widgets/range_summary.dart';
 import 'widgets/range_tabs.dart';
 import 'widgets/savings_trend.dart';
@@ -257,12 +258,18 @@ class _StatsPageState extends ConsumerState<StatsPage> {
         //   - 之前 D64.56/D64.62 是两张独立卡(LiabilitiesDashboard + ReceivablesDashboard),
         //     user 觉得冗余;合并成 DebtDashboard(ink 底 + 顶部 TabBar 切 2 段),
         //     LiabilitiesDashboard / ReceivablesDashboard 改成"纯 body"(去掉外层 Container)
-        // 最终顺序:债务情况(tabbed) → 雷达图(真资产配比) → 资产配置分布(账户级环形)
+        // 最终顺序:债务情况(tabbed) → 雷达图(真资产配比) → 资产配置分布(账户级环形) → 投资情况(12月双柱)
+        // D64.68:user UAT 反馈"资产页面开始增加投资的投入和收益情况的图"——
+        //   "资产页面"指"资产报表"页面(stats 资产 tab),不是"我的 → 资产"页
+        // 投资情况:InvestmentDashboard 即使空态也画 ChartCard(显示"本年暂无投资"),
+        //   跟前 3 个 widget 模式统一,parent 加 SizedBox(s3) 分隔符永远生效
         add(const DebtDashboard());
         widgets.add(const SizedBox(height: AppSpacing.s3));
         add(const AssetsRadar());
         widgets.add(const SizedBox(height: AppSpacing.s3));
         add(const AssetAllocationChart());
+        widgets.add(const SizedBox(height: AppSpacing.s3));
+        add(const InvestmentDashboard());
     }
     return widgets;
   }

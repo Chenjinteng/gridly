@@ -34,63 +34,75 @@ class InvestmentDashboard extends ConsumerWidget {
     final monthlyAsync = ref.watch(investmentMonthlyProvider);
     final netTotalAsync = ref.watch(investmentNetTotalProvider);
 
-    // 空态:本年没投资 tx → 隐藏整个 widget(让 user 只看有数据的部分)
+    // loading 态:不画(避免卡片高度跳动)
+    if (monthlyAsync.isLoading || netTotalAsync.isLoading) {
+      return const SizedBox.shrink();
+    }
     final monthly = monthlyAsync.valueOrNull;
-    if (monthly == null) {
-      return const SizedBox.shrink();
-    }
+    if (monthly == null) return const SizedBox.shrink();
     final hasAny = monthly.any((m) => m.invested > 0 || m.returned > 0);
-    if (!hasAny) {
-      return const SizedBox.shrink();
-    }
 
     final theme = Theme.of(context);
+    // 空态也画卡片(跟 stats 其他 widget 一致 — 永远展示容器,内部分支)
+    // 让 stats 父级 SizedBox(s3) 分隔符在所有 user 都生效,空态显示一行 hint
     return ChartCard(
       title: '投资情况',
-      // 右侧 legend:投入 dot + 收益 dot
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _LegendDot(color: AppStatus.error, label: '投入'),
-          const SizedBox(width: AppSpacing.s3),
-          _LegendDot(color: AppBrand.teal, label: '收益'),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 顶部:累计净收益大字
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.s4,
-              AppSpacing.s3,
-              AppSpacing.s4,
-              AppSpacing.s2,
+      // 右侧 legend:投入 dot + 收益 dot(仅数据时显示)
+      trailing: hasAny
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _LegendDot(color: AppStatus.error, label: '投入'),
+                const SizedBox(width: AppSpacing.s3),
+                _LegendDot(color: AppBrand.teal, label: '收益'),
+              ],
+            )
+          : null,
+      child: hasAny
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 顶部:累计净收益大字
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.s4,
+                    AppSpacing.s3,
+                    AppSpacing.s4,
+                    AppSpacing.s2,
+                  ),
+                  child: _NetTotalHeader(netTotalAsync: netTotalAsync),
+                ),
+                // 12 月双柱
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.s2,
+                    AppSpacing.s2,
+                    AppSpacing.s2,
+                    AppSpacing.s4,
+                  ),
+                  child: _YearlyBars(monthly: monthly),
+                ),
+                // 底部补充说明(本年投入/收益合计)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.s4,
+                    0,
+                    AppSpacing.s4,
+                    AppSpacing.s3,
+                  ),
+                  child: _YearTotals(monthly: monthly, theme: theme),
+                ),
+              ],
+            )
+          : const Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpacing.s5),
+              child: Center(
+                child: Text(
+                  '本年暂无投资',
+                  style: TextStyle(fontSize: 12, color: AppGray.g400),
+                ),
+              ),
             ),
-            child: _NetTotalHeader(netTotalAsync: netTotalAsync),
-          ),
-          // 12 月双柱
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.s2,
-              AppSpacing.s2,
-              AppSpacing.s2,
-              AppSpacing.s4,
-            ),
-            child: _YearlyBars(monthly: monthly),
-          ),
-          // 底部补充说明(本年投入/收益合计)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.s4,
-              0,
-              AppSpacing.s4,
-              AppSpacing.s3,
-            ),
-            child: _YearTotals(monthly: monthly, theme: theme),
-          ),
-        ],
-      ),
     );
   }
 }
