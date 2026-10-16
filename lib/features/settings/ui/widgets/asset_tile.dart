@@ -35,7 +35,10 @@
 //   - 修法:tile wrap 进 `SwipeToActions`(从 transaction_tile 的 `_SwipeToDelete` 抽出
 //     的 public 共享 widget,见 lib/core/widgets/swipe_to_actions.dart)
 //   - 删 trailing 的 [编辑][删除] 两个 InkWell(原代码占用 80px,跟 Wrap 一起解决 71px 溢出)
-//   - onTap = onEdit(asset 没详情页,沿用原"点 tile = 编辑"行为;SwipeToActions 接收 onTap 可选 callback)
+//   - 不传 SwipeToActions.onTap(默认 null):tile 自身 onTap 走 noop,
+//     但 SwipeToActions 内部 onTap handler 仍会清 openSwipeIdProvider + _close,
+//     实现"点 tile 收回正在滑开的 tile"(点编辑/删除按钮 InkWell 会吃掉 tap,
+//     不会触发这条)
 //   - iOS Mail.app 风格:左滑露 [编辑 64px + gap + 删除 64px] 按钮,跟流水 tile 完全一致
 //   - 物理参数 / 弹性 / fling 速度 / spring / openSwipeIdProvider 全局互斥 = 跟流水共用一套
 // 2026-10-16 D64.43 改(user UAT 反馈):
@@ -91,6 +94,26 @@
 //     ⑥ chip 底色 alpha 0.20 → 0.18 + 文字 `Colors.white` 覆盖(teal 底上白 chip)
 //     ⑦ logo icon 在 teal 底上保留原 asset.color,但 logo 底色从 0.20 alpha
 //       提到 0.28(增强 logo 在亮底上的辨识度)
+// 2026-10-16 D64.44 改(user UAT 反馈):
+//   - user 反馈"左滑动是暴露编辑删除按钮,但是直接点击卡片也会进入编辑,
+//     这不行,把这个点击进入编辑的去掉"
+//   - 背景:asset tile 现在走 SwipeToActions 左滑露 [编辑 64 + 删除 64] 按钮,
+//     D64.43 之前 tile 自身也 onTap = onEdit(user 早起 PageTile 行为),
+//     形成"点 tile 进编辑 + 左滑也能进编辑"的入口重复
+//   - 修法:
+//     ① 不传 SwipeToActions.onTap,内部 tile GestureDetector.onTap 走 noop
+//       (SwipeToActions 默认 onTap = null,widget.onTap?.call() 在 null 时不会触发)
+//     ② SwipeToActions 内 tile GestureDetector.onTap handler 仍会做:
+//        - ref.read(openSwipeIdProvider.notifier).state = null
+//        - _close()
+//        → 实现"点 tile 收回正在滑开的 tile"(点编辑/删除按钮时 InkWell 吃掉 tap,
+//          这条不触发;这跟 ledger tile 行为一致)
+//     ③ 编辑只能走 SwipeToActions 左滑露 [编辑] 按钮这一个入口,
+//       删除走左滑 [删除] 按钮(纯 destructive 按钮,iOS Mail 同款)
+//     ④ 不要给 tile 加"无响应"的副作用:用户点 tile 时视觉上无动作只收回正在滑开的 tile,
+//       这是有意义的(关 swipe),跟 ledger 一致
+//   - 不改 assets_management_page 的外层 GestureDetector(它仍然是"点屏幕收回正在滑开的 tile",
+//     跟 ledger page 同样模式)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -270,7 +293,11 @@ class AssetTile extends ConsumerWidget {
       tileId: asset.id,
       onEdit: onEdit,
       onDelete: onDelete,
-      onTap: onEdit, // asset 没详情页,沿用原"点 tile = 编辑"行为
+      // D64.44:不传 onTap → tile 自身点击 noop(D64.43 之前是 onTap = onEdit,
+      //   但左滑已经露编辑/删除按钮,user 反馈"直接点 tile 不该再进编辑"
+      //   入口重复)。SwipeToActions 内部 onTap handler 仍会清
+      //   openSwipeIdProvider + _close,实现"点 tile 收回正在滑开的 tile"
+      //   (点编辑/删除按钮 InkWell 吃掉 tap,不触发这条;这跟 ledger tile 行为一致)
       child: Container(
         margin: const EdgeInsets.symmetric(
           horizontal: AppSpacing.s4,
