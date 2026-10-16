@@ -228,26 +228,10 @@ class SettingsPage extends ConsumerWidget {
             title: '版本',
             trailing: Text(versionTrailing),
           ),
-          _InfoTile(
-            icon: Icons.code_rounded,
-            title: '技术栈',
-            trailing: const Text(
-              'Flutter 3.47',
-              style: TextStyle(color: AppGray.g600),
-            ),
-          ),
-          _InfoTile(
-            icon: Icons.storage_outlined,
-            title: '数据存储',
-            trailing: const Text(
-              '本地 SQLite',
-              style: TextStyle(color: AppGray.g600),
-            ),
-          ),
           _ActionTile(
             icon: Icons.info_outline,
             title: '关于格子记账',
-            subtitle: '品牌 + 隐私政策 + 清空数据',
+            subtitle: '简介 + 隐私政策 + 免责说明 + 清空数据',
             onTap: () => context.push('/settings/about'),
           ),
         ],
