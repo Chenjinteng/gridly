@@ -30,7 +30,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/asset_balance_provider.dart';
 import '../../../../core/utils/gridly_banner.dart';
 import '../../../../core/utils/refresh_providers.dart';
-import '../../../../core/widgets/aqua_switch.dart';
+import '../../../../core/widgets/aqua_row_card.dart';
 import 'asset_tile.dart';
 
 class AssetFormPage extends ConsumerStatefulWidget {
@@ -348,9 +348,19 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
               if (_type == 'cash_flow') ...[
                 const _SectionLabel('默认'),
                 const SizedBox(height: AppSpacing.s2),
-                _IsDefaultCard(
+                AquaRowCard(
                   value: _isDefault,
                   onChanged: (v) => setState(() => _isDefault = v),
+                  icon: _isDefault
+                      ? Icons.star_rounded
+                      : Icons.star_outline_rounded,
+                  iconColor: _isDefault
+                      ? AppBrand.gold
+                      : theme.colorScheme.onSurfaceVariant,
+                  title: '设为默认账户',
+                  subtitle: _isDefault
+                      ? '记一笔时优先选中这条账户'
+                      : '关闭后,其他现金账户可设为默认',
                 ),
                 const SizedBox(height: AppSpacing.s4),
               ],
@@ -363,9 +373,17 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
               //   - 跟"显示金额"开关 ListTile 风格完全一致
               const _SectionLabel('日常'),
               const SizedBox(height: AppSpacing.s2),
-              _IncludeInTransactionsCard(
+              AquaRowCard(
                 value: _includeInTransactions,
                 onChanged: (v) => setState(() => _includeInTransactions = v),
+                icon: _includeInTransactions
+                    ? Icons.sync_alt_rounded
+                    : Icons.sync_disabled_rounded,
+                iconColor: theme.colorScheme.onSurfaceVariant,
+                title: '计入日常流水',
+                subtitle: _includeInTransactions
+                    ? '会显示在流水页'
+                    : '不会显示在流水页(投资/福利/债权等)',
               ),
               const SizedBox(height: AppSpacing.s4),
 
@@ -376,9 +394,19 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
               //   - 只有开启了"充当现金流"的 receivable 账户才在记一笔 cash_flow 支出 picker 里出现
               //   - 非 receivable 段此开关无意义,隐藏避免误操作(同 IsDefaultCard 套路)
               if (_type == 'receivable') ...[
-                _ActAsCashFlowCard(
+                AquaRowCard(
                   value: _actAsCashFlow,
                   onChanged: (v) => setState(() => _actAsCashFlow = v),
+                  icon: _actAsCashFlow
+                      ? Icons.credit_card_rounded
+                      : Icons.credit_card_off_rounded,
+                  iconColor: _actAsCashFlow
+                      ? AppStatus.warning
+                      : theme.colorScheme.onSurfaceVariant,
+                  title: '充当现金流',
+                  subtitle: _actAsCashFlow
+                      ? '记一笔支出时可选这条账户(花呗/白条/信用卡等可消费债务)'
+                      : '仅在债务段调拨还款用(车贷/房贷/借款等不可消费债务)',
                 ),
                 const SizedBox(height: AppSpacing.s4),
                 // 2026-10-16 D64.58:借出开关(仅 receivable 段显示)
@@ -387,11 +415,19 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
                 //     先有 label,然后才能做进一步的分析"
                 //   - 默认 false = 借入(我是负债方,余额为负,花呗/车贷/房贷/借款)
                 //   - 打开 true = 借出(我是债权人,余额为正,例如借给老王)
-                //   - 放在 _ActAsCashFlowCard 之后,跟 receivable 段 toggle 风格统一
+                //   - 放在 AquaRowCard 之后,跟 receivable 段 toggle 风格统一
                 //   - 本次 D64.58 只做 label 落地;后续 D64.59+ 才展开联动
-                _IsLenderCard(
+                AquaRowCard(
                   value: _isLender,
                   onChanged: (v) => setState(() => _isLender = v),
+                  icon: Icons.handshake_rounded,
+                  iconColor: _isLender
+                      ? theme.colorScheme.onSurface
+                      : theme.colorScheme.onSurfaceVariant,
+                  title: '借出',
+                  subtitle: _isLender
+                      ? '我是债权人,余额为正(例如借给老王)'
+                      : '我是负债方,余额为负(例如花呗/车贷/房贷/借款)',
                 ),
                 const SizedBox(height: AppSpacing.s4),
               ],
@@ -590,317 +626,6 @@ class _SectionLabel extends StatelessWidget {
         fontSize: 13,
         fontWeight: FontWeight.w500,
         color: Theme.of(context).colorScheme.onSurfaceVariant,
-      ),
-    );
-  }
-}
-
-/// 计入日常流水 卡片行(2026-10-13 P6 第 6 次改)
-/// - 16px 圆角 card + 1px outlineVariant + surfaceContainerLow
-/// - leading icon + 主标 + 副标(11sp)+ trailing AquaSwitch
-/// - 跟 settings_page.dart "显示金额" ListTile 风格完全一致
-class _IncludeInTransactionsCard extends StatelessWidget {
-  const _IncludeInTransactionsCard({
-    required this.value,
-    required this.onChanged,
-  });
-
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: AppRadius.brLg,
-        border: Border.all(color: theme.colorScheme.outlineVariant, width: 1),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Material(
-        color: Colors.transparent,
-        // 整行 tap 切换(跟 ListTile 一致);AquaSwitch 自身 GestureDetector.opaque
-        // 会拦截 tap 不冒泡,避免双重触发
-        child: InkWell(
-          onTap: () => onChanged(!value),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.s3,
-              vertical: 14,
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  value ? Icons.sync_alt_rounded : Icons.sync_disabled_rounded,
-                  size: 20,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: AppSpacing.s3),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        '计入日常流水',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        value ? '会显示在流水页' : '不会显示在流水页(投资/福利/债权等)',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppGray.g600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                AquaSwitch(value: value, onChanged: onChanged),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 2026-10-13 P7 加:默认账户 卡片行(仅 cash_flow 段显示)
-/// - 风格跟 _IncludeInTransactionsCard 同款(16px 圆角 card + AquaSwitch)
-/// - 开启:这条 cash_flow 账户会被记一笔默认选中(配合 setDefaultForCashFlow 单例)
-/// - 关闭:不影响其他默认账户(若自己是当前默认,关闭后无 cash_flow 默认账户,
-///   记一笔 fallback 到 typeAssets.first)
-class _IsDefaultCard extends StatelessWidget {
-  const _IsDefaultCard({required this.value, required this.onChanged});
-
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: AppRadius.brLg,
-        border: Border.all(color: theme.colorScheme.outlineVariant, width: 1),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => onChanged(!value),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.s3,
-              vertical: 14,
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  value ? Icons.star_rounded : Icons.star_outline_rounded,
-                  size: 20,
-                  color: value
-                      ? AppBrand.gold
-                      : theme.colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: AppSpacing.s3),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        '设为默认账户',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        value ? '记一笔时优先选中这条账户' : '关闭后,其他现金账户可设为默认',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppGray.g600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                AquaSwitch(value: value, onChanged: onChanged),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 2026-10-15 D61:充当现金流开关(仅 receivable 段账户显示)
-///   - user UAT 反馈:"债务这里的属性还需要增加一个按钮,就是'充当现金流'"
-///   - true:花呗/白条/信用卡等可消费债务,在记一笔 cash_flow 支出 picker 里能选
-///   - false:车贷/房贷/借款等不可消费债务,只走 receivable 段调拨还款,
-///     不会出现在 cash_flow 支出 picker 里
-///   - AquaSwitch 风格 + 16px 圆角 card,跟 _IsDefaultCard / _IncludeInTransactionsCard 一致
-class _ActAsCashFlowCard extends StatelessWidget {
-  const _ActAsCashFlowCard({required this.value, required this.onChanged});
-
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: AppRadius.brLg,
-        border: Border.all(color: theme.colorScheme.outlineVariant, width: 1),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => onChanged(!value),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.s3,
-              vertical: 14,
-            ),
-            child: Row(
-              children: [
-                // 信用卡 icon(语义:可作付款工具),与花呗/白条概念对应
-                Icon(
-                  value
-                      ? Icons.credit_card_rounded
-                      : Icons.credit_card_off_rounded,
-                  size: 20,
-                  color: value
-                      ? AppStatus.warning
-                      : theme.colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: AppSpacing.s3),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        '充当现金流',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        value
-                            ? '记一笔支出时可选这条账户(花呗/白条/信用卡等可消费债务)'
-                            : '仅在债务段调拨还款用(车贷/房贷/借款等不可消费债务)',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppGray.g600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                AquaSwitch(value: value, onChanged: onChanged),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// 2026-10-16 D64.58 加:借出开关(仅 receivable 段显示)
-//   - 视觉跟 _ActAsCashFlowCard 同款 Switch 风格(外层大圆角 card + icon chip +
-//     主标 + 副标 + AquaSwitch),跟 receivable 段另一个 toggle 风格统一
-//   - icon 用 handshake_rounded(借出语义,跟 AssetTile.icons['handshake'] 同款),
-//     颜色按 value 区分:开 = 暖色(出借强调),关 = onSurfaceVariant 中性
-//   - 主标 "借出" + 副标根据 value 切换:
-//     - true:我是债权人,余额为正(例如借给老王)
-//     - false:我是负债方,余额为负(例如花呗/车贷/房贷/借款)
-//   - 本次 D64.58 只做 label 落地;后续 D64.59+ 才展开联动
-// ============================================================================
-class _IsLenderCard extends StatelessWidget {
-  const _IsLenderCard({required this.value, required this.onChanged});
-
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: AppRadius.brLg,
-        border: Border.all(color: theme.colorScheme.outlineVariant, width: 1),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => onChanged(!value),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.s3,
-              vertical: 14,
-            ),
-            child: Row(
-              children: [
-                // handshake_rounded 跟 AssetTile.icons['handshake'] 同款,
-                // 语义"借出"。颜色:value=true 用 onSurface 强色调(债权强调),
-                // false 用 onSurfaceVariant 中性(默认借入态)
-                Icon(
-                  Icons.handshake_rounded,
-                  size: 20,
-                  color: value
-                      ? theme.colorScheme.onSurface
-                      : theme.colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: AppSpacing.s3),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        '借出',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        value
-                            ? '我是债权人,余额为正(例如借给老王)'
-                            : '我是负债方,余额为负(例如花呗/车贷/房贷/借款)',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppGray.g600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                AquaSwitch(value: value, onChanged: onChanged),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }
