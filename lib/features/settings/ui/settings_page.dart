@@ -16,6 +16,7 @@ import '../../../core/widgets/show_app_modal_sheet.dart';
 import '../../../core/theme/theme_mode_provider.dart';
 import '../../../core/utils/budget_provider.dart';
 import '../../../core/utils/formatters.dart';
+import 'widgets/backup_restore_sheet.dart';
 import 'widgets/csv_export_sheet.dart';
 
 class SettingsPage extends ConsumerWidget {
@@ -214,6 +215,13 @@ class SettingsPage extends ConsumerWidget {
             subtitle: '按时间范围导出流水',
             onTap: () => _openExportSheet(context),
           ),
+          // 2026-10-17 D68 加:数据库全量备份 / 还原
+          _ActionTile(
+            icon: Icons.cloud_sync_outlined,
+            title: '备份还原',
+            subtitle: '完整备份 / 还原本地数据库',
+            onTap: () => _openBackupSheet(context),
+          ),
           _ActionTile(
             icon: Icons.category_outlined,
             title: '分类管理',
@@ -250,6 +258,19 @@ class SettingsPage extends ConsumerWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
       ),
       builder: (_) => const CsvExportSheet(),
+    );
+  }
+
+  // 2026-10-17 D68 加:数据库备份 / 还原 sheet(D66 showAppModalBottomSheet 顺手)
+  void _openBackupSheet(BuildContext context) {
+    showAppModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      builder: (_) => const BackupRestoreSheet(),
     );
   }
 }

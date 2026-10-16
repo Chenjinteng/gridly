@@ -2,7 +2,7 @@ name: gridly
 description: "格子记账 — 一格一账的本地优先记账工具"
 publish_to: 'none'
 
-version: 0.1.0+47  # P0 阶段从 0.1.0 开始;D64.54 build+1 约定每次 commit bump 1
+version: 0.1.0+48  # P0 阶段从 0.1.0 开始;D64.54 build+1 约定每次 commit bump 1
 
 environment:
   sdk: ^3.13.5
@@ -39,6 +39,8 @@ dependencies:
   share_plus: ^10.0.0
   flutter_markdown: ^0.7.5
   package_info_plus: ^8.0.0   # 读 pubspec.yaml version + 平台 build number,版本号显示
+  # 备份还原(D68):file_picker 选 .sqlite 文件还原(Android 用 SAF,无需 READ_EXTERNAL_STORAGE)
+  file_picker: ^8.1.6
 
   # ===== i18n =====
   # flutter_localizations 已在顶部声明
