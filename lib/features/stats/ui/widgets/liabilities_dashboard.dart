@@ -1,6 +1,21 @@
 // lib/features/stats/ui/widgets/liabilities_dashboard.dart
 // 报表"资产"视角 dashboard —— 负债情况
 //
+// 2026-10-16 D64.61 加(user UAT 反馈):
+//   - user 反馈"报表中的负债情况,需要显示负数,这样才能让用户有警示"
+//   - 之前总负债大字 + 列表金额都用 Formatters.amount(totalDebt) 显示正数
+//     (¥3,000),警示感不强;改成显示原始 balance(负数,¥-3,000)+ error 红,
+//     user 一眼看出"我欠的款 = 负数"双重警示(色 + 负号)
+//   - 改法:
+//     ① `_DebtItem` 加 `balance` 字段(double,负数),`debt` = balance.abs()
+//       (供横向条比例计算保持兼容)
+//     ② 总负债大字:改 `totalLiab = ∑ balance`(负数累加,不是 ∑ debt 正数)
+//     ③ 大字颜色:`AppSecondary.cream` → `AppStatus.error`(警示红)
+//     ④ 列表金额:`Formatters.amount(item.debt)` → `Formatters.amount(item.balance)`,
+//       颜色 `item.color` → `AppStatus.error`(跟大字一致警示)
+//     ⑤ 负债率分子:`totalLiab.abs()`(数值同原 totalDebt,只是包了 abs,
+//       防止负百分比 0% 显示)
+//
 // 2026-10-16 D64.56 加(user UAT 反馈):
 //   - user 反馈"资产报表里面,我需要增加一个新的 dashboard,关于负债的,
 //     大概是这样的形式:
@@ -95,6 +110,7 @@ class LiabilitiesDashboard extends ConsumerWidget {
     //   - 跟 D64.36 净资产口径公式一致:负债 = max(0, -receivable),
     //     正 receivable(净应收)不算负债
     //   - 同样不计入 receivable 累加 balance(避免正负抵消),只看 净欠
+    // D64.61:同时存 balance(原始负数,显示用)+ debt(abs,横向条比例用)
     final receivableItems = <_DebtItem>[];
     for (final a in assets.where((a) => a.type == 'receivable')) {
       final bal = balances[a.id] ?? 0.0;
@@ -104,13 +120,17 @@ class LiabilitiesDashboard extends ConsumerWidget {
           id: a.id,
           name: a.name,
           color: Color(a.color),
-          debt: debt,
+          balance: bal, // D64.61:负数原始值,显示时 Formatters.amount 自动加 "-"
+          debt: debt, // 横向条比例用 abs
         ));
       }
     }
     // 按 debt 降序,最大的在前面
     receivableItems.sort((a, b) => b.debt.compareTo(a.debt));
-    final totalDebt = receivableItems.fold<double>(0, (s, e) => s + e.debt);
+    // D64.61:总负债累加改成累加 balance(负数),display 自动 "-X,XXX.XX"
+    final totalLiab = receivableItems.fold<double>(0, (s, e) => s + e.balance);
+    // 兼容老公式:负债率分子用 abs(数值同 totalDebt,但语义对应 ∑ debt 公式)
+    final totalDebt = -totalLiab;
 
     // D64.57:总资产 = 5 真资产累加(**不含 receivable**,跟 D64.36 总资产口径一致)
     //   - receivable 是借贷账户(余额可正可负,正=净应收 / 负=净应付),
@@ -126,6 +146,8 @@ class LiabilitiesDashboard extends ConsumerWidget {
     //   - 防除 0:totalAssets = 0 且 totalDebt = 0 → 0%(无负债无资产,合规)
     //   - 兜底:totalAssets = 0 且 totalDebt > 0 → 0%(逻辑上"我没资产但有负债"
     //     罕见情况,避免 NaN/Infinity 显示)
+    // D64.61:分子用 totalDebt(= -totalLiab),内部算正数,display "负债率 X%"
+    //   数值仍是正百分比,user 视觉看到"比例"不会混淆正负
     final ratio = totalAssets > 0 ? (totalDebt / totalAssets) : 0.0;
     final debtRatio = (ratio * 100).toStringAsFixed(0);
 
@@ -155,14 +177,18 @@ class LiabilitiesDashboard extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.s1),
-          // 总负债大字(empty 时也显示 0,跟净资产口径一致)
+          // 总负债大字(D64.61:负数警示)
+          //   - 显示 `∑ balance`(负数累加),Formatters.amount 自动 "-X,XXX.XX"
+          //   - 颜色 error 红警示(替代原 cream 中性色)
+          //   - empty 时 totalLiab = 0,显示 "¥0"(不变,empty state 路径走下方
+          //     "当前无负债 ✓" 不显示大字本行 — 不,大字照常显示 0,跟之前一样)
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
             child: Text(
-              '¥${Formatters.amount(totalDebt)}',
-              style: const TextStyle(
-                color: AppSecondary.cream,
+              '¥${Formatters.amount(totalLiab)}',
+              style: TextStyle(
+                color: AppStatus.error,
                 fontSize: 28,
                 fontWeight: FontWeight.w700,
                 height: 1.1,
@@ -230,16 +256,21 @@ class LiabilitiesDashboard extends ConsumerWidget {
 }
 
 /// 单个 receivable 账户的 debt 信息
+///   - D64.61:`balance`(原始值,可负)+ `debt`(abs)双存
+///     - balance:用于 UI 显示"¥-X,XXX.XX"警示
+///     - debt:用于横向条比例计算(item.debt / totalDebt)
 class _DebtItem {
   const _DebtItem({
     required this.id,
     required this.name,
     required this.color,
+    required this.balance,
     required this.debt,
   });
   final int id;
   final String name;
   final Color color;
+  final double balance;
   final double debt;
 }
 
@@ -306,10 +337,12 @@ class _DebtRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 1),
+              // D64.61:列表金额显示原始 balance(负数),Formatters.amount 自动
+              // 加负号前缀,颜色 error 红警示(跟大字一致)
               Text(
-                '¥${Formatters.amount(item.debt)}',
+                '¥${Formatters.amount(item.balance)}',
                 style: TextStyle(
-                  color: item.color,
+                  color: AppStatus.error,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
