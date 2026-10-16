@@ -133,6 +133,16 @@
 //       这是有意义的(关 swipe),跟 ledger 一致
 //   - 不改 assets_management_page 的外层 GestureDetector(它仍然是"点屏幕收回正在滑开的 tile",
 //     跟 ledger page 同样模式)
+// 2026-10-16 D64.60 改(user UAT 反馈):
+//   - user 反馈(借给老王截图):"借出借入也要在这里用 label 展示"
+//   - receivable 账户有 isLender 字段(D64.58 schema 加),资产 tile 需要
+//     把这个状态显示成 chip,跟"默认" / "计入流水" chip 同款风格
+//   - 仅 receivable 段显示,其它段不画(同 isDefault + cash_flow 段套路)
+//   - chip 颜色:
+//     - 借出 (isLender=true):teal(债权人/收入侧,跟 AppBrand.teal 同款)
+//     - 借入 (isLender=false):error 红(债务感,跟负余额/超支同款)
+//   - 颜色对比 receivable type chip(橙 warning)避免视觉混淆,user 一眼区分
+//     "我是债权人" vs "我是负债方"
 // 2026-10-16 D64.48 改(user UAT 反馈):
 //   - user 反馈"logo 调了之后,tile 的高度不一样了。感觉被压扁了。
 //     我认为不应该一直靠这个高度来调整,我的目的就是为了让左滑动出来
@@ -491,6 +501,20 @@ class AssetTile extends ConsumerWidget {
                     children: [
                       // type chip(同款胶囊,type 配色)
                       _TileChip(label: labelFor(asset.type), color: typeColor),
+                      // 2026-10-16 D64.60:借出/借入 chip(仅 receivable 段)
+                      //   - isLender=true(借出/债权人):teal,跟"我有应收"语义一致
+                      //   - isLender=false(借入/负债方):error 红,跟负余额/超支同款
+                      //   - 位置:在 type chip 之后(语义层级:段位 > 借出/借入),
+                      //     在"计入流水"chip 之前(段位 chip 跟 type chip 同色优先级最高)
+                      //   - 颜色对比 receivable type chip 的橘色 warning,
+                      //     user 一眼区分"借出 vs 借入"
+                      if (asset.type == 'receivable')
+                        _TileChip(
+                          label: asset.isLender ? '借出' : '借入',
+                          color: asset.isLender
+                              ? AppBrand.teal
+                              : AppStatus.error,
+                        ),
                       // 2026-10-13 P7:仅 cash_flow + isDefault=true 显示"默认" chip
                       if (asset.isDefault && asset.type == 'cash_flow')
                         const _TileChip(label: '默认', color: AppBrand.gold),
