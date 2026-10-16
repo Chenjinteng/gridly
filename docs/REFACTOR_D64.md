@@ -10,16 +10,16 @@
 | 维度 | 数据 |
 |---|---|
 | Review 范围 | `lib/` 95 个 dart / 26k 行,重点 D64 系列 + 几个超大文件(transaction_form 1930 行 / asset_form 1110 行) |
-| 总 finding | 24 个 actionable(真 bug 1 + 一致性 5 + 设计债 11 + 验证无问题 7) |
-| 修复 commit | 13 个(D64.71 - D64.82) |
+| 总 finding | 20 个 actionable(4 P0 + 5 P1 + 11 P2 + 7 验证无问题) |
+| 修复 commit | 16 个(D64.71 - D64.86) |
 | 净行数 | -534 行(去掉新增 widget 文件后) |
-| Build 号 | `0.1.0+18 → 0.1.0+30` |
+| Build 号 | `0.1.0+18 → 0.1.0+33` |
 | 触发 | user 截图 `_YearTotals` Row overflow 39px + 显式要求"做一次 code review" |
-| HEAD | `a222317 refactor(asset_tile): 借出 chip teal → AppSegment.receivable 橙 (D64.82)` |
+| HEAD | `de7fbec fix(stats): daily/yearlyExpenseTrend 改 D62.4 新口径 (D64.86)` |
 
 ---
 
-## 🐛 P0 — 真 bug(3 个,已修 1)
+## 🐛 P0 — 真 bug(4 个,全部已修)
 
 ### D64.71 ✅ 投资情况 dashboard footer Row overflow 39px
 
@@ -31,31 +31,30 @@
   - 3 段金额信息保留不省略
 - **commit**:`8c634b2 fix(settings): 投资情况 footer Row overflow 39px (D64.71)`
 
-### Finding 1 ⏳ `dailyExpenseTrendProvider` / `yearlyExpenseTrendProvider` 旧口径
-
-- **文件**:`lib/features/stats/application/stats_providers.dart:243-271` / `:339-366`
-- **触发**:两个 provider 都用 `t.type.equals('expense')` 单独 WHERE,但其它 D62.4 之后 provider 都改成了"真支出(cash_flow expense) + 还款(现金→债务调拨,cat.type='liability' AND tx.type='balance')"双分支
-- **影响**:`consumption_trend.dart:110` 的本月每日柱状图 / `:165` 的本年 1-12 月柱状图都比汇总卡少一截(还款 record 不算)
-- **修法**:沿用 `_periodSummary` 口径过滤
-
-### Finding 2 ⏳ `refreshAllData` 漏 6 个 D62+ provider invalidate
+### D64.83 ✅ `refreshAllData` 补 6 个 D62+ provider invalidate
 
 - **文件**:`lib/core/utils/refresh_providers.dart:29-62`
-- **触发**:D62-D64 期间新增的 6 个 provider **没有任何一个**在 `refreshAllData` 里被 invalidate:
-  - `categoryCompareProvider`
-  - `weekdayExpenseProvider`
-  - `expenseByAssetProvider`
-  - `yearlyMonthlyTrendProvider`
-  - `monthlyYoYProvider`
-  - `yearlyYoYProvider`
-- **影响**:流水 add/update/delete 后,报表"类别对比 / 周几支出 / 按账户支出 / 全年收支表 / 本月/本年同比 badge"全部停留在旧值
-- **修法**:在 `refreshAllData` 加 6 行 invalidate
+- **触发**:D62-D64 期间新增 6 个 provider 漏加到 `refreshAllData`(`monthlyYoY` / `yearlyYoY` / `yearlyMonthlyTrend` / `categoryCompare` / `weekdayExpense` / `expenseByAsset`),user 编辑流水后这些 dashboard 用旧缓存(commit 84 同模式 bug 重复犯)
+- **修法**:加 6 行 invalidate + 文件顶部注释同步加 6 个 provider 名,避免下次再加新 provider 时再次漏加
+- **commit**:`7b95a0f fix(stats): refreshAllData 补 6 个 D62+ 新增 provider invalidate (D64.83)`
 
-### Finding 3 ⏳ 投资 record 编辑 toggle 失灵 + 保存被阻断
+### D64.84+85 ✅ 投资 record 编辑 toggle 失灵 + 保存被阻断
 
-- **文件**:`lib/features/add/ui/transaction_form.dart:266-270` + `lib/features/ledger/ui/widgets/transaction_tile.dart:263-265`
-- **触发**:`/edit/:id` 路由对所有 tx 开放,但 edit 分支直接 `_intent = t.type`,而 investment 段 DB `type` 是 `'income'` / `'balance'`,这两个 key 不在 `TypeToggle.investmentSegments = ['input', 'output', 'transfer']` 里 → toggle 永远无选中 + 保存撞 "选个转入账户" banner
-- **修法**:edit 分支用 `cat.type == 'investment'` 判定,把 `t.type` 映射回 `_intent`
+- **文件**:`lib/features/add/ui/transaction_form.dart:267-345`
+- **触发**:`/edit/:id` 路由对所有 tx 开放,但 edit 分支直接 `_intent = t.type`,investment DB `type` 是 `'income'` / `'balance'`,不在 `TypeToggle.investmentSegments = ['input', 'output', 'transfer']` 里 → toggle 永远无选中 + 投资收益 record(单账户,dest=null)保存撞 "选个转入账户" banner 阻断
+- **修法**:investment 段按 `(t.type, source asset.type)` 映射:
+  - `t.type='income'` → `_intent='output'`(投资收益,单账户)
+  - `t.type='balance' + dest!=null + source=cash_flow` → `_intent='input'`(投入)
+  - `t.type='balance' + dest!=null + source=其它` → `_intent='transfer'`(调拨)
+  - 投入 vs 调拨 都 DB 'balance' + dest!=null,需 postFrameCallback 异步查 source asset 区分
+- **commit**:`56c993d fix(add): 投资 record 编辑 pre-fill 映射 _intent (D64.84 + D64.85)`
+
+### D64.86 ✅ `dailyExpenseTrend` / `yearlyExpenseTrend` 改 D62.4 新口径
+
+- **文件**:`lib/features/stats/application/stats_providers.dart:241-269` / `:337-359`
+- **触发**:两个 provider SQL WHERE `t.type='expense'`,漏 D62.4 加入的"现金→债务调拨"还款(`cat.type='liability' AND tx.type='balance'`)
+- **修法**:拉全窗 txs + watch `allCategoriesProvider` + `catTypeById` map + Dart 端 filter 双向对齐口径,跟 `monthlyTrendProvider` 套路一致
+- **commit**:`de7fbec fix(stats): daily/yearlyExpenseTrend 改 D62.4 新口径 (D64.86)`
 
 ---
 
@@ -189,7 +188,9 @@
 - `lib/features/settings/ui/widgets/investment_dashboard.dart` (D64.71 + D64.72)
 - `lib/features/stats/ui/widgets/asset_allocation_chart.dart` (D64.72)
 - `lib/features/stats/ui/widgets/debt_dashboard.dart` (D64.72)
-- `lib/features/add/ui/transaction_form.dart` (D64.72 + D64.79)
+- `lib/features/add/ui/transaction_form.dart` (D64.72 + D64.79 + D64.84+85)
+- `lib/core/utils/refresh_providers.dart` (D64.83)
+- `lib/features/stats/application/stats_providers.dart` (D64.80 + D64.86)
 - `lib/features/add/ui/widgets/amount_display.dart` (D64.77)
 - `lib/features/ledger/ui/widgets/transaction_tile.dart` (D64.73 + D64.77 + D64.78)
 - `lib/features/add/ui/transaction_form.dart` icon (D64.73)
