@@ -11,13 +11,16 @@
 //
 // 2026-10-13 P6 改 4 段 → 6 段(跟 asset_form 6 段同步,删"负债"加投资/福利/债权)
 //
-// 2026-10-16 D64.32 改:
+// 2026-10-16 D64.32 改(user UAT 反馈 v2):
 //   - "总资产" → "净资产",计算口径改 = 5 段(cash_flow + investment +
 //     benefit + fixed_asset + other)+ max(0, receivable),即"我实际拥有的资产"
 //     - receivable 是应收(正)时算资产;是应付/欠债(负)时不计(看下面 6 段明细)
-//   - 视觉:6 段列表加 1 道白色横线把"债务(receivable)"切出来单独一行
-//     (在 receivable row 之前插 1px 白线 alpha 0.15,跟 rim light border 同色),
-//     让"我实际拥有的"vs"应收/应付的债务"在视觉上区分开
+//   - 视觉:6 段**重新排序** —— receivable(债务)挪到末尾,5 段资产 + 白线 +
+//     债务段 + 白线,跟下面"总资产"小字一行形成"净资产 → 债务 → 总资产"语义链
+//   - 末尾追加"总资产 ¥XXX"小字(灰色 onSurfaceVariant,11sp,跟卡片"6 大类"
+//     trailing 一样字号 + 浅灰,作为净资产 vs 总资产的差额备注):
+//     总资产 = 6 段(含 receivable,正负都加)—— user 看完 5 段资产 + 债务差值 +
+//     备注总资产能一眼看出"我实际拥有 X,我欠 Y,合计 X+Y"
 //
 // 数据源:assetTotalsProvider
 import 'package:flutter/material.dart';
@@ -203,12 +206,14 @@ class _AssetsOverviewChartState extends ConsumerState<AssetsOverviewChart> {
               //   - 修:6 段全改 AppSegment.iconFor / colorFor / labelFor
               //     跨 widget 一致
               //
-              // D64.32:在 receivable(债务)row 之前插一道白色横线,把"我实际拥有的"
-              //   5 段跟"应收/应付"债务段视觉切开 —— alpha 0.15 跟 rim light border 同色
-              //   区分"普通横线 g600"vs"分隔标签用 white alpha"
+              // D64.32 v2:6 段**重新排序** —— receivable(债务)挪到末尾,中间用 1 道
+              //   白线隔开 5 段资产和债务段;下面"总资产"小字作为净资产 vs 总资产的差额备注
+              //   - alpha 0.15 跟 rim light border 同色,区分"普通横线 g600"vs"分隔标签用 white alpha"
               for (int i = 0; i < _segmentOrder.length; i++) ...[
                 if (i > 0) const SizedBox(height: AppSpacing.s2),
-                // D64.32:receivable 段(债务)之前插白色横线,跟 5 段资产视觉切开
+                // D64.32 v2:5 段资产(cash_flow..other)跟 1 段债务(receivable)中间
+                //   插白色横线 —— 5 段跑完后下一个是 receivable,所以在 i > 0 && i 之前
+                //   是 fixed_asset / other 时插入
                 if (_segmentOrder[i] == 'receivable')
                   Padding(
                     padding: const EdgeInsets.only(
@@ -225,6 +230,44 @@ class _AssetsOverviewChartState extends ConsumerState<AssetsOverviewChart> {
                   amount: _appeared
                       ? _amountForType(_segmentOrder[i], totals)
                       : 0,
+                ),
+              ],
+              // D64.32 v2:总资产备注行 —— 6 段 sum(正负都加,跟净资产口径区分)
+              //   = totalCashFlow + totalInvestment + totalBenefit +
+              //     totalFixedAsset + totalOther + totalReceivable
+              //   - 字号 11sp + onSurfaceVariant 灰色(跟"6 大类"trailing 同款)
+              //   - 位于第二道白线后,完整 layout:
+              //     5段资产 —— 白线 —— 债务段 —— 顶 0padding —— 总资产备注
+              //   - 视觉跟净资产对比:
+              //     净资产(大字,数值已含 max(0, receivable))↗
+              //     总资产(小字,数值含 receivable 全量)↘ —— 差额 = 应付/欠债
+              if (_appeared) ...[
+                const SizedBox(height: AppSpacing.s2),
+                // 末尾分隔线 —— 跟"5 段资产 vs 债务段"白线同款(alpha 0.15 white)
+                Padding(
+                  padding: const EdgeInsets.only(
+                    top: AppSpacing.s1,
+                    bottom: AppSpacing.s1,
+                  ),
+                  child: Container(
+                    height: 1,
+                    color: Colors.white.withValues(alpha: 0.15),
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.s1),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(
+                      // 6 段总和(含 receivable 全量,正负都算)
+                      '总资产 ¥${Formatters.amount(totalCashFlow + totalInvestment + totalBenefit + totalFixedAsset + totalOther + totalReceivable)}',
+                      style: TextStyle(
+                        // D64.32 v2:小字、灰、跟"6 大类"trailing 同款(11sp + g600)
+                        fontSize: 11,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ],
@@ -280,15 +323,17 @@ class _TypeRow extends StatelessWidget {
   }
 }
 
-/// 6 大类展示顺序(跟 asset_form_page 段位顺序一致)
-///   - 顺序固定,跟资产页 / 新增账户页 6 段 chip 顺序对齐,避免视觉错位
+/// 6 大类展示顺序(D64.32 v2:receivable 从第 4 位挪到末尾,跟下方
+///   "总资产"小字备注形成"净资产 → 债务 → 总资产"语义链)
+///   - 5 段真资产在前:现金 / 投资 / 福利 / 不动产 / 其它
+///   - receivable(债务)挪到末尾,用白线切开,作为大白线前后"差量"
 const List<String> _segmentOrder = [
   'cash_flow',
   'investment',
   'benefit',
-  'receivable',
   'fixed_asset',
   'other',
+  'receivable',
 ];
 
 /// 6 大类金额查询(从 AssetTotals 提取对应字段)
