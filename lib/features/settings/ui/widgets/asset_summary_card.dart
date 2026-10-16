@@ -39,7 +39,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/database/app_database.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -54,36 +53,34 @@ class AssetSummaryCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final theme = Theme.of(context);
-    // 监听 assets + balances 组合,这里只用 balances 简单触发刷新
-    final balancesAsync = ref.watch(assetBalancesProvider);
-    final assetsAsync = ref.watch(allAssetsProvider);
-    final assets = assetsAsync.valueOrNull ?? const <Asset>[];
-    final balances = balancesAsync.valueOrNull ?? const <int, double>{};
-
-    // 按 type 汇总 currentBalance(D64.46 仍按 6 段累加,后续按 D64.36 公式计算)
+    // 2026-10-16 D64.75 改:6 段 sum 改用 assetTotalsProvider 共享计算
+    //   - 之前就地 byType O(N) 累加,跟 LiabilitiesDashboard / 其它 dashboard
+    //     5 处同款重复;现在 1 次 watch,1 处定义
+    //   - 由"自己累加以避免引入额外依赖"(原 D64.46 注释)改为统一走 provider,
+    //     全 app 5+ 处累加逻辑只 1 份(SQL 聚合在 provider,O(1) 读)
+    //   - assets 列表仍 watch(每行 _TypeRow 需要 segmentOrder 渲染),
+    //     balances 不再 watch(provider 已依赖,自动刷新)
+    final totalsAsync = ref.watch(assetTotalsProvider);
+    final totals = totalsAsync.valueOrNull;
     final byType = <String, double>{
-      'cash_flow': 0.0,
-      'investment': 0.0,
-      'benefit': 0.0,
-      'receivable': 0.0,
-      'fixed_asset': 0.0,
-      'other': 0.0,
+      'cash_flow': totals?.totalCashFlow ?? 0.0,
+      'investment': totals?.totalInvestment ?? 0.0,
+      'benefit': totals?.totalBenefit ?? 0.0,
+      'receivable': totals?.totalReceivable ?? 0.0,
+      'fixed_asset': totals?.totalFixedAsset ?? 0.0,
+      'other': totals?.totalOther ?? 0.0,
     };
-    for (final a in assets) {
-      final bal = balances[a.id] ?? 0.0;
-      byType[a.type] = (byType[a.type] ?? 0.0) + bal;
-    }
 
     // D64.46:净资产口径(跟 D64.36 报表净资产卡公式一致)
     //   - 总资产 = 5 段真资产 sum(**不含 receivable**,user "总资产不算负债"口径)
     //   - 负债 = max(0, -receivable)(只算净欠款,正 receivable 不算负债)
     //   - 净资产 = 总资产 - 负债,作为大字显示
-    final totalCashFlow = byType['cash_flow'] ?? 0;
-    final totalInvestment = byType['investment'] ?? 0;
-    final totalBenefit = byType['benefit'] ?? 0;
-    final totalFixedAsset = byType['fixed_asset'] ?? 0;
-    final totalOther = byType['other'] ?? 0;
-    final totalReceivable = byType['receivable'] ?? 0;
+    final totalCashFlow = byType['cash_flow']!;
+    final totalInvestment = byType['investment']!;
+    final totalBenefit = byType['benefit']!;
+    final totalFixedAsset = byType['fixed_asset']!;
+    final totalOther = byType['other']!;
+    final totalReceivable = byType['receivable']!;
     final totalAssets =
         totalCashFlow +
         totalInvestment +

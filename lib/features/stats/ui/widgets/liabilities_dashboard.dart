@@ -97,25 +97,22 @@ class LiabilitiesDashboard extends ConsumerWidget {
     final theme = Theme.of(context);
     final assetsAsync = ref.watch(allAssetsProvider);
     final balancesAsync = ref.watch(assetBalancesProvider);
+    final totalsAsync = ref.watch(assetTotalsProvider);
     final assets = assetsAsync.valueOrNull ?? const <Asset>[];
     final balances = balancesAsync.valueOrNull ?? const <int, double>{};
+    final totals = totalsAsync.valueOrNull;
 
-    // 按 type 累加 balance(跟 AssetSummaryCard 同款,后续可抽公共 provider —
-    // D64.58+ 复盘若 AssetSummaryCard 跟 LiabilitiesDashboard 两边重复累加
-    // 逻辑要 drift 时,提 netAssetsBreakdownProvider 共享;当前 5 真资产 +
-    // receivable 总累加就地实现)
-    final byType = <String, double>{
-      'cash_flow': 0.0,
-      'investment': 0.0,
-      'benefit': 0.0,
-      'receivable': 0.0,
-      'fixed_asset': 0.0,
-      'other': 0.0,
-    };
-    for (final a in assets) {
-      final bal = balances[a.id] ?? 0.0;
-      byType[a.type] = (byType[a.type] ?? 0.0) + bal;
-    }
+    // 2026-10-16 D64.75 改:6 段 sum 改用 assetTotalsProvider 共享计算
+    //   - 之前就地 byType O(N) 累加,跟 AssetSummaryCard / 其它 dashboard
+    //     5 处同款重复;现在 1 次 watch,1 处定义
+    //   - provider 加载中时 fallback 到 0(避免 build 阶段 null 异常)
+    //   - 注意:本 widget 只关心 5 真资产累加,receivable 走 per-account receivableItems
+    //     不需要 tRec(每账户 debt 算 -balance 后累加)
+    final tCf = totals?.totalCashFlow ?? 0.0;
+    final tInv = totals?.totalInvestment ?? 0.0;
+    final tBen = totals?.totalBenefit ?? 0.0;
+    final tFa = totals?.totalFixedAsset ?? 0.0;
+    final tOt = totals?.totalOther ?? 0.0;
 
     // 提取 receivable 段账户,算每账户的 debt = max(0, -balance)
     //   - 跟 D64.36 净资产口径公式一致:负债 = max(0, -receivable),
@@ -147,12 +144,8 @@ class LiabilitiesDashboard extends ConsumerWidget {
     //   - receivable 是借贷账户(余额可正可负,正=净应收 / 负=净应付),
     //     不进"我有什么"累加(资产页 AssetSummaryCard 末尾小字"总资产"口径)
     //   - 5 段真资产 = cash_flow / investment / benefit / fixed_asset / other
-    final totalAssets =
-        (byType['cash_flow'] ?? 0) +
-            (byType['investment'] ?? 0) +
-            (byType['benefit'] ?? 0) +
-            (byType['fixed_asset'] ?? 0) +
-            (byType['other'] ?? 0);
+    // D64.75:直接走 totals.X(provider 已分好,O(1) 读)
+    final totalAssets = tCf + tInv + tBen + tFa + tOt;
     // D64.57:负债率 = (总负债 / 总资产) × 100%
     //   - 防除 0:totalAssets = 0 且 totalDebt = 0 → 0%(无负债无资产,合规)
     //   - 兜底:totalAssets = 0 且 totalDebt > 0 → 0%(逻辑上"我没资产但有负债"
