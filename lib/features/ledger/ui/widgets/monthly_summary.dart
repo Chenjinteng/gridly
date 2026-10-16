@@ -7,7 +7,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/settings/amount_visibility_provider.dart';
+import '../../../../core/settings/home_amount_visibility_provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -22,8 +22,13 @@ class MonthlySummary extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final summary = ref.watch(monthSummaryProvider);
-    // hidden = 关闭了金额可见性(防偷窥)
-    final hidden = !ref.watch(amountVisibilityProvider);
+    // D64.51:hidden = 组合判断(全局 || 首页 local),任一为隐藏都隐藏金额
+    //   - 全局关 = user 显式在"我的"页关全局 → 所有页面都隐藏
+    //   - 全局开 + 首页关 = 首页按钮 toggle local → 只首页隐藏
+    final hidden = ref.watch(combineAmountVisibilityProvider);
+    // D64.51:眼睛按钮文字/icon 基于 home local(不是 global),
+    //   因为按钮只控制 local;global 被 toggle 时按钮状态不动
+    final homeHidden = !ref.watch(homeAmountVisibilityProvider);
     final now = DateTime.now();
     final sheetTitle = '${now.year}年${now.month}月';
     final theme = Theme.of(context);
@@ -85,10 +90,16 @@ class MonthlySummary extends ConsumerWidget {
                     ],
                   ),
                   // 眼睛按钮 —— 切换金额显示/隐藏
+                  // D64.51:onTap 改 toggle `homeAmountVisibilityProvider`(首页 local),
+                  //   不再 toggle 全局(避免 user 反馈 bug:点首页按钮同时关掉
+                  //   "我的"页那个全局开关)
+                  // D64.51:按钮文字/icon 基于 homeHidden(不是全局 hidden),
+                  //   按钮状态反映 local 状态,global 切换不影响按钮显示
                   InkWell(
                     borderRadius: BorderRadius.circular(12),
                     onTap: () =>
-                        ref.read(amountVisibilityProvider.notifier).toggle(),
+                        ref.read(homeAmountVisibilityProvider.notifier).state =
+                            !ref.read(homeAmountVisibilityProvider),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 6,
@@ -97,22 +108,22 @@ class MonthlySummary extends ConsumerWidget {
                       child: Row(
                         children: [
                           Text(
-                            hidden ? '显示金额' : '本月结余',
+                            homeHidden ? '显示金额' : '本月结余',
                             style: TextStyle(
-                              color: hidden ? AppSecondary.cream : AppGray.g400,
+                              color: homeHidden ? AppSecondary.cream : AppGray.g400,
                               fontSize: 11,
-                              fontWeight: hidden
+                              fontWeight: homeHidden
                                   ? FontWeight.w600
                                   : FontWeight.w400,
                             ),
                           ),
                           const SizedBox(width: 4),
                           Icon(
-                            hidden
+                            homeHidden
                                 ? Icons.visibility_outlined
                                 : Icons.visibility_off_outlined,
                             size: 14,
-                            color: hidden ? AppSecondary.cream : AppGray.g400,
+                            color: homeHidden ? AppSecondary.cream : AppGray.g400,
                           ),
                         ],
                       ),
