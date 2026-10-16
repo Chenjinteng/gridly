@@ -502,17 +502,21 @@ class AssetTile extends ConsumerWidget {
                       // type chip(同款胶囊,type 配色)
                       _TileChip(label: labelFor(asset.type), color: typeColor),
                       // 2026-10-16 D64.60:借出/借入 chip(仅 receivable 段)
-                      //   - isLender=true(借出/债权人):teal,跟"我有应收"语义一致
+                      //   - isLender=true(借出/债权人):AppSegment.receivable 橙,
+                      //     跟 toggle / amount_display / transaction_tile 跨页统一
                       //   - isLender=false(借入/负债方):error 红,跟负余额/超支同款
                       //   - 位置:在 type chip 之后(语义层级:段位 > 借出/借入),
                       //     在"计入流水"chip 之前(段位 chip 跟 type chip 同色优先级最高)
                       //   - 颜色对比 receivable type chip 的橘色 warning,
                       //     user 一眼区分"借出 vs 借入"
+                      // 2026-10-16 D64.82 改:借出色 teal → AppSegment.receivable
+                      //   之前用 teal 是跟"我有应收"语义,user 选 A 跨页全统一为橙
+                      //   (Toggle / amount_display / transaction_tile 都已走橙)
                       if (asset.type == 'receivable')
                         _TileChip(
                           label: asset.isLender ? '借出' : '借入',
                           color: asset.isLender
-                              ? AppBrand.teal
+                              ? AppSegment.receivable
                               : AppStatus.error,
                         ),
                       // 2026-10-13 P7:仅 cash_flow + isDefault=true 显示"默认" chip
