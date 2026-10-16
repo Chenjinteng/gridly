@@ -38,6 +38,21 @@
 //   - onTap = onEdit(asset 没详情页,沿用原"点 tile = 编辑"行为;SwipeToActions 接收 onTap 可选 callback)
 //   - iOS Mail.app 风格:左滑露 [编辑 64px + gap + 删除 64px] 按钮,跟流水 tile 完全一致
 //   - 物理参数 / 弹性 / fling 速度 / spring / openSwipeIdProvider 全局互斥 = 跟流水共用一套
+// 2026-10-16 D64.43 改(user UAT 反馈):
+//   - user 反馈"感觉是因为有三列所以给拉高了吧,所以滑动出来的两个按钮也被拉高了,
+//     我觉得可以调整为两列:名称 + 金额 + chips 在下方;另外,底色换成主题黑色,
+//     区别一般的流水"
+//   - 修法:
+//     ① ListTile 三列布局(leading + title+subtitle + trailing slot)→ 自绘 2 列
+//       Row(leading 36 + name Expanded + amount 右对齐),name 和 amount 在同一行,
+//       chip Wrap 在第二行。整体 tile 高度由"自然内容"决定(leading 36 + s2 + chips),
+//       滑动按钮高度跟 tile 高度 1:1,不再被"ListTile trailing slot 空白 padding"拉高
+//     ② 底色 theme.colorScheme.surfaceContainerLow(流水 tile 的浅色)→ AppBrand.ink
+//       (主题黑色,跟净资产卡 / range_summary / 关于卡 一致)
+//     ③ outline 跟 主题黑 卡一致:1px white alpha 0.08-0.15(浅色主题)/ 0.08(深色主题)
+//     ④ shadow 跟 主题黑 卡一致:CardShadows.dark(context)
+//     ⑤ 字体色:title 文字 → cream(AppSecondary.cream,在 ink 上读得清),
+//       amount → AppSemantic.balanceFor(0=g400,>0=teal,<0=error)沿用,跟其它卡视觉语言一致
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -205,7 +220,11 @@ class AssetTile extends ConsumerWidget {
     final balanceAsync = ref.watch(assetBalanceProvider(asset.id));
     final balance = balanceAsync.valueOrNull ?? 0.0;
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     // D64.42:tile 整段 wrap 进 SwipeToActions,左滑露 [编辑][删除] 按钮(共享 widget,跟 transaction_tile 同套交互)
+    // D64.43:不再用 ListTile(3 列 leading + title+subtitle + trailing slot),改成自绘 2 列
+    //   Row(leading + name Expanded + amount) + Wrap(chips),整体高度由自然内容决定,
+    //   滑动按钮高度跟 tile 高度 1:1 不再被"ListTile trailing 空白 padding"拉高
     return SwipeToActions(
       key: ValueKey('asset-${asset.id}'),
       tileId: asset.id,
@@ -218,89 +237,74 @@ class AssetTile extends ConsumerWidget {
           vertical: AppSpacing.s1,
         ),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceContainerLow,
+          // D64.43:底色换主题黑(跟净资产卡 / range_summary / 关于卡 一致),
+          //   跟流水 tile 浅色 surface 视觉上"区分资产 vs 流水"
+          color: AppBrand.ink,
           borderRadius: AppRadius.brLg,
+          // D64.43:rim light border 跟主题黑卡一致(浅色主题 0.15,深色主题 0.08)
           border: Border.all(
-            color: theme.colorScheme.outlineVariant,
+            color: Colors.white.withValues(alpha: isDark ? 0.08 : 0.15),
             width: 1.0,
           ),
-          boxShadow: CardShadows.light(context),
+          boxShadow: CardShadows.dark(context),
         ),
-        child: ListTile(
-          // 2026-10-14 D48:leading 区分 material / brand 渲染
-          //   - material:36x36 tinted box(asset.color 0.12 底 + asset.color icon),跟之前一致
-          //   - brand/crypto/bank:36x36 圆角盒,内部 brand chip 自带品牌色背景,
-          //     不再加 tinted 外框(避免双层色块冲突)
-          leading: isBrandKey(asset.icon)
-              ? ClipRRect(
-                  borderRadius: AppRadius.brXs,
-                  child: SizedBox(
-                    width: 36,
-                    height: 36,
-                    child: renderIcon(asset.icon, size: 36),
-                  ),
-                )
-              : Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.12),
-                    borderRadius: AppRadius.brXs,
-                    border: Border.all(
-                      color: color.withValues(alpha: 0.3),
-                      width: 0.5,
-                    ),
-                  ),
-                  child: Icon(
-                    icons[asset.icon] ?? Icons.account_balance_wallet_rounded,
-                    color: color,
-                    size: 18,
-                  ),
-                ),
-          title: Text(
-            asset.name,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-            overflow: TextOverflow.ellipsis,
-          ),
-          // 2026-10-13 P6 第 2 次改:subtitle 拆 2 行
-          // - 第一行:type chip + 计入/不计入 chip
-          // - 第二行:金额独立(整行,长金额有更多空间)
-          subtitle: Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+        padding: const EdgeInsets.all(AppSpacing.s3),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 第一行:2 列布局,leading icon + name + amount
+            //   - 左侧:[leading 36] [name Expanded]
+            //   - 右侧:[amount w600 14sp] —— 颜色按 AppSemantic.balanceFor 正/负/0
+            Row(
               children: [
-                // 第一行:chips
-                // D64.41:用 Wrap 替代 Row,chip 多时自动换行,避免 ListTile 右侧 71px overflow
-                Wrap(
-                  spacing: 6, // 水平间距(跟原 Row SizedBox(width:6) 一致)
-                  runSpacing: 4, // 换行垂直间距
-                  children: [
-                    // type chip(同款胶囊,type 配色)
-                    _TileChip(label: labelFor(asset.type), color: typeColor),
-                    // 2026-10-13 P7 第 3 次改:仅 cash_flow + isDefault=true 显示"默认" chip
-                    // - 位置:type chip 紧贴后(语义高亮,比"是否计入"更突出)
-                    // - 配色:AppBrand.gold(跟 _IsDefaultCard + 计入 chip 同款)
-                    // - "默认" 是记一笔的优先账户,user 在资产列表一眼能看到"哪条是默认"
-                    if (asset.isDefault && asset.type == 'cash_flow')
-                      const _TileChip(label: '默认', color: AppBrand.gold),
-                    // 2026-10-13 P6 第 2 次改:includeInTransactions chip
-                    //   计入 = 主题黄(AppBrand.gold)
-                    //   不计入 = 灰色(AppGray.g600)
-                    //   跟 type chip 同款胶囊,色块 + 文字,一眼能看到状态
-                    _TileChip(
-                      label: asset.includeInTransactions ? '计入流水' : '不计入流水',
-                      color: asset.includeInTransactions
-                          ? AppBrand.gold
-                          : AppGray.g600,
+                // 2026-10-14 D48:leading 区分 material / brand 渲染
+                //   - material:36x36 tinted box(asset.color 0.12 底 + asset.color icon)
+                //   - brand/crypto/bank:36x36 圆角盒,内部 brand chip 自带品牌色背景
+                isBrandKey(asset.icon)
+                    ? ClipRRect(
+                        borderRadius: AppRadius.brXs,
+                        child: SizedBox(
+                          width: 36,
+                          height: 36,
+                          child: renderIcon(asset.icon, size: 36),
+                        ),
+                      )
+                    : Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: color.withValues(alpha: 0.18),
+                          borderRadius: AppRadius.brXs,
+                          border: Border.all(
+                            color: color.withValues(alpha: 0.3),
+                            width: 0.5,
+                          ),
+                        ),
+                        child: Icon(
+                          icons[asset.icon] ??
+                              Icons.account_balance_wallet_rounded,
+                          color: color,
+                          size: 18,
+                        ),
+                      ),
+                const SizedBox(width: AppSpacing.s3),
+                // name:Expanded 占剩余空间,长名字自动 ellipsis
+                Expanded(
+                  child: Text(
+                    asset.name,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      // D64.43:在 ink 黑底上用 cream(AppSecondary.cream),可读
+                      color: AppSecondary.cream,
                     ),
-                  ],
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
                 ),
-                const SizedBox(height: 6),
-                // 第二行:金额独立(2026-10-13 P6 第 2 次改)
-                //   0.00 用主题灰(AppGray.g400),"无数据"状态更明显
-                //   > 0 teal;< 0 error
+                const SizedBox(width: AppSpacing.s2),
+                // amount:右对齐,w600 14sp,颜色按余额正/负/0 走 AppSemantic.balanceFor
                 Text(
                   '¥${Formatters.amount(balance)}',
                   style: TextStyle(
@@ -313,11 +317,29 @@ class AssetTile extends ConsumerWidget {
                 ),
               ],
             ),
-          ),
-          // D64.42:删 trailing 的 [编辑][删除] 两个 InkWell,改由 SwipeToActions 滑动露按钮
-          //   - 原 trailing 占用 80px 是触发 D64.41 71px overflow 的元凶,现在彻底移除
-          //   - 跟 transaction_tile 完全一致:iOS Mail.app 风格左滑
-          trailing: null,
+            const SizedBox(height: AppSpacing.s2),
+            // 第二行:chips Wrap(流动资金 / 默认 / 计入流水 等)
+            //   D64.41:用 Wrap 替代 Row,chip 多时自动换行
+            //   chip 颜色在 ink 黑底上 alpha 0.18 底色(0.12 太淡看不清,提到 0.18)
+            Wrap(
+              spacing: 6, // 水平间距
+              runSpacing: 4, // 换行垂直间距
+              children: [
+                // type chip(同款胶囊,type 配色)
+                _TileChip(label: labelFor(asset.type), color: typeColor),
+                // 2026-10-13 P7:仅 cash_flow + isDefault=true 显示"默认" chip
+                if (asset.isDefault && asset.type == 'cash_flow')
+                  const _TileChip(label: '默认', color: AppBrand.gold),
+                // 2026-10-13 P6:includeInTransactions chip
+                _TileChip(
+                  label: asset.includeInTransactions ? '计入流水' : '不计入流水',
+                  color: asset.includeInTransactions
+                      ? AppBrand.gold
+                      : AppGray.g600,
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -326,7 +348,8 @@ class AssetTile extends ConsumerWidget {
 
 /// 资产 tile 小 chip(2026-10-13 P6 第 2 次改)
 /// - 圆角 4px 胶囊
-/// - color.withValues(alpha:0.12) 底色 + color 文字
+/// - color.withValues(alpha:0.20) 底色 + color 文字(D64.43 在 ink 黑底上从 0.12 → 0.20,
+///   alpha 太低 chip 看不清)
 /// - 10sp w600(跟之前 type chip 风格一致)
 /// - 复用 type chip + 计入/不计入 chip 两种语义
 class _TileChip extends StatelessWidget {
@@ -339,7 +362,7 @@ class _TileChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: color.withValues(alpha: 0.20),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
