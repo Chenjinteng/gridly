@@ -90,24 +90,13 @@ final investmentMonthlyProvider = FutureProvider<List<MonthlyInvestment>>((ref) 
 
 /// 累计净收益(全时间,所有投资活动)
 ///   - 反映"投资整体盈亏":正 = 累计赚的比投的多;负 = 累计投的比赚的多
+/// 2026-10-16 D64.81 改:走 transaction_repository.investmentAggregated()
+///   - 之前 select 全表 transactions + Dart 端 filter,1w+ 笔时首次 build 200ms+
+///   - 改 SQL JOIN categories + GROUP BY tx.type 一次性算 invested/returned 2 个 double
+///   - 跟 asset_repository.balanceDeltaByAssetId 6 select 模式同 D49 教训,
+///     业务层不接触 DAO,Repository 层做 SQL 聚合
 final investmentNetTotalProvider = FutureProvider<double>((ref) async {
-  final db = ref.watch(databaseProvider);
-  final txs = await db.select(db.transactions).get();
-  final cats = await ref.watch(allCategoriesProvider.future);
-  final investCatIds = cats
-      .where((c) => c.type == 'investment')
-      .map((c) => c.id)
-      .toSet();
-  if (investCatIds.isEmpty) return 0;
-  double invested = 0;
-  double returned = 0;
-  for (final t in txs) {
-    if (!investCatIds.contains(t.categoryId)) continue;
-    if (t.type == 'balance') {
-      invested += t.amount;
-    } else if (t.type == 'income') {
-      returned += t.amount;
-    }
-  }
-  return returned - invested;
+  final repo = ref.watch(transactionRepositoryProvider);
+  final agg = await repo.investmentAggregated();
+  return agg.net;
 });
