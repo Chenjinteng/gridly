@@ -346,22 +346,29 @@ class AssetTile extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             // 2026-10-14 D48 + 2026-10-16 D64.43.2/3/4:leading 大方块,全占 tile 高度
-            //   - material:48×48 tinted box(asset.color 0.28 底 + asset.color icon 24px),
+            //   - material:36×36 tinted box(asset.color 0.28 底 + asset.color icon 18px),
             //     teal 亮底上 alpha 从 0.20 提到 0.28 让 logo 更显眼
-            //   - brand/crypto/bank:48×48 圆角盒,内部 brand chip 自带品牌色背景
+            //   - brand/crypto/bank:36×36 圆角盒,内部 brand chip 自带品牌色背景
             //     不再加 tinted 外框(避免双层色块冲突)
+            // 2026-10-16 D64.47:logo 48×48 → 36×36 + icon 24 → 18
+            //   - user UAT 反馈"奇怪,感觉 Logo 有点大,不是很协调,
+            //     按流水的 logo 大小进行调一下"
+            //   - 流水 tile logo 是 36×36 + icon 18(asset_tile 一直比流水大 33%:
+            //     D64.43.2 56 → D64.43.3 48 → 现在 D64.47 36 跟流水对齐)
+            //   - 缩后 tile 总高从 ~64 → ~52,跟流水 ~52 一致(终于完全等高)
+            //   - brand chip renderIcon size 48 → 36(同尺寸缩)
             isBrandKey(asset.icon)
                 ? ClipRRect(
                     borderRadius: AppRadius.brSm,
                     child: SizedBox(
-                      width: 48,
-                      height: 48,
-                      child: renderIcon(asset.icon, size: 48),
+                      width: 36,
+                      height: 36,
+                      child: renderIcon(asset.icon, size: 36),
                     ),
                   )
                 : Container(
-                    width: 48,
-                    height: 48,
+                    width: 36,
+                    height: 36,
                     decoration: BoxDecoration(
                       // D64.43.4:teal 亮底上 alpha 提到 0.28 增强 logo 辨识
                       color: color.withValues(alpha: 0.28),
@@ -374,7 +381,7 @@ class AssetTile extends ConsumerWidget {
                     child: Icon(
                       icons[asset.icon] ?? Icons.account_balance_wallet_rounded,
                       color: color,
-                      size: 24,
+                      size: 18,
                     ),
                   ),
             const SizedBox(width: AppSpacing.s3),
