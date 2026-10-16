@@ -268,7 +268,32 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     if (t != null) {
       // 编辑模式:预填已有数据
       // 2026-10-14 D51:receivable 编辑时_type = 'lend_out' / 'borrow_in' 1:1
-      _intent = t.type; // cash_flow / receivable 直接 1:1;investment 编辑 mode 暂不开放(本期只改新增)
+      // 2026-10-16 D64.84 改:investment 编辑也支持
+      //   - 之前 _intent = t.type 直接赋值,但 investment DB type 是 'income' /
+      //     'balance',不在 TypeToggle.investmentSegments = ['input','output',
+      //     'transfer'] 里 → toggle 永远无选中 + 保存撞 "选个转入账户" banner
+      //   - 修:investment 用 _firstCategoryId 查 cat.type,再按 (cat.type, t.type,
+      //     dest) 映射回 _intent(input/output/transfer)
+      //   - cash_flow / receivable 仍 1:1 不变
+      //   - 同步 investment pre-fill asset 跟 _intent 匹配(之前只 new mode 走)
+      // 2026-10-16 D64.85 改:异步查 source asset 类型决定 _intent(input vs transfer)
+      //   - 投入 vs 调拨 DB 都是 'balance' + dest!=null,只看 DB type 区分不开
+      //   - 看 source account type:source=cash_flow 视为 'input' (投入),
+      //     其它视为 'transfer' (调拨),符合 user 实际大多数场景
+      if (_isInvestmentContext) {
+        // investment 段:按 cat.type 判定,然后再按 source 决定 input vs transfer
+        //   - DB type='income' → 投资收益 → _intent='output'
+        //   - DB type='balance' + dest=null → 理论上不存在(投资只能单/双账户)
+        //   - DB type='balance' + dest!=null → 投资投入/调拨,需看 source
+        if (t.type == 'income') {
+          _intent = 'output';
+        } else {
+          // 临时先按 'transfer',source asset 加载后修正
+          _intent = 'transfer';
+        }
+      } else {
+        _intent = t.type; // cash_flow / receivable 直接 1:1
+      }
       _categoryId = _needsCategory ? t.categoryId : null;
       _accountId = t.accountId;
       _destinationAccountId = t.destinationAccountId;
@@ -279,6 +304,23 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
         _calc.display = t.amount.toInt().toString();
       } else {
         _calc.display = t.amount.toString();
+      }
+      // 2026-10-16 D64.85:异步加载 source asset,investment 双账户区分 input/transfer
+      //   - postFrameCallback 第一次 build 时 ref 还没 ready,直接 read 会触发
+      //     "ref used outside build" 警告
+      if (_isInvestmentContext &&
+          t.type == 'balance' &&
+          t.destinationAccountId != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          if (!mounted) return;
+          final sourceAsset =
+              await ref.read(assetRepositoryProvider).byId(t.accountId);
+          if (!mounted) return;
+          // source=cash_flow 视为投入(input),其它视为调拨(transfer)
+          if (sourceAsset?.type == 'cash_flow') {
+            setState(() => _intent = 'input');
+          }
+        });
       }
     } else {
       // 新增模式:默认账户取 preselectedAssetType 段优先的
