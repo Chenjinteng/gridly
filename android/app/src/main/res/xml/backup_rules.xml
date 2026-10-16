@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  D69:Android 12- 自动云备份规则(Google Drive Backup / 厂商云备份)
+
+  策略:全量备份用户数据(流水 + 设置)
+  - 用户升级手机 / 重装系统时,自动恢复所有流水和设置
+  - SQLite 数据库 gridly.sqlite 必须包含(主数据源)
+  - SharedPreferences 全包含(金额可见性 / 月度预算 / 主题模式 / 等)
+-->
+<full-backup-content>
+    <!-- 用户流水主数据库 -->
+    <include domain="database" path="gridly.sqlite" />
+    <!-- 用户设置(主题 / 金额可见性 / 月度预算 fallback / 等) -->
+    <include domain="sharedpref" path="." />
+    <!-- 用户导出 / 备份文件(若落在应用内部存储) -->
+    <include domain="file" path="." />
+</full-backup-content>

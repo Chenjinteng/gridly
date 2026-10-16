@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  D69:Android 12+(API 31+)备份与设备传输规则
+
+  拆成两类:
+  - <cloud-backup>:Google Drive / 厂商云自动备份(用户换号 / 升级系统时恢复)
+  - <device-transfer>:Android 12 设备间直接传输(类似 iPhone 新机迁移)
+
+  gridly 是本地优先记账 app,无云端,所有用户数据都在 SQLite 里,
+  备份策略 = 全量包含(避免用户升级手机丢数据)。
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <!-- SQLite 主数据库:流水 / 资产 / 分类 / 预算 -->
+        <include domain="database" path="gridly.sqlite" />
+        <!-- SharedPreferences:金额可见性 / 主题 / 月度预算 -->
+        <include domain="sharedpref" path="." />
+        <!-- 应用文件:导出 CSV / 备份 .sqlite -->
+        <include domain="file" path="." />
+    </cloud-backup>
+    <device-transfer>
+        <!-- 设备间迁移同样全量包含 -->
+        <include domain="database" path="gridly.sqlite" />
+        <include domain="sharedpref" path="." />
+        <include domain="file" path="." />
+    </device-transfer>
+</data-extraction-rules>

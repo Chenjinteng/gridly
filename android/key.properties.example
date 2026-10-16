@@ -1,0 +1,20 @@
+# D69:release 签名配置模板
+#
+# 1. 复制本文件:cp android/key.properties.example android/key.properties
+# 2. 用真实 keystore 信息替换下方占位符
+# 3. android/key.properties + *.jks 已入 .gitignore,绝不入仓库
+#
+# ⚠️ 警告:keystore 文件一旦丢失,Google Play / 国内应用市场都不能更新现有 app。
+#    请把 keystore 离线备份到 1Password / 加密 U 盘 / 公司保险柜等至少 2 处。
+
+# keystore 文件绝对路径(指向 .jks 或 .keystore 文件)
+storeFile=/Users/yourname/path/to/gridly-upload.jks
+
+# keystore 密码(keytool -genkey 时输入的密码)
+storePassword=YOUR_STORE_PASSWORD
+
+# key 别名(keytool -genkey -alias 后的名字,默认 gridly)
+keyAlias=gridly
+
+# key 密码(通常跟 storePassword 相同,但 keytool 可以分别设)
+keyPassword=YOUR_KEY_PASSWORD
