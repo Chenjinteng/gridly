@@ -206,7 +206,7 @@ class _AssetAllocationChartState
                                     height: 1.0,
                                   ),
                                 ),
-                                const SizedBox(height: 2),
+                                const SizedBox(height: AppSpacing.s05),
                                 const Text(
                                   '个账户',
                                   style: TextStyle(

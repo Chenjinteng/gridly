@@ -135,7 +135,7 @@ class PieChartContent extends StatelessWidget {
                       centerLabel,
                       style: const TextStyle(fontSize: 11, color: AppGray.g600),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: AppSpacing.s05),
                     Text(
                       centerValueText,
                       style: const TextStyle(

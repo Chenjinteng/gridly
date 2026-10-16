@@ -178,7 +178,7 @@ class TransactionTile extends ConsumerWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: AppSpacing.s05),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
@@ -522,7 +522,7 @@ class _DeleteConfirmDialog extends StatelessWidget {
                               fontWeight: FontWeight.w500,
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: AppSpacing.s05),
                           Text(
                             Formatters.shortDate(transaction.occurredAt),
                             style: TextStyle(
@@ -532,7 +532,7 @@ class _DeleteConfirmDialog extends StatelessWidget {
                           ),
                           if (transaction.note != null &&
                               transaction.note!.isNotEmpty) ...[
-                            const SizedBox(height: 2),
+                            const SizedBox(height: AppSpacing.s05),
                             Text(
                               transaction.note!,
                               style: TextStyle(

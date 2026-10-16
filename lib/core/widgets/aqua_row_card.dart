@@ -70,7 +70,7 @@ class AquaRowCard extends StatelessWidget {
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: AppSpacing.s05),
                       Text(
                         subtitle,
                         style: const TextStyle(

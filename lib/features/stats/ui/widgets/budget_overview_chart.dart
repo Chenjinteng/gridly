@@ -358,7 +358,7 @@ class _BudgetOverviewBodyState extends State<_BudgetOverviewBody> {
                             '已花',
                             style: TextStyle(fontSize: 11, color: AppGray.g600),
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: AppSpacing.s05),
                           // 数字加载动画:viewport 进入后才从 0 递增到实际值
                           //   - _appeared=false:显示静态最终值(避免"未加载完成"闪过)
                           //   - _appeared=true:TweenAnimationBuilder mount,begin=0 递增到 end

@@ -227,7 +227,7 @@ class _YoYBadge extends StatelessWidget {
       icon = Icons.arrow_drop_down_rounded;
     }
     return Padding(
-      padding: const EdgeInsets.only(top: 2),
+      padding: const EdgeInsets.only(top: AppSpacing.s05),
       // D62 UAT 修:同比文字过长(±¥20,000.0)时 _YoYBadge 自然宽 > parent column
       // 宽,触发 RenderFlex overflow 0.323px。FittedBox(scaleDown) 只在溢出时缩放,
       // 短文字(0.0% / +12.5%)保持原字号不变。

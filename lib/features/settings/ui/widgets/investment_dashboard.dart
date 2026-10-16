@@ -170,7 +170,7 @@ class _NetTotalHeader extends StatelessWidget {
                     color: isProfit ? AppStatus.success : AppStatus.error,
                   ),
                 ),
-                const SizedBox(width: 2),
+                const SizedBox(width: AppSpacing.s05),
                 const Text(
                   '¥',
                   style: TextStyle(

@@ -1874,7 +1874,7 @@ class _AccountPickerSheet extends ConsumerWidget {
                                                     fontWeight: FontWeight.w500,
                                                   ),
                                                 ),
-                                                const SizedBox(height: 2),
+                                                const SizedBox(height: AppSpacing.s05),
                                                 Text(
                                                   AppSegment.labelFor(a.type),
                                                   style: TextStyle(

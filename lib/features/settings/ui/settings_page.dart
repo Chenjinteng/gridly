@@ -86,7 +86,7 @@ class SettingsPage extends ConsumerWidget {
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: AppSpacing.s05),
                         Text(
                           versionTagline,
                           style: const TextStyle(

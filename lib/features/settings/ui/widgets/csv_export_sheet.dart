@@ -183,7 +183,7 @@ class _RangeOption extends StatelessWidget {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: AppSpacing.s05),
                   Text(
                     sub,
                     style: const TextStyle(fontSize: 12, color: AppGray.g600),

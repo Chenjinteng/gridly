@@ -76,9 +76,9 @@ class _SplashPageState extends ConsumerState<SplashPage> {
               child: Row(
                 children: [
                   Expanded(child: _Bar(color: AppSecondary.cream, height: 4)),
-                  SizedBox(width: 2),
+                  SizedBox(width: AppSpacing.s05),
                   Expanded(child: _Bar(color: AppBrand.gold, height: 4)),
-                  SizedBox(width: 2),
+                  SizedBox(width: AppSpacing.s05),
                   Expanded(child: _Bar(color: AppBrand.teal, height: 4)),
                 ],
               ),
