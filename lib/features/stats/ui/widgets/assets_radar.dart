@@ -29,6 +29,16 @@
 //   - painter 用 entries.length 自动适配 5 边形:
 //     n=5 → 5 grid 圈(同心 5 边形)+ 5 spoke + 5 label + 数据多边形 5 顶
 //     原始算法不变,仅 entries 缩短 1 项
+//
+// 2026-10-16 D64.38 改:
+//   - user UAT 反馈"雷达图实际是'我的资产构成',5 个角想加(百分比)表示占比"
+//   - 修法:`_RadarEntry` 加 `percent` 字段(预计算,基于 5 段 sum 作分母),
+//     painter `_drawLabel` 改 2 行布局 — 上行原 label(类型名 w600 11sp),
+//     下行百分比例如"75%"(w500 10sp + onSurfaceVariant 灰)
+//   - 分母 = 5 段真资产 sum(cash_flow + investment + benefit + fixed_asset + other),
+//     跟净资产卡 D64.36 的"总资产"口径一致(不含 receivable 负债段)
+//   - 视觉:类型名 + 百分比 形成"标签 = 段名 + 占总资产比例",跟净资产卡
+//     末尾'总资产 ¥XXX' 串起来形成'每段占总资产 X%' 直观图
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -147,31 +157,49 @@ class _AssetsRadarState extends ConsumerState<AssetsRadar> {
               data: (totals) {
                 // D64.33:5 维雷达图,顺序按日常查看频度,跟总览卡 5 段一致
                 // (debt/receivable 已摘出 —— 净资产口径不包含"我欠的"或"应收未到")
+                //
+                // D64.38:算 5 段真资产 sum 作分母,每段算百分比
+                //   - 分母跟净资产卡 D64.36 "总资产"口径一致(不含 receivable 负债段)
+                //   - 某段为负(如现金流花光成负):百分比自然为负,反映"负贡献"
+                //   - 5 段全 0 走空态 early-return,不会到这里
+                final totalAssets =
+                    totals.totalCashFlow +
+                    totals.totalInvestment +
+                    totals.totalBenefit +
+                    totals.totalFixedAsset +
+                    totals.totalOther;
+                double pctOf(double v) =>
+                    totalAssets == 0 ? 0 : (v / totalAssets) * 100;
                 final entries = <_RadarEntry>[
                   _RadarEntry(
                     label: '现金流',
                     value: totals.totalCashFlow,
                     color: AppBrand.teal,
+                    percent: pctOf(totals.totalCashFlow),
                   ),
                   _RadarEntry(
                     label: '投资',
                     value: totals.totalInvestment,
                     color: AppBrand.gold,
+                    percent: pctOf(totals.totalInvestment),
                   ),
                   _RadarEntry(
                     label: '福利',
                     value: totals.totalBenefit,
                     color: AppStatus.success,
+                    percent: pctOf(totals.totalBenefit),
                   ),
                   _RadarEntry(
                     label: '不动产',
                     value: totals.totalFixedAsset,
                     color: AppStatus.info,
+                    percent: pctOf(totals.totalFixedAsset),
                   ),
                   _RadarEntry(
                     label: '其它',
                     value: totals.totalOther,
                     color: AppGray.g600,
+                    percent: pctOf(totals.totalOther),
                   ),
                 ];
                 // 极端 case:5 个都 0 → 显示空态(generic,所有 entries 都 0)
@@ -214,6 +242,12 @@ class _AssetsRadarState extends ConsumerState<AssetsRadar> {
                               fontWeight: FontWeight.w600,
                               color: theme.colorScheme.onSurface,
                             ),
+                            // D64.38:百分比 label style(下行,小字灰)
+                            percentStyle: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w500,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
                             primary: AppBrand.teal,
                             primaryFill: AppBrand.teal.withValues(alpha: 0.18),
                           ),
@@ -233,15 +267,21 @@ class _AssetsRadarState extends ConsumerState<AssetsRadar> {
 }
 
 /// 雷达图单维数据
+///   - value:原始金额,用于 radius 归一化
+///   - percent:占 5 段真资产 sum 的百分比(D64.38),用于 2 行 label 下行显示
 class _RadarEntry {
   const _RadarEntry({
     required this.label,
     required this.value,
     required this.color,
+    required this.percent,
   });
   final String label;
   final double value;
   final Color color;
+
+  /// 占 5 段真资产 sum 的百分比(可能为负,反映"负贡献"段)
+  final double percent;
 }
 
 /// 自绘 6 维雷达图
@@ -257,6 +297,7 @@ class _RadarPainter extends CustomPainter {
     required this.progress,
     required this.gridColor,
     required this.labelStyle,
+    required this.percentStyle,
     required this.primary,
     required this.primaryFill,
   });
@@ -266,6 +307,8 @@ class _RadarPainter extends CustomPainter {
   final double progress;
   final Color gridColor;
   final TextStyle labelStyle;
+  // D64.38:百分比样式(下行 label,小字灰)
+  final TextStyle percentStyle;
   final Color primary;
   final Color primaryFill;
 
@@ -307,6 +350,7 @@ class _RadarPainter extends CustomPainter {
     }
 
     // 3. 画 6 label(沿 spoke 方向,外圈 +12% 偏移)
+    //   D64.38:2 行布局 — 上行原 label(类型名),下行百分比 "75%"
     for (int i = 0; i < n; i++) {
       final angle = -math.pi / 2 + i * angleStep;
       final labelR = radius * (1 + _labelOffset);
@@ -314,7 +358,7 @@ class _RadarPainter extends CustomPainter {
         center.dx + labelR * math.cos(angle),
         center.dy + labelR * math.sin(angle),
       );
-      _drawLabel(canvas, labelPos, entries[i].label, angle);
+      _drawLabel(canvas, labelPos, entries[i], angle);
     }
 
     // 4. 画数据多边形 + fill
@@ -378,44 +422,76 @@ class _RadarPainter extends CustomPainter {
   ///   - 上方 (-π/2 ~ -π/6 + π/6):bottomCenter anchor
   ///   - 侧方:left/rightCenter anchor
   ///   - 下方 (-π/6 ~ 0 或 0 ~ π/6):topCenter anchor
-  void _drawLabel(Canvas canvas, Offset labelPos, String text, double angle) {
-    final textPainter = TextPainter(
-      text: TextSpan(text: text, style: labelStyle),
+  ///
+  /// D64.38:2 行布局 — 上行原 label(类型名 w600 11sp),下行 percent(百分比 w500 10sp 灰)
+  ///   - 两个 TextPainter 分别 layout,组合高度 = labelH + percentH
+  ///   - anchor 偏移仍按 angle 调整,但 dy 改为基于组合高度的一半
+  ///   - 视觉上"现金流 75%" 紧凑显示,label 占主,percent 副
+  void _drawLabel(
+    Canvas canvas,
+    Offset labelPos,
+    _RadarEntry entry,
+    double angle,
+  ) {
+    final percentText = '${entry.percent.round()}%';
+    final labelTp = TextPainter(
+      text: TextSpan(text: entry.label, style: labelStyle),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final percentTp = TextPainter(
+      text: TextSpan(text: percentText, style: percentStyle),
       textDirection: TextDirection.ltr,
     )..layout();
 
-    // 算 anchor 偏移:让 label 沿 spoke 方向离端点更远
-    //   - angle 接近 -π/2 (顶部):label 在 pt 上方
-    //   - angle 接近 0 (右侧):label 在 pt 右侧
-    //   - angle 接近 π/2 (底部):label 在 pt 下方
-    //   - 等等
+    // 整体宽 = 两行宽的较大值(同行对齐用 max 宽,标签居中)
+    final totalW = labelTp.width > percentTp.width
+        ? labelTp.width
+        : percentTp.width;
+    // 整体高 = labelH + 2px gap + percentH
+    final totalH = labelTp.height + 2 + percentTp.height;
+
+    // 算 anchor 偏移(基于整体宽高,而非单行)
     double dx = 0, dy = 0;
     if (angle > -math.pi * 5 / 6 && angle < -math.pi / 6) {
-      // 上方(顶部 60° 范围):anchor bottomCenter
-      dy = -textPainter.height / 2;
+      // 上方(顶部 60° 范围):anchor bottomCenter → label 在 pt 上方
+      dy = -totalH / 2;
     } else if (angle > math.pi / 6 && angle < math.pi * 5 / 6) {
-      // 下方(底部 60° 范围):anchor topCenter
-      dy = textPainter.height / 2;
+      // 下方(底部 60° 范围):anchor topCenter → label 在 pt 下方
+      dy = totalH / 2;
     } else {
-      // 左侧(π/6 ~ π/6 中间,实际不会到这里因为 6 等分)
       dy = 0;
     }
     // 水平 anchor:右侧 spokes anchor 偏左,左侧 spokes anchor 偏右
     if (angle > -math.pi / 6 && angle < math.pi / 6) {
       // 右侧(0° 方向 ±30°)
-      dx = textPainter.width / 2;
+      dx = totalW / 2;
     } else if (angle > math.pi * 5 / 6 || angle < -math.pi * 5 / 6) {
       // 左侧(180° 方向 ±30°)
-      dx = -textPainter.width / 2;
+      dx = -totalW / 2;
     } else {
       dx = 0;
     }
 
-    final offset = Offset(
-      labelPos.dx - textPainter.width / 2 + dx,
-      labelPos.dy - textPainter.height / 2 + dy,
+    // 整体左上角 = labelPos - 整体宽高/2 + (dx, dy)
+    //   - dx/dy 是为了让组合 label 的"远端"沿 spoke 方向更远离端点
+    final topLeft = Offset(
+      labelPos.dx - totalW / 2 + dx,
+      labelPos.dy - totalH / 2 + dy,
     );
-    textPainter.paint(canvas, offset);
+
+    // 上行 label:水平居中于 topLeft + 0..totalW
+    labelTp.paint(
+      canvas,
+      Offset(topLeft.dx + (totalW - labelTp.width) / 2, topLeft.dy),
+    );
+    // 下行 percent:水平居中,紧贴上行(gap 2px)
+    percentTp.paint(
+      canvas,
+      Offset(
+        topLeft.dx + (totalW - percentTp.width) / 2,
+        topLeft.dy + labelTp.height + 2,
+      ),
+    );
   }
 
   @override
@@ -424,6 +500,7 @@ class _RadarPainter extends CustomPainter {
         old.progress != progress ||
         old.gridColor != gridColor ||
         old.labelStyle != labelStyle ||
+        old.percentStyle != percentStyle ||
         old.primary != primary ||
         old.entries != entries;
   }
