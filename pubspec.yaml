@@ -2,7 +2,7 @@ name: gridly
 description: "格子记账 — 一格一账的本地优先记账工具"
 publish_to: 'none'
 
-version: 1.0.0+101  # v1.0.0 正式发布(D69 阶段累计 69+ 个 commit 后,user 拍板定版)
+version: 1.0.0+102  # v1.0.0 正式发布(D69 阶段累计 69+ 个 commit 后,user 拍板定版)
 # - 此前 0.3.5 阶段是开发期迭代版本,user 准备发布时改为 1.0.0(首个稳定版)
 # - build 保持 +101(compileSdk 36 fix 的实际 commit 数),后续 user 使用期修复
 #   按 semver 叠加 1.0.1+102 / 1.0.2+103 ...
