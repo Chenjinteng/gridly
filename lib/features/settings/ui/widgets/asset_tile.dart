@@ -382,7 +382,17 @@ class AssetTile extends ConsumerWidget {
           boxShadow: CardShadows.dark(context),
         ),
         // D64.43.3:padding s3 → s2(8),跟流水卡片 default contentPadding 8 对齐
-        padding: const EdgeInsets.all(AppSpacing.s2),
+        // D64.49:padding s2(8) → s3(12),跟流水 tile padding 重新对齐
+        //   - D64.43.3 时改 s3→s2 是为缩小 tile 高度跟流水 52 接近
+        //   - 实际算:资产 tile Column 内容(name 14 + amount 14 + chip 18 = ~40)
+        //     + s2 padding 16 = 56,流水 tile Column(name 15 + amount 16 + 备注+账号 = ~42)
+        //     + s3 padding 24 = 66,差 10
+        //   - user 16:36 上机 navy 后反馈"感觉资产的 tile 高度变矮了,没有流水 tile 那么高"
+        //   - 流水 tile padding s3(12)沿用不动,资产 tile 改回 s3(12)让两个 tile 高度一致
+        //   - 改后 tile 高:Column 40 + 24 = 64(跟流水 66 差 2,可接受)
+        //   - SwipeToActions 按钮 height 64 fixed(D64.48 跟 tile 高度解耦),
+        //     资产 tile 改 padding 不影响按钮 64x64 圆角正方形
+        padding: const EdgeInsets.all(AppSpacing.s3),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
