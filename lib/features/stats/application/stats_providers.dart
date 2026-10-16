@@ -191,19 +191,17 @@ final expenseByCategoryProvider = FutureProvider<List<CategoryExpense>>((
 ///   - 其它 balance(投资调拨)不计 — 投资账户之间转账不属于"支出"维度
 /// UI 显示:tx.type='expense' 走真 cat.name/颜色;balance+liability 走 receivable 段
 /// cat(系统 seed "债务",color=AppCategory.liability 红),跟饼图虚拟分类视觉一致。
+/// 2026-10-16 D64.80 改:复用 statsTransactionsProvider.future 拿同一时间窗流水,
+///   不再自己 select(DB)。其它 stats provider 共享同一份缓存,切 range / year
+///   时不再重复 fetch。
 final topExpensesProvider = FutureProvider<List<Transaction>>((ref) async {
-  final w = ref.watch(statsWindowProvider);
-  final db = ref.watch(databaseProvider);
-  // D62:用猫类型过滤 — 现金→债务调拨 cat.type='liability',从 cats 查 id 集合
   final cats = await ref.watch(allCategoriesProvider.future);
   final liabilityCatIds = cats
       .where((c) => c.type == 'liability')
       .map((c) => c.id)
       .toSet();
-  // 全窗查 + 内存 filter + 排序 + limit 10(避免拼复杂 SQL,数据量小可接受)
-  final txs = await (db.select(
-    db.transactions,
-  )..where((t) => t.occurredAt.isBetweenValues(w.start, w.end))).get();
+  // 复用 statsTransactionsProvider 已 cache 的流水(同时间窗)
+  final txs = await ref.watch(statsTransactionsProvider.future);
   final filtered = txs.where((t) {
     if (t.type == 'expense') return true;
     if (t.type == 'balance' && liabilityCatIds.contains(t.categoryId)) {
