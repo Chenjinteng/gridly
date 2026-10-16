@@ -1283,11 +1283,16 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                         if (!_isReceivableContext) {
                           _categoryId = null;
                         }
-                        if (_isInvestmentContext) {
+                        // 2026-10-16 D64.79 改:切 toggle 统一按 _needsDualAccount 清双账户
+                        //   - 之前仅 _isInvestmentContext 清 _accountId / _destinationAccountId,
+                        //     receivable 调拨段(_isReceivableContext && _intent=='transfer')是
+                        //     双账户但没清 → 残留 dest 跟 source/dest 互斥(D50)错配
+                        //   - 改成统一条件:任何双账户 intent 切换都清 source + dest
+                        if (_needsDualAccount) {
                           _accountId = null;
                           _destinationAccountId = null;
                         }
-                        // cash_flow:保留 _accountId(同 context 切 intent)
+                        // cash_flow 短按+(_needsDualAccount=false):保留 _accountId(同 context 切 intent)
                       }),
                     ),
                   ),
