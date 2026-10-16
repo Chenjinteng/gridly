@@ -228,6 +228,20 @@ class _SwipeToActionsState extends ConsumerState<SwipeToActions>
         // 2026-10-11 UAT 反馈:胶囊"丑且太大",退回圆角矩形,加 elevation 落影
         // 按钮跟随 _offset 渐显(opacity + translate),不再"突然出现"。
         // 左按钮(编辑)用主题色 primary,右按钮(删除)用 error 红 —— iOS 标准。
+        //
+        // 2026-10-16 D64.48:按钮 SizedBox 加 `height: 64` 固定,
+        //   让按钮永远 64x64 圆角正方形(独立于 child tile 高度)
+        //   - 之前(D64.42 抽 SwipeToActions 时):按钮 SizedBox 只设 width 64,
+        //     高度 = Material 撑满父级 Stack = child tile 高度 → 按钮被 tile
+        //     拉高/压扁成长方形,user 反馈"不是圆角正方形"
+        //   - D64.43 → D64.43.2 → D64.43.3 → D64.47 整条"撑 logo 撑 tile 高度
+        //     64"是间接补救(让 tile = 64 → 按钮 = 64x64),代价:logo 高度决定
+        //     tile 高度,user 改 logo tile 高度就变,asset_tile 改 logo 多次反复
+        //   - 这次彻底解耦:按钮 height 64 fixed,跟 child tile 高度无关
+        //   - Stack 仍 = child tile 高度,按钮居中显示(tile 高度 < 64 时按钮
+        //     overflow 居中浮在 tile 中央;tile 高度 >= 64 时按钮贴合)
+        //   - 业务侧(资产 / 流水 tile)按需调 padding 让 tile 高度 >= 64,
+        //     不再受 logo 高度耦合
         Positioned.fill(
           child: Padding(
             padding: const EdgeInsets.symmetric(
@@ -246,6 +260,7 @@ class _SwipeToActionsState extends ConsumerState<SwipeToActions>
                       opacity: reveal,
                       child: SizedBox(
                         width: 64,
+                        height: 64, // D64.48:固定 64,圆角正方形
                         child: Material(
                           color: theme.colorScheme.primary,
                           borderRadius: AppRadius.brLg,
@@ -283,6 +298,7 @@ class _SwipeToActionsState extends ConsumerState<SwipeToActions>
                       opacity: reveal,
                       child: SizedBox(
                         width: 64,
+                        height: 64, // D64.48:固定 64,圆角正方形
                         child: Material(
                           color: AppStatus.error,
                           borderRadius: AppRadius.brLg,

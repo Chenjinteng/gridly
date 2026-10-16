@@ -133,6 +133,47 @@
 //       这是有意义的(关 swipe),跟 ledger 一致
 //   - 不改 assets_management_page 的外层 GestureDetector(它仍然是"点屏幕收回正在滑开的 tile",
 //     跟 ledger page 同样模式)
+// 2026-10-16 D64.48 改(user UAT 反馈):
+//   - user 反馈"logo 调了之后,tile 的高度不一样了。感觉被压扁了。
+//     我认为不应该一直靠这个高度来调整,我的目的就是为了让左滑动出来
+//     的两个编辑删除按钮看上去是圆角正方形,所以只要配置长度与高度
+//     一致就行了吧"
+//   - 反思:之前 D64.43 → D64.43.2 → D64.43.3 → D64.47 整条"撑 logo
+//     撑 tile 高度 = 64"是间接补救:
+//       * D64.43 改 2 列布局(去掉 ListTile 3 列) → tile 高由内容决定
+//         但 user 反馈"按钮被拉高了,不好看",user 原意是"按钮应该圆角正方形"
+//       * D64.43.2 leading 36→56(撑高 tile 到 64)→ D64.43.3 56→48
+//         (撑高 tile 64)→ D64.47 48→36(回到 tile 内容自然高 ~52)
+//         3 轮反复都是为了让 tile 高度 = 64 让按钮自动 64x64(因为之前
+//         SwipeToActions 按钮高度 = Material 撑满 Stack = child tile 高度)
+//       * 副作用:logo 高度跟 tile 高度强耦合,改 logo tile 高度就变,
+//         反复改 logo 浪费时间(D64.43.2 → 43.3 → 47 三次 commit 才稳)
+//   - user 原话正解:"只要配置长度与高度一致就行了吧" — 直接改
+//     SwipeToActions 按钮 SizedBox height 64,跟 child tile 高度解耦,
+//     不再"靠 tile 高度 64 间接实现按钮 64x64"
+//   - 修法(只动 SwipeToActions 共享 widget + 改本文件注释,代码参数不动):
+//     ① SwipeToActions.dart 两个按钮 SizedBox 加 `height: 64`:
+//        - 之前 SizedBox 只设 width 64,Material 撑满 Stack(child tile 高度),
+//          按钮高度 = tile 高度(自动 stretch,被拉成长方形)
+//        - 现在 SizedBox height 64,Material 固定 64x64 圆角正方形
+//        - Stack 高度仍 = child tile 高度,Positioned.fill + Align centerRight
+//          让按钮水平居右、垂直居中显示
+//        - tile 高度 < 64 → 按钮居中浮在 tile 中央(Stack overflow 不报错,
+//          Material elevation 4 落影会"飘"出来,iOS Mail 风格不奇怪)
+//        - tile 高度 >= 64 → 按钮完全贴合 tile 高度
+//     ② asset_tile.dart 代码参数保持 D64.47(logo 36, padding s2, chip 紧凑):
+//        - 之前 D64.43.2 "logo 全占 tile 高度" / D64.43.3 "缩到 48" /
+//          D64.47 "再缩到 36" 整条撑高再缩的逻辑作废,改为
+//          "logo 高度独立于 tile 高度,tile 由内容 + padding 决定"
+//        - 当前 logo 36 + padding s2 + Column name 14sp + chips 18sp
+//          → tile 高 ~52(自然),不再刻意让 logo 撑到 64
+//     ③ 流水 tile 同样用 SwipeToActions 共享 widget,自动受益(按钮变
+//        64x64 圆角正方形,不再跟 tile 高度走);流水 tile 高 ~52,
+//        按钮居中会浮 6px 上下,跟资产 tile 视觉一致
+//   - 顶部 D64.43.2 / D64.43.3 / D64.47 历史注释**保留**作反思留档,
+//     D64.48 段是"作废"说明 + 新逻辑
+//   - 业务侧(资产 / 流水 tile)按需调 padding 让 tile 高度 >= 64 让按钮
+//     贴合;当前 52 让按钮居中浮,visual 接受,user 反馈再调
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
