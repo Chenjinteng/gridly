@@ -240,23 +240,27 @@ class _StatsPageState extends ConsumerState<StatsPage> {
         // D64.56(user UAT 反馈):雷达图保留 5 维真资产占比(radar 5 维不含 receivable);
         //   receivable 段单独抽出给 LiabilitiesDashboard —— "我欠多少"用 dashboard
         //   详细列每 receivable 账户 + 横向条,"我有什么"用 radar 显示 5 段占比。
-        //   两张独立模块风格跟 expense 视角单卡 widget 一致。
+        //   两张独立模块风格跟 expense 视角放预算等单一 widget 风格一致。
         // D64.62(user UAT 反馈):再加 2 张 dashboard(借出情况 + 资产配置分布)
         //   - 借出情况:白底镜像 LiabilitiesDashboard,但只列 isLender=true
         //     receivable 账户,正数 teal 颜色,跟"负债(ink 底/警示红)"对照
         //     "借出(白底/友好色)"user 一眼分清"我借出的钱 vs 我欠的钱"
-        //   - 资产配置分布:环形图 6 段(cash_flow / investment / benefit /
-        //     receivable_lend / fixed_asset / other),借出 receivable 算资产侧
-        //     "债权"维度,借入 receivable 不计入(在负债卡独立显示)
-        //   - 顺序:负债(警示)→借出(应收)→环形图(资产配比)→雷达图(真资产配比),
-        //     信息密度从"警示"渐变到"友好"
+        // D64.63(user UAT 反馈):资产配置分布重写 + 移动位置
+        //   - 重写:D64.62 我按"6 段类型"做环形,user 反馈理解错了,要按
+        //     "每个具体账户"(现金/银行卡/微信支付/余额宝...)做环形
+        //     修法:数据源改 `assets.where(bal > 0)` 逐账户,color 用账户色,
+        //     图例只显示占比 % 不显示金额
+        //   - 移动:从 D64.62 "雷达图前"挪到 D64.63 "雷达图后",
+        //     user 反馈"放在雷达图下面"
+        // 最终顺序:负债(警示) → 借出(应收) → 雷达图(真资产配比) →
+        //   资产配置分布(账户级环形)
         add(const LiabilitiesDashboard());
         widgets.add(const SizedBox(height: AppSpacing.s3));
         add(const ReceivablesDashboard());
         widgets.add(const SizedBox(height: AppSpacing.s3));
-        add(const AssetAllocationChart());
-        widgets.add(const SizedBox(height: AppSpacing.s3));
         add(const AssetsRadar());
+        widgets.add(const SizedBox(height: AppSpacing.s3));
+        add(const AssetAllocationChart());
     }
     return widgets;
   }
