@@ -77,6 +77,20 @@
 //       也是 12sp 比 asset 15sp 小,chip 紧凑是视觉对齐的一部分)
 //   - 预期新总高 ≈ 8 + max(48, name 18 + s2 8 + chips 20) = 64px
 //     vs 流水 52px,asset 仍多 12px(因为 asset 多 1 行 chips 内容),合理
+// 2026-10-16 D64.43.4 改(user UAT 反馈):
+//   - user 反馈"感觉好像有点不是很搭,颜色换成主题青"
+//   - 修法:
+//     ① 卡片底色 `AppBrand.ink`(炭黑,0xFF0F1419)→ **`AppBrand.teal`(明亮青,0xFF14B8A6)**
+//     ② outline rim border 白色 alpha 调整:深色主题 0.15 / 浅色主题 0.30
+//       (teal 比 ink 浅,需要更强 outline 区分边缘)
+//     ③ shadow 沿用 `CardShadows.dark(context)`(teal 在亮底上 + 深色阴影好看)
+//     ④ name 文字色 `AppSecondary.cream`(米白)→ **`Colors.white`**(teal 底上纯白最清晰)
+//     ⑤ amount 文字色:正数保留 `AppBrand.teal`(但 teal 底上太相近,改 `Colors.white`);
+//       负数保留 `AppStatus.error` 但提到 0.95 alpha(亮底上红需要更饱和);
+//       0 用 `Colors.white54` 弱化
+//     ⑥ chip 底色 alpha 0.20 → 0.18 + 文字 `Colors.white` 覆盖(teal 底上白 chip)
+//     ⑦ logo icon 在 teal 底上保留原 asset.color,但 logo 底色从 0.20 alpha
+//       提到 0.28(增强 logo 在亮底上的辨识度)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -263,13 +277,15 @@ class AssetTile extends ConsumerWidget {
           vertical: AppSpacing.s1,
         ),
         decoration: BoxDecoration(
-          // D64.43:底色换主题黑(跟净资产卡 / range_summary / 关于卡 一致),
-          //   跟流水 tile 浅色 surface 视觉上"区分资产 vs 流水"
-          color: AppBrand.ink,
+          // D64.43.4:底色换主题青 `AppBrand.teal`(明亮青,0xFF14B8A6),
+          //   跟 chips 上 teal 调一致,视觉统一;从原来 D64.43 黑底换青底
+          //   (user 反馈黑底"不是很搭",改跟品牌色 teal 同色系)
+          color: AppBrand.teal,
           borderRadius: AppRadius.brLg,
-          // D64.43:rim light border 跟主题黑卡一致(浅色主题 0.15,深色主题 0.08)
+          // D64.43.4:rim border 白色 alpha 调整:浅色主题 0.30 / 深色主题 0.15
+          //   (teal 比 ink 浅,需要更强 outline 区分边缘)
           border: Border.all(
-            color: Colors.white.withValues(alpha: isDark ? 0.08 : 0.15),
+            color: Colors.white.withValues(alpha: isDark ? 0.15 : 0.30),
             width: 1.0,
           ),
           boxShadow: CardShadows.dark(context),
@@ -279,9 +295,9 @@ class AssetTile extends ConsumerWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // 2026-10-14 D48 + 2026-10-16 D64.43.2/3:leading 大方块,全占 tile 高度
-            //   - material:48×48 tinted box(asset.color 0.20 底 + asset.color icon 24px),
-            //     居中显示,asset 标识突出
+            // 2026-10-14 D48 + 2026-10-16 D64.43.2/3/4:leading 大方块,全占 tile 高度
+            //   - material:48×48 tinted box(asset.color 0.28 底 + asset.color icon 24px),
+            //     teal 亮底上 alpha 从 0.20 提到 0.28 让 logo 更显眼
             //   - brand/crypto/bank:48×48 圆角盒,内部 brand chip 自带品牌色背景
             //     不再加 tinted 外框(避免双层色块冲突)
             isBrandKey(asset.icon)
@@ -297,10 +313,11 @@ class AssetTile extends ConsumerWidget {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.20),
+                      // D64.43.4:teal 亮底上 alpha 提到 0.28 增强 logo 辨识
+                      color: color.withValues(alpha: 0.28),
                       borderRadius: AppRadius.brSm,
                       border: Border.all(
-                        color: color.withValues(alpha: 0.35),
+                        color: color.withValues(alpha: 0.45),
                         width: 0.5,
                       ),
                     ),
@@ -328,8 +345,8 @@ class AssetTile extends ConsumerWidget {
                             // D64.43.3:name 字号 15 → 14,跟流水卡片对齐
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
-                            // D64.43:在 ink 黑底上用 cream(AppSecondary.cream),可读
-                            color: AppSecondary.cream,
+                            // D64.43.4:teal 底上用 Colors.white 比 cream 更清晰
+                            color: Colors.white,
                           ),
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1,
@@ -337,21 +354,29 @@ class AssetTile extends ConsumerWidget {
                       ),
                       const SizedBox(width: AppSpacing.s2),
                       // amount:右对齐,w600 14sp(跟流水卡片对齐)
+                      // D64.43.4:teal 底上余额颜色调整:
+                      //   正数(原 teal)= Colors.white(teal 底同色消失)
+                      //   负数(error 红)= 0.95 alpha 加亮
+                      //   0(g400 浅灰)= Colors.white54 弱化
                       Text(
                         '¥${Formatters.amount(balance)}',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: balance == 0
-                              ? AppGray.g400
-                              : AppSemantic.balanceFor(balance),
+                              ? Colors.white54
+                              : balance > 0
+                              ? Colors.white
+                              : AppStatus.error.withValues(alpha: 0.95),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: AppSpacing.s1),
                   // 第二行:chips Wrap(流动资金 / 默认 / 计入流水 等)
-                  //   D64.41:用 Wrap 替代 Row,chip 多时自动换行
+                  // D64.43.4:chip 在 teal 底上 — 颜色还是 chip.color(segment 语义色),
+                  //   底色从 0.20 → 0.18 (青底上 0.20 偏重),
+                  //   文字色在青底上需要提亮
                   Wrap(
                     spacing: 6, // 水平间距
                     runSpacing: 4, // 换行垂直间距
@@ -382,8 +407,9 @@ class AssetTile extends ConsumerWidget {
 
 /// 资产 tile 小 chip(2026-10-13 P6 第 2 次改)
 /// - 圆角 4px 胶囊
-/// - color.withValues(alpha:0.20) 底色 + color 文字(D64.43 在 ink 黑底上从 0.12 → 0.20,
-///   alpha 太低 chip 看不清)
+/// - 底色 `color.withValues(alpha:0.25)` 文字 `color`(D64.43.4 在 teal 亮底上
+///   从 0.20 → 0.25 让 chip 更显眼;文字保持 chip.color 区分语义——cash_flow 段
+///   chip 文字色是亮蓝,在 teal 底上虽然不强烈但 chip 底色已经区分 type chip vs 计入 chip)
 /// - 10sp w600(跟之前 type chip 风格一致)
 /// - 复用 type chip + 计入/不计入 chip 两种语义
 class _TileChip extends StatelessWidget {
@@ -397,7 +423,8 @@ class _TileChip extends StatelessWidget {
       // D64.43.3:padding horizontal 6 → 4 vertical 1 → 0,更紧凑
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.20),
+        // D64.43.4:teal 亮底上 chip 底色 alpha 0.20 → 0.25 更显眼
+        color: color.withValues(alpha: 0.25),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
