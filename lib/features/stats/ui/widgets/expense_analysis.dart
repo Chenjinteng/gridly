@@ -32,6 +32,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/charts/chart_card.dart';
 import '../../../../core/widgets/charts/pie_chart_card.dart';
+import '../../../../core/widgets/once_visible.dart';
 import '../../application/stats_providers.dart';
 
 /// "支出分析"模块容器 —— 1 张 ChartCard + 2 tabs(分类 / 账户)
@@ -140,60 +141,16 @@ class _AccountTab extends ConsumerStatefulWidget {
 }
 
 class _AccountTabState extends ConsumerState<_AccountTab> {
-  /// D64.7:viewport-aware 触发入场动画
-  ///   - false:widget 还没进入 scroll viewport,圆环不 forward
-  ///   - true:viewport 进入后圆环开始动 —— 一次性,不再重置
-  bool _appeared = false;
-
-  final GlobalKey _chartKey = GlobalKey();
-  ScrollPosition? _scrollPos;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _scrollPos = Scrollable.maybeOf(context)?.position;
-      _scrollPos?.addListener(_checkInView);
-      _checkInView();
-    });
-  }
-
-  @override
-  void dispose() {
-    _scrollPos?.removeListener(_checkInView);
-    super.dispose();
-  }
-
-  void _checkInView() {
-    if (_appeared) return;
-    final ctx = _chartKey.currentContext;
-    if (ctx == null) return;
-    final box = ctx.findRenderObject() as RenderBox?;
-    if (box == null || !box.attached) return;
-    final scrollableBox =
-        _scrollPos?.context.notificationContext?.findRenderObject()
-            as RenderBox?;
-    if (scrollableBox == null) return;
-    final widgetTopInScrollable = box
-        .localToGlobal(Offset.zero, ancestor: scrollableBox)
-        .dy;
-    final widgetHeight = box.size.height;
-    final viewportHeight = scrollableBox.size.height;
-    if (widgetTopInScrollable < viewportHeight &&
-        widgetTopInScrollable + widgetHeight > 0) {
-      _appeared = true;
-      _scrollPos?.removeListener(_checkInView);
-      setState(() {});
-    }
-  }
+  // 2026-10-16 D64.89 改:viewport-aware 触发走 OnceVisible wrapper
+  //   - 之前 inline _appeared / _chartKey / _scrollPos / _checkInView 50+ 行 boilerplate
+  //   - 跟 asset_allocation_chart / assets_radar 完全同款
+  //   - 改:OnceVisible(builder: (ctx, appeared) => ...) 一行替代,3 处共用
 
   @override
   Widget build(BuildContext context) {
     final assetsAsync = ref.watch(expenseByAssetProvider);
-    return KeyedSubtree(
-      key: _chartKey,
-      child: assetsAsync.when(
+    return OnceVisible(
+      builder: (context, appeared) => assetsAsync.when(
         data: (data) {
           final total = data.fold<double>(0, (s, e) => s + e.amount);
           return PieChartContent(
@@ -209,7 +166,7 @@ class _AccountTabState extends ConsumerState<_AccountTab> {
             centerLabel: '总支出',
             centerValueText: '¥${Formatters.amount(total)}',
             // D64.7:viewport-aware 触发圆环动画
-            play: _appeared,
+            play: appeared,
           );
         },
         loading: () => const PieChartContent(

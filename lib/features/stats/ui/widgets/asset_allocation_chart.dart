@@ -55,6 +55,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/asset_balance_provider.dart';
 import '../../../../core/widgets/animated_pie_chart.dart';
 import '../../../../core/widgets/charts/chart_card.dart';
+import '../../../../core/widgets/once_visible.dart';
 
 /// 报表"资产配置分布"环形图 dashboard
 ///   - 每个具体账户 1 段(不是 6 段类型,D64.63 改)
@@ -74,50 +75,10 @@ class AssetAllocationChart extends ConsumerStatefulWidget {
 
 class _AssetAllocationChartState
     extends ConsumerState<AssetAllocationChart> {
-  /// D64.65 viewport-aware 触发入场动画(同 expense_analysis _AccountTab 套路)
-  bool _appeared = false;
-  final GlobalKey _chartKey = GlobalKey();
-  ScrollPosition? _scrollPos;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _scrollPos = Scrollable.maybeOf(context)?.position;
-      _scrollPos?.addListener(_checkInView);
-      _checkInView();
-    });
-  }
-
-  @override
-  void dispose() {
-    _scrollPos?.removeListener(_checkInView);
-    super.dispose();
-  }
-
-  void _checkInView() {
-    if (_appeared) return;
-    final ctx = _chartKey.currentContext;
-    if (ctx == null) return;
-    final box = ctx.findRenderObject() as RenderBox?;
-    if (box == null || !box.attached) return;
-    final scrollableBox =
-        _scrollPos?.context.notificationContext?.findRenderObject()
-            as RenderBox?;
-    if (scrollableBox == null) return;
-    final widgetTopInScrollable = box
-        .localToGlobal(Offset.zero, ancestor: scrollableBox)
-        .dy;
-    final widgetHeight = box.size.height;
-    final viewportHeight = scrollableBox.size.height;
-    if (widgetTopInScrollable < viewportHeight &&
-        widgetTopInScrollable + widgetHeight > 0) {
-      _appeared = true;
-      _scrollPos?.removeListener(_checkInView);
-      setState(() {});
-    }
-  }
+  // 2026-10-16 D64.89 改:viewport-aware 触发走 OnceVisible wrapper
+  //   - 之前 inline _appeared / _chartKey / _scrollPos / _checkInView 50+ 行 boilerplate
+  //   - 跟 assets_radar / expense_analysis._AccountTab 完全同款
+  //   - 改:OnceVisible(builder: (ctx, appeared) => ...) 一行替代,3 处共用
 
   @override
   Widget build(BuildContext context) {
@@ -145,9 +106,8 @@ class _AssetAllocationChartState
     final totalValue = items.fold<double>(0, (s, e) => s + e.value);
     final ringShown = items.take(AssetAllocationChart._ringMaxSections).toList();
 
-    return KeyedSubtree(
-      key: _chartKey,
-      child: ChartCard(
+    return OnceVisible(
+      builder: (context, appeared) => ChartCard(
         title: '资产配置分布',
         showDivider: true,
         child: items.isEmpty
@@ -187,12 +147,12 @@ class _AssetAllocationChartState
                                   radius: 18,
                                 ),
                             ],
-                            play: _appeared,
+                            play: appeared,
                           ),
                           // 圆环中心:账户数(不显示总资产 — D64.65 user 原则)
                           // 走"X / 个账户"两行,跟 range_summary 计数类视觉对齐
                           AnimatedOpacity(
-                            opacity: _appeared ? 1 : 0,
+                            opacity: appeared ? 1 : 0,
                             duration: const Duration(milliseconds: 280),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,

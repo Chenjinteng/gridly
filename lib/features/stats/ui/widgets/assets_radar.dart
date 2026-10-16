@@ -50,6 +50,7 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/card_shadows.dart';
 import '../../../../core/utils/asset_balance_provider.dart';
+import '../../../../core/widgets/once_visible.dart';
 
 class AssetsRadar extends ConsumerStatefulWidget {
   const AssetsRadar({super.key});
@@ -59,70 +60,30 @@ class AssetsRadar extends ConsumerStatefulWidget {
 }
 
 class _AssetsRadarState extends ConsumerState<AssetsRadar> {
-  /// viewport-aware 触发(同款 pattern)
-  bool _appeared = false;
-  final GlobalKey _chartKey = GlobalKey();
-  ScrollPosition? _scrollPos;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _scrollPos = Scrollable.maybeOf(context)?.position;
-      _scrollPos?.addListener(_checkInView);
-      _checkInView();
-    });
-  }
-
-  @override
-  void dispose() {
-    _scrollPos?.removeListener(_checkInView);
-    super.dispose();
-  }
-
-  void _checkInView() {
-    if (_appeared) return;
-    final ctx = _chartKey.currentContext;
-    if (ctx == null) return;
-    final box = ctx.findRenderObject() as RenderBox?;
-    if (box == null) return;
-    final scrollableBox =
-        _scrollPos?.context.notificationContext?.findRenderObject()
-            as RenderBox?;
-    if (scrollableBox == null) return;
-    final widgetTopInScrollable = box
-        .localToGlobal(Offset.zero, ancestor: scrollableBox)
-        .dy;
-    final widgetHeight = box.size.height;
-    final viewportHeight = scrollableBox.size.height;
-    if (widgetTopInScrollable < viewportHeight &&
-        widgetTopInScrollable + widgetHeight > 0) {
-      _appeared = true;
-      _scrollPos?.removeListener(_checkInView);
-      setState(() {});
-    }
-  }
+  // 2026-10-16 D64.89 改:viewport-aware 触发走 OnceVisible wrapper
+  //   - 之前 inline _appeared / _chartKey / _scrollPos / _checkInView 50+ 行 boilerplate
+  //   - 跟 asset_allocation_chart / expense_analysis._AccountTab 完全同款
+  //   - 改:OnceVisible(builder: (ctx, appeared) => ...) 一行替代,3 处共用
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final totalsAsync = ref.watch(assetTotalsProvider);
-    return Container(
-      key: _chartKey,
-      margin: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
-      padding: const EdgeInsets.all(AppSpacing.s4),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: AppRadius.brLg,
-        border: Border.all(color: theme.colorScheme.outlineVariant, width: 1.0),
-        boxShadow: CardShadows.light(context),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.s2),
+    return OnceVisible(
+      builder: (context, appeared) => Container(
+        margin: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
+        padding: const EdgeInsets.all(AppSpacing.s4),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: AppRadius.brLg,
+          border: Border.all(color: theme.colorScheme.outlineVariant, width: 1.0),
+          boxShadow: CardShadows.light(context),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.s2),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -222,14 +183,14 @@ class _AssetsRadarState extends ConsumerState<AssetsRadar> {
                     .reduce((a, b) => a > b ? a : b);
 
                 return TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0.0, end: _appeared ? 1.0 : 0.0),
+                  tween: Tween(begin: 0.0, end: appeared ? 1.0 : 0.0),
                   duration: const Duration(milliseconds: 1200),
                   curve: AppMotion.aquaIn,
                   builder: (context, progress, _) {
                     return SizedBox(
                       height: 280,
                       child: AnimatedOpacity(
-                        opacity: _appeared ? 1.0 : 0.0,
+                        opacity: appeared ? 1.0 : 0.0,
                         duration: const Duration(milliseconds: 360),
                         curve: AppMotion.aquaIn,
                         child: CustomPaint(
@@ -263,6 +224,7 @@ class _AssetsRadarState extends ConsumerState<AssetsRadar> {
           ),
         ],
       ),
+    ),
     );
   }
 }
