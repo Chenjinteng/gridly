@@ -1,5 +1,5 @@
 // lib/features/stats/ui/widgets/assets_overview_chart.dart
-// stats 资产视角总览卡 —— 总资产 + 6 大类汇总
+// stats 资产视角总览卡 —— 净资产 + 6 大类汇总
 //
 // 2026-10-12 P4 commit 加(P4 · 资产分布 + 雷达图):
 //   - 跟 budget_overview_chart 同款 viewport-aware 触发入场
@@ -10,6 +10,14 @@
 //   - 黑底卡片(ink 风格,跟 settings_page "关于"卡 / range_summary 一致)
 //
 // 2026-10-13 P6 改 4 段 → 6 段(跟 asset_form 6 段同步,删"负债"加投资/福利/债权)
+//
+// 2026-10-16 D64.32 改:
+//   - "总资产" → "净资产",计算口径改 = 5 段(cash_flow + investment +
+//     benefit + fixed_asset + other)+ max(0, receivable),即"我实际拥有的资产"
+//     - receivable 是应收(正)时算资产;是应付/欠债(负)时不计(看下面 6 段明细)
+//   - 视觉:6 段列表加 1 道白色横线把"债务(receivable)"切出来单独一行
+//     (在 receivable row 之前插 1px 白线 alpha 0.15,跟 rim light border 同色),
+//     让"我实际拥有的"vs"应收/应付的债务"在视觉上区分开
 //
 // 数据源:assetTotalsProvider
 import 'package:flutter/material.dart';
@@ -114,14 +122,23 @@ class _AssetsOverviewChartState extends ConsumerState<AssetsOverviewChart> {
           ),
         ),
         data: (totals) {
-          // 总资产 = 6 类之和(简单累加,P4 文档明确"按大类 currentBalance 总和")
-          final totalAll =
-              totals.totalCashFlow +
-              totals.totalInvestment +
-              totals.totalBenefit +
-              totals.totalReceivable +
-              totals.totalFixedAsset +
-              totals.totalOther;
+          // D64.32:净资产 = 5 段(cash_flow + investment + benefit + fixed_asset +
+          //   other) + max(0, receivable)
+          //   - 应收(正 receivable)算资产;应付/欠债(负 receivable)不计入"我实际拥有"
+          //   - 应收/应付差额仍走下面 6 段明细(债务段)直观显示
+          final totalCashFlow = totals.totalCashFlow;
+          final totalInvestment = totals.totalInvestment;
+          final totalBenefit = totals.totalBenefit;
+          final totalFixedAsset = totals.totalFixedAsset;
+          final totalOther = totals.totalOther;
+          final totalReceivable = totals.totalReceivable;
+          final netAssets =
+              totalCashFlow +
+              totalInvestment +
+              totalBenefit +
+              totalFixedAsset +
+              totalOther +
+              (totalReceivable > 0 ? totalReceivable : 0.0);
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -130,7 +147,8 @@ class _AssetsOverviewChartState extends ConsumerState<AssetsOverviewChart> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    '总资产',
+                    // D64.32:"总资产" → "净资产",口径不含"我欠的"债务
+                    '净资产',
                     style: TextStyle(
                       color: AppGray.g400,
                       fontSize: 11,
@@ -153,10 +171,10 @@ class _AssetsOverviewChartState extends ConsumerState<AssetsOverviewChart> {
                 alignment: Alignment.centerLeft,
                 child: AnimatedCounter(
                   prefix: '¥',
-                  value: _appeared ? totalAll : 0,
-                  // 2026-10-13 UAT fix:总资产跟 6 段明细用同一单位
+                  value: _appeared ? netAssets : 0,
+                  // 2026-10-13 UAT fix:净资产跟 6 段明细用同一单位
                   //   - 6 段明细(尤其"不动产 ¥100.00万")都用 withUnit: true 带"万"
-                  //   - 总资产 ≥ 100 万时也得带"万",否则 ¥172.89 跟 ¥100.00万
+                  //   - 净资产 ≥ 100 万时也得带"万",否则 ¥172.89 跟 ¥100.00万
                   //     看起来不像是 1 个量级的(用户问"为什么是 172.89")
                   //   - 实际 1,728,990 / 10000 = 172.899 → 172.89万 才跟 6 段对得上
                   formatter: (v) => Formatters.amount(v, withUnit: true),
@@ -184,8 +202,24 @@ class _AssetsOverviewChartState extends ConsumerState<AssetsOverviewChart> {
               //   - user 反馈:'这里的颜色图标要与新增账户里面的保持一致'
               //   - 修:6 段全改 AppSegment.iconFor / colorFor / labelFor
               //     跨 widget 一致
+              //
+              // D64.32:在 receivable(债务)row 之前插一道白色横线,把"我实际拥有的"
+              //   5 段跟"应收/应付"债务段视觉切开 —— alpha 0.15 跟 rim light border 同色
+              //   区分"普通横线 g600"vs"分隔标签用 white alpha"
               for (int i = 0; i < _segmentOrder.length; i++) ...[
                 if (i > 0) const SizedBox(height: AppSpacing.s2),
+                // D64.32:receivable 段(债务)之前插白色横线,跟 5 段资产视觉切开
+                if (_segmentOrder[i] == 'receivable')
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      top: AppSpacing.s2,
+                      bottom: AppSpacing.s2,
+                    ),
+                    child: Container(
+                      height: 1,
+                      color: Colors.white.withValues(alpha: 0.15),
+                    ),
+                  ),
                 _TypeRow(
                   type: _segmentOrder[i],
                   amount: _appeared
