@@ -22,6 +22,13 @@
 //   - 加 TweenAnimationBuilder 0→1 缩放,数据 values 乘以 progress
 //
 // 2026-10-13 P6 改 4 维 → 6 维(跟 asset_form 6 段同步)
+//
+// 2026-10-16 D64.33 改:
+//   - 6 维 → 5 维,去掉 receivable(债务)轴 —— 跟净资产口径对齐
+//     (净资产 = 5 段真资产 + max(0, receivable),debt 不能进"我实际拥有"雷达)
+//   - painter 用 entries.length 自动适配 5 边形:
+//     n=5 → 5 grid 圈(同心 5 边形)+ 5 spoke + 5 label + 数据多边形 5 顶
+//     原始算法不变,仅 entries 缩短 1 项
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -139,7 +146,8 @@ class _AssetsRadarState extends ConsumerState<AssetsRadar> {
                 ),
               ),
               data: (totals) {
-                // 6 段(顺序按日常查看频度,跟总览卡一致)
+                // D64.33:5 维雷达图,顺序按日常查看频度,跟总览卡 5 段一致
+                // (debt/receivable 已摘出 —— 净资产口径不包含"我欠的"或"应收未到")
                 final entries = <_RadarEntry>[
                   _RadarEntry(
                     label: '现金流',
@@ -157,12 +165,6 @@ class _AssetsRadarState extends ConsumerState<AssetsRadar> {
                     color: AppStatus.success,
                   ),
                   _RadarEntry(
-                    // 2026-10-14 D51 v2:从"债权"改"债务",跟 AppSegment.labelFor 同步
-                    label: '债务',
-                    value: totals.totalReceivable,
-                    color: AppStatus.warning,
-                  ),
-                  _RadarEntry(
                     label: '不动产',
                     value: totals.totalFixedAsset,
                     color: AppStatus.info,
@@ -173,7 +175,7 @@ class _AssetsRadarState extends ConsumerState<AssetsRadar> {
                     color: AppGray.g600,
                   ),
                 ];
-                // 极端 case:6 个都 0 → 显示空态
+                // 极端 case:5 个都 0 → 显示空态(generic,所有 entries 都 0)
                 if (entries.every((e) => e.value.abs() == 0)) {
                   return const SizedBox(
                     height: 280,
