@@ -53,6 +53,16 @@
 //     ④ shadow 跟 主题黑 卡一致:CardShadows.dark(context)
 //     ⑤ 字体色:title 文字 → cream(AppSecondary.cream,在 ink 上读得清),
 //       amount → AppSemantic.balanceFor(0=g400,>0=teal,<0=error)沿用,跟其它卡视觉语言一致
+// 2026-10-16 D64.43.2 改(user UAT 反馈):
+//   - user 反馈"不是这样,要做成流水卡片那种,logo 是直接全占了左边"
+//   - 修法:
+//     ① leading 从 36×36 → 56×56(占满 tile 高度),居中显示 28px icon,
+//       card 内边距 s3(12px),logo 占大部分左侧空间
+//     ② 卡片内布局 Row → leading 56 + s3 gap + Expanded(Column [Row [name+amount], chips Wrap])
+//     ③ logo 在 ink 黑底上 alpha 0.18 background + icon color 0.7 / 24-28px,
+//       视觉"全占左边"突出资产标识,跟 transaction_tile leading 36 风格统一但更显眼
+//     ④ 卡片总高 ≈ max(leading 56, content 自然高度),滑出按钮高度跟 tile 高度 1:1
+//     ⑤ name 字号 14 → 15(主信息更突出),amount 14 → 16(加强视觉权重)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -225,6 +235,8 @@ class AssetTile extends ConsumerWidget {
     // D64.43:不再用 ListTile(3 列 leading + title+subtitle + trailing slot),改成自绘 2 列
     //   Row(leading + name Expanded + amount) + Wrap(chips),整体高度由自然内容决定,
     //   滑动按钮高度跟 tile 高度 1:1 不再被"ListTile trailing 空白 padding"拉高
+    // D64.43.2:leading 56×56 大方块,占满 tile 高度,居中 28px icon,
+    //   像流水卡片的 logo 一样"全占左边",卡片总高 ≈ 56 + s3 内边距 ≈ 64px
     return SwipeToActions(
       key: ValueKey('asset-${asset.id}'),
       tileId: asset.id,
@@ -249,95 +261,101 @@ class AssetTile extends ConsumerWidget {
           boxShadow: CardShadows.dark(context),
         ),
         padding: const EdgeInsets.all(AppSpacing.s3),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // 第一行:2 列布局,leading icon + name + amount
-            //   - 左侧:[leading 36] [name Expanded]
-            //   - 右侧:[amount w600 14sp] —— 颜色按 AppSemantic.balanceFor 正/负/0
-            Row(
-              children: [
-                // 2026-10-14 D48:leading 区分 material / brand 渲染
-                //   - material:36x36 tinted box(asset.color 0.12 底 + asset.color icon)
-                //   - brand/crypto/bank:36x36 圆角盒,内部 brand chip 自带品牌色背景
-                isBrandKey(asset.icon)
-                    ? ClipRRect(
-                        borderRadius: AppRadius.brXs,
-                        child: SizedBox(
-                          width: 36,
-                          height: 36,
-                          child: renderIcon(asset.icon, size: 36),
-                        ),
-                      )
-                    : Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: color.withValues(alpha: 0.18),
-                          borderRadius: AppRadius.brXs,
-                          border: Border.all(
-                            color: color.withValues(alpha: 0.3),
-                            width: 0.5,
+            // 2026-10-14 D48 + 2026-10-16 D64.43.2:leading 大方块,全占 tile 高度
+            //   - material:56×56 tinted box(asset.color 0.20 底 + asset.color icon 28px),
+            //     居中显示,asset 标识突出
+            //   - brand/crypto/bank:56×56 圆角盒,内部 brand chip 自带品牌色背景
+            //     不再加 tinted 外框(避免双层色块冲突)
+            isBrandKey(asset.icon)
+                ? ClipRRect(
+                    borderRadius: AppRadius.brSm,
+                    child: SizedBox(
+                      width: 56,
+                      height: 56,
+                      child: renderIcon(asset.icon, size: 56),
+                    ),
+                  )
+                : Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.20),
+                      borderRadius: AppRadius.brSm,
+                      border: Border.all(
+                        color: color.withValues(alpha: 0.35),
+                        width: 0.5,
+                      ),
+                    ),
+                    child: Icon(
+                      icons[asset.icon] ?? Icons.account_balance_wallet_rounded,
+                      color: color,
+                      size: 28,
+                    ),
+                  ),
+            const SizedBox(width: AppSpacing.s3),
+            // 右侧内容:Column [name + amount 一行 / chips Wrap 一行]
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 第一行:name + amount
+                  Row(
+                    children: [
+                      // name:Expanded 占剩余空间,长名字自动 ellipsis
+                      Expanded(
+                        child: Text(
+                          asset.name,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            // D64.43:在 ink 黑底上用 cream(AppSecondary.cream),可读
+                            color: AppSecondary.cream,
                           ),
-                        ),
-                        child: Icon(
-                          icons[asset.icon] ??
-                              Icons.account_balance_wallet_rounded,
-                          color: color,
-                          size: 18,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
                       ),
-                const SizedBox(width: AppSpacing.s3),
-                // name:Expanded 占剩余空间,长名字自动 ellipsis
-                Expanded(
-                  child: Text(
-                    asset.name,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      // D64.43:在 ink 黑底上用 cream(AppSecondary.cream),可读
-                      color: AppSecondary.cream,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
+                      const SizedBox(width: AppSpacing.s2),
+                      // amount:右对齐,w600 16sp,颜色按余额正/负/0 走 AppSemantic.balanceFor
+                      Text(
+                        '¥${Formatters.amount(balance)}',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: balance == 0
+                              ? AppGray.g400
+                              : AppSemantic.balanceFor(balance),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: AppSpacing.s2),
-                // amount:右对齐,w600 14sp,颜色按余额正/负/0 走 AppSemantic.balanceFor
-                Text(
-                  '¥${Formatters.amount(balance)}',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: balance == 0
-                        ? AppGray.g400
-                        : AppSemantic.balanceFor(balance),
+                  const SizedBox(height: AppSpacing.s2),
+                  // 第二行:chips Wrap(流动资金 / 默认 / 计入流水 等)
+                  //   D64.41:用 Wrap 替代 Row,chip 多时自动换行
+                  Wrap(
+                    spacing: 6, // 水平间距
+                    runSpacing: 4, // 换行垂直间距
+                    children: [
+                      // type chip(同款胶囊,type 配色)
+                      _TileChip(label: labelFor(asset.type), color: typeColor),
+                      // 2026-10-13 P7:仅 cash_flow + isDefault=true 显示"默认" chip
+                      if (asset.isDefault && asset.type == 'cash_flow')
+                        const _TileChip(label: '默认', color: AppBrand.gold),
+                      // 2026-10-13 P6:includeInTransactions chip
+                      _TileChip(
+                        label: asset.includeInTransactions ? '计入流水' : '不计入流水',
+                        color: asset.includeInTransactions
+                            ? AppBrand.gold
+                            : AppGray.g600,
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.s2),
-            // 第二行:chips Wrap(流动资金 / 默认 / 计入流水 等)
-            //   D64.41:用 Wrap 替代 Row,chip 多时自动换行
-            //   chip 颜色在 ink 黑底上 alpha 0.18 底色(0.12 太淡看不清,提到 0.18)
-            Wrap(
-              spacing: 6, // 水平间距
-              runSpacing: 4, // 换行垂直间距
-              children: [
-                // type chip(同款胶囊,type 配色)
-                _TileChip(label: labelFor(asset.type), color: typeColor),
-                // 2026-10-13 P7:仅 cash_flow + isDefault=true 显示"默认" chip
-                if (asset.isDefault && asset.type == 'cash_flow')
-                  const _TileChip(label: '默认', color: AppBrand.gold),
-                // 2026-10-13 P6:includeInTransactions chip
-                _TileChip(
-                  label: asset.includeInTransactions ? '计入流水' : '不计入流水',
-                  color: asset.includeInTransactions
-                      ? AppBrand.gold
-                      : AppGray.g600,
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
