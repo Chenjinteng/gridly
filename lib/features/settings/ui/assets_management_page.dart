@@ -25,6 +25,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/asset_balance_provider.dart';
 import '../../../core/utils/gridly_banner.dart';
+import '../../../core/utils/open_swipe_id_provider.dart';
 import '../../../core/utils/refresh_providers.dart';
 import 'widgets/asset_summary_card.dart';
 import 'widgets/asset_tile.dart';
@@ -45,97 +46,108 @@ class AssetsManagementPage extends ConsumerWidget {
           ),
         ],
       ),
-      body: assetsAsync.when(
-        data: (assets) {
-          // 2026-10-13 P6:4 段 → 6 段分组(去'负债',加'投资/福利/债权')
-          // 顺序按日常查看频度排:流动资金 → 投资 → 福利 → 债权 → 不动产 → 其它(D64.40)
-          final cash = assets.where((a) => a.type == 'cash_flow').toList();
-          final invest = assets.where((a) => a.type == 'investment').toList();
-          final benefit = assets.where((a) => a.type == 'benefit').toList();
-          final recv = assets.where((a) => a.type == 'receivable').toList();
-          final fixed = assets.where((a) => a.type == 'fixed_asset').toList();
-          final other = assets.where((a) => a.type == 'other').toList();
-          return ListView(
-            padding: const EdgeInsets.symmetric(vertical: AppSpacing.s3),
-            children: [
-              const AssetSummaryCard(),
-              const SizedBox(height: AppSpacing.s4),
-              if (cash.isNotEmpty)
-                _Group(
-                  // D64.40:从 "现金流" 改 "流动资金"
-                  title: '流动资金',
-                  items: cash,
-                  onEdit: (a) => _showForm(context, a),
-                  onDelete: (a) => _confirmDelete(context, ref, a),
-                ),
-              if (invest.isNotEmpty)
-                _Group(
-                  title: '投资',
-                  items: invest,
-                  onEdit: (a) => _showForm(context, a),
-                  onDelete: (a) => _confirmDelete(context, ref, a),
-                ),
-              if (benefit.isNotEmpty)
-                _Group(
-                  title: '福利',
-                  items: benefit,
-                  onEdit: (a) => _showForm(context, a),
-                  onDelete: (a) => _confirmDelete(context, ref, a),
-                ),
-              if (recv.isNotEmpty)
-                _Group(
-                  // 2026-10-14 D51 v2 改:user 反馈"负债"改"债务",口语更直观
-                  // "负债"是法律会计词,用户日常用"债务"
-                  title: '债务',
-                  items: recv,
-                  onEdit: (a) => _showForm(context, a),
-                  onDelete: (a) => _confirmDelete(context, ref, a),
-                ),
-              if (fixed.isNotEmpty)
-                _Group(
-                  title: '不动产',
-                  items: fixed,
-                  onEdit: (a) => _showForm(context, a),
-                  onDelete: (a) => _confirmDelete(context, ref, a),
-                ),
-              if (other.isNotEmpty)
-                _Group(
-                  title: '其它',
-                  items: other,
-                  onEdit: (a) => _showForm(context, a),
-                  onDelete: (a) => _confirmDelete(context, ref, a),
-                ),
-              if (assets.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.s4,
-                    AppSpacing.s6,
-                    AppSpacing.s4,
-                    AppSpacing.s5,
+      body: GestureDetector(
+        // D64.42:资产 tile 也用 SwipeToActions 滑动操作,
+        //   body 加 transparent GestureDetector,点空白处清 openSwipeIdProvider
+        //   让"正在开的 tile 自动收回"(跟 ledger_page 同样模式)
+        //   - HitTestBehavior.translucent:不拦截子 widget 的 tap
+        //     (asset tile 自身 SwipeToActions.onTap 仍正常触发)
+        //   - 真正的"外部点击关闭"靠 SwipeToActions 内的 ref.listen 检测
+        //     provider 变 null 自动 spring 回 0
+        behavior: HitTestBehavior.translucent,
+        onTap: () => ref.read(openSwipeIdProvider.notifier).state = null,
+        child: assetsAsync.when(
+          data: (assets) {
+            // 2026-10-13 P6:4 段 → 6 段分组(去'负债',加'投资/福利/债权')
+            // 顺序按日常查看频度排:流动资金 → 投资 → 福利 → 债权 → 不动产 → 其它(D64.40)
+            final cash = assets.where((a) => a.type == 'cash_flow').toList();
+            final invest = assets.where((a) => a.type == 'investment').toList();
+            final benefit = assets.where((a) => a.type == 'benefit').toList();
+            final recv = assets.where((a) => a.type == 'receivable').toList();
+            final fixed = assets.where((a) => a.type == 'fixed_asset').toList();
+            final other = assets.where((a) => a.type == 'other').toList();
+            return ListView(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.s3),
+              children: [
+                const AssetSummaryCard(),
+                const SizedBox(height: AppSpacing.s4),
+                if (cash.isNotEmpty)
+                  _Group(
+                    // D64.40:从 "现金流" 改 "流动资金"
+                    title: '流动资金',
+                    items: cash,
+                    onEdit: (a) => _showForm(context, a),
+                    onDelete: (a) => _confirmDelete(context, ref, a),
                   ),
-                  child: Center(
-                    child: Text(
-                      '还没有账户,点右上角 + 新建第一个',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                if (invest.isNotEmpty)
+                  _Group(
+                    title: '投资',
+                    items: invest,
+                    onEdit: (a) => _showForm(context, a),
+                    onDelete: (a) => _confirmDelete(context, ref, a),
+                  ),
+                if (benefit.isNotEmpty)
+                  _Group(
+                    title: '福利',
+                    items: benefit,
+                    onEdit: (a) => _showForm(context, a),
+                    onDelete: (a) => _confirmDelete(context, ref, a),
+                  ),
+                if (recv.isNotEmpty)
+                  _Group(
+                    // 2026-10-14 D51 v2 改:user 反馈"负债"改"债务",口语更直观
+                    // "负债"是法律会计词,用户日常用"债务"
+                    title: '债务',
+                    items: recv,
+                    onEdit: (a) => _showForm(context, a),
+                    onDelete: (a) => _confirmDelete(context, ref, a),
+                  ),
+                if (fixed.isNotEmpty)
+                  _Group(
+                    title: '不动产',
+                    items: fixed,
+                    onEdit: (a) => _showForm(context, a),
+                    onDelete: (a) => _confirmDelete(context, ref, a),
+                  ),
+                if (other.isNotEmpty)
+                  _Group(
+                    title: '其它',
+                    items: other,
+                    onEdit: (a) => _showForm(context, a),
+                    onDelete: (a) => _confirmDelete(context, ref, a),
+                  ),
+                if (assets.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.s4,
+                      AppSpacing.s6,
+                      AppSpacing.s4,
+                      AppSpacing.s5,
+                    ),
+                    child: Center(
+                      child: Text(
+                        '还没有账户,点右上角 + 新建第一个',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ),
                   ),
+                const SizedBox(height: AppSpacing.s4),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: AppSpacing.s4),
+                  child: Text(
+                    '提示:删除账户时若已被流水引用,会被外键拒绝。请先把这些流水的账户改到其他地方。',
+                    style: TextStyle(fontSize: 11, color: AppGray.g600),
+                  ),
                 ),
-              const SizedBox(height: AppSpacing.s4),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: AppSpacing.s4),
-                child: Text(
-                  '提示:删除账户时若已被流水引用,会被外键拒绝。请先把这些流水的账户改到其他地方。',
-                  style: TextStyle(fontSize: 11, color: AppGray.g600),
-                ),
-              ),
-            ],
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('加载失败:$e')),
+              ],
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('加载失败:$e')),
+        ),
       ),
     );
   }

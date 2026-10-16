@@ -2,7 +2,6 @@
 // 单条流水卡片:左分类色块 + 中描述 + 右金额
 // 滑动交互:左滑露出 [编辑][删除] 两个按钮(各 76px),分别跳转编辑页 / 触发删除
 import 'package:flutter/material.dart';
-import 'package:flutter/physics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -16,6 +15,7 @@ import '../../../../core/theme/card_shadows.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/utils/gridly_banner.dart';
 import '../../../../core/utils/refresh_providers.dart';
+import '../../../../core/widgets/swipe_to_actions.dart';
 import '../../../../shared/constants/default_categories.dart';
 import '../../application/transactions_providers.dart';
 
@@ -78,9 +78,9 @@ class TransactionTile extends ConsumerWidget {
           _ => '',
         };
         final theme = Theme.of(context);
-        return _SwipeToDelete(
+        return SwipeToActions(
           key: ValueKey('tx-${transaction.id}'),
-          transactionId: transaction.id,
+          tileId: transaction.id,
           onDelete: () => _onDeleteRequested(context, ref, cat),
           onEdit: () => _onEditRequested(context),
           child: Container(
@@ -411,315 +411,11 @@ class _SingleChip extends ConsumerWidget {
   }
 }
 
-/// 手势滑动展开操作按钮 —— 类似 iOS Mail.app 的滑动效果
-///   - 左滑超过阈值 → snap 露出 [编辑][删除] 两个操作按钮(不执行)
-///   - 编辑按钮可点 → 触发 onEdit
-///   - 删除按钮可点 → 触发 onDelete
-///   - 点 tile 其他位置 → 自动弹回关闭
-class _SwipeToDelete extends ConsumerStatefulWidget {
-  const _SwipeToDelete({
-    super.key,
-    required this.transactionId,
-    required this.child,
-    required this.onDelete,
-    required this.onEdit,
-  });
-
-  /// 流水 id,2026-10-11 UAT:加进来是为了注册到 openSwipeTileIdProvider,
-  /// 让 LedgerPage 的全局 tap handler 能找到要收回的 tile。
-  final int transactionId;
-  final Widget child;
-  final VoidCallback onDelete;
-  final VoidCallback onEdit;
-
-  @override
-  ConsumerState<_SwipeToDelete> createState() => _SwipeToDeleteState();
-}
-
-class _SwipeToDeleteState extends ConsumerState<_SwipeToDelete>
-    with SingleTickerProviderStateMixin {
-  /// 划开的固定宽度(px)—— 露出 [编辑 76 + 4 gap + 删除 76 = 156]px 的按钮区域
-  /// (中间留 4px surface 色 gap 让两个按钮视觉独立,不粘成一条)
-  // 2026-10-11:b80a636 删 outer Container 后,从 156 → 140(去掉 16 outer Container 错位):
-  //   widget.child margin s4 在 buttons 区域往左推 16,加上 8px 视觉间隙 = 132 + 8 = 140
-  static const double _kOpenOffset = 140;
-
-  /// snap 阈值:划到这个距离就锁住,否则弹回
-  static const double _kSnapThreshold = 40;
-
-  /// fling 速度阈值(向左 px/s),即使没划够阈值,快速左滑也直接 snap 打开
-  static const double _kFlingVelocity = -500;
-
-  /// 超过这个速度认为是"快速 fling"—— 用 friction continuation(模拟惯性)
-  /// 然后 spring snap 到最近端点。比慢速 spring 更有"原生"感。
-  static const double _kFastFlingThreshold = 800;
-
-  /// 按钮"从右滑入"距离(opacity 0 时偏移 +12px,opacity 1 时偏移 0)
-  static const double _kButtonSlideIn = 12;
-
-  /// Spring 物理参数 —— 接近 iOS 9+ UIKit swipe action 弹性。
-  /// critical damping = 2*sqrt(stiffness*mass) ≈ 39;damping=38 几乎临界,
-  /// 几乎无过冲,响应快速,视觉"丝滑不拖泥带水"。
-  static const SpringDescription _kSpring = SpringDescription(
-    mass: 1.0,
-    stiffness: 380.0,
-    damping: 38.0,
-  );
-
-  /// Friction 系数 —— iOS 默认 ~0.135,模拟大阻力快速收敛。
-  static const double _kDrag = 0.135;
-
-  late final AnimationController _ctrl;
-  double _offset = 0;
-
-  /// fling continuation 中标志 —— 监听 fling 完成后切到 spring snap
-  bool _isFlinging = false;
-
-  @override
-  void initState() {
-    super.initState();
-    // unbounded:_ctrl.value 直接是 position(spring/friction simulation 输出),
-    // 不限定在 [0, 1]。_offset 在 _handleAnimTick 中 clamp 到 [-_kOpenOffset, 0]。
-    _ctrl = AnimationController.unbounded(vsync: this, value: 0);
-    _ctrl.addListener(_handleAnimTick);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.removeListener(_handleAnimTick);
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  /// 动画 tick —— 直接用 _ctrl.value 作为 offset(spring/friction simulation)
-  /// fling continuation 完成后切到 spring snap
-  void _handleAnimTick() {
-    if (!mounted) return;
-    final wasAnimating = _ctrl.isAnimating;
-    final raw = _ctrl.value;
-    final clamped = raw.clamp(-_kOpenOffset, 0.0);
-    setState(() {
-      _offset = clamped;
-    });
-    // fling 撞墙 / 衰减完成后,根据当前位置 spring snap 到最近端点
-    if (_isFlinging && !wasAnimating) {
-      _isFlinging = false;
-      final target = _offset.abs() > _kOpenOffset / 2 ? -_kOpenOffset : 0.0;
-      _springTo(target);
-    }
-  }
-
-  /// 用 spring 把 _offset 平滑带到 target —— iOS 风格弹性收敛
-  /// velocity 传 fling 末速度,让 spring "惯性" 自然
-  void _springTo(double target, {double velocity = 0}) {
-    if ((_offset - target).abs() < 0.5) return;
-    _ctrl.stop();
-    // SpringSimulation 签名: (spring, start, end, velocity)
-    // 之前我写成 (spring, start, velocity, end) → end=0 / velocity=target,导致动画方向错
-    _ctrl.animateWith(SpringSimulation(_kSpring, _offset, target, velocity));
-  }
-
-  /// 用 friction 让 _offset 自然减速 —— 模拟 fling 释放后的惯性滑动
-  /// 衰减到 0 后由 _handleAnimTick 切到 spring snap
-  void _flingWith(double velocity) {
-    _ctrl.stop();
-    _isFlinging = true;
-    _ctrl.animateWith(FrictionSimulation(_kDrag, _offset, velocity));
-  }
-
-  /// 用户开始拖动:立即停止正在进行的吸附动画,防止 drag 与 animation 并发修改 _offset
-  void _onDragStart(DragStartDetails _) {
-    _ctrl.stop();
-    _isFlinging = false;
-  }
-
-  void _onDragUpdate(DragUpdateDetails d) {
-    final delta = d.primaryDelta!;
-    // closed(_offset == 0)时右滑忽略(没什么可关闭);
-    // 已开(_offset < 0)时右滑允许(用于关闭方向的手势,原生 iOS 标准)
-    if (delta > 0 && _offset == 0) return;
-    setState(() {
-      _offset = (_offset + delta).clamp(-_kOpenOffset, 0.0);
-    });
-  }
-
-  void _onDragEnd(DragEndDetails d) {
-    final velocity = d.primaryVelocity ?? 0;
-    // 决定目标:
-    //   - 划得够远 → open(不管速度,慢拖过阈值也应该锁开)
-    //   - 快速左 fling → open(没划够也锁开)
-    //   - 快速右 fling → close(强反向)
-    //   - 其它 → close
-    final shouldOpen =
-        _offset.abs() > _kSnapThreshold || velocity < _kFlingVelocity;
-
-    if (shouldOpen) {
-      // 2026-10-11 UAT:注册自己到 openSwipeTileIdProvider,
-      // 让 LedgerPage 的全局 tap handler 能找到要关掉的 tile,
-      // 实现"点屏幕任何地方,正在开的 tile 自动收回"。
-      ref.read(openSwipeTileIdProvider.notifier).state = widget.transactionId;
-    }
-
-    if (velocity.abs() > _kFastFlingThreshold) {
-      // 快速 fling:friction continuation + 完成后 spring snap 到最近端点
-      _flingWith(velocity);
-    } else {
-      // 慢速:直接 spring snap(传部分 velocity 模拟惯性)
-      _springTo(shouldOpen ? -_kOpenOffset : 0.0, velocity: velocity * 0.5);
-    }
-  }
-
-  void _close() {
-    if (_offset != 0) _springTo(0);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    // 2026-10-11 UAT:监听 openSwipeTileIdProvider。
-    //   - 如果 provider 变成 null 或别人的 id(说明外面被点了),而且我自己正开着,
-    //     就 spring 回 0 收回。
-    ref.listen<int?>(openSwipeTileIdProvider, (prev, next) {
-      if (next != widget.transactionId && _offset < 0) {
-        _springTo(0);
-      }
-    });
-    // 按钮"显现进度":_offset.abs() / 156。tile 滑得越多,按钮越显现,
-    // 用 opacity 0→1 + Transform.translate(+12px → 0)双重过渡让按钮
-    // "从 tile 背后挤出来"的感觉,而不是突然显示。
-    final reveal = (_offset.abs() / _kOpenOffset).clamp(0.0, 1.0);
-    final slideInOffset = (1 - reveal) * _kButtonSlideIn;
-
-    return Stack(
-      children: [
-        // 底层:操作按钮条 — [编辑 76px][4px gap][删除 76px],brLg 圆角矩形 + elevation 2
-        // 2026-10-11 UAT 反馈:胶囊"丑且太大",退回圆角矩形,加 elevation 落影
-        // 按钮跟随 _offset 渐显(opacity + translate),不再"突然出现"。
-        // 左按钮(编辑)用主题色 primary,右按钮(删除)用 error 红 —— iOS 标准。
-        // 外层 surface Container(color: surface) 占据整个 Stack 范围挡住按钮漏色。
-        Positioned.fill(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: _kRowHorizontalInset,
-              vertical: _kRowVerticalInset,
-            ),
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 左按钮(编辑)—— teal 太鲜艳,加 elevation=4 + shadowColor=black38 让它"压下去"一点
-                  Transform.translate(
-                    offset: Offset(slideInOffset, 0),
-                    child: Opacity(
-                      opacity: reveal,
-                      child: SizedBox(
-                        width: 64,
-                        child: Material(
-                          color: theme.colorScheme.primary,
-                          borderRadius: AppRadius.brLg,
-                          elevation: 4,
-                          shadowColor: Colors.black38,
-                          child: InkWell(
-                            borderRadius: AppRadius.brLg,
-                            onTap: widget.onEdit,
-                            child: const Center(
-                              child: Text(
-                                '\ue3c9', // Material Icons Round "edit"
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontFamily: 'MaterialIconsRound',
-                                  fontSize: 32,
-                                  color: Colors.white,
-                                  height: 1.0,
-                                  shadows: [
-                                    Shadow(color: Colors.white, blurRadius: 2),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  // 中间 4px surface 色 gap
-                  const SizedBox(width: 4),
-                  // 右按钮(删除)—— 同款 Round + 红色 destructive 语义,跟编辑按钮同款 elevation
-                  Transform.translate(
-                    offset: Offset(slideInOffset, 0),
-                    child: Opacity(
-                      opacity: reveal,
-                      child: SizedBox(
-                        width: 64,
-                        child: Material(
-                          color: AppStatus.error,
-                          // 跟编辑按钮一致:brLg 圆角矩形 + elevation=4 落影
-                          borderRadius: AppRadius.brLg,
-                          elevation: 4,
-                          shadowColor: Colors.black38,
-                          child: InkWell(
-                            borderRadius: AppRadius.brLg,
-                            onTap: widget.onDelete,
-                            child: const Center(
-                              child: Text(
-                                '\ue872', // Material Icons Round "delete"
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontFamily: 'MaterialIconsRound',
-                                  fontSize: 32,
-                                  color: Colors.white,
-                                  height: 1.0,
-                                  shadows: [
-                                    Shadow(color: Colors.white, blurRadius: 2),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        // 上层:tile(随 _offset 水平平移)—— drag 1:1 跟随,松手才 snap
-        // 2026-10-11 UAT:b80a636 试过保留 outer Container(用户觉得拥挤),
-        // 现在删掉 outer Container,接受 tile 圆角处可能漏一点点按钮色。
-        // _kOpenOffset 从 156 → 140(去掉 outer Container 多算的 16)。
-        // 用 key 标识,便于 widget 测试定位(其他 Transform 是按钮的 slide-in 偏移)
-        Transform.translate(
-          key: const ValueKey('tx-tile-transform'),
-          offset: Offset(_offset, 0),
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onHorizontalDragStart: _onDragStart,
-            onHorizontalDragUpdate: _onDragUpdate,
-            onHorizontalDragEnd: _onDragEnd,
-            onTap: () {
-              // 2026-10-11 UAT:tile 收回不能只靠 LedgerPage body 的全局
-              // GestureDetector(translucent),因为子 tile 自己的 opaque
-              // GestureDetector 会"吃掉"点击事件,body.onTap 根本收不到。
-              // 改成 tile 自身 onTap 时主动清 openSwipeTileIdProvider:
-              //   - 点开着的 tile 自己 → provider 清成 null,ref.listen 触发
-              //     二次 _springTo(0)(无害二次 snap)
-              //   - 点另一个 closed tile → provider 清成 null,开着的 tile
-              //     通过 ref.listen(next=null != myId && _offset<0)自己收回
-              //   - 点编辑/删除按钮 → InkWell 消耗 tap,tile.onTap 不触发,
-              //     provider 不动(预期:点按钮不动 tile 状态)
-              ref.read(openSwipeTileIdProvider.notifier).state = null;
-              _close();
-            },
-            child: widget.child,
-          ),
-        ),
-      ],
-    );
-  }
-}
+// ============================================================
+// 滑动操作 wrapper:2026-10-16 D64.42 抽到 lib/core/widgets/swipe_to_actions.dart
+//   (原 `_SwipeToDelete` 是 private,只在 transaction_tile 用,跟资产 / 未来分类
+//   tile 风格不统一;抽成 public `SwipeToActions` 后流水 / 资产共用同一套交互)
+// ============================================================
 
 /// 删除确认 modal dialog(commit 67,user 强调"数据是最重要的")
 ///

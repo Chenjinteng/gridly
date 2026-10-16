@@ -30,6 +30,14 @@
 //     - 短 chip (1-2 个) 保持一行,长 chip (3-4 个或文字超长) 自动换行
 //     - Wrap 替代 Row 是 Flutter 标准 "horizontal overflow → 多行" 解法
 //   - 不改 chip 文字 / padding / fontSize,只换 layout,保持视觉风格不变
+// 2026-10-16 D64.42 改(user UAT 反馈):
+//   - user 反馈"资产 tile 跟流水 tile 很像,为什么不把编辑删除做成滑动操作,UI 和操作都统一"
+//   - 修法:tile wrap 进 `SwipeToActions`(从 transaction_tile 的 `_SwipeToDelete` 抽出
+//     的 public 共享 widget,见 lib/core/widgets/swipe_to_actions.dart)
+//   - 删 trailing 的 [编辑][删除] 两个 InkWell(原代码占用 80px,跟 Wrap 一起解决 71px 溢出)
+//   - onTap = onEdit(asset 没详情页,沿用原"点 tile = 编辑"行为;SwipeToActions 接收 onTap 可选 callback)
+//   - iOS Mail.app 风格:左滑露 [编辑 64px + gap + 删除 64px] 按钮,跟流水 tile 完全一致
+//   - 物理参数 / 弹性 / fling 速度 / spring / openSwipeIdProvider 全局互斥 = 跟流水共用一套
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -40,6 +48,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/card_shadows.dart';
 import '../../../../core/utils/asset_balance_provider.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/swipe_to_actions.dart';
 
 /// 资产列表 tile
 ///   - name / type / icon / color / currentBalance(实时算)
@@ -196,137 +205,119 @@ class AssetTile extends ConsumerWidget {
     final balanceAsync = ref.watch(assetBalanceProvider(asset.id));
     final balance = balanceAsync.valueOrNull ?? 0.0;
     final theme = Theme.of(context);
-    return Container(
-      margin: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.s4,
-        vertical: AppSpacing.s1,
-      ),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: AppRadius.brLg,
-        border: Border.all(color: theme.colorScheme.outlineVariant, width: 1.0),
-        boxShadow: CardShadows.light(context),
-      ),
-      child: ListTile(
-        onTap: onEdit,
-        // 2026-10-14 D48:leading 区分 material / brand 渲染
-        //   - material:36x36 tinted box(asset.color 0.12 底 + asset.color icon),跟之前一致
-        //   - brand/crypto/bank:36x36 圆角盒,内部 brand chip 自带品牌色背景,
-        //     不再加 tinted 外框(避免双层色块冲突)
-        leading: isBrandKey(asset.icon)
-            ? ClipRRect(
-                borderRadius: AppRadius.brXs,
-                child: SizedBox(
+    // D64.42:tile 整段 wrap 进 SwipeToActions,左滑露 [编辑][删除] 按钮(共享 widget,跟 transaction_tile 同套交互)
+    return SwipeToActions(
+      key: ValueKey('asset-${asset.id}'),
+      tileId: asset.id,
+      onEdit: onEdit,
+      onDelete: onDelete,
+      onTap: onEdit, // asset 没详情页,沿用原"点 tile = 编辑"行为
+      child: Container(
+        margin: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.s4,
+          vertical: AppSpacing.s1,
+        ),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerLow,
+          borderRadius: AppRadius.brLg,
+          border: Border.all(
+            color: theme.colorScheme.outlineVariant,
+            width: 1.0,
+          ),
+          boxShadow: CardShadows.light(context),
+        ),
+        child: ListTile(
+          // 2026-10-14 D48:leading 区分 material / brand 渲染
+          //   - material:36x36 tinted box(asset.color 0.12 底 + asset.color icon),跟之前一致
+          //   - brand/crypto/bank:36x36 圆角盒,内部 brand chip 自带品牌色背景,
+          //     不再加 tinted 外框(避免双层色块冲突)
+          leading: isBrandKey(asset.icon)
+              ? ClipRRect(
+                  borderRadius: AppRadius.brXs,
+                  child: SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: renderIcon(asset.icon, size: 36),
+                  ),
+                )
+              : Container(
                   width: 36,
                   height: 36,
-                  child: renderIcon(asset.icon, size: 36),
-                ),
-              )
-            : Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: AppRadius.brXs,
-                  border: Border.all(
-                    color: color.withValues(alpha: 0.3),
-                    width: 0.5,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: AppRadius.brXs,
+                    border: Border.all(
+                      color: color.withValues(alpha: 0.3),
+                      width: 0.5,
+                    ),
+                  ),
+                  child: Icon(
+                    icons[asset.icon] ?? Icons.account_balance_wallet_rounded,
+                    color: color,
+                    size: 18,
                   ),
                 ),
-                child: Icon(
-                  icons[asset.icon] ?? Icons.account_balance_wallet_rounded,
-                  color: color,
-                  size: 18,
-                ),
-              ),
-        title: Text(
-          asset.name,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-          overflow: TextOverflow.ellipsis,
-        ),
-        // 2026-10-13 P6 第 2 次改:subtitle 拆 2 行
-        // - 第一行:type chip + 计入/不计入 chip
-        // - 第二行:金额独立(整行,长金额有更多空间)
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 第一行:chips
-              // D64.41:用 Wrap 替代 Row,chip 多时自动换行,避免 ListTile 右侧 71px overflow
-              Wrap(
-                spacing: 6, // 水平间距(跟原 Row SizedBox(width:6) 一致)
-                runSpacing: 4, // 换行垂直间距
-                children: [
-                  // type chip(同款胶囊,type 配色)
-                  _TileChip(label: labelFor(asset.type), color: typeColor),
-                  // 2026-10-13 P7 第 3 次改:仅 cash_flow + isDefault=true 显示"默认" chip
-                  // - 位置:type chip 紧贴后(语义高亮,比"是否计入"更突出)
-                  // - 配色:AppBrand.gold(跟 _IsDefaultCard + 计入 chip 同款)
-                  // - "默认" 是记一笔的优先账户,user 在资产列表一眼能看到"哪条是默认"
-                  if (asset.isDefault && asset.type == 'cash_flow')
-                    const _TileChip(label: '默认', color: AppBrand.gold),
-                  // 2026-10-13 P6 第 2 次改:includeInTransactions chip
-                  //   计入 = 主题黄(AppBrand.gold)
-                  //   不计入 = 灰色(AppGray.g600)
-                  //   跟 type chip 同款胶囊,色块 + 文字,一眼能看到状态
-                  _TileChip(
-                    label: asset.includeInTransactions ? '计入流水' : '不计入流水',
-                    color: asset.includeInTransactions
-                        ? AppBrand.gold
-                        : AppGray.g600,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              // 第二行:金额独立(2026-10-13 P6 第 2 次改)
-              //   0.00 用主题灰(AppGray.g400),"无数据"状态更明显
-              //   > 0 teal;< 0 error
-              Text(
-                '¥${Formatters.amount(balance)}',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: balance == 0
-                      ? AppGray.g400
-                      : AppSemantic.balanceFor(balance),
-                ),
-              ),
-            ],
+          title: Text(
+            asset.name,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+            overflow: TextOverflow.ellipsis,
           ),
-        ),
-        // 2026-10-13 P6 UAT 改:IconButton 占用 40x40,2 个 = 80px,挤
-        //   "债权/借出" + "不计入流水" 两个 5 字符 chip 时 1.3px overflow
-        //   改用 InkWell + 自定义 Padding(all:6),size = 30x30,省 20px
-        //   - 失去 IconButton 自带的 tooltip / splash 半径等 Material 特性
-        //   - 但 splash 用 InkWell 自带(通过 borderRadius 限定形状)
-        //   - 视觉上 IconButton 默认 ripple 几乎一样,只是 hit area 小 4px
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            InkWell(
-              onTap: onEdit,
-              borderRadius: AppRadius.brSm,
-              child: const Padding(
-                padding: EdgeInsets.all(6),
-                child: Icon(Icons.edit_outlined, size: 18),
-              ),
-            ),
-            const SizedBox(width: 2),
-            InkWell(
-              onTap: onDelete,
-              borderRadius: AppRadius.brSm,
-              child: const Padding(
-                padding: EdgeInsets.all(6),
-                child: Icon(
-                  Icons.delete_outline,
-                  size: 18,
-                  color: AppStatus.error,
+          // 2026-10-13 P6 第 2 次改:subtitle 拆 2 行
+          // - 第一行:type chip + 计入/不计入 chip
+          // - 第二行:金额独立(整行,长金额有更多空间)
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 第一行:chips
+                // D64.41:用 Wrap 替代 Row,chip 多时自动换行,避免 ListTile 右侧 71px overflow
+                Wrap(
+                  spacing: 6, // 水平间距(跟原 Row SizedBox(width:6) 一致)
+                  runSpacing: 4, // 换行垂直间距
+                  children: [
+                    // type chip(同款胶囊,type 配色)
+                    _TileChip(label: labelFor(asset.type), color: typeColor),
+                    // 2026-10-13 P7 第 3 次改:仅 cash_flow + isDefault=true 显示"默认" chip
+                    // - 位置:type chip 紧贴后(语义高亮,比"是否计入"更突出)
+                    // - 配色:AppBrand.gold(跟 _IsDefaultCard + 计入 chip 同款)
+                    // - "默认" 是记一笔的优先账户,user 在资产列表一眼能看到"哪条是默认"
+                    if (asset.isDefault && asset.type == 'cash_flow')
+                      const _TileChip(label: '默认', color: AppBrand.gold),
+                    // 2026-10-13 P6 第 2 次改:includeInTransactions chip
+                    //   计入 = 主题黄(AppBrand.gold)
+                    //   不计入 = 灰色(AppGray.g600)
+                    //   跟 type chip 同款胶囊,色块 + 文字,一眼能看到状态
+                    _TileChip(
+                      label: asset.includeInTransactions ? '计入流水' : '不计入流水',
+                      color: asset.includeInTransactions
+                          ? AppBrand.gold
+                          : AppGray.g600,
+                    ),
+                  ],
                 ),
-              ),
+                const SizedBox(height: 6),
+                // 第二行:金额独立(2026-10-13 P6 第 2 次改)
+                //   0.00 用主题灰(AppGray.g400),"无数据"状态更明显
+                //   > 0 teal;< 0 error
+                Text(
+                  '¥${Formatters.amount(balance)}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: balance == 0
+                        ? AppGray.g400
+                        : AppSemantic.balanceFor(balance),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
+          // D64.42:删 trailing 的 [编辑][删除] 两个 InkWell,改由 SwipeToActions 滑动露按钮
+          //   - 原 trailing 占用 80px 是触发 D64.41 71px overflow 的元凶,现在彻底移除
+          //   - 跟 transaction_tile 完全一致:iOS Mail.app 风格左滑
+          trailing: null,
         ),
       ),
     );

@@ -6,6 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/database/providers.dart';
 import '../../../core/utils/asset_balance_provider.dart';
+import '../../../core/utils/open_swipe_id_provider.dart';
+
+// 2026-10-16 D64.42:openSwipeIdProvider 从本文件挪到
+//   core/utils/open_swipe_id_provider.dart(跨 tile 类型通用,asset 现在也用)。
+//   这里 re-export 保持向后兼容,旧引用 `openSwipeTileIdProvider` 通过别名仍可用。
+export '../../../core/utils/open_swipe_id_provider.dart'
+    show openSwipeIdProvider;
 
 /// 当前月份的时间区间
 final monthRangeProvider = Provider<({DateTime start, DateTime end})>((ref) {
@@ -104,14 +111,11 @@ final transactionByIdProvider = FutureProvider.family<Transaction?, int>((
   return ref.watch(transactionRepositoryProvider).byId(id);
 });
 
-/// 当前左滑开着的 tile id(2026-10-11 UAT 加):
-/// null = 没有 tile 开着,任何 tile 都关着
-/// 非 null = 只有 id 对应的那个 tile 是开的,其它都得收回
-///
-/// LedgerPage 的全局 tap handler 会把它清成 null,
-/// 实现"点屏幕任何地方,正在开的 tile 自动收回"。
-/// 保证同时只有一个 tile 开着(避免视觉混乱)。
-final openSwipeTileIdProvider = StateProvider<int?>((ref) => null);
+/// 2026-10-16 D64.42:`openSwipeTileIdProvider` 改名为 `openSwipeIdProvider`(挪到 core 通用)
+///   - 旧名通过别名仍可用,共享同一 StateProvider 实例
+///   - 后续清理 LedgerPage / transaction_tile 引用,直接用 core 路径
+/// @deprecated 改用 `openSwipeIdProvider`
+final openSwipeTileIdProvider = openSwipeIdProvider;
 
 // ============================================================
 // 流水筛选(流水页用)—— 类型 / 月份 / 分类 / 搜索关键字
