@@ -118,8 +118,15 @@ class SavingsTrend extends ConsumerWidget {
               touchedLabelBuilder: (i, p) => p.label,
               tooltipBuilder: (i, p) {
                 final m = data[i];
-                return '储蓄率 ${p.value.toStringAsFixed(0)}% '
-                    '收 ¥${Formatters.amount(m.income)} '
+                // D64.59:主动语义换行(\n),不依赖 Text widget word wrap 自动切位
+                //   - user UAT 反馈"像这种多个的,其实可以换行,比如:
+                //     储蓄率:xxx
+                //     收:xxx
+                //     支:xxx
+                //     而不是刚好看在换行那里" — 之前 word wrap 在某字符切到
+                //     "支 ¥X" 单独 1 行不整齐,改主动 \n 3 行对齐
+                return '储蓄率 ${p.value.toStringAsFixed(0)}%\n'
+                    '收 ¥${Formatters.amount(m.income)}\n'
                     '支 ¥${Formatters.amount(m.expense)}';
               },
             ),

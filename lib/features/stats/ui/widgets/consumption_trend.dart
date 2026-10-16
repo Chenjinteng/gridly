@@ -420,7 +420,9 @@ class _IncomeExpenseTab extends ConsumerWidget {
             },
             touchedLabelBuilder: (i, b) => b.label,
             tooltipBuilder: (i, b) =>
-                '支 ¥${Formatters.amount(data[i].expense)} '
+                // D64.59:主动语义换行(同 savings_trend 套路,user UAT 反馈
+                // "刚好看在换行那里"不整齐)
+                '支 ¥${Formatters.amount(data[i].expense)}\n'
                 '收 ¥${Formatters.amount(data[i].income)}',
           ),
         );
@@ -579,10 +581,18 @@ class _BudgetTab extends ConsumerWidget {
                 final diff = budget - spent;
                 final pct = budget > 0 ? (spent / budget * 100) : 0;
                 final over = spent > budget;
-                return '${over ? '⚠ 超支 ' : ''}'
-                    '预算 ¥${Formatters.amount(budget)} '
-                    '实支 ¥${Formatters.amount(spent)} '
-                    '${diff >= 0 ? '剩' : '超'} ¥${Formatters.amount(diff.abs())}'
+                // D64.59:主动语义换行(3 行,跟储蓄走势对齐)
+                //   - 第 1 行:超支警示(仅 over 时显示;不超支时不画空白行)
+                //   - 第 2 行:预算
+                //   - 第 3 行:实支详情 — "实支 ¥X  超/剩 ¥Y (X%)" 把超差
+                //     和占比合并到 1 行,避免 4 行超过 chart maxLines 3
+                //   - 跟之前自动 word wrap 截图对照:之前"⚠ 超支 预算 ¥X" 挤
+                //     在 1 行不整齐,现在 3 行对齐
+                final warningLine = over ? '⚠ 超支\n' : '';
+                return '$warningLine'
+                    '预算 ¥${Formatters.amount(budget)}\n'
+                    '实支 ¥${Formatters.amount(spent)}'
+                    '  ${diff >= 0 ? '剩' : '超'} ¥${Formatters.amount(diff.abs())}'
                     ' (${pct.toStringAsFixed(0)}%)';
               },
             ),
