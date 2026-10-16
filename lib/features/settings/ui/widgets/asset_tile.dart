@@ -63,6 +63,20 @@
 //       视觉"全占左边"突出资产标识,跟 transaction_tile leading 36 风格统一但更显眼
 //     ④ 卡片总高 ≈ max(leading 56, content 自然高度),滑出按钮高度跟 tile 高度 1:1
 //     ⑤ name 字号 14 → 15(主信息更突出),amount 14 → 16(加强视觉权重)
+// 2026-10-16 D64.43.3 改(user UAT 反馈):
+//   - user 反馈"还是很奇怪,跟流水卡片差在哪里吗?或者按流水卡片的高度来修改一下?
+//     好像 logo 也偏大"
+//   - 实测对比:流水卡片高 ~52px(asset_tile 当前 ~80px,高 54%),主要差距在
+//     ① leading 56 vs 流水 36(大 20)
+//     ② padding s3(12) vs 流水 8(大 4×2=8)
+//   - 修法:
+//     ① leading 56 → **48**(跟流水 36 的比例感同,但仍"占满左边"视觉)
+//     ② padding s3 → **s2(8)**(跟流水 default contentPadding 对齐)
+//     ③ logo icon 28 → **24**(适配 48 box)
+//     ④ chip padding horizontal 6 → **4**(chip 更紧凑,流水卡片 label 字号
+//       也是 12sp 比 asset 15sp 小,chip 紧凑是视觉对齐的一部分)
+//   - 预期新总高 ≈ 8 + max(48, name 18 + s2 8 + chips 20) = 64px
+//     vs 流水 52px,asset 仍多 12px(因为 asset 多 1 行 chips 内容),合理
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -260,27 +274,28 @@ class AssetTile extends ConsumerWidget {
           ),
           boxShadow: CardShadows.dark(context),
         ),
-        padding: const EdgeInsets.all(AppSpacing.s3),
+        // D64.43.3:padding s3 → s2(8),跟流水卡片 default contentPadding 8 对齐
+        padding: const EdgeInsets.all(AppSpacing.s2),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // 2026-10-14 D48 + 2026-10-16 D64.43.2:leading 大方块,全占 tile 高度
-            //   - material:56×56 tinted box(asset.color 0.20 底 + asset.color icon 28px),
+            // 2026-10-14 D48 + 2026-10-16 D64.43.2/3:leading 大方块,全占 tile 高度
+            //   - material:48×48 tinted box(asset.color 0.20 底 + asset.color icon 24px),
             //     居中显示,asset 标识突出
-            //   - brand/crypto/bank:56×56 圆角盒,内部 brand chip 自带品牌色背景
+            //   - brand/crypto/bank:48×48 圆角盒,内部 brand chip 自带品牌色背景
             //     不再加 tinted 外框(避免双层色块冲突)
             isBrandKey(asset.icon)
                 ? ClipRRect(
                     borderRadius: AppRadius.brSm,
                     child: SizedBox(
-                      width: 56,
-                      height: 56,
-                      child: renderIcon(asset.icon, size: 56),
+                      width: 48,
+                      height: 48,
+                      child: renderIcon(asset.icon, size: 48),
                     ),
                   )
                 : Container(
-                    width: 56,
-                    height: 56,
+                    width: 48,
+                    height: 48,
                     decoration: BoxDecoration(
                       color: color.withValues(alpha: 0.20),
                       borderRadius: AppRadius.brSm,
@@ -292,7 +307,7 @@ class AssetTile extends ConsumerWidget {
                     child: Icon(
                       icons[asset.icon] ?? Icons.account_balance_wallet_rounded,
                       color: color,
-                      size: 28,
+                      size: 24,
                     ),
                   ),
             const SizedBox(width: AppSpacing.s3),
@@ -310,7 +325,8 @@ class AssetTile extends ConsumerWidget {
                         child: Text(
                           asset.name,
                           style: const TextStyle(
-                            fontSize: 15,
+                            // D64.43.3:name 字号 15 → 14,跟流水卡片对齐
+                            fontSize: 14,
                             fontWeight: FontWeight.w500,
                             // D64.43:在 ink 黑底上用 cream(AppSecondary.cream),可读
                             color: AppSecondary.cream,
@@ -320,11 +336,11 @@ class AssetTile extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(width: AppSpacing.s2),
-                      // amount:右对齐,w600 16sp,颜色按余额正/负/0 走 AppSemantic.balanceFor
+                      // amount:右对齐,w600 14sp(跟流水卡片对齐)
                       Text(
                         '¥${Formatters.amount(balance)}',
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 14,
                           fontWeight: FontWeight.w600,
                           color: balance == 0
                               ? AppGray.g400
@@ -333,7 +349,7 @@ class AssetTile extends ConsumerWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: AppSpacing.s2),
+                  const SizedBox(height: AppSpacing.s1),
                   // 第二行:chips Wrap(流动资金 / 默认 / 计入流水 等)
                   //   D64.41:用 Wrap 替代 Row,chip 多时自动换行
                   Wrap(
@@ -378,7 +394,8 @@ class _TileChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      // D64.43.3:padding horizontal 6 → 4 vertical 1 → 0,更紧凑
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.20),
         borderRadius: BorderRadius.circular(4),
