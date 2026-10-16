@@ -170,9 +170,14 @@ class ReceivablesDashboard extends ConsumerWidget {
               ),
             ),
           ] else ...[
-            // outlineVariant hairline(浅底上用 outlineVariant 区分边线,比 ink 上的
-            // AppGray.g600 在白底上更合适)
-            Divider(height: 1, color: theme.colorScheme.outlineVariant),
+            // 2026-10-16 D65.6 改:D64.64 合并到 DebtDashboard 后借出 tab 跟负债 tab
+            //   共用同一个 ink 底卡片,divider 颜色必须跟负债 tab 一致
+            //   - 之前用 outlineVariant 是 D64.62 时期借出 tab 独立白底卡片的方案
+            //   - 现在两 tab 同 ink 底,负债 tab 已用 AppGray.g600 (#52525B,深灰),
+            //     借出 tab 跟 g600 保持一致,视觉上两条 divider 完全相同
+            //   - user 反馈"D65.5 后两 tab divider 颜色不一样"是因为 D64.64 合并时
+            //     漏改了 借出 tab 这行
+            const Divider(height: 1, color: AppGray.g600),
             const SizedBox(height: AppSpacing.s3),
             // 列表(每行)
             for (int i = 0; i < receivableItems.length; i++) ...[
