@@ -118,7 +118,11 @@ class _StatsPageState extends ConsumerState<StatsPage> {
           onRefresh: () async => refreshAllData(ref),
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(bottom: AppSpacing.s6),
+            // D64.68:bottom padding 32 → 64 px(原 s6=32 不够,4 个 dashboard
+            //   堆叠后用户 fling 滚到中间时第 3 张卡(资产配置分布)标题会落在
+            //   nav 边缘被切一半;给更大 padding 让 user 滚到 max 时所有
+            //   dashboard 都有完整 breathing room,不会停在 awkward 切位)
+            padding: const EdgeInsets.only(bottom: AppSpacing.s10),
             children: [
               // 视角特定内容 — 包 AnimatedSwitcher cross-fade,切视角(收支/资产)时
               // 新旧 view 同时存在(Stack 同时透明),完全无缝过渡。
