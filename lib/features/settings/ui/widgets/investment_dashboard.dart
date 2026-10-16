@@ -239,7 +239,15 @@ class _YearlyBars extends StatelessWidget {
       );
     }
     final chartNeedsWan = maxVal >= Formatters.wanThreshold;
-    return AnimatedBarChart(
+    // D64.69 修:必须包 SizedBox(height: 200) 给 AnimatedBarChart 显式高度
+    //   - 直接在 Column(ChartCard child, unbounded vertical max)里放 chart
+    //     会让 fl_chart BarChart 报 "BoxConstraints forces an infinite height"
+    //   - 跟 consumption_trend 用 TabBarView 包 chart 不一样,InvestmentDashboard
+    //     不用 tab,需要在 chart 自身给 bounded height
+    //   - 200 px 跟 AnimatedLineChart savings_trend 220→260 同档,12 月双柱足够
+    return SizedBox(
+      height: 200,
+      child: AnimatedBarChart(
       bars: [
         for (final m in monthly)
           BarChartBar(
@@ -273,6 +281,7 @@ class _YearlyBars extends StatelessWidget {
         final m = monthly[i];
         return '投 ¥${Formatters.amount(m.invested)}\n收 ¥${Formatters.amount(m.returned)}';
       },
+    ),
     );
   }
 }
