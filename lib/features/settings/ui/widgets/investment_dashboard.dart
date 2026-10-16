@@ -256,11 +256,11 @@ class _YearlyBars extends StatelessWidget {
       minVal: summary.minMonthlyValue, // D65.3:负值启用负轴 + 0 线突出
       chartNeedsWan: chartNeedsWan,
       primaryColor: AppStatus.error,
-      secondaryColor: AppBrand.teal,
-      // D65.3:收益柱 < 0 变红(财务直觉:亏 = 红),跟累计净收益全红呼应
-      // - primaryColor/secondaryColor 仍保留作 fallback(全 0 月仍走绿色)
-      // - 投入柱固定红色,不参与 resolver
-      barColorResolver: (i, b) {
+      // D65.4 改:用 secondaryColorResolver 替代 D65.3 写错的 barColorResolver
+      //   - barColorResolver 只作用于主柱(投入),D65.3 误用导致主柱变 teal
+      //   - 正确做法:主柱固定红,次柱(收益)按值变色
+      //   - 收益 ≥ 0 绿(默认) / 收益 < 0 变红(财务直觉:亏 = 红)
+      secondaryColorResolver: (i, b) {
         final ret = b.secondaryValue ?? 0;
         return ret < 0 ? AppStatus.error : AppBrand.teal;
       },

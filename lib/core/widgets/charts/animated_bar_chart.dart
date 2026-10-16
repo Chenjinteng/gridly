@@ -98,6 +98,12 @@ typedef TooltipBuilder = String? Function(int idx, BarChartBar bar);
 /// 单柱颜色解析器(默认色 / 高亮最大值柱 等场景)
 typedef BarColorResolver = Color Function(int idx, BarChartBar bar);
 
+/// 2026-10-16 D65.4 加:次柱(secondaryValue)颜色解析器
+///   - 跟 BarColorResolver 镜像 API,但只作用于双柱场景的次柱
+///   - 用例:投资 dashboard 收益柱 — 收益 ≥ 0 绿 / 收益 < 0 变红(财务直觉)
+///   - 不传时 fallback 到 secondaryColor(原行为)
+typedef SecondaryBarColorResolver = Color Function(int idx, BarChartBar bar);
+
 class AnimatedBarChart extends StatefulWidget {
   const AnimatedBarChart({
     super.key,
@@ -109,6 +115,7 @@ class AnimatedBarChart extends StatefulWidget {
     this.touchedLabelBuilder,
     this.tooltipBuilder,
     this.barColorResolver,
+    this.secondaryColorResolver, // D65.4 加:次柱颜色解析器
     this.primaryColor, // 双柱场景:主柱固定色
     this.secondaryColor, // 双柱场景:次柱固定色
     this.barWidth = 5,
@@ -129,6 +136,7 @@ class AnimatedBarChart extends StatefulWidget {
   final TouchedLabelBuilder? touchedLabelBuilder;
   final TooltipBuilder? tooltipBuilder;
   final BarColorResolver? barColorResolver;
+  final SecondaryBarColorResolver? secondaryColorResolver;
   final Color? primaryColor;
   final Color? secondaryColor;
   final double barWidth;
@@ -583,7 +591,10 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
             if (isSecondary)
               BarChartRodData(
                 toY: _appeared ? b.secondaryValue! : 0.0,
-                color: widget.secondaryColor ?? const Color(0xFFE4E4E7), // g200
+                // D65.4 改:次柱颜色优先走 secondaryColorResolver,fallback 到 secondaryColor
+                color: widget.secondaryColorResolver != null
+                    ? widget.secondaryColorResolver!(i, b)
+                    : (widget.secondaryColor ?? const Color(0xFFE4E4E7)),
                 width: widget.barWidth,
                 borderRadius: BorderRadius.vertical(
                   top: (b.secondaryValue ?? 0) >= 0
