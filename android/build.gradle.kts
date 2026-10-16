@@ -27,23 +27,22 @@ subprojects {
 //     仍失败 —— 因为 file_picker 是 plugin 子项目,自己 android/build.gradle
 //     锁 compileSdk 34,app 层的设置管不到子项目
 //   - 修法:在 root android/build.gradle.kts 用 afterEvaluate 强制把所有
-//     plugin 子项目的 compileSdk 提到 36(AAR 检查的 compile time 一致性即可)
+//     plugin 子项目的 compileSdk 提到 36
 //   - 这是临时方案,等 file_picker 自己 release 把 compileSdk 升 36 后可移除
-//   - AGP 8+ Kotlin DSL 兼容写法
+//   - AGP 9.x(Kotlin DSL)写法:用 BaseExtension 拿 android extension,
+//     BaseExtension 在 com.android.application / com.android.library
+//     两个 plugin 里都注册同名 extension,is check 兼容两者
+//   - @Suppress("DEPRECATION") 忽略 AGP 9.0 的 deprecation 警告(BaseExtension
+//     在 AGP 10.0 才移除,这个 fix 是临时的,跟 plugin 升级节奏对得上)
+@Suppress("DEPRECATION")
+import com.android.build.gradle.BaseExtension
+
 subprojects {
     afterEvaluate {
-        plugins.withId<com.android.library>("com.android.library") {
-            extensions.configure<com.android.build.gradle.LibraryExtension>("android") {
-                if (compileSdk == null || compileSdk!! < 36) {
-                    compileSdk = 36
-                }
-            }
-        }
-        plugins.withId<com.android.application>("com.android.application") {
-            extensions.configure<com.android.build.gradle.AppExtension>("android") {
-                if (compileSdk == null || compileSdk!! < 36) {
-                    compileSdk = 36
-                }
+        val androidExt = extensions.findByName("android")
+        if (androidExt is BaseExtension) {
+            if (androidExt.compileSdkVersion < 36) {
+                androidExt.compileSdkVersion(36)
             }
         }
     }
