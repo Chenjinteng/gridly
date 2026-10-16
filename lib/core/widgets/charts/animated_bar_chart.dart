@@ -35,7 +35,16 @@
 //   - 触摸 overlay:
 //     - 1.5px 垂直虚线(DashedLinePainter)
 //     - 顶部类目 label(56px 宽 surface bg card)
-//     - 金额 tooltip(80px 宽 ink bg + gold 文字)
+//     - 金额 tooltip(140px 宽 surface bg + onSurface 文字 + 圆角 6 + shadow)
+//       D64.55 改:之前是 80px ink bg + gold w600(深色 + 橙色 bold),
+//       user UAT 反馈"走势这个数据展示的样式我还挺喜欢的,你按那个
+//       样式改一下其它的" — 储蓄走势(savings_trend)走的 AnimatedLineChart
+//       tooltip 是 surface 白底 + onSurface 黑字 + 字号 10 + 圆角 6 + shadow,
+//       user 觉得简洁好看;消费趋势 / 12 月趋势等走 AnimatedBarChart 的图表
+//       tooltip 改成跟 AnimatedLineChart 同款,统一全 app chart tooltip 样式
+//     - 颜色 / 字号 / 圆角 / shadow 跟 AnimatedLineChart._buildChart
+//       内的 tooltip Positioned 完全一致(DRY 原则,但暂不抽公共 widget
+//       避免过度抽象,留作以后 D64.x 复盘)
 //
 // 业务 widget 用法(参考 monthly_trend / category_compare / weekday_expense):
 //   AnimatedBarChart(
@@ -374,15 +383,9 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
                 // D64.21c:0 轴线(当启用负轴)用 outline 1px,
                 // 区别于普通网格线的 outlineVariant 0.5px
                 if (_hasNegativeAxis && v == 0) {
-                  return FlLine(
-                    color: scheme.outline,
-                    strokeWidth: 1,
-                  );
+                  return FlLine(color: scheme.outline, strokeWidth: 1);
                 }
-                return FlLine(
-                  color: scheme.outlineVariant,
-                  strokeWidth: 0.5,
-                );
+                return FlLine(color: scheme.outlineVariant, strokeWidth: 0.5);
               },
             ),
             borderData: FlBorderData(show: false),
@@ -492,20 +495,40 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
             ),
           ),
           // 金额 tooltip
+          // D64.55 改:样式跟 AnimatedLineChart (储蓄走势 user 喜欢的) 同款:
+          //   - 80px → 140px(储蓄走势 140 宽,多行自然换行)
+          //   - ink #18181B → scheme.surface(白底)
+          //   - gold #EAB308 w600 → onSurface w400 normal(黑字普通字重)
+          //   - 字号 12 → 10
+          //   - 圆角 4 → 6
+          //   - 加 border 0.5 outlineVariant(跟 surface 区分)
+          //   - 加 boxShadow 0 2 4 black alpha 0.08(浮动感)
+          //   - top 26 → 28(跟 label 4px gap)
           if (_touchedValue != null)
             Positioned(
-              left: _touchedCenterX! + _leftReservedSize - 40,
-              top: 26,
-              width: 80,
+              left: _touchedCenterX! + _leftReservedSize - 70,
+              top: 28,
+              width: 140,
               child: Center(
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
+                    horizontal: 8,
+                    vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF18181B), // AppBrand.ink
-                    borderRadius: BorderRadius.circular(4),
+                    color: scheme.surface,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: scheme.outlineVariant,
+                      width: 0.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Text(
                     widget.tooltipBuilder?.call(
@@ -513,10 +536,13 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
                           widget.bars[_touchedIdx!],
                         ) ??
                         '',
-                    style: const TextStyle(
-                      color: Color(0xFFEAB308), // AppBrand.gold
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
+                    textAlign: TextAlign.center,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 10,
+                      height: 1.4,
+                      color: scheme.onSurface,
                     ),
                   ),
                 ),
