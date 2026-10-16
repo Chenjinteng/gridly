@@ -37,3 +37,14 @@
 -dontwarn org.bouncycastle.**
 -dontwarn org.conscrypt.**
 -dontwarn org.openjsse.**
+
+# -----------------------------------------------------------------------------
+# 2026-10-17 D68.3 加:Google Play Core split install 类 keep
+#   - Flutter 框架默认引用了 PlayStoreDeferredComponentManager / SplitCompatApplication
+#     这些是 Play Store dynamic feature / deferred component 用的类
+#   - gridly 不用 deferred components 功能,但 Flutter embedding 代码静态引用
+#   - R8 minify 时找不到这些类报错(实际不会用,静态引用是历史遗留)
+#   - keep + dontwarn 双重保护,符合 Flutter 官方 Android 部署文档建议
+# -----------------------------------------------------------------------------
+-keep class com.google.android.play.core.** { *; }
+-dontwarn com.google.android.play.core.**
