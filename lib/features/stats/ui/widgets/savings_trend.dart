@@ -14,6 +14,13 @@
 // - 0 轴线(负轴时):跟 D64.21c 同款 outline 1px 横线
 // - X 轴 label 稀疏化到 1 / 6 / 12 月(跟 D64.22 同款)
 // - chartNeedsWan:false(百分比不会到万,强制不走 wan 缩写)
+//
+// 2026-10-16 D64.29 改:
+// - 传 `axisLabelBuilder: (v, _) => v.toStringAsFixed(0)`,Y 轴 label 走整数
+//   百分比(原 D64.27 走 Formatters.amount 出 "189.02" 这种带小数百分比是错的)
+// - chart height 220 → 260,给密集 range(如 [-189%, +30%])足够 vertical room,
+//   Y 轴 0/-50 label 视觉重叠缓解(底层 nice interval 由 D64.29
+//   `AnimatedLineChart` 内部计算)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -40,7 +47,7 @@ class SavingsTrend extends ConsumerWidget {
             title: '储蓄走势',
             showDivider: false,
             child: const SizedBox(
-              height: 220,
+              height: 260,
               child: Center(
                 child: Text(
                   '本年暂无收支',
@@ -55,19 +62,14 @@ class SavingsTrend extends ConsumerWidget {
         for (final m in data) {
           if (m.income == 0) continue; // 跳过 income=0
           final rate = (m.income - m.expense) / m.income * 100;
-          points.add(
-            LineChartPoint(
-              label: '${m.month}月',
-              value: rate,
-            ),
-          );
+          points.add(LineChartPoint(label: '${m.month}月', value: rate));
         }
         if (points.isEmpty) {
           return ChartCard(
             title: '储蓄走势',
             showDivider: false,
             child: const SizedBox(
-              height: 220,
+              height: 260,
               child: Center(
                 child: Text(
                   '本年无收入',
@@ -84,12 +86,14 @@ class SavingsTrend extends ConsumerWidget {
           title: '储蓄走势',
           showDivider: false,
           child: SizedBox(
-            height: 220,
+            height: 260,
             child: AnimatedLineChart(
               points: points,
               maxVal: maxVal,
               minVal: minVal < 0 ? minVal : null, // D64.21c 负轴
               chartNeedsWan: false, // 百分比不会到万
+              // D64.29 加:整数百分比(替代 Formatters.amount 出 "189.02")
+              axisLabelBuilder: (v, _) => v.toStringAsFixed(0),
               lineColor: AppBrand.teal,
               // 节点颜色:正储蓄率 teal,负储蓄率 error 红
               pointColorResolver: (i, p) =>
@@ -124,7 +128,7 @@ class SavingsTrend extends ConsumerWidget {
         title: '储蓄走势',
         showDivider: false,
         child: const SizedBox(
-          height: 220,
+          height: 260,
           child: Center(child: CircularProgressIndicator()),
         ),
       ),
@@ -132,7 +136,7 @@ class SavingsTrend extends ConsumerWidget {
         title: '储蓄走势',
         showDivider: false,
         child: SizedBox(
-          height: 220,
+          height: 260,
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.s3),
             child: Text(

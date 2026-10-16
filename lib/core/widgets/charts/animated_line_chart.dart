@@ -9,7 +9,18 @@
 //   - 点的颜色按 value 区分(可选):正 teal / 负 error 红
 //   - 0 轴线(D64.21c 同款):minY < 0 时自动画 y=0 outline 1px 横线
 //
+// 2026-10-16 D64.29 改:
+//   - 加 `_pickNiceInterval` + `_computedMaxY` / `_computedMinY`(镜像
+//     `AnimatedBarChart` D64.21c),保证 maxY/minY 是 niceInterval 的整数倍,
+//     避免 maxY=189.02 时 fl_chart 选 interval=50 但 0/-50 视觉重叠的 bug
+//   - 新增 `axisLabelBuilder` 回调参数(镜像 `xLabelBuilder`),默认回落到
+//     `Formatters.amount(v, forceWan, trimTrailingZeros)` 保持向后兼容。
+//     储蓄走势(D64.27)百分比不该有 ".02" 小数,通过这个 callback 走
+//     `v.toStringAsFixed(0)` 输出整数百分比。
+//
 // 业务 widget 用法参考 savings_trend.dart。
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
@@ -19,10 +30,7 @@ import '../../utils/formatters.dart';
 
 /// 单个点的数据
 class LineChartPoint {
-  const LineChartPoint({
-    required this.label,
-    required this.value,
-  });
+  const LineChartPoint({required this.label, required this.value});
 
   /// X 轴 label(用于底部显示 + 触摸时顶部 label)
   final String label;
@@ -33,6 +41,11 @@ class LineChartPoint {
 
 /// X 轴 label builder — return null = 隐藏该 label
 typedef XLabelBuilder = Widget? Function(int idx, LineChartPoint point);
+
+/// Y 轴 label builder(D64.29 加)—— 跟 fl_chart `SideTitles.getTitlesWidget`
+/// 镜像签名 (value, meta)。默认(不传)走 Formatters.amount,储蓄走势传
+/// `(v, _) => v.toStringAsFixed(0)` 输出整数百分比。
+typedef AxisLabelBuilder = String Function(double value, TitleMeta meta);
 
 /// 触摸时顶部 label 文字
 typedef TouchedLabelBuilder = String? Function(int idx, LineChartPoint point);
@@ -51,6 +64,7 @@ class AnimatedLineChart extends StatefulWidget {
     this.maxVal,
     this.minVal,
     this.xLabelBuilder,
+    this.axisLabelBuilder, // D64.29 加:Y 轴 label 格式
     this.touchedLabelBuilder,
     this.tooltipBuilder,
     this.pointColorResolver,
@@ -63,6 +77,7 @@ class AnimatedLineChart extends StatefulWidget {
   final double? maxVal; // null = 自动算
   final double? minVal; // null = 自动算(>= 0)
   final XLabelBuilder? xLabelBuilder;
+  final AxisLabelBuilder? axisLabelBuilder; // D64.29 加
   final TouchedLabelBuilder? touchedLabelBuilder;
   final TooltipBuilder? tooltipBuilder;
   final PointColorResolver? pointColorResolver;
@@ -82,13 +97,39 @@ class _AnimatedLineChartState extends State<AnimatedLineChart>
   int? _touchedIdx;
   double? _chartWidth;
 
-  late final double _computedMinY = widget.minVal ?? 0.0;
-  late final double _computedMaxY = widget.maxVal ??
-      (widget.points.isEmpty
-          ? 1.0
-          : widget.points
-              .map((p) => p.value)
-              .fold<double>(0, (a, b) => a > b ? a : b));
+  // D64.29 加:nice interval + 对称 minY/maxY(镜像 AnimatedBarChart D64.21c)
+  //   - maxVal=30, minVal=-189 → niceInterval = max(|30|,|189|) = 189 → 50
+  //   - computedMaxY = ceil(30/50)*50 = 50
+  //   - computedMinY = floor(-189/50)*50 = -200
+  //   → ticks 在 [-200, 50] 整数倍上,不再出现 0 / -50 重叠 / 189.02 这种浮点
+  //
+  // widget.maxVal / widget.minVal 可为 null —— 不传时从 points 自动算(原 D64.27
+  // 行为),保证 caller 不传也能跑,保持向后兼容。
+  double _autoMaxVal() => widget.points.isEmpty
+      ? 1.0
+      : widget.points
+            .map((p) => p.value)
+            .fold<double>(0, (a, b) => a > b ? a : b);
+
+  double _autoMinVal() => widget.points.isEmpty
+      ? 0.0
+      : widget.points
+            .map((p) => p.value)
+            .fold<double>(0, (a, b) => a < b ? a : b);
+
+  double get _eMax => widget.maxVal ?? _autoMaxVal();
+  double get _eMin => widget.minVal ?? _autoMinVal();
+
+  late final bool _hasNegativeAxis = _eMin < 0;
+  late final double _niceInterval = _pickNiceInterval(
+    _hasNegativeAxis ? math.max(_eMax.abs(), _eMin.abs()) : _eMax,
+  );
+  late final double _computedMaxY = _eMax == 0 && !_hasNegativeAxis
+      ? 1.0
+      : (_eMax / _niceInterval).ceil() * _niceInterval;
+  late final double _computedMinY = _hasNegativeAxis
+      ? (_eMin / _niceInterval).floor() * _niceInterval
+      : 0.0;
 
   static const double _leftReservedSize = 56;
 
@@ -231,6 +272,8 @@ class _AnimatedLineChartState extends State<AnimatedLineChart>
             gridData: FlGridData(
               show: true,
               drawVerticalLine: false,
+              // D64.29 加:跟 leftTitles interval 对齐,网格线对齐 Y 轴 tick
+              horizontalInterval: _niceInterval,
               getDrawingHorizontalLine: (v) {
                 if (hasNegative && v == 0) {
                   return FlLine(color: scheme.outline, strokeWidth: 1);
@@ -251,20 +294,28 @@ class _AnimatedLineChartState extends State<AnimatedLineChart>
                 sideTitles: SideTitles(
                   showTitles: true,
                   reservedSize: _leftReservedSize,
-                  getTitlesWidget: (v, meta) => Text(
-                    Formatters.amount(
-                      v,
-                      forceWan: widget.chartNeedsWan,
-                      trimTrailingZeros: true,
-                    ),
-                    style: TextStyle(
-                      fontSize: 9,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                    maxLines: 1,
-                    softWrap: false,
-                    overflow: TextOverflow.visible,
-                  ),
+                  // D64.29 加:用 niceInterval 取代 fl_chart 自动 interval,
+                  // 避免 0/-50 重叠 / 189.02 这种浮点小数的边角 label
+                  interval: _niceInterval,
+                  getTitlesWidget: (v, meta) {
+                    final label =
+                        widget.axisLabelBuilder?.call(v, meta) ??
+                        Formatters.amount(
+                          v,
+                          forceWan: widget.chartNeedsWan,
+                          trimTrailingZeros: true,
+                        );
+                    return Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 9,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.visible,
+                    );
+                  },
                 ),
               ),
               bottomTitles: AxisTitles(
@@ -321,7 +372,10 @@ class _AnimatedLineChartState extends State<AnimatedLineChart>
                   show: true,
                   getDotPainter: (spot, percent, bar, index) {
                     final color = widget.pointColorResolver != null
-                        ? widget.pointColorResolver!(index, widget.points[index])
+                        ? widget.pointColorResolver!(
+                            index,
+                            widget.points[index],
+                          )
                         : lineColor;
                     return FlDotCirclePainter(
                       radius: 3,
@@ -344,7 +398,10 @@ class _AnimatedLineChartState extends State<AnimatedLineChart>
         // 触摸 overlay(1.5px 垂直虚线 + 顶部 label + 金额 tooltip)
         if (_touchedIdx != null && _chartWidth != null) ...[
           Positioned(
-            left: _xPosition(_touchedIdx!, _chartWidth!) + _leftReservedSize - 0.75,
+            left:
+                _xPosition(_touchedIdx!, _chartWidth!) +
+                _leftReservedSize -
+                0.75,
             top: 0,
             bottom: 0,
             width: 1.5,
@@ -353,7 +410,8 @@ class _AnimatedLineChartState extends State<AnimatedLineChart>
             ),
           ),
           Positioned(
-            left: _xPosition(_touchedIdx!, _chartWidth!) + _leftReservedSize - 28,
+            left:
+                _xPosition(_touchedIdx!, _chartWidth!) + _leftReservedSize - 28,
             top: 0,
             width: 56,
             child: Center(
@@ -419,4 +477,28 @@ class _DashedLinePainter extends CustomPainter {
   @override
   bool shouldRepaint(_DashedLinePainter oldDelegate) =>
       oldDelegate.color != color;
+}
+
+/// D64.29 加(从 animated_bar_chart.dart 拷一份,避免共享 top-level 函数跨文件依赖):
+/// 按 1/2/5 × 10^n 候选挑 niceInterval,保证 maxY 是 niceInterval 的整数倍,
+/// 避免 fl_chart 在 maxY 位置额外画小 label(跟 0 重叠)。
+double _pickNiceInterval(double maxVal) {
+  if (maxVal <= 0) return 1;
+  final magnitude = _pow10(
+    (maxVal.abs().toString().split('.').first.length) - 1,
+  );
+  final candidates = <double>[magnitude, 2 * magnitude, 5 * magnitude];
+  for (final c in candidates) {
+    final tickCount = maxVal / c;
+    if (tickCount <= 4) return c;
+  }
+  return candidates.last;
+}
+
+double _pow10(int n) {
+  double r = 1;
+  for (var i = 0; i < n; i++) {
+    r *= 10;
+  }
+  return r;
 }
