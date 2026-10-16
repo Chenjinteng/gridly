@@ -243,18 +243,26 @@ final dailyExpenseTrendProvider = FutureProvider<List<DailyExpense>>((
 ) async {
   final w = ref.watch(statsWindowProvider);
   final db = ref.watch(databaseProvider);
-  final txs =
-      await (db.select(db.transactions)..where(
-            (t) =>
-                t.occurredAt.isBetweenValues(w.start, w.end) &
-                t.type.equals('expense'),
-          ))
-          .get();
+  // 2026-10-16 D64.86 改:口径跟 _periodSummary / monthlyTrendProvider 对齐
+  //   - 之前 SQL WHERE t.type='expense',漏了"现金→债务调拨"的还款 record
+  //     (cat.type='liability' AND tx.type='balance')
+  //   - 改:拉全窗 txs + Dart 端 filter 双向对齐口径
+  final cats = await ref.watch(allCategoriesProvider.future);
+  final catTypeById = {for (final c in cats) c.id: c.type};
+  final txs = await (db.select(db.transactions)
+        ..where((t) => t.occurredAt.isBetweenValues(w.start, w.end)))
+      .get();
 
   // 按 day-of-month 聚合(假设 statsWindowProvider 在 thisMonth 模式时
   // w.start.month == w.end.month,所有 tx 同月,day 取 occurredAt.day)
   final byDay = <int, double>{};
   for (final t in txs) {
+    final cType = catTypeById[t.categoryId];
+    // D62.4:真支出 + 还款
+    final isExpense =
+        (t.type == 'expense' && cType == 'expense') ||
+        (t.type == 'balance' && cType == 'liability');
+    if (!isExpense) continue;
     byDay[t.occurredAt.day] = (byDay[t.occurredAt.day] ?? 0) + t.amount;
   }
 
@@ -342,17 +350,22 @@ final yearlyExpenseTrendProvider = FutureProvider<List<YearlyExpense>>((
   final db = ref.watch(databaseProvider);
   final start = DateTime(year, 1, 1);
   final end = DateTime(year + 1, 1, 1).subtract(const Duration(seconds: 1));
-
-  final txs =
-      await (db.select(db.transactions)..where(
-            (t) =>
-                t.occurredAt.isBetweenValues(start, end) &
-                t.type.equals('expense'),
-          ))
-          .get();
+  // 2026-10-16 D64.86 改:口径跟 dailyExpenseTrendProvider / monthlyTrendProvider 对齐
+  //   - 之前 SQL WHERE t.type='expense',漏了"现金→债务调拨"的还款
+  //   - 改:拉全年 txs + Dart 端 filter 双向对齐口径
+  final cats = await ref.watch(allCategoriesProvider.future);
+  final catTypeById = {for (final c in cats) c.id: c.type};
+  final txs = await (db.select(db.transactions)
+        ..where((t) => t.occurredAt.isBetweenValues(start, end)))
+      .get();
 
   final byMonth = <int, double>{};
   for (final t in txs) {
+    final cType = catTypeById[t.categoryId];
+    final isExpense =
+        (t.type == 'expense' && cType == 'expense') ||
+        (t.type == 'balance' && cType == 'liability');
+    if (!isExpense) continue;
     byMonth[t.occurredAt.month] = (byMonth[t.occurredAt.month] ?? 0) + t.amount;
   }
 
