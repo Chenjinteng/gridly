@@ -94,6 +94,25 @@
 //     ⑥ chip 底色 alpha 0.20 → 0.18 + 文字 `Colors.white` 覆盖(teal 底上白 chip)
 //     ⑦ logo icon 在 teal 底上保留原 asset.color,但 logo 底色从 0.20 alpha
 //       提到 0.28(增强 logo 在亮底上的辨识度)
+// 2026-10-16 D64.43.5 改(user UAT 反馈):
+//   - user 反馈"不行,青色还是不好看,有没有其它颜色,比较搭配一点的"
+//   - 重新选:不让 AI 自行换(上次 D64.43.4 直接换 teal user 否决,
+//     浪费一次 commit + 文档归档 + APK build)
+//   - 这次:出 4 个候选 HTML demo 给 user 实测
+//     A 夜蓝 #1B2A41 / B 石板灰 #2A2D33 / C 核桃棕 #2E2417 / D 松柏绿 #1F3D2E
+//     模拟真实 D64.43.3 tile 规格 + ink dark theme 背景,user 选了 A 夜蓝
+//   - 修法:
+//     ① 卡片底色 `AppBrand.teal`(0xFF14B8A6)→ **`AppBrand.navy`(0xFF1B2A41)**
+//        - 新增 `AppBrand.navy` token 到 app_colors.dart(仅 asset_tile 用)
+//        - navy = 深空蓝,跟 teal chip 色相轮互补,chip 最跳;深但不是黑,
+//          跟 ink 黑背景有 4 灰度区分,边缘 outline 加深档
+//     ② 其它参数保持 D64.43.4 已调好的对比度(跟 teal 版同档):
+//        outline white alpha 浅色 0.30 / 深色 0.15(深蓝底需要稍强 outline
+//        区分边缘,D64.43.4 已为 teal 调好,navy 直接复用)
+//     ③ amount 文字色:正数 white / 负 error 0.95 / 0 white54(D64.43.4 验证)
+//     ④ shadow 沿用 `CardShadows.dark(context)`(D64.43 已用)
+//     ⑤ logo tint alpha 0.28 + border alpha 0.45(D64.43.4 teal 版已调好,navy 直接复用)
+//     ⑥ chip alpha 0.25(D64.43.4 teal 版已调好,navy 直接复用)
 // 2026-10-16 D64.44 改(user UAT 反馈):
 //   - user 反馈"左滑动是暴露编辑删除按钮,但是直接点击卡片也会进入编辑,
 //     这不行,把这个点击进入编辑的去掉"
@@ -304,10 +323,14 @@ class AssetTile extends ConsumerWidget {
           vertical: AppSpacing.s1,
         ),
         decoration: BoxDecoration(
-          // D64.43.4:底色换主题青 `AppBrand.teal`(明亮青,0xFF14B8A6),
-          //   跟 chips 上 teal 调一致,视觉统一;从原来 D64.43 黑底换青底
-          //   (user 反馈黑底"不是很搭",改跟品牌色 teal 同色系)
-          color: AppBrand.teal,
+          // D64.43.5:底色 `AppBrand.teal`(明亮青,0xFF14B8A6,user UAT 否决
+          //   "跟 asset.color 默认 teal 撞色,看 logo 不出")→ `AppBrand.navy`
+          //   夜蓝(0xFF1B2A41,user 16:00 4 候选 HTML demo 选定 A)。
+          //   - navy = 深空蓝,跟 teal chip 色互补,chip 最跳;深但不是黑
+          //   - 4 张 HTML demo 给 user 实测,A 在跟 teal chip 同框下视觉最稳
+          //   - 其他参数(outline / amount color / chip alpha / logo alpha /
+          //     shadow)保持 D64.43.4 teal 版原本已调好的对比度,跟 navy 同档
+          color: AppBrand.navy,
           borderRadius: AppRadius.brLg,
           // D64.43.4:rim border 白色 alpha 调整:浅色主题 0.30 / 深色主题 0.15
           //   (teal 比 ink 浅,需要更强 outline 区分边缘)

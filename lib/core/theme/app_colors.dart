@@ -13,6 +13,16 @@ class AppBrand {
   // design/THEME.html §1.2 (line 10 / 169-170 / 397) 明确定义的 brand color。
   // 视觉上 hue 174° 偏 green 那一侧(在中文里"青色"也常被理解为 green-leaning),
   // 用户在 2026-10-11 UAT 时明确说"我说青色其实是指绿色",所以维持设计稿原值不动。
+
+  // 2026-10-16 D64.43.5 加:`navy` 夜蓝(资产 tile 底色专用)
+  //   - D64.43.4 试 teal(0xFF14B8A6)作为资产 tile 底色,user UAT 否决"不搭"
+  //     (撞 asset.color 默认 teal 同色系,看 logo 不出)
+  //   - 4 候选 HTML demo 给 user 选,user 16:00 选 A 夜蓝
+  //   - navy = 深空蓝(冷调),跟 teal chip 在色相轮互补,chip 最跳;
+  //     深但不是黑(ink 是 0xFF0F1419 比 navy 还暗),跟主题黑背景区分
+  //   - 仅 asset_tile.dart 用,不入 theme,所有 chip / amount / name 配色
+  //     仍按 teal 版延用(D64.43.4 已通过 user 验证的对比度)
+  static const Color navy = Color(0xFF1B2A41);
 }
 
 /// 辅助色
