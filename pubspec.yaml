@@ -2,7 +2,7 @@ name: gridly
 description: "格子记账 — 一格一账的本地优先记账工具"
 publish_to: 'none'
 
-version: 0.1.0+24  # P0 阶段从 0.1.0 开始;D64.54 build+1 约定每次 commit bump 1
+version: 0.1.0+25  # P0 阶段从 0.1.0 开始;D64.54 build+1 约定每次 commit bump 1
 
 environment:
   sdk: ^3.13.5

@@ -12,6 +12,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/card_shadows.dart';
+import '../../../../core/theme/tx_display_style.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/utils/gridly_banner.dart';
 import '../../../../core/utils/refresh_providers.dart';
@@ -70,14 +71,10 @@ class TransactionTile extends ConsumerWidget {
         //   - balance 仍不显示 prefix(调拨,语义中性)
         //   - 这跟资产记录里"借出 += amount / 借入 -= amount"是相反的
         //     (ledger 走"现金流向"语义,asset 走"债务方向"语义,双视角)
+        // 2026-10-16 D64.77 改:prefix 走 TxDisplayStyle 集中表(原本 4 case switch)
+        final style = TxDisplayStyle.forType(transaction.type);
         final showPrefix = transaction.type != 'balance';
-        final prefix = switch (transaction.type) {
-          'income' => '+',
-          'expense' => '-',
-          'lend_out' => '-', // D51 v2:借出 = 我失去的钱
-          'borrow_in' => '+', // D51 v2:借入 = 我借到的钱
-          _ => '',
-        };
+        final prefix = style.prefix;
         final theme = Theme.of(context);
         return SwipeToActions(
           key: ValueKey('tx-${transaction.id}'),
@@ -279,15 +276,14 @@ class TransactionTile extends ConsumerWidget {
   ///   - 其它 record:仍走 cat.name(分类语义)
   ///   - 调拨:balance type + destinationAccountId,显示 cat.name
   ///     (调拨是"从 A 到 B"的中性动作,显示 cat.name 如"投资"等)
+  /// 2026-10-16 D64.77 改:label 走 TxDisplayStyle 集中表(原本 2 case switch)
   static String _displayLabelFor(String txType, String? catName) {
-    switch (txType) {
-      case 'lend_out':
-        return '借出';
-      case 'borrow_in':
-        return '借入';
-      default:
-        return catName ?? '未分类';
+    // 借出 / 借入 显示 transaction.type label(因为同 cat 都 '债务',看不出动作)
+    // 其它 record 走 cat.name(分类语义 / 投资 record 走"投资投入"/"投资收益")
+    if (txType == 'lend_out' || txType == 'borrow_in') {
+      return TxDisplayStyle.forType(txType).label;
     }
+    return catName ?? '未分类';
   }
 }
 
