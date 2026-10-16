@@ -7,11 +7,13 @@
 //       解析器把 1,618.41 拆成 2 字段,所有 ≥¥1,000 的行错位
 //     - Bug 2:type 压缩成 income/expense,balance/lend_out/borrow_in 全丢,
 //       重新导入时调拨/借出/借入 全部当 expense 算,数字炸
-//   - 新格式:date,type,category,amount,account_id,destination_account_id,note (7 列)
+//   - 新格式:date,type,category,amount,account,destination_account,note (7 列)
 //     - amount 用 toStringAsFixed(2) 无千分位,无歧义
 //     - type 直接传 DB 5 个值,完整保留 income/expense/balance/lend_out/borrow_in
-//     - account_id(source) 必填;destination_account_id(dest) null 走空字符串
-//     - 这样 re-import 可还原所有调拨方向(source ← 减 / dest ← 加 / 调拨双方)
+//     - account / destination_account 人类可读的账户名
+//     - D65.8 改:account 跟 destination_account 用 name 而非 id
+//       (D65.7 用了 id,user 反馈"我要人类可读的",name 优先于 id
+//       —— 重命名后 re-import 会失效,但人工对账一眼看懂)
 import 'package:drift/drift.dart';
 
 import '../../../core/database/app_database.dart';
@@ -30,12 +32,16 @@ class CsvExporter {
 
     final cats = await _db.select(_db.categories).get();
     final catMap = {for (final c in cats) c.id: c.name};
+    // D65.8 加:账户 id → name 映射(跟 catMap 镜像)
+    //   - 导出人类可读,Excel 打开一眼看懂"现金→花呗"调拨方向
+    //   - re-import 失效的话,人工对账/审计也够用
+    final assets = await _db.select(_db.assets).get();
+    final assetMap = {for (final a in assets) a.id: a.name};
 
-    // D65.7:7 列 — 多了 account_id + destination_account_id,支持 balance
-    //   调拨 round-trip;不传时(纯 income/expense)destination 留空字符串
+    // D65.8:7 列 — 跟 D65.7 一样,只是 account / destination_account 改用 name
     final buffer = StringBuffer()
       ..writeln('date,type,category,amount,'
-          'account_id,destination_account_id,note');
+          'account,destination_account,note');
 
     for (final t in txs) {
       final date =
@@ -53,16 +59,18 @@ class CsvExporter {
       //   - Formatters.amount 加千分位逗号("1,618.41"),CSV 无 quote → 错位
       //   - toStringAsFixed 纯数字("1618.41"),CSV 解析无误
       final amount = t.amount.toStringAsFixed(2);
-      // D65.7:account_id (source,必填) + destination_account_id (dest,可空)
-      //   - type=income/expense:destination 留空(没调拨)
-      //   - type=balance/lend_out/borrow_in:两边都填,可还原方向
-      final accountId = t.accountId;
-      final destAccountId =
-          t.destinationAccountId?.toString() ?? '';
+      // D65.8:account / destination_account 改账户名(人类可读)
+      //   - source (account) 必填 → 一定有 name
+      //   - destination (dest) 可空 → null 走空字符串
+      //   - 都走 _escape 防账户名带逗号(罕见,defensive)
+      final account = _escape(assetMap[t.accountId] ?? '未分类账户');
+      final destAccount = t.destinationAccountId != null
+          ? _escape(assetMap[t.destinationAccountId] ?? '未分类账户')
+          : '';
       final note = _escape(t.note ?? '');
       buffer.writeln(
         '$date,$type,$category,$amount,'
-        '$accountId,$destAccountId,$note',
+        '$account,$destAccount,$note',
       );
     }
 
