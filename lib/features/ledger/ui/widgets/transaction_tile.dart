@@ -17,6 +17,7 @@ import '../../../../core/utils/gridly_banner.dart';
 import '../../../../core/utils/refresh_providers.dart';
 import '../../../../core/widgets/swipe_to_actions.dart';
 import '../../../../shared/constants/default_categories.dart';
+import '../../../settings/ui/widgets/asset_tile.dart';
 import '../../application/transactions_providers.dart';
 
 /// 2026-10-11 UAT:tile 的外边距跟按钮层的内边距必须严格一致(都是 16/4),
@@ -306,27 +307,6 @@ class _AccountBadge extends ConsumerWidget {
   ///   - 空(现金流水 / 投资收益)→ 只显示 source 单账户
   final int? destinationAccountId;
 
-  IconData _iconFor(String iconKey) {
-    switch (iconKey) {
-      case 'credit_card':
-        return Icons.credit_card_rounded;
-      case 'savings':
-        return Icons.savings_rounded;
-      case 'payments':
-        return Icons.payments_rounded;
-      case 'account_balance':
-        return Icons.account_balance_rounded;
-      case 'home':
-        return Icons.home_rounded;
-      case 'directions_car':
-        return Icons.directions_car_rounded;
-      case 'swap_horiz':
-        return Icons.swap_horiz_rounded;
-      default:
-        return Icons.account_balance_wallet_rounded;
-    }
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // 2026-10-14 P18:投资 record(投入/调拨)显示 source → dest 双账户
@@ -336,7 +316,7 @@ class _AccountBadge extends ConsumerWidget {
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _SingleChip(accountId: accountId, iconFor: _iconFor, maxWidth: 60),
+          _SingleChip(accountId: accountId, maxWidth: 60),
           // 中间 → 符号(中性灰,10sp)
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 4),
@@ -348,14 +328,13 @@ class _AccountBadge extends ConsumerWidget {
           ),
           _SingleChip(
             accountId: destinationAccountId!,
-            iconFor: _iconFor,
             maxWidth: 60,
           ),
         ],
       );
     }
     // 单账户原逻辑
-    return _SingleChip(accountId: accountId, iconFor: _iconFor, maxWidth: 100);
+    return _SingleChip(accountId: accountId, maxWidth: 100);
   }
 }
 
@@ -363,11 +342,9 @@ class _AccountBadge extends ConsumerWidget {
 class _SingleChip extends ConsumerWidget {
   const _SingleChip({
     required this.accountId,
-    required this.iconFor,
     required this.maxWidth,
   });
   final int accountId;
-  final IconData Function(String) iconFor;
   final double maxWidth;
 
   @override
@@ -389,10 +366,16 @@ class _SingleChip extends ConsumerWidget {
     // 2026-10-14 P18:icon 色从账户自选 asset.color 改资产段色(asset.type 走 AppSegment)
     //   跟流水金额色统一,跨页视觉一致
     final color = AppSegment.colorFor(asset.type);
+    // 2026-10-16 D64.73 改:不再传 iconFor callback,直接走 AssetTile.icons
+    //   集中表,新加 icon key 一处改完全部生效
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(iconFor(asset.icon), size: 12, color: color),
+        Icon(
+          AssetTile.icons[asset.icon] ?? Icons.account_balance_wallet_rounded,
+          size: 12,
+          color: color,
+        ),
         const SizedBox(width: 4),
         ConstrainedBox(
           constraints: BoxConstraints(maxWidth: maxWidth),

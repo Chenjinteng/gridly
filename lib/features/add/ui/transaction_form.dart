@@ -35,6 +35,7 @@ import '../../../core/utils/gridly_banner.dart';
 import '../../../core/utils/refresh_providers.dart';
 import '../../../shared/constants/default_categories.dart';
 import '../../ledger/application/transactions_providers.dart';
+import '../../settings/ui/widgets/asset_tile.dart';
 import 'widgets/amount_display.dart';
 import 'widgets/custom_date_picker.dart';
 import 'widgets/numpad.dart';
@@ -1044,27 +1045,13 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   }
 
   /// 2026-10-12 P3 commit 加:Asset icon 名 → IconData 转换
-  ///   跟 AssetTile.icons 同款,放这里 inline 避免跨文件 import
+  /// 2026-10-16 D64.73 改:不再 inline 7 case switch,直接走 AssetTile.icons 集中表
+  ///   - 之前是新加 icon key 时 3 处各改(asset_form_page / transaction_form /
+  ///     transaction_tile);改成走集中表后只改 AssetTile.icons 一处
+  ///   - 跟 ledger chip / 资产 form picker 视觉一致
   IconData _assetIconFor(Asset? a) {
     if (a == null) return Icons.account_balance_wallet_outlined;
-    switch (a.icon) {
-      case 'credit_card':
-        return Icons.credit_card_rounded;
-      case 'savings':
-        return Icons.savings_rounded;
-      case 'payments':
-        return Icons.payments_rounded;
-      case 'account_balance':
-        return Icons.account_balance_rounded;
-      case 'home':
-        return Icons.home_rounded;
-      case 'directions_car':
-        return Icons.directions_car_rounded;
-      case 'swap_horiz':
-        return Icons.swap_horiz_rounded;
-      default:
-        return Icons.account_balance_wallet_rounded;
-    }
+    return AssetTile.icons[a.icon] ?? Icons.account_balance_wallet_rounded;
   }
 
   /// 2026-10-14 P18 重构:按 _intent 取对应 categoryId
