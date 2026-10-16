@@ -120,13 +120,12 @@ class _AssetsRadarState extends ConsumerState<AssetsRadar> {
                   '资产分布',
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                 ),
-                Text(
-                  '正负值都反映',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
+                // D64.34:删 trailing "正负值都反映"
+                //   - 原因:花呗归到 receivable(债务)段后,cash_flow 不再有花呗
+                //     欠款导致的负值,5 段基本都是"我有 X"的语义
+                //   - 5 段资产理论上仍可负(如全部花光),但语义已经统一成"我实际拥有",
+                //     不再有"正负都反映"的争议
+                const SizedBox.shrink(),
               ],
             ),
           ),
