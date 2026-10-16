@@ -19,6 +19,21 @@
 //     `v.toStringAsFixed(0)` 输出整数百分比。
 //
 // 业务 widget 用法参考 savings_trend.dart。
+//
+// 2026-10-16 D64.39 改:
+//   - user UAT 反馈触摸储蓄走势时 fl_chart 抛错 `tooltipItems and
+//     touchedSpots size should be same`(连续 17 次 Exception) —— 跟 user 观察
+//     的'虚线对不上'是同一根因:触摸时 fl_chart 内部 LineTouchData
+//     `handleBuiltInTouches: true` 启用内置触摸 + 我们外层 Listener
+//     (HitTestBehavior.translucent) 也接触摸,两路触摸同时触发:
+//     - fl_chart 内部 GestureDetector 接触摸 → 算 touchedSpots(非空)
+//     - getTooltipItems 回调被调用 → 返回 [] (空)→ 长度不匹配 → 抛错
+//     - 同时我们的外层 Listener 算 _touchedIdx 跟 fl_chart 内部 idx 不一致,
+//       dashed line 落位就出现"虚线对不上"的视觉错位
+//   - 修法:LineTouchData `handleBuiltInTouches: false`,fl_chart 不参与触摸,
+//     完全由外层 Listener (Listener 模式,跟 Speed Dial 同款避开 GestureDetector
+//     冲突) 自己处理触摸和 dashed line / label 渲染,消除双重触摸路径 + 异常
+//   - touchTooltipData 不传 —— fl_chart 不参与触摸就不会触发 getTooltipItems
 import 'dart:math' as math;
 
 import 'package:fl_chart/fl_chart.dart';
@@ -348,11 +363,13 @@ class _AnimatedLineChartState extends State<AnimatedLineChart>
               ),
             ),
             lineTouchData: LineTouchData(
-              handleBuiltInTouches: true,
-              touchTooltipData: LineTouchTooltipData(
-                getTooltipItems: (_) => [],
-              ),
-              touchSpotThreshold: 8,
+              // D64.39 改:`handleBuiltInTouches: false` 让 fl_chart 不参与触摸,
+              //   完全由外层 Listener (HitTestBehavior.translucent) 自己处理,
+              //   避免双重触摸路径 + tooltipItems/touchedSpots 长度不匹配异常
+              //   + 内外 idx 不一致导致的'虚线对不上'视觉错位
+              handleBuiltInTouches: false,
+              // 不传 touchTooltipData —— fl_chart 不参与触摸就不会触发
+              //   getTooltipItems,无 tooltip 渲染需求
             ),
             lineBarsData: [
               LineChartBarData(
