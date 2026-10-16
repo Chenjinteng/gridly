@@ -14,7 +14,7 @@ import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/refresh_providers.dart';
-import '../../../core/utils/asset_balance_provider.dart';
+import '../../../core/utils/excluded_from_totals.dart';
 import '../application/transactions_providers.dart';
 import 'filter_picker_sheets.dart';
 import 'widgets/transaction_tile.dart';
@@ -633,31 +633,15 @@ class _DaySection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 2026-10-14 P18:日结小计排除"不计入流水" record
-    //   - 投资 record(cat.type='investment')→ 永远不计入
-    //   - source asset.includeInTransactions=false → 不计入
-    //   - 跟 monthSummary / tile chip 同步规则
-    final allCats = ref.watch(allCategoriesProvider).valueOrNull ?? const [];
-    final investmentCatIds = allCats
-        .where((c) => c.type == 'investment')
-        .map((c) => c.id)
-        .toSet();
-    final allAssets = ref.watch(allAssetsProvider).valueOrNull ?? const [];
-    final excludeAccountIds = allAssets
-        .where((a) => !a.includeInTransactions)
-        .map((a) => a.id)
-        .toSet();
-    bool isExcluded(Transaction t) {
-      if (investmentCatIds.contains(t.categoryId)) return true;
-      if (excludeAccountIds.contains(t.accountId)) return true;
-      return false;
-    }
-
+    // 2026-10-16 D64.78 改:不计入规则走 core/utils/excluded_from_totals.dart
+    //   - 之前 inline investmentCatIds / excludeAccountIds 跟 monthSummary /
+    //     transaction_tile 3 处同款重复,改 1 处必漏改其它处
+    final ids = ref.watch(excludedFromTotalsIdsProvider);
     final dailyExpense = transactions
-        .where((t) => t.type == 'expense' && !isExcluded(t))
+        .where((t) => t.type == 'expense' && !isExcludedFromTotals(t, ids))
         .fold<double>(0, (sum, t) => sum + t.amount);
     final dailyIncome = transactions
-        .where((t) => t.type == 'income' && !isExcluded(t))
+        .where((t) => t.type == 'income' && !isExcludedFromTotals(t, ids))
         .fold<double>(0, (sum, t) => sum + t.amount);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

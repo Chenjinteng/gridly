@@ -15,6 +15,7 @@ import '../../../../core/theme/card_shadows.dart';
 import '../../../../core/theme/tx_display_style.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/utils/gridly_banner.dart';
+import '../../../../core/utils/excluded_from_totals.dart';
 import '../../../../core/utils/refresh_providers.dart';
 import '../../../../core/widgets/swipe_to_actions.dart';
 import '../../../../shared/constants/default_categories.dart';
@@ -60,9 +61,13 @@ class TransactionTile extends ConsumerWidget {
         //   - 投资 record(cat.type='investment')→ 永远不计入(投资本质资产内部流转)
         //   - source asset.includeInTransactions=false → 不计入(user 在资产页关了开关)
         //   - monthSummary / _DaySection 跟这个标志同步,确保汇总排除
-        final isInvestmentRecord = cat?.type == 'investment';
-        final isExcludeFromTotals =
-            isInvestmentRecord || (txAsset?.includeInTransactions == false);
+        // 2026-10-16 D64.78 改:走 core/utils/excluded_from_totals.dart 纯函数
+        //   - 之前 inline isInvestmentRecord + txAsset.includeInTransactions
+        //     跟 monthSummary / _DaySection 3 处同款重复
+        final isExcludeFromTotals = isExcludedFromTotals(
+          transaction,
+          ref.watch(excludedFromTotalsIdsProvider),
+        );
         // 2026-10-12 P3 commit:balance 流水不显示 ± prefix
         //   (调拨可正可负,跟"支出=负 / 收入=正"的语义不同)
         // 2026-10-14 D51 v2 改:lend_out / borrow_in 显示 ± prefix

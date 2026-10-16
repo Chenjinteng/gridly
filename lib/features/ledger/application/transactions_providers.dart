@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/providers.dart';
-import '../../../core/utils/asset_balance_provider.dart';
+import '../../../core/utils/excluded_from_totals.dart';
 import '../../../core/utils/open_swipe_id_provider.dart';
 
 // 2026-10-16 D64.42:openSwipeIdProvider 从本文件挪到
@@ -43,6 +43,10 @@ final monthTransactionsProvider = FutureProvider<List<Transaction>>((
 /// 2026-10-14 P18:排除投资 record,不计入月度收支
 ///   - 投资 record(category.type='investment')不影响"本月结余 / 收入 / 支出"汇总
 ///   - 流水页面仍显示投资 record(可管理),但不进月度统计
+/// 2026-10-16 D64.78 改:不计入规则走 core/utils/excluded_from_totals.dart
+///   - 之前 inline investmentCatIds / excludeAccountIds 跟 transaction_tile /
+///     _DaySection 3 处重复,改 1 处必漏改其它处
+///   - 抽 provider + 纯函数 isExcludedFromTotals,3 处共用
 class MonthSummary {
   const MonthSummary({required this.income, required this.expense});
   final double income;
@@ -52,28 +56,10 @@ class MonthSummary {
 
 final monthSummaryProvider = Provider<MonthSummary>((ref) {
   final txs = ref.watch(monthTransactionsProvider).valueOrNull ?? const [];
-  // 2026-10-14 P18:不计入月度收支的 record 集合
-  //   - 投资 record(cat.type='investment')→ 永远不计入
-  //   - source asset.includeInTransactions=false → 不计入(user 在资产页关了开关)
-  //   - 跟 tile chip / _DaySection 同步规则
-  final allCats = ref.watch(allCategoriesProvider).valueOrNull ?? const [];
-  final investmentCatIds = allCats
-      .where((c) => c.type == 'investment')
-      .map((c) => c.id)
-      .toSet();
-  // 2026-10-14:source asset 是否 includeInTransactions=false
-  //   - watch allAssetsProvider 拿全部账户,建 excludeAccountIds 集合
-  //   - record 的 accountId 命中 → 不计入
-  final allAssets = ref.watch(allAssetsProvider).valueOrNull ?? const [];
-  final excludeAccountIds = allAssets
-      .where((a) => !a.includeInTransactions)
-      .map((a) => a.id)
-      .toSet();
+  final ids = ref.watch(excludedFromTotalsIdsProvider);
   double income = 0, expense = 0;
   for (final t in txs) {
-    // 投资 record 或 source 资产"不计入流水" → 跳过
-    if (investmentCatIds.contains(t.categoryId)) continue;
-    if (excludeAccountIds.contains(t.accountId)) continue;
+    if (isExcludedFromTotals(t, ids)) continue;
     if (t.type == 'income') {
       income += t.amount;
     } else {
