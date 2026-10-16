@@ -32,6 +32,15 @@
 //   - 本次 AssetAllocationChart 还是 ConsumerStatefulWidget viewport-aware
 //     (D64.65 设计保留),只是跟 DebtDashboard 重写一起提交到 D64.66 commit。
 //
+// 2026-10-16 D64.67 加:
+//   - user 反馈"资产配置分布的圆环中间没有东西好奇怪,加个统计当前的
+//     资产账号个数吧"
+//   - 实现:Stack 包 AnimatedPieChart + Center Column 两行(数字 + 标签),
+//     数字走 items.length(账户级 filter bal > 0 后的数量,跟 ringShown / legend
+//     口径一致);不在中心显示总资产(D64.65 user 原则保留)。
+//   - 入场动画:AnimatedOpacity(280ms),跟 _appeared 联动(滚动到才淡入),
+//     跟 ring 动画的 play: _appeared 时机对齐。
+//
 // 数据源:
 //   - allAssetsProvider(全部账户,逐账户独立 1 段)
 //   - assetBalancesProvider(Map<assetId, currentBalance>)
@@ -41,6 +50,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/database/app_database.dart';
+import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/asset_balance_provider.dart';
 import '../../../../core/widgets/animated_pie_chart.dart';
@@ -161,17 +171,52 @@ class _AssetAllocationChartState
                     SizedBox(
                       width: 140,
                       height: 140,
-                      child: AnimatedPieChart(
-                        sections: [
-                          for (final i in ringShown)
-                            PieChartSectionData(
-                              value: i.value,
-                              color: i.color,
-                              title: '',
-                              radius: 18,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          AnimatedPieChart(
+                            sections: [
+                              for (final i in ringShown)
+                                PieChartSectionData(
+                                  value: i.value,
+                                  color: i.color,
+                                  title: '',
+                                  radius: 18,
+                                ),
+                            ],
+                            play: _appeared,
+                          ),
+                          // 圆环中心:账户数(不显示总资产 — D64.65 user 原则)
+                          // 走"X / 个账户"两行,跟 range_summary 计数类视觉对齐
+                          AnimatedOpacity(
+                            opacity: _appeared ? 1 : 0,
+                            duration: const Duration(milliseconds: 280),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  items.length.toString(),
+                                  style: const TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppGray.g900,
+                                    height: 1.0,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                const Text(
+                                  '个账户',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppGray.g400,
+                                    height: 1.0,
+                                  ),
+                                ),
+                              ],
                             ),
+                          ),
                         ],
-                        play: _appeared,
                       ),
                     ),
                     const SizedBox(width: AppSpacing.s4),
