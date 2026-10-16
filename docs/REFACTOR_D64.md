@@ -11,11 +11,11 @@
 |---|---|
 | Review 范围 | `lib/` 95 个 dart / 26k 行,重点 D64 系列 + 几个超大文件(transaction_form 1930 行 / asset_form 1110 行) |
 | 总 finding | 20 个 actionable(4 P0 + 5 P1 + 11 P2 + 7 验证无问题) |
-| 修复 commit | 16 个(D64.71 - D64.86) |
-| 净行数 | -534 行(去掉新增 widget 文件后) |
-| Build 号 | `0.1.0+18 → 0.1.0+33` |
+| 修复 commit | 19 个(D64.71 - D64.89) |
+| 净行数 | -582 行(去掉新增 widget 文件后) |
+| Build 号 | `0.1.0+18 → 0.1.0+36` |
 | 触发 | user 截图 `_YearTotals` Row overflow 39px + 显式要求"做一次 code review" |
-| HEAD | `de7fbec fix(stats): daily/yearlyExpenseTrend 改 D62.4 新口径 (D64.86)` |
+| HEAD | `832c5d1 refactor: 抽 OnceVisible wrapper,3 处 viewport-aware 触发复用 (D64.89)` |
 
 ---
 
@@ -141,20 +141,24 @@
   - `TxDisplayStyle.forType(type)` 工厂
 - **commit**:`ff0f521 refactor: 抽 TxDisplayStyle,3 处 display 共用 (D64.77)`
 
-### Finding 16 ⏳ viewport-aware `_checkInView` 套路 3 处复制
+### D64.87 ✅ micro-spacing 硬编 4/2 px → AppSpacing.s05 token
 
-- 3 处 boilerplate 100% 一样:`asset_allocation_chart.dart:74-120` / `assets_radar.dart:60-105` / `expense_analysis.dart`
-- 抽 `lib/core/widgets/once_visible.dart` `class OnceVisible extends StatefulWidget`
+- **改前**:14 个文件硬编 `SizedBox(width/height: 2)` / `EdgeInsets.only(top/bottom/left/right: 2)`,AppSpacing 没 2px 这个值
+- **改后**:`core/theme/app_spacing.dart` 加 `s05 = 2`(micro 0.25x base),14 个文件批量替换 `2 → AppSpacing.s05`
+- **保留**:`BorderRadius.circular(2)` / `Radius.circular(2)`(不是 spacing,跟 token 不同体系)
+- **commit**:`1361956 refactor: AppSpacing 加 s05=2,micro 2px 间距统一 token (D64.87)`
 
-### Finding 18 ⏳ `investment_dashboard._YearTotals` fold 重复
+### D64.88 ✅ `investmentMonthlyProvider` 返 `InvestmentYearSummary` 元组
 
-- `_YearTotals` 内部 `monthly.fold` 算 invested/returned,跟 `_YearlyBars._maxVal` 共 3 次 fold
-- 抽 provider 一次性返回 `(monthly, investedYTD, returnedYTD, netYTD)` 元组
+- **改前**:`_YearTotals` + `_YearlyBars` 各 fold 一次 monthly 算 3 个聚合(invested / returned / net / maxVal)
+- **改后**:`investmentMonthlyProvider` 返 `InvestmentYearSummary { monthly, investedYTD, returnedYTD, maxMonthlyValue }`,3 个 widget 读字段 0 额外 fold
+- **commit**:`45e0bb0 refactor(settings): investmentMonthlyProvider 返 summary 元组 (D64.88)`
 
-### Finding 19 ⏳ micro-spacing 硬编 4/2 px ~10 处
+### D64.89 ✅ 抽 `OnceVisible` wrapper,3 处 viewport-aware 复用
 
-- AppSpacing 没 2px 这个值,出现 8 处硬编(transit_form / asset_form / transaction_tile)
-- AppSpacing 加 `s05 = 2`,或 AGENTS.md 加一句"icon+text micro 4/2 允许"
+- **改前**:`asset_allocation_chart` / `assets_radar` / `expense_analysis._AccountTab` 3 处各 inline 50+ 行 viewport-aware boilerplate(`_appeared` + `GlobalKey` + `ScrollPosition` + initState postFrameCallback + dispose + `_checkInView` LocalToGlobal)
+- **改后**:`core/widgets/once_visible.dart` `class OnceVisible extends StatefulWidget`,内部管 `_appeared` / `_key` / `_scrollPos` 全生命周期,builder 收 `appeared` bool
+- **commit**:`832c5d1 refactor: 抽 OnceVisible wrapper,3 处 viewport-aware 触发复用 (D64.89)`
 
 ---
 
@@ -185,12 +189,17 @@
 
 ### 修改(13)
 
-- `lib/features/settings/ui/widgets/investment_dashboard.dart` (D64.71 + D64.72)
-- `lib/features/stats/ui/widgets/asset_allocation_chart.dart` (D64.72)
+- `lib/core/theme/app_spacing.dart` (D64.87)
+- `lib/core/widgets/once_visible.dart` (D64.89,D64.89 创建)
+- `lib/features/settings/ui/widgets/investment_dashboard.dart` (D64.71 + D64.72 + D64.88)
+- `lib/features/stats/ui/widgets/asset_allocation_chart.dart` (D64.72 + D64.89)
+- `lib/features/stats/ui/widgets/assets_radar.dart` (D64.89)
+- `lib/features/stats/ui/widgets/expense_analysis.dart` (D64.89)
 - `lib/features/stats/ui/widgets/debt_dashboard.dart` (D64.72)
 - `lib/features/add/ui/transaction_form.dart` (D64.72 + D64.79 + D64.84+85)
 - `lib/core/utils/refresh_providers.dart` (D64.83)
 - `lib/features/stats/application/stats_providers.dart` (D64.80 + D64.86)
+- `lib/features/settings/application/investment_providers.dart` (D64.88)
 - `lib/features/add/ui/widgets/amount_display.dart` (D64.77)
 - `lib/features/ledger/ui/widgets/transaction_tile.dart` (D64.73 + D64.77 + D64.78)
 - `lib/features/add/ui/transaction_form.dart` icon (D64.73)
