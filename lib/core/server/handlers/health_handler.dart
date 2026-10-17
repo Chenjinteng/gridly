@@ -1,7 +1,7 @@
 // lib/core/server/handlers/health_handler.dart
 // LAN_WEB v2.0.0 P2 健康检查接口(P2 commit 16 增强)
 //
-// 浏览器访问 http://192.168.x.x:8123/ 看到的 JSON
+// 浏览器访问 http://192.168.x.x:8123/api/health 看到的 JSON
 // P1:hardcode placeholder;P2:从 AppDatabase 实时查 + server uptime
 //
 // 跑在 foreground service isolate 里,刻意避免依赖 plugin
@@ -12,10 +12,7 @@
 import 'package:drift/drift.dart';
 
 import '../../database/app_database.dart';
-
-/// 跟 pubspec.yaml version 同步
-const String kGridlyWebVersion = '2.0.0';
-const int kGridlyWebBuild = 131; // 跟 pubspec.yaml version 2.0.0+131 同步(P2 commit 16)
+import '../version.dart';
 
 /// P2 健康检查响应
 ///

@@ -234,7 +234,13 @@ Middleware authMiddleware(SessionStore sessions) {
       //   - 'GET /api/auth/code' → path = 'api/auth/code'(leading slash 被 strip)
       //   - 'GET /api/health' → path = 'api/health'
       // 白名单用 startsWith 不带 slash 形式
+      // P3 commit 2 加:非 /api/* 路径也跳过 auth(走静态 catch-all,主页面不需要 cookie)
       final path = request.url.path;
+      final isApi = path.startsWith('api/') || path.startsWith('/api/');
+      if (!isApi) {
+        // 静态 / SPA 路径:不需要 auth
+        return inner(request);
+      }
       if (path.startsWith('api/auth/') ||
           path == 'api/health' ||
           path == '/api/health' ||

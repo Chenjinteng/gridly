@@ -54,7 +54,13 @@ void main() {
     await AssetRepository(db).seedDefaultsIfEmpty();
 
     // 5. 启动 server(绑随机端口 0 → 系统分配,避开 8123 占用冲突)
-    final s = await startGridlyServer(db: db, port: 0);
+    //   显式传 webDir 到一个不存在的路径,验证 404 web_ui_not_built 路径
+    //   (P3 static test 用真 temp dir 验 happy path)
+    final s = await startGridlyServer(
+      db: db,
+      port: 0,
+      webDir: 'build/_nonexistent_for_test',
+    );
     base = Uri.parse('http://127.0.0.1:${s.port}');
 
     // 6. http client

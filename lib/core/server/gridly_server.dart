@@ -8,6 +8,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart'; // debugPrint
+import 'package:path/path.dart' as p;
 import 'package:shelf/shelf_io.dart'; // shelf_plus 不 re-export shelf_io,显式 import 拿 serve()
 import 'package:shelf_plus/shelf_plus.dart'; // re-exports shelf_static
 
@@ -52,14 +53,15 @@ final SessionStore sessionStore = SessionStore();
 
 /// P3 commit 1:Web 静态文件 handler
 ///
-/// - build/web/ 存在 → createStaticHandler 正常服务(文件不存在时落回 index.html 给 SPA)
-/// - build/web/ 不存在(刚 git clone / 还没 build web)→ 返 404 + 提示,避免整个 / 路由 500
-Handler _buildWebStaticHandler() {
-  final dir = Directory(kWebBuildDir);
+/// - [webDir] 存在 → createStaticHandler 正常服务
+/// - [webDir] 不存在(刚 git clone / 还没 build web)→ 返 404 + 提示,避免整个 / 路由 500
+/// - SPA 路由 fallback:任意 <非 /api/* 路径> 找不到文件 → 返 index.html 让 Flutter router 处理
+Handler _buildWebStaticHandler(String webDir) {
+  final dir = Directory(webDir);
   if (!dir.existsSync()) {
     debugPrint(
-        '[lan_web] $kWebBuildDir 不存在;Flutter web 未 build。\n'
-        '请先跑 `flutter build web` 再启动,或访问 /api/* 用 API。');
+        '[lan_web] $webDir 不存在;Flutter web 未 build。\n'
+        '请先跑 `flutter build web --target=lib/web_main.dart` 再启动,或访问 /api/* 用 API。');
     return (Request request) {
       return Response(
         404,
@@ -67,19 +69,51 @@ Handler _buildWebStaticHandler() {
           'error': 'web_ui_not_built',
           'message':
               'Flutter web 未 build。请跑 `flutter build web` 然后重启 server。',
-          'buildDir': kWebBuildDir,
+          'buildDir': webDir,
           'apiOk': 'GET /api/health 仍可访问',
         }),
         headers: <String, String>{'Content-Type': 'application/json'},
       );
     };
   }
-  // createStaticHandler 找不到文件时 defaultDocument 落回 index.html(Flutter SPA 路由需要)
-  return createStaticHandler(
-    kWebBuildDir,
+  // shelf_static 的 defaultDocument 只在 / fallthrough,不对其它路径做 SPA fallback
+  // 所以包一层:static 返 404 时如果不像静态资源文件 → 自己读 index.html 返
+  final inner = createStaticHandler(
+    webDir,
     defaultDocument: 'index.html',
     listDirectories: false,
   );
+  return (Request request) async {
+    final resp = await inner(request);
+    if (resp.statusCode == 404) {
+      final reqPath = request.url.path;
+      // 文件请求(带扩展名)真 404;其它没扩展名的当 SPA 路径 → index.html
+      // 也跳过 flutter 资源目录避免 fallback 到 html
+      final looksLikeFile = reqPath.contains('.');
+      final isFlutterAsset = reqPath.startsWith('assets/') ||
+          reqPath.startsWith('canvaskit/') ||
+          reqPath.startsWith('icons/') ||
+          reqPath == 'flutter.js' ||
+          reqPath == 'flutter_bootstrap.js' ||
+          reqPath == 'flutter_service_worker.js' ||
+          reqPath == 'favicon.png' ||
+          reqPath == 'manifest.json' ||
+          reqPath == 'version.json' ||
+          reqPath == 'main.dart.js';
+      if (!looksLikeFile && !isFlutterAsset) {
+        // SPA fallback:直接读 index.html 文件,不走 static handler
+        //   (Request.change 要求新 path 是 handler path 的前缀,绕过)
+        final indexFile = File(p.join(webDir, 'index.html'));
+        if (indexFile.existsSync()) {
+          return Response.ok(
+            indexFile.readAsBytesSync(),
+            headers: <String, String>{'Content-Type': 'text/html'},
+          );
+        }
+      }
+    }
+    return resp;
+  };
 }
 
 /// 启动 HTTP server,绑 0.0.0.0:8123(同 WiFi 设备可访问,不是 localhost)
@@ -89,10 +123,12 @@ Handler _buildWebStaticHandler() {
 ///
 /// [db] 注入:数据 API 直接 query Drift,无 IPC 复杂度
 /// [port] 测试时传 0 让系统分配随机端口,避开 8123 占用冲突
+/// [webDir] 测试可指 temp dir(避免污染项目 build/web);默认 'build/web'
 /// 由 [LanWebController.setEnabled] 在 main isolate 调(dev mode + Android 都走这条)
 Future<HttpServer> startGridlyServer({
   required AppDatabase db,
   int port = kLanWebPort,
+  String webDir = kWebBuildDir,
 }) async {
   if (_server != null) return _server!;
   // 先加载持久化的 sessions(in-memory cache 准备好)
@@ -120,7 +156,7 @@ Future<HttpServer> startGridlyServer({
   // P3 commit 1:静态文件兜底(/<非 api 路径> 走 Flutter web build)
   //  - build/web 存在 → createStaticHandler(找不到文件 fallthrough 到 index.html 给 SPA)
   //  - 不存在 → _buildWebStaticHandler 返 404 + 提示
-  app.all('/<ignored|.*>', _buildWebStaticHandler());
+  app.all('/<ignored|.*>', _buildWebStaticHandler(webDir));
 
   // 鉴权 middleware(自动跳过 /api/auth/* + /api/health)
   // + errorHandler(任何 throw → 500 JSON,不漏 stack)
