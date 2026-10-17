@@ -16,6 +16,7 @@ import '../../../core/widgets/show_app_modal_sheet.dart';
 import '../../../core/theme/theme_mode_provider.dart';
 import '../../../core/utils/budget_provider.dart';
 import '../../../core/utils/formatters.dart';
+import '../application/server_controller.dart';
 import 'widgets/backup_restore_sheet.dart';
 import 'widgets/csv_export_sheet.dart';
 
@@ -229,6 +230,10 @@ class SettingsPage extends ConsumerWidget {
             onTap: () => context.push('/settings/categories'),
           ),
 
+          // 局域网(LAN_WEB v2.0.0 P1)
+          _SectionHeader(title: '局域网'),
+          _LanWebTile(),
+
           // 关于
           _SectionHeader(title: '关于'),
           _InfoTile(
@@ -387,5 +392,120 @@ class _InfoTile extends StatelessWidget {
       trailing: trailing,
       dense: true,
     );
+  }
+}
+
+/// LAN_WEB v2.0.0 P1:局域网服务开关 + 状态 + 访问 URL
+///
+/// UI 跟「隐私」section 的 ListTile+AquaSwitch 不同,自定义 card 因为:
+/// - 状态 + 访问 URL 需要更明确展示
+/// - 后续 P2 可能加配对码 / 二维码,放卡片更好扩
+class _LanWebTile extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(lanWebControllerProvider);
+    final controller = ref.read(lanWebControllerProvider.notifier);
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.s4,
+        vertical: AppSpacing.s2,
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.s4),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerLow,
+          borderRadius: AppRadius.brLg,
+          border: Border.all(
+            color: theme.colorScheme.outlineVariant,
+            width: 1.0,
+          ),
+          boxShadow: CardShadows.light(context),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.wifi_tethering_outlined, size: 20),
+                const SizedBox(width: AppSpacing.s3),
+                const Expanded(
+                  child: Text(
+                    '局域网 Web 服务',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                  ),
+                ),
+                AquaSwitch(
+                  value: state.enabled,
+                  onChanged: (v) => controller.setEnabled(v),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.s2),
+            Text(
+              _statusText(state),
+              style: const TextStyle(fontSize: 11, color: AppGray.g600),
+            ),
+            if (state.accessUrl != null) ...[
+              const SizedBox(height: AppSpacing.s3),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.s3,
+                  vertical: AppSpacing.s2,
+                ),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: AppRadius.brMd,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        state.accessUrl!,
+                        style: const TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.copy_outlined, size: 16),
+                      onPressed: () {
+                        // P1 简化:snackbar 显示已复制;P2 可接 share_plus
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('已复制:${state.accessUrl}'),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                      tooltip: '复制',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _statusText(LanWebState state) {
+    if (state.ip == null) {
+      return '未连接 WiFi,无法启用';
+    }
+    if (state.enabled && state.serviceRunning) {
+      return '运行中 · 同 WiFi 电脑浏览器访问上方地址';
+    }
+    if (state.enabled && !state.serviceRunning) {
+      return '正在启动…';
+    }
+    return '关闭 · 仅同 WiFi 局域网可访问,无需公网';
   }
 }
