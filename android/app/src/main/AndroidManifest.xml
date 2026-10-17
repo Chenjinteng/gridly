@@ -1,11 +1,23 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- ===== LAN_WEB v2.0.0 P1 权限(2026-10-17)=====
+         INTERNET + ACCESS_NETWORK_STATE:起 HTTP server + 读 WiFi IP
+         FOREGROUND_SERVICE + FOREGROUND_SERVICE_DATA_SYNC:Android 14+ 必需
+           (dataSync type 文档见 flutter_foreground_task 11.x + Android 14 fg-types-required)
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
     <application
         android:label="格子记账"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="true"
         android:fullBackupContent="@xml/backup_rules"
-        android:dataExtractionRules="@xml/data_extraction_rules">
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        <!-- LAN_WEB v2.0.0:允许 cleartext HTTP(同 WiFi 内网 HTTP,文档明示勿连公共 WiFi) -->
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -33,6 +45,14 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- LAN_WEB v2.0.0:foreground service(flutter_foreground_task 11.x 必装声明)
+             警告:不要改 service name,plugin 内部 hardcode 引用
+             dataSync type 是 Android 14+ 启动 fg service 必需类型(对应 HTTP server 长连接)
+        -->
+        <service
+            android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
