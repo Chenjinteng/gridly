@@ -51,6 +51,23 @@ final PairingCodeStore pairingCodeStore = PairingCodeStore();
 /// Session 存储(SharedPreferences 持久化,7 天有效)
 final SessionStore sessionStore = SessionStore();
 
+/// 探活:dir 存在 + 真的能 open 里面任意一个文件
+///
+/// macOS sandbox 让 `Directory.existsSync()` 通过(stat syscall 不被拦)
+/// 但 `File.openSync()` 被拒(Operation not permitted, errno = 1)。
+/// 这俩 syscall 行为不一致,只信 stat 会以为可读,实际 SPA fallback 读 index.html
+/// 时崩。开个文件验证更靠谱。
+bool _isDirReadable(String dirPath) {
+  try {
+    if (!Directory(dirPath).existsSync()) return false;
+    // 尝试 list 一项 — list 也算 open,被 sandbox 拦就 fall through
+    Directory(dirPath).listSync().take(1);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 /// 解析 webDir 真实路径 —— 处理 macOS dev 各种 cwd 偏移
 ///
 /// 关键坑:
@@ -62,10 +79,15 @@ final SessionStore sessionStore = SessionStore();
 /// 修法:同时 walk-up cwd + walk-up Platform.script,命中其一即返
 String _resolveWebDir(String webDir) {
   // 0. env var 优先(用户 / dev script 显式指定)
+  //    IMPORTANT: 还要真的能读 index.html 才行 — macOS sandbox 让 stat() 通过但
+  //    阻 file open (Operation not permitted, errno = 1)。所以 existsSync() 不够。
   final envDir = Platform.environment['GRIDLY_WEB_DIR'];
-  if (envDir != null && envDir.isNotEmpty && Directory(envDir).existsSync()) {
+  if (envDir != null && envDir.isNotEmpty &&
+      _isDirReadable(envDir)) {
     debugPrint('[lan_web] webDir from GRIDLY_WEB_DIR env: $envDir');
     return envDir;
+  } else if (envDir != null && envDir.isNotEmpty) {
+    debugPrint('[lan_web] env GRIDLY_WEB_DIR=$envDir 存在但读不到(sandbox?),fall through');
   }
 
   // 1. 已存在(就是相对项目根直跑的场景)→ 直接返
