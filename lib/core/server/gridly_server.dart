@@ -61,10 +61,17 @@ final SessionStore sessionStore = SessionStore();
 ///   距离项目根 9 层
 /// 修法:同时 walk-up cwd + walk-up Platform.script,命中其一即返
 String _resolveWebDir(String webDir) {
-  // 1. 已存在 → 直接返
+  // 0. env var 优先(用户 / dev script 显式指定)
+  final envDir = Platform.environment['GRIDLY_WEB_DIR'];
+  if (envDir != null && envDir.isNotEmpty && Directory(envDir).existsSync()) {
+    debugPrint('[lan_web] webDir from GRIDLY_WEB_DIR env: $envDir');
+    return envDir;
+  }
+
+  // 1. 已存在(就是相对项目根直跑的场景)→ 直接返
   if (Directory(webDir).existsSync()) return webDir;
 
-  // 2. Walk-up from cwd(适合 IDE 直接跑 / 简单测试)
+  // 2. Walk-up from cwd
   if (Directory.current.existsSync()) {
     var dir = Directory.current;
     for (var i = 0; i < 12; i++) {
@@ -80,8 +87,7 @@ String _resolveWebDir(String webDir) {
     }
   }
 
-  // 3. Walk-up from Platform.script(macOS / iOS dev 跑 sandbox 必备)
-  //    executable 路径 → 上一层层层找,看哪层有 webDir
+  // 3. Walk-up from Platform.script(macOS / iOS dev 跑 sandbox 失效时备用)
   try {
     final scriptPath = Platform.script.toFilePath();
     var dir = File(scriptPath).parent;
@@ -104,6 +110,7 @@ String _resolveWebDir(String webDir) {
   // 4. 找不到 → debugPrint 完整信息方便定位
   debugPrint(
       '[lan_web] webDir 解析失败:webDir="$webDir" '
+      'env=${Platform.environment['GRIDLY_WEB_DIR'] ?? "<unset>"} '
       'cwd="${Directory.current.path}" '
       'script="${Platform.script.toFilePath()}"');
   return webDir; // give up → 404 web_ui_not_built
