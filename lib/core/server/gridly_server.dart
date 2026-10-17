@@ -87,21 +87,36 @@ String _resolveWebDir(String webDir) {
     }
   }
 
-  // 3. Walk-up from Platform.script(macOS / iOS dev 跑 sandbox 失效时备用)
+  // 3. Walk-up from Platform.script / Platform.resolvedExecutable
+  //    (macOS / iOS dev 跑 sandbox 失效时备用)
+  //    resolvedExecutable 解 symlink(macOS sandbox 关键)
   try {
-    final scriptPath = Platform.script.toFilePath();
-    var dir = File(scriptPath).parent;
-    for (var i = 0; i < 12; i++) {
-      final candidate = p.join(dir.path, webDir);
-      if (Directory(candidate).existsSync()) {
-        debugPrint(
-            '[lan_web] webDir walk-up from script: $webDir → $candidate '
-            '(exe 上 $i 层, script="$scriptPath")');
-        return candidate;
+    final scriptPaths = <String>{
+      Platform.script.toFilePath(),
+      Platform.resolvedExecutable,
+    };
+    for (final scriptPath in scriptPaths) {
+      if (scriptPath.isEmpty) continue;
+      var dir = File(scriptPath).parent;
+      for (var i = 0; i < 12; i++) {
+        final candidate = p.join(dir.path, webDir);
+        if (Directory(candidate).existsSync()) {
+          debugPrint(
+              '[lan_web] webDir walk-up from script: $webDir → $candidate '
+              '(exe 上 $i 层, script="$scriptPath")');
+          return candidate;
+        }
+        // P3 commit 14:额外试 ../../../Resources/web/.app bundle Resources
+        //   (Xcode Run Script 把 build/web/* 拷到 .app/Contents/Resources/web/)
+        final resCandidate = p.join(dir.path, 'Contents', 'Resources', 'web');
+        if (Directory(resCandidate).existsSync()) {
+          debugPrint('[lan_web] webDir in .app Resources: $resCandidate');
+          return resCandidate;
+        }
+        final parent = dir.parent;
+        if (parent.path == dir.path) break;
+        dir = parent;
       }
-      final parent = dir.parent;
-      if (parent.path == dir.path) break;
-      dir = parent;
     }
   } catch (e) {
     debugPrint('[lan_web] Platform.script walk-up failed: $e');
