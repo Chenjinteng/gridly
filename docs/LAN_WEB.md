@@ -99,16 +99,29 @@ PUT    /api/budget                        # body: year/month/total/categoryBudge
 | **修改** | `lib/main.dart`(init port)`lib/features/settings/{ui,application}/`(配对码 / sessions UI)`lib/core/database/app_database.dart`(forTesting ctor)`pubspec.yaml`(+ http / shelf_plus / network_info_plus / flutter_foreground_task)`AndroidManifest.xml`(4 perms + service + cleartext)`docs/LAN_WEB_API.md` |
 | **工作量** | 实际 16+ commit,跨多日(目标 5-6 天) |
 
-### P3 · Flutter Web 端(流水 + 记一笔 + 报表)
+### P3 · Flutter Web 端(流水 + 记一笔 + 报表)✅ 2026-10-17 完成
 
 **目标**:浏览器能正常用 3 个核心页面,响应式适配桌面。
 
+**实际落地**(P3 commit 1-7):
+- P3.1:`shelf_static` mount + `/api/health` 移动 + SPA 兜底
+- P3.2:Flutter web 平台接入 + `lib/web_main.dart` 独立 entry + SPA fallback
+- P3.3:log in 页(6 位配对码) + `WebApiClient` + ledger list 占位
+- P3.4:ledger list 真实数据 + 月度汇总卡片 + 月份切换
+- P3.5:记一笔 modal(type + category + amount + note + date)
+- P3.6:配对设备管理页(list + revoke + label icon 自动)
+- P3.7:`docs/LAN_WEB_P3.md` 完整文档
+
+**Dev 流程**:`flutter build web --target=lib/web_main.dart --release` → `flutter run -d macos` → Chrome 访问 `http://localhost:8123/`
+
+详细架构 / 路由分发 / 已知限制:[`docs/LAN_WEB_P3.md`](LAN_WEB_P3.md)
+
 | 项 | 内容 |
 |---|---|
-| **清理** | `web/` 目录启用(目前 untracked,等 user 拍板是删 / 启用 / 内容覆盖) |
-| **新文件** | `lib/core/web/`(web 适配层)+ `web/src/pages/` |
-| **改文件** | 抽现有 `LedgerListTile` / `SaveBar` / `MonthlySummaryCard` / `MonthlyTrendChart` 成 web 安全版(不能引 `share_plus` / `flutter_markdown` 等 mobile-only 包) |
-| **工作量** | **5-7 天** |
+| **新文件** | `lib/web_main.dart` + `lib/web/{web_app,api_client,log_in_page,ledger_list_page,add_ledger_sheet,sessions_page}.dart` + `web/{index.html,favicon.png,icons/*,manifest.json}` |
+| **改文件** | `lib/core/server/gridly_server.dart`(静态 mount + SPA fallback) + `lib/core/server/auth.dart`(非 /api/* 跳 auth) + `lib/core/server/handlers/health_handler.dart`(改 import version) + `pubspec.yaml`(+ http regular dep) |
+| **测试** | `test/lan_web/p3_static_test.dart`(4 个 happy path) |
+| **工作量** | 实际 7 个 commit(预估 5-7 天,半天不到完成) |
 
 ### P4 · Polish
 
