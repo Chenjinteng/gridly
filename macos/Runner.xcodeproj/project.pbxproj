@@ -213,8 +213,8 @@
 				33CC10EB2044A3C60003C045 /* Resources */,
 				33CC110E2044A8840003C045 /* Bundle Framework */,
 				3399D490228B24CF009A79C7 /* ShellScript */,
-			);
 				AABB11223344C6BF0003C999 /* Bundle Web Assets */,
+			);
 			buildRules = (
 			);
 			dependencies = (
@@ -358,7 +358,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\n# LAN_WEB P3 commit 14: copy Flutter web build into .app bundle\n# Resolves macOS sandbox: app cannot read project build/web/ from sandbox.\n# Bundle into .app/Contents/Resources/web/ and server reads from Platform.script.parent + ../../../Resources/web/\n# Run ./scripts/build_web_for_macos.sh first to build the web.\nif [ -d \"$SRCROOT/../build/web\" ]; then\n\techo \"[lan_web/bundle] copying build/web/ -> .app/Resources/web/\"\n\tmkdir -p \"$BUILT_PRODUCTS_DIR/$WRAPPER_NAME/Contents/Resources/web\"\n\trm -rf \"$BUILT_PRODUCTS_DIR/$WRAPPER_NAME/Contents/Resources/web\"/*\n\tcp -R \"$SRCROOT/../build/web/\"* \"$BUILT_PRODUCTS_DIR/$WRAPPER_NAME/Contents/Resources/web/"\n\techo \"[lan_web/bundle] done\"\nelse\n\techo \"[lan_web/bundle] WARN: build/web/ not found. Run ./scripts/build_web_for_macos.sh to build web.\"\nfi\n";
+			shellScript = "set -e; if [ -d '$SRCROOT/../build/web' ]; then echo '[lan_web/bundle] copying build/web/ -> .app/Resources/web/'; mkdir -p '$BUILT_PRODUCTS_DIR/$WRAPPER_NAME/Contents/Resources/web'; rm -rf '$BUILT_PRODUCTS_DIR/$WRAPPER_NAME/Contents/Resources/web'/*; cp -R '$SRCROOT/../build/web/'* '$BUILT_PRODUCTS_DIR/$WRAPPER_NAME/Contents/Resources/web/'; echo '[lan_web/bundle] done'; else echo '[lan_web/bundle] WARN: build/web/ not found. Run ./scripts/build_web_for_macos.sh to build web.'; fi";
 	};
 
 /* End PBXShellScriptBuildPhase section */
