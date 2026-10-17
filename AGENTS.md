@@ -291,3 +291,17 @@ features/<name>/
 - 项目根:`~/Documents/Projects/gridly/`
 - 设计稿 Reference 根:`~/Documents/References/记账App/`
 - temp 脚本根:`~/Documents/MinimaxWorkspace/temps/`
+
+### 版本发布 + 维护分支约定(2026-10-17 建立)
+
+| 类型 | 名称 | 指向 | 用途 |
+|---|---|---|---|
+| **Tag** | `v1.0.0` | `f97593e` | 2026-10-15 正式发布版的永久快照(annotated tag) |
+| **Branch** | `release/1.0` | `f97593e` | 后续 1.0.x bug fix 维护分支(semver 叠加 1.0.1+N / 1.0.2+N) |
+| **Branch** | `main` | 跟随最新稳定 | 默认分支;v2.0.0 LAN_WEB 完成后从 feature merge 进来 |
+| **Branch** | `feature/lan-web-p1` | `929ae92` | v2.0.0 LAN_WEB 局域网 Web 伴侣端 P1 骨架(2026-10-17 启动) |
+
+**约定**:
+- 任何 v1.0.x bug fix → 切到 `release/1.0` → fix → commit(中文 message)→ push → 通知 user UAT
+- 任何 v2.0.0 新功能 → 新建 `feature/<name>` 分支(从 `main` 拉)→ 完成后走 PR 流程 merge 进 `main`
+- 新版本发布 → `git tag -a v2.0.0 <commit>` + 必要时 `git branch release/2.0 <commit>`(用户拍板要维护才建)
