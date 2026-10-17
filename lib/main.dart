@@ -1,6 +1,7 @@
 // lib/main.dart
 // 入口 —— 启动时 seed 默认分类
 import 'package:flutter/material.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
@@ -8,6 +9,10 @@ import 'core/database/providers.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // LAN_WEB v2.0.0 P1:必须最早期调,初始化 main isolate ↔ fg service isolate 通信端口
+  // 否则 fg service 的 TaskHandler.sendDataToMain / main 的 sendDataToTask 都不通
+  // 详细:docs/LAN_WEB.md
+  FlutterForegroundTask.initCommunicationPort();
   final container = ProviderContainer();
   // 首次启动(或表空时)seed 默认分类
   await container.read(categoryRepositoryProvider).seedDefaultsIfEmpty();
