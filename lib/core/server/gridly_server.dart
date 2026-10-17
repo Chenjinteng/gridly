@@ -15,6 +15,7 @@ import 'package:shelf_plus/shelf_plus.dart'; // re-exports shelf_static
 import '../database/app_database.dart';
 import 'auth.dart';
 import 'handlers/auth_handler.dart';
+import 'handlers/assets_handler.dart';
 import 'handlers/budget_handler.dart';
 import 'handlers/categories_handler.dart';
 import 'handlers/health_handler.dart';
@@ -264,6 +265,7 @@ Future<HttpServer> startGridlyServer({
   // P2 数据 API(protected,middleware 校验 cookie)
   registerLedgersHandlers(app, db);
   registerCategoriesHandlers(app, db);
+  registerAssetsHandlers(app, db);
   registerStatsHandlers(app, db);
   registerBudgetHandlers(app, db);
 

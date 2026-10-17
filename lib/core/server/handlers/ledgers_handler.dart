@@ -28,37 +28,46 @@ void registerLedgersHandlers(RouterPlus app, AppDatabase db) {
     final page = int.tryParse(p['page'] ?? '1') ?? 1;
     final pageSize = int.tryParse(p['pageSize'] ?? '50') ?? 50;
 
-    final query = db.select(db.transactions);
+    final query = db.select(db.transactions).join([
+      // LEFT JOIN: 即使分类/账户被删也能返 ledger,带 null name
+      leftOuterJoin(db.categories, db.categories.id.equalsExp(db.transactions.categoryId)),
+      leftOuterJoin(db.assets, db.assets.id.equalsExp(db.transactions.accountId)),
+    ]);
 
     if (from != null) {
       final fromDate = DateTime.tryParse(from);
       if (fromDate != null) {
-        query.where((t) => t.occurredAt.isBiggerOrEqualValue(fromDate));
+        query.where(db.transactions.occurredAt.isBiggerOrEqualValue(fromDate));
       }
     }
     if (to != null) {
       final toDate = DateTime.tryParse(to);
       if (toDate != null) {
-        query.where((t) => t.occurredAt.isSmallerOrEqualValue(toDate));
+        query.where(db.transactions.occurredAt.isSmallerOrEqualValue(toDate));
       }
     }
     if (type != null && type.isNotEmpty) {
-      query.where((t) => t.type.equals(type));
+      query.where(db.transactions.type.equals(type));
     }
     if (categoryId != null) {
-      query.where((t) => t.categoryId.equals(categoryId));
+      query.where(db.transactions.categoryId.equals(categoryId));
     }
     if (keyword != null && keyword.isNotEmpty) {
-      query.where((t) => t.note.like('%$keyword%'));
+      query.where(db.transactions.note.like('%$keyword%'));
     }
 
     query
-      ..orderBy([(t) => OrderingTerm.desc(t.occurredAt)])
+      ..orderBy([OrderingTerm.desc(db.transactions.occurredAt)])
       ..limit(pageSize, offset: (page - 1) * pageSize);
 
-    final ledgers = await query.get();
+    final rows = await query.get();
+    final ledgers = rows
+        .map((r) => ledgerToJson(r.readTable(db.transactions))
+          ..['categoryName'] = r.readTable(db.categories).name
+          ..['accountName'] = r.readTable(db.assets).name)
+        .toList();
     return jsonOk({
-      'ledgers': ledgers.map(ledgerToJson).toList(),
+      'ledgers': ledgers,
       'page': page,
       'pageSize': pageSize,
     });
