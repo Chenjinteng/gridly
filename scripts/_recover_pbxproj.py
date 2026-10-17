@@ -63,21 +63,22 @@ def add_bundle_phase(s):
         return s  # idempotent
 
     # IMPORTANT: Use single quotes inside the shell script, NEVER double quotes.
-    # pbxproj string values are wrapped in double quotes; an unescaped " inside
-    # the shellScript terminates the string early and breaks pbxproj parsing
-    # (xcodebuild reports "damaged" with a misleading JSON parse error).
-    # Makefile variables like $SRCROOT work fine inside single quotes.
+    # IMPORTANT: pbxproj shellScript MUST use escaped double quotes (\\")
+    # around $VAR references, NOT single quotes. Single quotes prevent shell
+    # variable expansion, so $SRCROOT stays literal text and the script always
+    # sees "WARN: build/web/ not found". See pbxproj line 321/341 (Flutter's
+    # own scripts use \\"$FLUTTER_ROOT\\" pattern) for the canonical fix.
     shell_script = (
-        "set -e; "
-        "if [ -d '$SRCROOT/../build/web' ]; then "
-        "echo '[lan_web/bundle] copying build/web/ -> .app/Resources/web/'; "
-        "mkdir -p '$BUILT_PRODUCTS_DIR/$WRAPPER_NAME/Contents/Resources/web'; "
-        "rm -rf '$BUILT_PRODUCTS_DIR/$WRAPPER_NAME/Contents/Resources/web'/*; "
-        "cp -R '$SRCROOT/../build/web/'* '$BUILT_PRODUCTS_DIR/$WRAPPER_NAME/Contents/Resources/web/'; "
-        "echo '[lan_web/bundle] done'; "
-        "else "
-        "echo '[lan_web/bundle] WARN: build/web/ not found. Run ./scripts/build_web_for_macos.sh to build web.'; "
-        "fi"
+        'set -e; '
+        'if [ -d \\"$SRCROOT/../build/web\\" ]; then '
+        'echo \\"[lan_web/bundle] copying build/web/ -> .app/Resources/web/\\"; '
+        'mkdir -p \\"$BUILT_PRODUCTS_DIR/$WRAPPER_NAME/Contents/Resources/web\\"; '
+        'rm -rf \\"$BUILT_PRODUCTS_DIR/$WRAPPER_NAME/Contents/Resources/web\\"/*; '
+        'cp -R \\"$SRCROOT/../build/web/\\"* \\"$BUILT_PRODUCTS_DIR/$WRAPPER_NAME/Contents/Resources/web/\\"; '
+        'echo \\"[lan_web/bundle] done\\"; '
+        'else '
+        'echo \\"[lan_web/bundle] WARN: build/web/ not found. Run ./scripts/build_web_for_macos.sh to build web.\\"; '
+        'fi'
     )
 
     new_phase_block = (

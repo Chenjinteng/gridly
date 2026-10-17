@@ -95,17 +95,24 @@ String _resolveWebDir(String webDir) {
   }
 
   // 1. 已存在(就是相对项目根直跑的场景)→ 直接返
-  if (Directory(webDir).existsSync()) return webDir;
+  //    用 _isDirReadable 不用 existsSync,理由同 env var 检查
+  if (_isDirReadable(webDir)) return webDir;
 
   // 2. Walk-up from cwd
   if (Directory.current.existsSync()) {
     var dir = Directory.current;
     for (var i = 0; i < 12; i++) {
       final candidate = p.join(dir.path, webDir);
-      if (Directory(candidate).existsSync()) {
+      if (_isDirReadable(candidate)) {
         debugPrint('[lan_web] webDir walk-up from cwd: $webDir → $candidate '
             '(cwd 上 $i 层)');
         return candidate;
+      }
+      // P3 commit 18:.app bundle Resources 探活(sandbox 唯一可读路径)
+      final resCandidate = p.join(dir.path, 'Contents', 'Resources', 'web');
+      if (_isDirReadable(resCandidate)) {
+        debugPrint('[lan_web] webDir walk-up cwd → .app Resources: $resCandidate');
+        return resCandidate;
       }
       final parent = dir.parent;
       if (parent.path == dir.path) break;
@@ -126,17 +133,19 @@ String _resolveWebDir(String webDir) {
       var dir = File(scriptPath).parent;
       for (var i = 0; i < 12; i++) {
         final candidate = p.join(dir.path, webDir);
-        if (Directory(candidate).existsSync()) {
+        if (_isDirReadable(candidate)) {
           debugPrint(
               '[lan_web] webDir walk-up from script: $webDir → $candidate '
               '(exe 上 $i 层, script="$scriptPath")');
           return candidate;
         }
-        // P3 commit 14:额外试 ../../../Resources/web/.app bundle Resources
-        //   (Xcode Run Script 把 build/web/* 拷到 .app/Contents/Resources/web/)
+        // P3 commit 18:在 .app bundle 内的 MacOS/ 子目录时,要看 上一层 + Contents/Resources/web
+        // 之前 commit 14 的 bug:从 MacOS/ 直接拼 Contents/Resources/web → 路径不存在
         final resCandidate = p.join(dir.path, 'Contents', 'Resources', 'web');
-        if (Directory(resCandidate).existsSync()) {
-          debugPrint('[lan_web] webDir in .app Resources: $resCandidate');
+        if (_isDirReadable(resCandidate)) {
+          debugPrint(
+              '[lan_web] webDir walk-up script → .app Resources: $resCandidate '
+              '(exe 上 $i 层)');
           return resCandidate;
         }
         final parent = dir.parent;
