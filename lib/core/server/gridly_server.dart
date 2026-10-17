@@ -51,31 +51,33 @@ final PairingCodeStore pairingCodeStore = PairingCodeStore();
 /// Session 存储(SharedPreferences 持久化,7 天有效)
 final SessionStore sessionStore = SessionStore();
 
-/// 解析 webDir 真实路径 —— 处理 macOS dev (`flutter run -d macos`) 的 cwd 偏移
+/// 解析 webDir 真实路径 —— 处理 macOS / iOS dev 各种 cwd 偏移
 ///
-/// `flutter run -d macos` 启动的 app cwd 是 `.app/Contents/MacOS/`,不是项目根。
-/// 相对路径 `build/web` 解析不到项目根的 `build/web/`。
-/// 试多路径 fallback + log resolved path(debug 期能立刻看到为什么找不到)
+/// `flutter run -d macos` 启动的 app cwd 在 `build/macos/Build/Products/Debug/...app/Contents/MacOS/`,
+/// 距离项目根 9 层;硬编码 `../../../../` 不够。
+/// 这里用 walk-up 算法:从 cwd 一层层往父目录走,看哪一层有 `build/web/`。
 String _resolveWebDir(String webDir) {
-  // 已经存在 → 直接返
+  // 已存在 → 直接返
   if (Directory(webDir).existsSync()) return webDir;
 
-  // 常见 macOS / iOS dev 偏移路径(.app/Contents/MacOS/ → project root)
-  final candidates = <String>[
-    webDir,
-    '../../../../$webDir',  // macOS dev:cwd 是 .app/Contents/MacOS
-    '../../../$webDir',     // iOS / 其它平台
-    '../../$webDir',        // 浅一层
-  ];
-  for (final c in candidates) {
-    if (Directory(c).existsSync()) {
-      debugPrint('[lan_web] webDir fallback: $webDir → $c');
-      return c;
+  // Walk up from cwd,看哪层有 webDir
+  var dir = Directory.current;
+  for (var i = 0; i < 12; i++) {
+    final candidate = p.join(dir.path, webDir);
+    if (Directory(candidate).existsSync()) {
+      debugPrint('[lan_web] webDir walk-up: $webDir → $candidate '
+          '(cwd 上 $i 层)');
+      return candidate;
     }
+    final parent = dir.parent;
+    if (parent.path == dir.path) break; // 到达文件系统根
+    dir = parent;
   }
+
+  // 找不到 → debugPrint 完整路径链,方便定位
   debugPrint(
-      '[lan_web] webDir 解析失败:尝试过 ${candidates.join(", ")} 都不存在');
-  return webDir; // give up,返 404 web_ui_not_built
+      '[lan_web] webDir 解析失败:webDir="$webDir" cwd="${Directory.current.path}"');
+  return webDir; // give up → 404 web_ui_not_built
 }
 
 /// P3 commit 1:Web 静态文件 handler
