@@ -497,6 +497,9 @@ class _LanWebTile extends ConsumerWidget {
   }
 
   String _statusText(LanWebState state) {
+    if (!state.supported) {
+      return '仅 Android / iOS 支持(macOS dev 模式不可用)';
+    }
     if (state.ip == null) {
       return '未连接 WiFi,无法启用';
     }

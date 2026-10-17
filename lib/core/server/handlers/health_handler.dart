@@ -11,7 +11,7 @@
 
 /// 跟 pubspec.yaml version 同步(2026-10-17 LAN_WEB P1 起点)
 const String kGridlyWebVersion = '2.0.0';
-const int kGridlyWebBuild = 107;
+const int kGridlyWebBuild = 113;
 
 /// P1 健康检查响应
 ///

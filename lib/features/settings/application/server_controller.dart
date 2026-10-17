@@ -7,10 +7,16 @@
 // - 启停 foreground service(Android 14+ dataSync type)
 // - 查询 service 是否在跑(service crash / kill 后 UI 同步)
 //
+// 注意:
+// - flutter_foreground_task 只支持 Android / iOS,macOS dev 时调用会 throw
+// - 2026-10-17 平台守卫 Platform.isAndroid,避免 macOS dev 崩
+//
 // 详细:
 // - docs/LAN_WEB.md P1 拍板 + 实施计划
 // - pub.dev/packages/flutter_foreground_task(11.0.3,Dev-hwang / pravera.me)
-// - pub.dev/packages/network_info_plus(8.2.2,fluttercommunity)
+// - pub.dev/packages/network_info_plus(^7.0.0,fluttercommunity,2026-10-17 降版本解 win32 冲突)
+import 'dart:io' show Platform;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,21 +34,25 @@ class LanWebState {
     required this.enabled,
     required this.ip,
     required this.serviceRunning,
+    required this.supported,
   });
 
   final bool enabled;
   final String? ip;            // 当前 WiFi IP(enabled = true 时显示)
   final bool serviceRunning;   // fg service 是否在跑
+  final bool supported;        // 当前平台是否支持 fg service(Android/iOS = true,macOS = false)
 
   LanWebState copyWith({
     bool? enabled,
     String? ip,
     bool? serviceRunning,
+    bool? supported,
   }) {
     return LanWebState(
       enabled: enabled ?? this.enabled,
       ip: ip ?? this.ip,
       serviceRunning: serviceRunning ?? this.serviceRunning,
+      supported: supported ?? this.supported,
     );
   }
 
@@ -52,8 +62,12 @@ class LanWebState {
     return 'http://$ip:$kLanWebPort';
   }
 
-  static const initial =
-      LanWebState(enabled: false, ip: null, serviceRunning: false);
+  static const initial = LanWebState(
+    enabled: false,
+    ip: null,
+    serviceRunning: false,
+    supported: true,
+  );
 }
 
 /// LAN_WEB 控制器
@@ -61,35 +75,46 @@ class LanWebState {
 /// 注意:
 /// - addTaskDataCallback 在 init() 之后才生效,所以 dispose 时必须 remove
 /// - isRunningService 是异步查询,UI 显示可能有 1-2 秒延迟
+/// - macOS 不支持 fg_task,所有 fg_task 调用在 !supported 平台早返,避免 macOS dev 崩
 class LanWebController extends StateNotifier<LanWebState> {
   LanWebController() : super(LanWebState.initial) {
     _init();
   }
 
+  /// 当前平台是否支持 fg_task(仅 Android / iOS,macOS dev 模式不支持)
+  static bool get _isSupportedPlatform =>
+      Platform.isAndroid || Platform.isIOS;
+
   Future<void> _init() async {
+    final supported = _isSupportedPlatform;
     // 1. 加载持久化的 enable 状态
     final prefs = await SharedPreferences.getInstance();
     final savedEnabled = prefs.getBool(_kLanWebEnabledKey) ?? false;
 
-    // 2. 检测当前 WiFi IP
+    // 2. 检测当前 WiFi IP(Android 平台)
     String? ip;
-    try {
-      ip = await NetworkInfo().getWifiIP();
-    } catch (e) {
-      // network_info_plus 在没有 WiFi / 飞行模式会抛
-      debugPrint('NetworkInfo.getWifiIP error: $e');
+    if (Platform.isAndroid) {
+      try {
+        ip = await NetworkInfo().getWifiIP();
+      } catch (e) {
+        // network_info_plus 在没有 WiFi / 飞行模式会抛
+        debugPrint('NetworkInfo.getWifiIP error: $e');
+      }
     }
 
     // 3. 检测 fg service 当前是否在跑(可能上次没正确停)
-    final isRunning = await FlutterForegroundTask.isRunningService;
-
-    // 4. 注册 service → main 通信回调(P1 不用,但保留接口给 P2)
-    FlutterForegroundTask.addTaskDataCallback(_onServiceData);
+    bool isRunning = false;
+    if (supported) {
+      isRunning = await FlutterForegroundTask.isRunningService;
+      // 4. 注册 service → main 通信回调(P1 不用,但保留接口给 P2)
+      FlutterForegroundTask.addTaskDataCallback(_onServiceData);
+    }
 
     state = LanWebState(
       enabled: savedEnabled && isRunning,
       ip: ip,
       serviceRunning: isRunning,
+      supported: supported,
     );
   }
 
@@ -100,6 +125,13 @@ class LanWebController extends StateNotifier<LanWebState> {
   /// 用户切换开关
   Future<void> setEnabled(bool enabled) async {
     if (enabled == state.enabled) return;
+    if (!state.supported) {
+      // macOS / 不支持平台:不启停 service,仅持久化(后续 macOS 重启会失效)
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_kLanWebEnabledKey, enabled);
+      state = state.copyWith(enabled: enabled);
+      return;
+    }
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kLanWebEnabledKey, enabled);
@@ -115,9 +147,11 @@ class LanWebController extends StateNotifier<LanWebState> {
     state = state.copyWith(enabled: enabled, serviceRunning: serviceRunning);
   }
 
-  Future<bool> _ensureNotificationPermission() async {
+  Future<NotificationPermission> _ensureNotificationPermission() async {
     // Android 13+ 需要通知权限(fg service 常驻通知必显示)
-    if (!await FlutterForegroundTask.checkNotificationPermission()) {
+    // checkNotificationPermission() 返回 enum,跟 .granted 比较
+    final perm = await FlutterForegroundTask.checkNotificationPermission();
+    if (perm != NotificationPermission.granted) {
       await FlutterForegroundTask.requestNotificationPermission();
     }
     return FlutterForegroundTask.checkNotificationPermission();
