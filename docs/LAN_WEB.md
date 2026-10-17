@@ -51,33 +51,53 @@
 
 > **P1 是关键风险验证点** —— 在 Android 端起 HTTP server 这件事真能不能通(同 WiFi / Android 14 / 内网 cleartext),不验证就上 API 是赌博。
 
-### P2 · REST API(流水 + 报表 + 分类 + 预算)
+### P2 · REST API(流水 + 报表 + 分类 + 预算)✅ 2026-10-17 完成
 
 **目标**:浏览器能拉数据并新增 / 改 / 删流水,能拉月度汇总 + 报表。
 
-**API 草图**:
+**实际 API**(P2 commit 1-17 已落):
 
 ```
-GET    /api/health                    # 健康检查 + 数据库流水条数
-GET    /api/ledgers                   # ?from&to&type&category&keyword&page
-GET    /api/ledgers/:id
-POST   /api/ledgers                   # body: amount/type/categoryId/note/date
-PUT    /api/ledgers/:id
-DELETE /api/ledgers/:id
-GET    /api/categories
+GET    /                                  # 健康检查 + db counts + uptime + serverTime
+GET    /api/auth/code                     # 拿 6 位配对码
+POST   /api/auth/pair                     # 配对 → 7 天 cookie
+POST   /api/auth/logout                   # 注销 + clear cookie
+GET    /api/auth/sessions                 # 列已配对设备(排除自己)
+DELETE /api/auth/sessions/<token>         # 撤销某设备(非自己)
+GET    /api/ledgers                       # ?from&to&type&category&keyword&page&pageSize
+GET    /api/ledgers/<id>
+POST   /api/ledgers                       # body: amount/type/categoryId/occurredAt/note/accountId
+PUT    /api/ledgers/<id>                  # partial update
+DELETE /api/ledgers/<id>
+GET    /api/categories?type=expense       # type 可选过滤
 POST   /api/categories
-PUT    /api/categories/:id
-GET    /api/stats/monthly             # ?year&month
-GET    /api/stats/categories          # ?from&to
-GET    /api/stats/top                 # ?from&to&limit
-GET    /api/budget                    # ?year&month
-PUT    /api/budget
+PUT    /api/categories/<id>
+GET    /api/stats/monthly?year&month
+GET    /api/stats/categories?from&to
+GET    /api/stats/top?from&to&limit
+GET    /api/budget?year&month
+PUT    /api/budget                        # body: year/month/total/categoryBudgets[]
 ```
+
+**配套 middleware**(P2 polish):
+- `errorHandler()` — 任何 throw → 500 JSON 不漏 stack
+- `catchAllHandler()` — 任何未匹配 → 404 JSON
+- `bodySizeLimit(1MB)` — Content-Length > 1MB → 413
+- `cors()` — OPTIONS 预检 204;响应 echo Origin(P3 web UI 跨源)
+- `rateLimit(60/s per token)` — 滑窗,超限 → 429 + Retry-After
+- `securityHeaders()` — X-Content-Type-Options / X-Frame-Options / Referrer-Policy / Cache-Control
+
+**P2 自测**(46/46 pass,`flutter analyze` clean):
+- 集成测试 6 + edge case 33 + 持久化 2 + 安全 header 3 + 限流 2
+- 见 `test/lan_web/`
+- 手工 smoke 脚本 `scripts/lan_web_smoke.sh`
+- API 完整 curl 文档 `docs/LAN_WEB_API.md`
 
 | 项 | 内容 |
 |---|---|
-| **新文件** | `lib/core/server/handlers/{ledgers,categories,stats,budget}_handler.dart`<br>`lib/core/server/auth.dart`(配对码校验 + cookie)<br>`lib/core/database/app_database.dart` repository 加 `toJson()` |
-| **工作量** | **5-6 天** |
+| **新文件** | `lib/core/server/{auth,gridly_server,middleware}.dart`<br>`lib/core/server/handlers/{health,auth,ledgers,categories,stats,budget}_handler.dart`<br>`lib/core/server/handlers/json_helpers.dart`<br>`test/lan_web/{p2_integration_test,p2_edge_cases_test,p2_persistence_test}.dart`<br>`scripts/lan_web_smoke.sh` |
+| **修改** | `lib/main.dart`(init port)`lib/features/settings/{ui,application}/`(配对码 / sessions UI)`lib/core/database/app_database.dart`(forTesting ctor)`pubspec.yaml`(+ http / shelf_plus / network_info_plus / flutter_foreground_task)`AndroidManifest.xml`(4 perms + service + cleartext)`docs/LAN_WEB_API.md` |
+| **工作量** | 实际 16+ commit,跨多日(目标 5-6 天) |
 
 ### P3 · Flutter Web 端(流水 + 记一笔 + 报表)
 
