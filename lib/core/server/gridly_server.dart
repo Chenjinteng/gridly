@@ -51,16 +51,44 @@ final PairingCodeStore pairingCodeStore = PairingCodeStore();
 /// Session 存储(SharedPreferences 持久化,7 天有效)
 final SessionStore sessionStore = SessionStore();
 
+/// 解析 webDir 真实路径 —— 处理 macOS dev (`flutter run -d macos`) 的 cwd 偏移
+///
+/// `flutter run -d macos` 启动的 app cwd 是 `.app/Contents/MacOS/`,不是项目根。
+/// 相对路径 `build/web` 解析不到项目根的 `build/web/`。
+/// 试多路径 fallback + log resolved path(debug 期能立刻看到为什么找不到)
+String _resolveWebDir(String webDir) {
+  // 已经存在 → 直接返
+  if (Directory(webDir).existsSync()) return webDir;
+
+  // 常见 macOS / iOS dev 偏移路径(.app/Contents/MacOS/ → project root)
+  final candidates = <String>[
+    webDir,
+    '../../../../$webDir',  // macOS dev:cwd 是 .app/Contents/MacOS
+    '../../../$webDir',     // iOS / 其它平台
+    '../../$webDir',        // 浅一层
+  ];
+  for (final c in candidates) {
+    if (Directory(c).existsSync()) {
+      debugPrint('[lan_web] webDir fallback: $webDir → $c');
+      return c;
+    }
+  }
+  debugPrint(
+      '[lan_web] webDir 解析失败:尝试过 ${candidates.join(", ")} 都不存在');
+  return webDir; // give up,返 404 web_ui_not_built
+}
+
 /// P3 commit 1:Web 静态文件 handler
 ///
 /// - [webDir] 存在 → createStaticHandler 正常服务
 /// - [webDir] 不存在(刚 git clone / 还没 build web)→ 返 404 + 提示,避免整个 / 路由 500
 /// - SPA 路由 fallback:任意 <非 /api/* 路径> 找不到文件 → 返 index.html 让 Flutter router 处理
 Handler _buildWebStaticHandler(String webDir) {
-  final dir = Directory(webDir);
+  final resolvedDir = _resolveWebDir(webDir);
+  final dir = Directory(resolvedDir);
   if (!dir.existsSync()) {
     debugPrint(
-        '[lan_web] $webDir 不存在;Flutter web 未 build。\n'
+        '[lan_web] $resolvedDir 不存在;Flutter web 未 build。\n'
         '请先跑 `flutter build web --target=lib/web_main.dart` 再启动,或访问 /api/* 用 API。');
     return (Request request) {
       return Response(
@@ -70,6 +98,7 @@ Handler _buildWebStaticHandler(String webDir) {
           'message':
               'Flutter web 未 build。请跑 `flutter build web` 然后重启 server。',
           'buildDir': webDir,
+          'resolvedDir': resolvedDir,
           'apiOk': 'GET /api/health 仍可访问',
         }),
         headers: <String, String>{'Content-Type': 'application/json'},
@@ -79,7 +108,7 @@ Handler _buildWebStaticHandler(String webDir) {
   // shelf_static 的 defaultDocument 只在 / fallthrough,不对其它路径做 SPA fallback
   // 所以包一层:static 返 404 时如果不像静态资源文件 → 自己读 index.html 返
   final inner = createStaticHandler(
-    webDir,
+    resolvedDir,
     defaultDocument: 'index.html',
     listDirectories: false,
   );
@@ -103,7 +132,7 @@ Handler _buildWebStaticHandler(String webDir) {
       if (!looksLikeFile && !isFlutterAsset) {
         // SPA fallback:直接读 index.html 文件,不走 static handler
         //   (Request.change 要求新 path 是 handler path 的前缀,绕过)
-        final indexFile = File(p.join(webDir, 'index.html'));
+        final indexFile = File(p.join(resolvedDir, 'index.html'));
         if (indexFile.existsSync()) {
           return Response.ok(
             indexFile.readAsBytesSync(),
