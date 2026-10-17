@@ -17,6 +17,7 @@ import 'handlers/categories_handler.dart';
 import 'handlers/health_handler.dart';
 import 'handlers/ledgers_handler.dart';
 import 'handlers/stats_handler.dart';
+import 'middleware.dart';
 
 /// LAN_WEB 服务端口(LAN_WEB.md 钉死:8123,避开 80/8080 高占用)
 const int kLanWebPort = 8123;
@@ -60,8 +61,13 @@ Future<HttpServer> startGridlyServer({required AppDatabase db}) async {
   registerStatsHandlers(app, db);
   registerBudgetHandlers(app, db);
 
+  // P2 polish:404 catch-all(必须最后注册,兜底所有未匹配路径)
+  app.all('/<ignored|.*>', (Request request) => catchAllHandler()(request));
+
   // 鉴权 middleware(自动跳过 /api/auth/* + /api/health)
+  // + errorHandler(任何 throw → 500 JSON,不漏 stack)
   final handler = const Pipeline()
+      .addMiddleware(errorHandler())
       .addMiddleware(authMiddleware(sessionStore))
       .addHandler(app.call);
 
