@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import 'add_ledger_sheet.dart';
 import 'api_client.dart';
+import 'sessions_page.dart';
 
 class LedgerListPage extends StatefulWidget {
   const LedgerListPage({super.key, required this.api, required this.onLogout});
@@ -95,8 +96,14 @@ class _LedgerListPageState extends State<LedgerListPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.devices_other_rounded),
-            tooltip: '已配对设备(P3 commit 6)',
-            onPressed: null, // disabled for now
+            tooltip: '已配对设备',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => SessionsPage(api: widget.api),
+                ),
+              );
+            },
           ),
           IconButton(
             icon: const Icon(Icons.logout_rounded),
