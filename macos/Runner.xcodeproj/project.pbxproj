@@ -349,7 +349,7 @@
 			inputFileListPaths = (
 			);
 			inputPaths = (
-				"$(SRCROOT)/../build/web/",
+				"$(SRCROOT)/../web-react/dist/",
 			);
 			outputFileListPaths = (
 			);
@@ -358,7 +358,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e; if [ -d '$SRCROOT/../build/web' ]; then echo '[lan_web/bundle] copying build/web/ -> .app/Resources/web/'; mkdir -p '$BUILT_PRODUCTS_DIR/$WRAPPER_NAME/Contents/Resources/web'; rm -rf '$BUILT_PRODUCTS_DIR/$WRAPPER_NAME/Contents/Resources/web'/*; cp -R '$SRCROOT/../build/web/'* '$BUILT_PRODUCTS_DIR/$WRAPPER_NAME/Contents/Resources/web/'; echo '[lan_web/bundle] done'; else echo '[lan_web/bundle] WARN: build/web/ not found. Run ./scripts/build_web_for_macos.sh to build web.'; fi";
+			shellScript = "set -e; if [ -d \"$SRCROOT/../web-react/dist\" ]; then echo \"[lan_web/bundle] copying web-react/dist/ -> .app/Resources/web/\"; mkdir -p \"$BUILT_PRODUCTS_DIR/$WRAPPER_NAME/Contents/Resources/web\"; rm -rf \"$BUILT_PRODUCTS_DIR/$WRAPPER_NAME/Contents/Resources/web\"/*; cp -R \"$SRCROOT/../web-react/dist/.\" \"$BUILT_PRODUCTS_DIR/$WRAPPER_NAME/Contents/Resources/web/\"; echo \"[lan_web/bundle] done\"; else echo \"[lan_web/bundle] WARN: web-react/dist/ not found. Run \\`cd web-react && npm run build\\` first.\"; fi";
 	};
 
 /* End PBXShellScriptBuildPhase section */
