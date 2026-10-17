@@ -1,7 +1,15 @@
 // API client for gridly REST API (P2 endpoints)
 // cookie-based auth:7 天 session,所有请求带 credentials: 'include'
+//
+// LAN_WEB P4 mock mode (2026-10-17 加):
+// - 默认走 Vite proxy:fetch 相对路径 '/api/...' → Vite 把 /api/* 转发到
+//   http://localhost:8123(参见 web-react/vite.config.ts)。
+// - 优点:Set-Cookie 落在 5173 origin 下,后续 fetch 自动带,
+//   跟 cross-origin fetch 没有 Secure/SameSite 兼容问题。
+// - 真 app 模式:export VITE_API_BASE=http://192.168.x.x:8123 直接打真 server,
+//   走 macOS / iOS app 的 LAN 配对流程(参见 docs/LAN_WEB.md)。
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8123';
+const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string, public body?: unknown) {
