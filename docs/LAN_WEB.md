@@ -1,7 +1,7 @@
 # 局域网 Web 伴侣端规划
 
-> **v0.5.5 草案** · 起稿 2026-10-12
-> 状态:**待 user 拍板 3 个默认决策 + 推进 P1**
+> **v2.0.0 草案**(原 v0.5.5 起稿 2026-10-12,2026-10-17 升 2.0.0 因 LAN_WEB 作为主功能里程碑)
+> 状态:**5 个 Open Questions 已拍板(2026-10-17)+ 推进 P1**
 > 关联:[`ROADMAP.md`](ROADMAP.md) · [`DEV.md`](DEV.md)
 
 ---
@@ -21,15 +21,16 @@
 
 ---
 
-## 默认决策(待 user 拍板)
+## 默认决策(2026-10-17 已拍板)
 
-| 决策 | 默认值 | 替代选项与影响 |
+| 决策 | 选定值 | 替代选项与影响 |
 |---|---|---|
-| **实时性** | 手动刷新(电脑改完手机下次打开 / 下拉刷新才看到) | WebSocket 反向推送(+3-5 天) |
-| **锁屏** | MVP 不做后台(要求记账时屏幕亮着) | foreground service 常驻通知(+2-3 天 + 续航) |
-| **认证** | 一次性 6 位配对码 + session cookie 7 天 | 无认证(同 WiFi 全开放)/ 长期 token |
+| **版本号** | **2.0.0+**(原 v0.5.5 草案) | LAN_WEB 作为 2.0 阶段里程碑主功能 |
+| **实时性** | 手动刷新(电脑改完手机下次打开 / 下拉刷新才看到) | WebSocket 反向推送(+3-5 天)— 未选 |
+| **锁屏** | **foreground service 常驻通知** ⚠️ 覆盖默认 | MVP 不做后台 — 未选(原默认) |
+| **认证** | 一次性 6 位配对码 + session cookie 7 天 | 无认证(同 WiFi 全开放)/ 长期 token — 未选 |
 
-不告知即按默认值走。
+**P1 工作量更新**:foreground service 让 P1 从 3-4 天 → **5-7 天**(Android 14 `dataSync` type + 常驻通知 + 服务生命周期)。
 
 ---
 
@@ -42,11 +43,11 @@
 | 项 | 内容 |
 |---|---|
 | **端口** | 8123(避开 80 / 8080 高占用) |
-| **新依赖** | `shelf_plus`、`network_info_plus` |
-| **新文件** | `lib/core/server/gridly_server.dart`<br>`lib/core/server/handlers/health_handler.dart`<br>`lib/features/settings/application/server_controller.dart` |
-| **改文件** | `pubspec.yaml`<br>`android/app/src/main/AndroidManifest.xml`(加 `INTERNET` + `usesCleartextTraffic`)<br>`lib/features/settings/ui/settings_page.dart`(加「局域网服务」section)<br>`lib/app.dart`(路由注册) |
-| **工作量** | **3-4 天** |
-| **验收** | ① 开关开 → 显示 IP + 端口;② 同 WiFi 电脑访问 → 见 hello + 数据库 N 条 |
+| **新依赖** | `shelf_plus`、`network_info_plus`、`flutter_foreground_task`(foreground service + 常驻通知) |
+| **新文件** | `lib/core/server/gridly_server.dart`<br>`lib/core/server/handlers/health_handler.dart`<br>`lib/features/settings/application/server_controller.dart`(开关 toggle + 启停 service)<br>`lib/core/server/lan_web_service.dart`(foreground service entry,Kotlin 端 + Dart isolate 桥) |
+| **改文件** | `pubspec.yaml`<br>`android/app/src/main/AndroidManifest.xml`(加 `INTERNET` + `usesCleartextTraffic` + `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_DATA_SYNC` + `<service>` 声明)<br>`android/app/src/main/kotlin/cn/jinteng/gridly/MainActivity.kt`(配 flutter_foreground_task callback)<br>`lib/features/settings/ui/settings_page.dart`(加「局域网服务」section)<br>`lib/app.dart`(路由注册) |
+| **工作量** | **5-7 天**(原 3-4 天 + foreground service +2-3 天) |
+| **验收** | ① 开关开 → 显示 IP + 端口 + 常驻通知;② 锁屏 server 仍活;④ 同 WiFi 电脑访问 → 见 hello + 数据库 N 条 |
 
 > **P1 是关键风险验证点** —— 在 Android 端起 HTTP server 这件事真能不能通(同 WiFi / Android 14 / 内网 cleartext),不验证就上 API 是赌博。
 
@@ -101,22 +102,22 @@ PUT    /api/budget
 
 | 阶段 | 天 |
 |---|---|
-| P1 骨架 | 3-4 |
+| P1 骨架 | 5-7(原 3-4,foreground service +2-3) |
 | P2 API | 5-6 |
 | P3 Web | 5-7 |
 | P4 polish | 3-4 |
-| **合计 MVP** | **16-21 天(约 4-5 周单兵)** |
+| **合计 MVP** | **18-24 天(约 4.5-6 周单兵)** |
 
-里程碑命名:**v0.5.5 · 局域网 Web 端**,插在路线图 v0.5.0(数据导出增强)和 v0.6.0(备份恢复)之间。
+里程碑命名:**v2.0.0 · 局域网 Web 端**(原 v0.5.5,2026-10-17 升版),跨过 v0.5.0 / v0.6.0 / v0.7.0 几个中间里程碑。
 
 ---
 
 ## 推进顺序
 
 ```
-P1 (3-4 天)   →  UAT 验证 server 可达性 → 通过后进 P2
-P2 (5-6 天)   →  UAT 用 curl 验 API     → 通过后进 P3
-P3 (5-7 天)   →  UAT 浏览器里完整走     → 通过后进 P4
+P1 (5-7 天)   →  UAT 验证 server 可达性 + foreground service 后台运行 → 通过后进 P2
+P2 (5-6 天)   →  UAT 用 curl 验 API                                  → 通过后进 P3
+P3 (5-7 天)   →  UAT 浏览器里完整走                                  → 通过后进 P4
 P4 (3-4 天)
 ```
 
@@ -139,22 +140,24 @@ P4 (3-4 天)
 
 | # | 风险 | 缓解 |
 |---|---|---|
-| 1 | Android 后台限制锁屏杀 server(Android 8+) | 当前 MVP 接受;后续 P4 后再做 foreground service |
-| 2 | 长开 WiFi + server 续航每小时掉 5-10% | 文档说建议插电;开关 OFF 即停 |
+| 1 | Android 后台限制锁屏杀 server(Android 8+) | ✅ 2026-10-17 user 拍板:**P1 直接做**(foreground service `dataSync` type);不再延后 |
+| 2 | 长开 WiFi + server 续航每小时掉 5-10% | 文档说建议插电;开关 OFF 即停;foreground service 常驻通知可一键关 |
 | 3 | 裸 HTTP 内网传输账本 | 文档说「LAN only / 不要连公共 WiFi」(家用 WiFi 没问题) |
 | 4 | AGPL-3.0 | web 端代码也是 AGPL,无新增风险 |
-| 5 | `web/` 目录 untracked | 待 user 拍板:删 / 启用 / 内容覆盖;P1 不影响 |
-| 6 | 没做的话,Android 14 后台启动 HTTP server 需要 foreground service type `dataSync` | MVP 锁屏 kill 后需用浏览器重新进服务自检 |
+| 5 | `web/` 目录 untracked | 待 user 拍板:删 / 启用 / 内容覆盖;P3 时处理 |
+| 6 | Android 14 后台启动 HTTP server 需要 foreground service type `dataSync` | ✅ 2026-10-17 P1 必做:AndroidManifest 加 `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_DATA_SYNC` permission + `<service android:foregroundServiceType="dataSync">` |
 
 ---
 
-## Open Questions(待 user 回答后开工 P1)
+## Open Questions(2026-10-17 全部拍板 ✅)
 
-- [ ] 实时性默认(手动刷新)接受吗?
-- [ ] 锁屏默认(MVP 不后台)接受吗?
-- [ ] 认证默认(6 位配对码 + 7 天 cookie)接受吗?
-- [ ] 端口默认 8123 接受吗?
-- [ ] 是否要先做 P1 prototype 验证 Android HTTP server 可达性,再进 P2?
+- [x] 实时性默认(手动刷新)接受吗? — **是**
+- [x] 锁屏默认(MVP 不后台)接受吗? — **否,改 foreground service 常驻**
+- [x] 认证默认(6 位配对码 + 7 天 cookie)接受吗? — **是**
+- [x] 端口默认 8123 接受吗? — **是**
+- [x] 是否要先做 P1 prototype 验证 Android HTTP server 可达性,再进 P2? — **是**
+
+历史决策见末尾「历史决策」表。
 
 ---
 
@@ -178,3 +181,6 @@ P4 (3-4 天)
 | 2026-10-12 | 不动方案 B / C | A 已能满足;B/C 引入云依赖违反 gridly 本地优先哲学;AGPL 自建 server 强制开源无必要负担 |
 | 2026-10-12 | 插入路线图 v0.5.5 位置 | 介于 v0.5.0 数据导出增强和 v0.6.0 备份恢复之间,功能上是「远程编辑」,属于导出 / 备份的补集 |
 | 2026-10-12 | 文档放 `docs/LAN_WEB.md` | 沿用现有 docs/ 大写短名约定(ROADMAP / DEV / UI_UX) |
+| 2026-10-17 | 升 v0.5.5 → **v2.0.0+** | LAN_WEB 作为里程碑主功能,跨过 v0.5.0 / v0.6.0 / v0.7.0 几个中间里程碑;`pubspec.yaml` 1.0.0+104 → 2.0.0+105 |
+| 2026-10-17 | 锁屏后台:**foreground service 常驻**(覆盖默认) | user 决定 use foreground service,不等 P4 后再做;P1 直接做(`flutter_foreground_task` + AndroidManifest `dataSync` type) |
+| 2026-10-17 | 实时性 / 认证 / 端口 / P1 prototype / 自启时机:全部按默认 | 文档默认值已合理,无 override 必要 |
