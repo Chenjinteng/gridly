@@ -221,8 +221,18 @@ Middleware authMiddleware(SessionStore sessions) {
   return (Handler inner) {
     return (Request request) async {
       // 公开路径白名单
+      // ⚠️ shelf_router quirk:middleware 拿到的 request.url.path 是
+      //   shelf_router 内部加 local "/" 后 normalize 过的形式,
+      //   - 'GET /' → path = '' 或 '/'(两种都见过)
+      //   - 'GET /api/auth/code' → path = 'api/auth/code'(leading slash 被 strip)
+      //   - 'GET /api/health' → path = 'api/health'
+      // 白名单用 startsWith 不带 slash 形式
       final path = request.url.path;
-      if (path.startsWith('/api/auth/') || path == '/api/health') {
+      if (path.startsWith('api/auth/') ||
+          path == 'api/health' ||
+          path == '/api/health' ||
+          path.isEmpty ||
+          path == '/') {
         return inner(request);
       }
 

@@ -24,9 +24,9 @@ void registerStatsHandlers(RouterPlus app, AppDatabase db) {
     final start = DateTime(year, month, 1);
     final end = DateTime(year, month + 1, 1);
 
-    // D62 口径:income/expense 只算 cash_flow 段
+    // D62 口径:income/expense 只算 cash_flow 段 — 即 transaction.type 是 income/expense,
+    // 投资/福利/债务/其它段的 transaction.type 是别的值,自然不算
     final typeCol = db.transactions.type;
-    final catTypeCol = db.categories.type;
 
     final joined = db.select(db.transactions).join([
       innerJoin(
@@ -36,7 +36,6 @@ void registerStatsHandlers(RouterPlus app, AppDatabase db) {
     ])
       ..where(db.transactions.occurredAt.isBiggerOrEqualValue(start) &
           db.transactions.occurredAt.isSmallerThanValue(end) &
-          catTypeCol.equals('cash_flow') &
           typeCol.isIn(['income', 'expense']));
 
     final rows = await joined.get();

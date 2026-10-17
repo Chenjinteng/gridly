@@ -41,8 +41,12 @@ final SessionStore sessionStore = SessionStore();
 /// P2:+ 鉴权路由 /api/auth/* + 流水 / 分类 / 报表 / 预算
 ///
 /// [db] 注入:数据 API 直接 query Drift,无 IPC 复杂度
+/// [port] 测试时传 0 让系统分配随机端口,避开 8123 占用冲突
 /// 由 [LanWebController.setEnabled] 在 main isolate 调(dev mode + Android 都走这条)
-Future<HttpServer> startGridlyServer({required AppDatabase db}) async {
+Future<HttpServer> startGridlyServer({
+  required AppDatabase db,
+  int port = kLanWebPort,
+}) async {
   if (_server != null) return _server!;
   // 先加载持久化的 sessions(in-memory cache 准备好)
   await sessionStore.load();
@@ -72,7 +76,7 @@ Future<HttpServer> startGridlyServer({required AppDatabase db}) async {
       .addHandler(app.call);
 
   // InternetAddress.anyIPv4 == '0.0.0.0',监听所有网卡(同 WiFi 设备可访问)
-  _server = await serve(handler, InternetAddress.anyIPv4, kLanWebPort);
+  _server = await serve(handler, InternetAddress.anyIPv4, port);
   return _server!;
 }
 

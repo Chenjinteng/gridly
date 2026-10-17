@@ -23,6 +23,10 @@ part 'app_database.g.dart';
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
+  /// 测试 / 嵌入式用:传任意 QueryExecutor(in-memory / temp file / mock)
+  /// 生产代码不调,只用默认 ctor
+  AppDatabase.forTesting(QueryExecutor executor) : super(executor);
+
   // 2026-10-12 commit 90:1 → 2,新增 CategoryBudgets 表
   // 2026-10-12 commit 110:2 → 3,新增 Assets 表 + transactions.accountId NOT NULL + FK
   //   - 旧设备升级时走 onUpgrade 创建新表 + 预置 3 个默认账户
