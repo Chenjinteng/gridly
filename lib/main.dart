@@ -1,11 +1,14 @@
 // lib/main.dart
 // 入口 —— 启动时 seed 默认分类
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
 import 'core/database/providers.dart';
+import 'features/settings/application/server_controller.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,6 +17,14 @@ void main() async {
   // 详细:docs/LAN_WEB.md
   FlutterForegroundTask.initCommunicationPort();
   final container = ProviderContainer();
+  // P3 commit 19: dev mode 调试 — env=1 时在 main 早期就触发 LanWebController 初始化
+  // (不依赖 Settings page 打开,让 server 在 app 启动后即起)
+  // 必须在 runApp 之前,否则 UI 没 mount,controller 也不会被实例化
+  if (Platform.environment['GRIDLY_DEV_AUTOSTART'] == '1') {
+    // ignore: avoid_print
+    print('[lan_web/dev] GRIDLY_DEV_AUTOSTART=1 detected, init LanWebController');
+    container.read(lanWebControllerProvider);
+  }
   // 首次启动(或表空时)seed 默认分类
   await container.read(categoryRepositoryProvider).seedDefaultsIfEmpty();
   // 把老用户的系统分类 icon 升级到 v2 语义化图标(幂等,无命中也无害)
