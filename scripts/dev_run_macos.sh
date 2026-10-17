@@ -47,6 +47,10 @@ fi
 export GRIDLY_WEB_DIR="$PROJECT_DIR/build/web"
 echo "GRIDLY_WEB_DIR=$GRIDLY_WEB_DIR"
 
+# P3 commit 19: dev mode 自动起 server(跳过 UI toggle)。UAT 必备。
+export GRIDLY_DEV_AUTOSTART=1
+echo "GRIDLY_DEV_AUTOSTART=$GRIDLY_DEV_AUTOSTART"
+
 # 4. 跑 macOS app
 echo "== flutter run -d macos =="
 flutter run -d macos

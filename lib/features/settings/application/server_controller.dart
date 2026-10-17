@@ -136,6 +136,15 @@ class LanWebController extends StateNotifier<LanWebState> {
       serviceRunning: isRunning,
       devMode: devMode,
     );
+
+    // P3 commit 19: dev mode 调试用 — 设 GRIDLY_DEV_AUTOSTART=1 让 app 启动时
+    // 自动起 server,跳过 UI toggle。CI/UAT 必备,平时 release 不开。
+    if (devMode &&
+        !isRunning &&
+        Platform.environment['GRIDLY_DEV_AUTOSTART'] == '1') {
+      debugPrint('[lan_web/dev] GRIDLY_DEV_AUTOSTART=1,自动起 server');
+      await setEnabled(true);
+    }
   }
 
   void _onServiceData(Object data) {
