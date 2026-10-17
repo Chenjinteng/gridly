@@ -1,13 +1,15 @@
 // lib/core/server/gridly_server.dart
-// LAN_WEB v2.0.0 P2 HTTP server
+// LAN_WEB v2.0.0 P3 HTTP server
 //
 // 跑在 main isolate(P2 commit 1 后的架构,直接 DB 访问无 IPC 复杂度)
 // fg_service 改成 keep-alive 心跳保活进程,不影响 server 启动逻辑
 // 详细:docs/LAN_WEB.md
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart'; // debugPrint
 import 'package:shelf/shelf_io.dart'; // shelf_plus 不 re-export shelf_io,显式 import 拿 serve()
-import 'package:shelf_plus/shelf_plus.dart';
+import 'package:shelf_plus/shelf_plus.dart'; // re-exports shelf_static
 
 import '../database/app_database.dart';
 import 'auth.dart';
@@ -24,6 +26,12 @@ export 'middleware.dart' show clearRateLimiter;
 
 /// LAN_WEB 服务端口(LAN_WEB.md 钉死:8123,避开 80/8080 高占用)
 const int kLanWebPort = 8123;
+
+/// P3 commit 1:Flutter web build 产物路径
+/// - dev:跑 `flutter build web` 后这个目录才有内容
+/// - dev 期间目录不存在 → / 返 404 提示让 user 跑 build web(API 仍正常)
+/// - prod:macOS app 打 release 包时,build/web 应该在 build 阶段生成
+const String kWebBuildDir = 'build/web';
 
 /// HTTP server 实例
 /// - 不暴露给 fg_service isolate(避免两个 isolate 同时操作 server 句柄)
@@ -42,9 +50,42 @@ final PairingCodeStore pairingCodeStore = PairingCodeStore();
 /// Session 存储(SharedPreferences 持久化,7 天有效)
 final SessionStore sessionStore = SessionStore();
 
+/// P3 commit 1:Web 静态文件 handler
+///
+/// - build/web/ 存在 → createStaticHandler 正常服务(文件不存在时落回 index.html 给 SPA)
+/// - build/web/ 不存在(刚 git clone / 还没 build web)→ 返 404 + 提示,避免整个 / 路由 500
+Handler _buildWebStaticHandler() {
+  final dir = Directory(kWebBuildDir);
+  if (!dir.existsSync()) {
+    debugPrint(
+        '[lan_web] $kWebBuildDir 不存在;Flutter web 未 build。\n'
+        '请先跑 `flutter build web` 再启动,或访问 /api/* 用 API。');
+    return (Request request) {
+      return Response(
+        404,
+        body: jsonEncode(<String, dynamic>{
+          'error': 'web_ui_not_built',
+          'message':
+              'Flutter web 未 build。请跑 `flutter build web` 然后重启 server。',
+          'buildDir': kWebBuildDir,
+          'apiOk': 'GET /api/health 仍可访问',
+        }),
+        headers: <String, String>{'Content-Type': 'application/json'},
+      );
+    };
+  }
+  // createStaticHandler 找不到文件时 defaultDocument 落回 index.html(Flutter SPA 路由需要)
+  return createStaticHandler(
+    kWebBuildDir,
+    defaultDocument: 'index.html',
+    listDirectories: false,
+  );
+}
+
 /// 启动 HTTP server,绑 0.0.0.0:8123(同 WiFi 设备可访问,不是 localhost)
-/// P1:GET / 健康检查
+/// P1:GET /api/health 健康检查
 /// P2:+ 鉴权路由 /api/auth/* + 流水 / 分类 / 报表 / 预算
+/// P3:+ GET / 服务 Flutter web build(同端口 SPA + API)
 ///
 /// [db] 注入:数据 API 直接 query Drift,无 IPC 复杂度
 /// [port] 测试时传 0 让系统分配随机端口,避开 8123 占用冲突
@@ -59,9 +100,10 @@ Future<HttpServer> startGridlyServer({
 
   final app = Router().plus;
 
-  // P1 健康检查(P2 commit 16 增强:db counts + uptime + serverTime)
+  // 健康检查(P3 commit 1:从 / 移到 /api/health,/ 留给 web SPA)
   _serverStartedAt = DateTime.now();
-  app.get('/', () async => healthHandler(db: db, startedAt: _serverStartedAt!));
+  app.get('/api/health',
+      () async => healthHandler(db: db, startedAt: _serverStartedAt!));
 
   // P2 鉴权路由(/api/auth/*,内部 public 不需 cookie)
   registerAuthHandlers(app, pairingCodeStore, sessionStore);
@@ -72,8 +114,13 @@ Future<HttpServer> startGridlyServer({
   registerStatsHandlers(app, db);
   registerBudgetHandlers(app, db);
 
-  // P2 polish:404 catch-all(必须最后注册,兜底所有未匹配路径)
-  app.all('/<ignored|.*>', (Request request) => catchAllHandler()(request));
+  // P3 commit 1:API 404 catch-all(/api/<未匹配> 返 JSON 404,先注册让具体路由优先)
+  app.all('/api/<ignored|.*>', (Request request) => catchAllHandler()(request));
+
+  // P3 commit 1:静态文件兜底(/<非 api 路径> 走 Flutter web build)
+  //  - build/web 存在 → createStaticHandler(找不到文件 fallthrough 到 index.html 给 SPA)
+  //  - 不存在 → _buildWebStaticHandler 返 404 + 提示
+  app.all('/<ignored|.*>', _buildWebStaticHandler());
 
   // 鉴权 middleware(自动跳过 /api/auth/* + /api/health)
   // + errorHandler(任何 throw → 500 JSON,不漏 stack)

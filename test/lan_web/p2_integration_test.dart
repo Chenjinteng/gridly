@@ -67,8 +67,8 @@ void main() {
     await db.close();
   });
 
-  test('GET / returns health JSON', () async {
-    final r = await client.get(base);
+  test('GET /api/health returns health JSON', () async {
+    final r = await client.get(base.replace(path: '/api/health'));
     expect(r.statusCode, 200);
     final body = jsonDecode(r.body) as Map<String, dynamic>;
     expect(body['name'], 'gridly web');
@@ -82,6 +82,16 @@ void main() {
     expect(body['assets'], greaterThan(0)); // seed 了
     expect(body['uptimeSeconds'], greaterThanOrEqualTo(0));
     expect(body['serverTime'], isA<String>());
+  });
+
+  test('GET / 在没 build/web 时返 404 web_ui_not_built(API 不受影响)', () async {
+    // P3 commit 1:健康检查从 / 移到 /api/health,让 / 留给 Flutter web build
+    // dev 期间没 build/web → / 返 404 + 提示
+    final r = await client.get(base);
+    expect(r.statusCode, 404);
+    final body = jsonDecode(r.body) as Map<String, dynamic>;
+    expect(body['error'], 'web_ui_not_built');
+    expect(body['apiOk'], contains('/api/health'));
   });
 
   test('GET /api/auth/code returns 6-digit code', () async {

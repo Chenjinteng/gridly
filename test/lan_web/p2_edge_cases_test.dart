@@ -697,7 +697,7 @@ void main() {
 
     test('H2: 实际请求带 Origin → 响应带 Allow-Origin echo', () async {
       final r = await client.get(
-        base.replace(path: '/'),
+        base.replace(path: '/api/health'),
         headers: {'Origin': 'http://localhost:3000'},
       );
       expect(r.statusCode, 200);
@@ -709,7 +709,7 @@ void main() {
     });
 
     test('H3: 不带 Origin → 不加 CORS 头(curl/原生命令行场景)', () async {
-      final r = await client.get(base.replace(path: '/'));
+      final r = await client.get(base.replace(path: '/api/health'));
       expect(r.statusCode, 200);
       // 没 Origin 就没 Allow-Origin
       expect(r.headers.containsKey('access-control-allow-origin'), false);
@@ -723,7 +723,7 @@ void main() {
       // 公共端点 + 无 cookie 走 "anonymous" bucket,默认 60/s
       int rate429 = 0;
       for (var i = 0; i < 70; i++) {
-        final r = await client.get(base.replace(path: '/'));
+        final r = await client.get(base.replace(path: '/api/health'));
         if (r.statusCode == 429) rate429++;
       }
       // 60/s 限制,70 req 至少 10 个应超限
@@ -734,10 +734,10 @@ void main() {
     test('R2: 429 响应带 Retry-After + limit + windowSeconds', () async {
       // 跑满一次限流拿 429
       for (var i = 0; i < 70; i++) {
-        await client.get(base.replace(path: '/'));
+        await client.get(base.replace(path: '/api/health'));
       }
       // 第 71 次必超
-      final r = await client.get(base.replace(path: '/'));
+      final r = await client.get(base.replace(path: '/api/health'));
       if (r.statusCode == 429) {
         expect(r.headers['retry-after'], '1');
         final body = jsonDecode(r.body) as Map<String, dynamic>;
@@ -755,8 +755,8 @@ void main() {
   // ========================= S. security headers =========================
 
   group('S. security headers', () {
-    test('S1: GET / 带 4 个安全 header', () async {
-      final r = await client.get(base.replace(path: '/'));
+    test('S1: GET /api/health 带 4 个安全 header', () async {
+      final r = await client.get(base.replace(path: '/api/health'));
       expect(r.statusCode, 200);
       expect(r.headers['x-content-type-options'], 'nosniff');
       expect(r.headers['x-frame-options'], 'DENY');
