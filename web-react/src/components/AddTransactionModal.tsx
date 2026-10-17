@@ -1,9 +1,8 @@
-// AddTransaction modal: 记一笔
-// 简化:支出/收入/调拨 3 段 + 分类下拉(按 type 过滤) + 账户下拉 + 金额 + 备注 + 提交
-// 不做批量录入(Phase 1 简化)
+// AddTransaction modal: 记一笔 (Linear 风 — 紧凑、贴边风格)
+// 支出/收入/调拨 3 段 + 分类下拉 + 账户下拉 + 金额 + 备注 + 提交
 import { useMemo, useState } from 'react';
 import { api, type Category, type Account, type LedgerType, type CategoryType } from '../api/client';
-import { theme } from '../theme';
+import { useTheme } from '../theme';
 
 interface Props {
   categories: Category[];
@@ -15,12 +14,13 @@ interface Props {
 const type2cat: Record<LedgerType, CategoryType> = {
   expense: 'cash_flow',
   income: 'cash_flow',
-  transfer: 'cash_flow', // 调拨也走 cash_flow(简化,server 端可能细分)
+  transfer: 'cash_flow',
 };
 
 const typeLabel = (t: LedgerType) => ({ expense: '支出', income: '收入', transfer: '调拨' }[t]);
 
 export default function AddTransactionModal({ categories, accounts, onClose, onAdded }: Props) {
+  const theme = useTheme();
   const [type, setType] = useState<LedgerType>('expense');
   const [categoryId, setCategoryId] = useState<number | ''>('');
   const [accountId, setAccountId] = useState<number | ''>(accounts[0]?.id ?? '');
@@ -32,9 +32,30 @@ export default function AddTransactionModal({ categories, accounts, onClose, onA
   const [error, setError] = useState<string | null>(null);
 
   const filteredCats = useMemo(
-    () => categories.filter((c) => c.type === type2cat[type] && !c.isSystem /* 默认系统类过滤 */),
+    () => categories.filter((c) => c.type === type2cat[type] && !c.isSystem),
     [categories, type]
   );
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block',
+    fontSize: 12,
+    color: theme.textSecondary,
+    marginBottom: 6,
+    fontWeight: 500,
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '6px 10px',
+    border: `1px solid ${theme.border}`,
+    borderRadius: theme.radius.md,
+    fontSize: 13,
+    background: theme.surface,
+    color: theme.textPrimary,
+    fontFamily: theme.fontFamily,
+    outline: 'none',
+    boxSizing: 'border-box',
+  };
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -77,7 +98,7 @@ export default function AddTransactionModal({ categories, accounts, onClose, onA
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(15, 23, 42, 0.4)',
+        background: 'rgba(15, 20, 25, 0.5)',
         display: 'grid',
         placeItems: 'center',
         zIndex: 100,
@@ -88,18 +109,26 @@ export default function AddTransactionModal({ categories, accounts, onClose, onA
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
-          maxWidth: 480,
+          maxWidth: 440,
           background: theme.surface,
-          borderRadius: theme.radius.xl,
-          padding: 24,
-          boxShadow: theme.shadow.md,
+          borderRadius: theme.radius.lg,
+          padding: 20,
+          border: `1px solid ${theme.border}`,
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>记一笔</h2>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>记一笔</h2>
           <button
             onClick={onClose}
-            style={{ background: 'none', border: 'none', fontSize: 20, color: theme.textTertiary, cursor: 'pointer' }}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              fontSize: 18,
+              color: theme.textTertiary,
+              cursor: 'pointer',
+              padding: 0,
+              lineHeight: 1,
+            }}
           >
             ×
           </button>
@@ -107,7 +136,15 @@ export default function AddTransactionModal({ categories, accounts, onClose, onA
 
         <form onSubmit={handleSubmit}>
           {/* 类型 */}
-          <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
+          <div
+            style={{
+              display: 'flex',
+              border: `1px solid ${theme.border}`,
+              borderRadius: theme.radius.md,
+              overflow: 'hidden',
+              marginBottom: 14,
+            }}
+          >
             {(['expense', 'income', 'transfer'] as const).map((t) => (
               <button
                 key={t}
@@ -118,12 +155,11 @@ export default function AddTransactionModal({ categories, accounts, onClose, onA
                 }}
                 style={{
                   flex: 1,
-                  padding: '8px 0',
-                  border: `1px solid ${type === t ? theme.primary : theme.border}`,
-                  background: type === t ? theme.primary : theme.surface,
-                  color: type === t ? theme.primaryFg : theme.textPrimary,
-                  borderRadius: theme.radius.md,
-                  fontSize: 13,
+                  padding: '6px 0',
+                  border: 'none',
+                  background: type === t ? theme.primary : 'transparent',
+                  color: type === t ? theme.primaryFg : theme.textSecondary,
+                  fontSize: 12,
                   fontWeight: 500,
                   cursor: 'pointer',
                   fontFamily: theme.fontFamily,
@@ -135,7 +171,7 @@ export default function AddTransactionModal({ categories, accounts, onClose, onA
           </div>
 
           {/* 金额 */}
-          <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 14 }}>
             <label style={labelStyle}>金额</label>
             <input
               type="number"
@@ -145,12 +181,12 @@ export default function AddTransactionModal({ categories, accounts, onClose, onA
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0.00"
               autoFocus
-              style={{ ...inputStyle, fontSize: 20, fontFamily: theme.fontFamilyMono, fontWeight: 600 }}
+              style={{ ...inputStyle, fontSize: 18, fontFamily: theme.fontFamilyMono, fontWeight: 600 }}
             />
           </div>
 
           {/* 分类 */}
-          <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 14 }}>
             <label style={labelStyle}>分类</label>
             <select
               value={categoryId}
@@ -167,7 +203,7 @@ export default function AddTransactionModal({ categories, accounts, onClose, onA
           </div>
 
           {/* 账户 */}
-          <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 14 }}>
             <label style={labelStyle}>{type === 'transfer' ? '转出账户' : '账户'}</label>
             <select
               value={accountId}
@@ -184,7 +220,7 @@ export default function AddTransactionModal({ categories, accounts, onClose, onA
           </div>
 
           {type === 'transfer' && (
-            <div style={{ marginBottom: 16 }}>
+            <div style={{ marginBottom: 14 }}>
               <label style={labelStyle}>转入账户</label>
               <select
                 value={destAccountId}
@@ -204,7 +240,7 @@ export default function AddTransactionModal({ categories, accounts, onClose, onA
           )}
 
           {/* 日期 */}
-          <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 14 }}>
             <label style={labelStyle}>日期</label>
             <input
               type="date"
@@ -215,7 +251,7 @@ export default function AddTransactionModal({ categories, accounts, onClose, onA
           </div>
 
           {/* 备注 */}
-          <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 14 }}>
             <label style={labelStyle}>备注</label>
             <input
               type="text"
@@ -230,12 +266,12 @@ export default function AddTransactionModal({ categories, accounts, onClose, onA
           {error && (
             <div
               style={{
-                background: '#FEF2F2',
+                background: 'rgba(235, 87, 87, 0.1)',
                 color: theme.error,
-                padding: '8px 12px',
+                padding: '6px 10px',
                 borderRadius: theme.radius.sm,
                 fontSize: 12,
-                marginBottom: 12,
+                marginBottom: 10,
               }}
             >
               {error}
@@ -247,12 +283,12 @@ export default function AddTransactionModal({ categories, accounts, onClose, onA
               type="button"
               onClick={onClose}
               style={{
-                padding: '8px 16px',
+                padding: '6px 14px',
                 background: theme.surface,
                 color: theme.textPrimary,
                 border: `1px solid ${theme.border}`,
                 borderRadius: theme.radius.md,
-                fontSize: 13,
+                fontSize: 12,
                 cursor: 'pointer',
                 fontFamily: theme.fontFamily,
               }}
@@ -263,12 +299,12 @@ export default function AddTransactionModal({ categories, accounts, onClose, onA
               type="submit"
               disabled={submitting}
               style={{
-                padding: '8px 20px',
+                padding: '6px 16px',
                 background: theme.primary,
                 color: theme.primaryFg,
                 border: 'none',
                 borderRadius: theme.radius.md,
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: 600,
                 cursor: submitting ? 'not-allowed' : 'pointer',
                 opacity: submitting ? 0.6 : 1,
@@ -283,24 +319,3 @@ export default function AddTransactionModal({ categories, accounts, onClose, onA
     </div>
   );
 }
-
-const labelStyle: React.CSSProperties = {
-  display: 'block',
-  fontSize: 12,
-  color: theme.textSecondary,
-  marginBottom: 6,
-  fontWeight: 500,
-};
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '8px 12px',
-  border: `1px solid ${theme.border}`,
-  borderRadius: theme.radius.md,
-  fontSize: 14,
-  background: theme.surface,
-  color: theme.textPrimary,
-  fontFamily: theme.fontFamily,
-  outline: 'none',
-  boxSizing: 'border-box',
-};

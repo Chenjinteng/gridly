@@ -5,7 +5,8 @@
 // 3. 成功 → server set cookie 7 天,onPaired() 跳首页
 import { useEffect, useState } from 'react';
 import { api, ApiError, type PairingCode } from '../api/client';
-import { theme } from '../theme';
+import { useTheme, useThemeMode } from '../theme';
+import { Logo } from '../components/Logo';
 
 interface Props {
   onPaired: () => void;
@@ -45,6 +46,8 @@ function defaultDeviceIcon(): string {
 }
 
 export default function Login({ onPaired }: Props) {
+  const theme = useTheme();
+  const { mode } = useThemeMode();
   const [pairing, setPairing] = useState<PairingCode | null>(null);
   const [pairingError, setPairingError] = useState<string | null>(null);
   const [deviceName, setDeviceName] = useState(defaultDeviceName());
@@ -106,33 +109,30 @@ export default function Login({ onPaired }: Props) {
       <div
         style={{
           width: '100%',
-          maxWidth: 420,
+          maxWidth: 400,
           background: theme.surface,
           border: `1px solid ${theme.border}`,
-          borderRadius: 12,
-          padding: '40px 36px',
-          boxShadow: theme.shadow.md,
+          borderRadius: theme.radius.lg,
+          padding: '32px 32px',
         }}
       >
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <div
             style={{
               width: 56,
               height: 56,
-              background: theme.primary,
-              borderRadius: 12,
+              background: theme.surfaceAlt,
+              border: `1px solid ${theme.border}`,
+              borderRadius: theme.radius.md,
               display: 'grid',
               placeItems: 'center',
-              color: theme.primaryFg,
-              fontWeight: 700,
-              fontSize: 28,
               margin: '0 auto 16px',
             }}
           >
-            ▦
+            <Logo size={36} mode={mode} />
           </div>
-          <h1 style={{ margin: 0, fontSize: 22, color: theme.textPrimary }}>连接 gridly</h1>
-          <p style={{ margin: '6px 0 0', color: theme.textSecondary, fontSize: 13 }}>
+          <h1 style={{ margin: 0, fontSize: 18, color: theme.textPrimary, fontWeight: 700 }}>连接 gridly</h1>
+          <p style={{ margin: '4px 0 0', color: theme.textSecondary, fontSize: 12 }}>
             在手机 app「设置 → 局域网 Web」查看配对码
           </p>
         </div>
@@ -140,12 +140,12 @@ export default function Login({ onPaired }: Props) {
         {pairingError ? (
           <div
             style={{
-              background: '#FEF2F2',
+              background: 'rgba(235, 87, 87, 0.1)',
               border: `1px solid ${theme.error}`,
               color: theme.error,
-              padding: '12px 16px',
+              padding: '10px 12px',
               borderRadius: theme.radius.md,
-              fontSize: 13,
+              fontSize: 12,
               marginBottom: 16,
             }}
           >
@@ -159,13 +159,13 @@ export default function Login({ onPaired }: Props) {
                 padding: '20px 0',
                 marginBottom: 20,
                 background: theme.surfaceAlt,
-                borderRadius: theme.radius.lg,
+                borderRadius: theme.radius.md,
               }}
             >
               <div
                 style={{
                   fontFamily: theme.fontFamilyMono,
-                  fontSize: 36,
+                  fontSize: 32,
                   fontWeight: 600,
                   letterSpacing: 8,
                   color: theme.primary,
@@ -211,16 +211,16 @@ export default function Login({ onPaired }: Props) {
                 maxLength={32}
                 style={{
                   width: '100%',
-                  padding: '8px 12px',
+                  padding: '6px 10px',
                   border: `1px solid ${theme.border}`,
                   borderRadius: theme.radius.md,
-                  fontSize: 14,
+                  fontSize: 13,
                   background: theme.surface,
                   color: theme.textPrimary,
                   fontFamily: theme.fontFamily,
                   outline: 'none',
                   boxSizing: 'border-box',
-                  marginBottom: 16,
+                  marginBottom: 14,
                 }}
               />
 
@@ -235,16 +235,16 @@ export default function Login({ onPaired }: Props) {
               >
                 设备图标
               </label>
-              <div style={{ display: 'flex', gap: 6, marginBottom: 24, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
                 {['💻', '🖥️', '🌐', '🏠', '📱', '🐧'].map((emoji) => (
                   <button
                     key={emoji}
                     type="button"
                     onClick={() => setDeviceIcon(emoji)}
                     style={{
-                      width: 40,
-                      height: 40,
-                      fontSize: 20,
+                      width: 36,
+                      height: 36,
+                      fontSize: 18,
                       border: `1px solid ${deviceIcon === emoji ? theme.primary : theme.border}`,
                       background: deviceIcon === emoji ? theme.surfaceAlt : theme.surface,
                       borderRadius: theme.radius.md,
@@ -259,12 +259,12 @@ export default function Login({ onPaired }: Props) {
               {submitError && (
                 <div
                   style={{
-                    background: '#FEF2F2',
+                    background: 'rgba(235, 87, 87, 0.1)',
                     color: theme.error,
-                    padding: '8px 12px',
+                    padding: '6px 10px',
                     borderRadius: theme.radius.sm,
                     fontSize: 12,
-                    marginBottom: 12,
+                    marginBottom: 10,
                   }}
                 >
                   {submitError}
@@ -276,12 +276,12 @@ export default function Login({ onPaired }: Props) {
                 disabled={submitting || secondsLeft === 0}
                 style={{
                   width: '100%',
-                  padding: '10px',
+                  padding: '8px',
                   background: theme.primary,
                   color: theme.primaryFg,
                   border: 'none',
                   borderRadius: theme.radius.md,
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: 600,
                   cursor: submitting || secondsLeft === 0 ? 'not-allowed' : 'pointer',
                   opacity: submitting || secondsLeft === 0 ? 0.6 : 1,

@@ -1,11 +1,14 @@
-// 顶部栏:logo + 配对码 + 记一笔 + 导航 + 登出
+// 顶部 nav:Linear 风,贴边全宽,左 logo+nav,右 controls,16px 横向内边距
 import { useNavigate, useLocation } from 'react-router-dom';
-import { theme } from '../theme';
+import { useTheme, useThemeMode } from '../theme';
 import { api } from '../api/client';
+import { Logo } from './Logo';
 
 export default function TopBar() {
   const navigate = useNavigate();
   const location = useLocation();
+  const theme = useTheme();
+  const { mode, toggle } = useThemeMode();
 
   const logout = async () => {
     try {
@@ -14,7 +17,6 @@ export default function TopBar() {
       // 即使失败也跳走
     }
     navigate('/login');
-    // 强制刷新让 App 重检 auth
     setTimeout(() => window.location.reload(), 50);
   };
 
@@ -23,14 +25,16 @@ export default function TopBar() {
     return (
       <button
         onClick={() => navigate(path)}
+        className="nav-item"
         style={{
-          background: 'none',
+          background: active ? theme.surfaceAlt : 'transparent',
           border: 'none',
-          color: active ? theme.primary : theme.textSecondary,
-          fontSize: 13,
+          color: active ? theme.textPrimary : theme.textSecondary,
+          fontSize: 12,
           fontWeight: active ? 600 : 500,
           cursor: 'pointer',
-          padding: '4px 8px',
+          padding: '5px 10px',
+          borderRadius: theme.radius.md,
           fontFamily: theme.fontFamily,
         }}
       >
@@ -40,66 +44,75 @@ export default function TopBar() {
   };
 
   return (
-    <header
+    <nav
       style={{
-        height: 56,
-        padding: '0 24px',
-        background: theme.surface,
-        borderBottom: `1px solid ${theme.border}`,
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        gap: 4,
+        padding: '6px 0',
+        background: theme.surface,
+        borderBottom: `1px solid ${theme.border}`,
         position: 'sticky',
         top: 0,
         zIndex: 10,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div
-            style={{
-              width: 28,
-              height: 28,
-              background: theme.primary,
-              borderRadius: 6,
-              display: 'grid',
-              placeItems: 'center',
-              color: theme.primaryFg,
-              fontWeight: 700,
-              fontSize: 14,
-            }}
-          >
-            ▦
-          </div>
-          <span style={{ fontSize: 16, fontWeight: 600, color: theme.textPrimary }}>gridly</span>
-          <span style={{ color: theme.textTertiary, fontSize: 13 }}>· 局域网记账</span>
-        </div>
-        <nav style={{ display: 'flex', gap: 4 }}>
-          {navItem('/', '流水')}
-          {navItem('/sessions', '设备')}
-        </nav>
+      <div style={{ flex: '0 0 16px' }} />
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          fontSize: 13,
+          fontWeight: 600,
+          color: theme.textPrimary,
+          marginRight: 4,
+        }}
+      >
+        <Logo size={16} mode={mode} />
+        gridly
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-        <span style={{ color: theme.textSecondary, fontSize: 13 }}>
-          配对码{' '}
-          <strong style={{ fontFamily: theme.fontFamilyMono, color: theme.primary }}>
-            通过 server 读
-          </strong>
-        </span>
+      {navItem('/', '流水')}
+      {navItem('/sessions', '设备')}
+      <div style={{ flex: 1 }} />
+      <div style={{ flex: '0 0 16px' }} />
+      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+        <button
+          onClick={toggle}
+          title={mode === 'light' ? '切换到深色' : '切换到浅色'}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: theme.textSecondary,
+            fontSize: 12,
+            cursor: 'pointer',
+            padding: '4px 10px',
+            borderRadius: theme.radius.md,
+            fontFamily: theme.fontFamily,
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = theme.surfaceAlt)}
+          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+        >
+          {mode === 'light' ? '🌙' : '☀️'}
+        </button>
         <button
           onClick={logout}
           style={{
-            background: 'none',
+            background: 'transparent',
             border: 'none',
             color: theme.textSecondary,
-            fontSize: 13,
+            fontSize: 12,
             cursor: 'pointer',
+            padding: '4px 10px',
+            borderRadius: theme.radius.md,
             fontFamily: theme.fontFamily,
           }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = theme.surfaceAlt)}
+          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
         >
           登出
         </button>
       </div>
-    </header>
+    </nav>
   );
 }
