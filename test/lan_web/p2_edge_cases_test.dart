@@ -751,4 +751,34 @@ void main() {
       }
     });
   });
+
+  // ========================= S. security headers =========================
+
+  group('S. security headers', () {
+    test('S1: GET / 带 4 个安全 header', () async {
+      final r = await client.get(base.replace(path: '/'));
+      expect(r.statusCode, 200);
+      expect(r.headers['x-content-type-options'], 'nosniff');
+      expect(r.headers['x-frame-options'], 'DENY');
+      expect(r.headers['referrer-policy'], 'no-referrer');
+      expect(r.headers['cache-control'], 'no-store');
+    });
+
+    test('S2: OPTIONS 预检也带安全 header(避免某些浏览器拒预检)', () async {
+      final r = await client.send(http.Request('OPTIONS',
+              base.replace(path: '/api/auth/code'))
+          ..headers['Origin'] = 'http://localhost:3000'
+          ..headers['Access-Control-Request-Method'] = 'GET');
+      expect(r.statusCode, 204);
+      expect(r.headers['x-content-type-options'], 'nosniff');
+      expect(r.headers['x-frame-options'], 'DENY');
+    });
+
+    test('S3: 401 错误响应也带安全 header', () async {
+      final r = await client.get(base.replace(path: '/api/ledgers'));
+      expect(r.statusCode, 401);
+      expect(r.headers['x-content-type-options'], 'nosniff');
+      expect(r.headers['cache-control'], 'no-store');
+    });
+  });
 }

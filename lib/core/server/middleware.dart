@@ -59,6 +59,35 @@ Handler catchAllHandler() {
   };
 }
 
+/// Security headers middleware
+///
+/// 给所有响应加基础安全 header,防常见 web 攻击:
+/// - X-Content-Type-Options: nosniff — 阻止 MIME 嗅探(浏览器不应猜类型)
+/// - X-Frame-Options: DENY — 禁止 iframe 嵌入(防 clickjacking)
+/// - Referrer-Policy: no-referrer — 不发送 Referer(隐私)
+/// - Cache-Control: no-store — 响应不缓存(财务数据不应被中间代理缓存)
+///   (P3 web UI 自己做前端缓存即可)
+///
+/// 不强制 Strict-Transport-Security(LAN_WEB 走 HTTP 不上 HTTPS,加 HSTS 反而误导)
+/// 不强制 Content-Security-Policy(P3 web UI 自己控制;API 端不需要)
+///
+/// 在 OPTIONS 预检响应也加(避免某些浏览器因缺安全 header 拒预检)
+Middleware securityHeaders() {
+  return (Handler inner) {
+    return (Request request) async {
+      final resp = await inner(request);
+      final updated = <String, String>{
+        ...resp.headers,
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY',
+        'Referrer-Policy': 'no-referrer',
+        'Cache-Control': 'no-store',
+      };
+      return resp.change(headers: updated);
+    };
+  };
+}
+
 /// CORS middleware
 ///
 /// 给所有响应加 `Access-Control-Allow-*` headers,支持浏览器跨源请求(P3 Web UI)。

@@ -77,13 +77,16 @@ Future<HttpServer> startGridlyServer({
 
   // 鉴权 middleware(自动跳过 /api/auth/* + /api/health)
   // + errorHandler(任何 throw → 500 JSON,不漏 stack)
+  // + securityHeaders(防 MIME 嗅探 / clickjacking / referrer 泄露 / 中间缓存)
   // + bodySizeLimit(> 1MB 早返 413,防 OOM)
   // + cors(OPTIONS 预检 204;其它响应 echo Origin 让 P3 web UI 跨源)
   // + rateLimit(每 session token 60 req/sec;超返 429 带 Retry-After:1)
   //   顺序:rateLimit 在 auth 之后,这样 key 是 session token(更准);
   //   但 401/404 等错误也会消耗 1 次额度(可接受,反正超 60/s 才会限)
+  //   securityHeaders 在最外层(errorHandler 之后),保证所有响应都带
   final handler = const Pipeline()
       .addMiddleware(errorHandler())
+      .addMiddleware(securityHeaders())
       .addMiddleware(cors())
       .addMiddleware(bodySizeLimit())
       .addMiddleware(authMiddleware(sessionStore))
