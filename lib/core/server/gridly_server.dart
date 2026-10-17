@@ -51,17 +51,21 @@ final PairingCodeStore pairingCodeStore = PairingCodeStore();
 /// Session 存储(SharedPreferences 持久化,7 天有效)
 final SessionStore sessionStore = SessionStore();
 
-/// 探活:dir 存在 + 真的能 open 里面任意一个文件
+/// 探活:dir 存在 + 真的能 open index.html 文件
 ///
 /// macOS sandbox 让 `Directory.existsSync()` 通过(stat syscall 不被拦)
 /// 但 `File.openSync()` 被拒(Operation not permitted, errno = 1)。
 /// 这俩 syscall 行为不一致,只信 stat 会以为可读,实际 SPA fallback 读 index.html
-/// 时崩。开个文件验证更靠谱。
+/// 时崩。`listSync` 也只是 stat 子项(子目录 entry stat 通过 ≠ 文件 read 通过),
+/// 不可靠。必须直接 open index.html 文件本身。
 bool _isDirReadable(String dirPath) {
   try {
     if (!Directory(dirPath).existsSync()) return false;
-    // 尝试 list 一项 — list 也算 open,被 sandbox 拦就 fall through
-    Directory(dirPath).listSync().take(1);
+    final indexFile = File(p.join(dirPath, 'index.html'));
+    if (!indexFile.existsSync()) return false;
+    // open + 立刻 close 验证 read 权限
+    final raf = indexFile.openSync(mode: FileMode.read);
+    raf.closeSync();
     return true;
   } catch (_) {
     return false;
