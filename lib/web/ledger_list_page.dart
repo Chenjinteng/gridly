@@ -1,8 +1,10 @@
 // lib/web/ledger_list_page.dart
 // LAN_WEB v2.0.0 P3 commit 4 ledger list + 月度汇总卡片(真实数据)
+// P3 commit 5:加记一笔 FAB → showModalBottomSheet
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import 'add_ledger_sheet.dart';
 import 'api_client.dart';
 
 class LedgerListPage extends StatefulWidget {
@@ -17,6 +19,7 @@ class LedgerListPage extends StatefulWidget {
 
 class _LedgerListPageState extends State<LedgerListPage> {
   late Future<_LedgerData> _future;
+  _LedgerData? _lastData; // 最近一次成功加载的数据(给 FAB 用)
   late int _year;
   late int _month;
 
@@ -67,6 +70,22 @@ class _LedgerListPageState extends State<LedgerListPage> {
     widget.onLogout();
   }
 
+  Future<void> _openAddSheet(_LedgerData data) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: false,
+      builder: (ctx) => AddLedgerSheet(
+        api: widget.api,
+        categories: data.categories,
+        onSaved: () {
+          // 保存成功,刷新当前数据
+          if (mounted) setState(_refresh);
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -99,6 +118,7 @@ class _LedgerListPageState extends State<LedgerListPage> {
             );
           }
           final data = snap.data!;
+          _lastData = data; // cache for FAB
           final catMap = {
             for (final c in data.categories) c['id'] as int: c,
           };
@@ -136,16 +156,13 @@ class _LedgerListPageState extends State<LedgerListPage> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          // P3 commit 5 接管:记一笔 modal
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('记一笔:待 P3 commit 5 实现')),
-          );
-        },
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('记一笔'),
-      ),
+      floatingActionButton: _lastData != null
+          ? FloatingActionButton.extended(
+              onPressed: () => _openAddSheet(_lastData!),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('记一笔'),
+            )
+          : null,
     );
   }
 }

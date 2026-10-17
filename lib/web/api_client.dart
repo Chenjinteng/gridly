@@ -93,6 +93,30 @@ class WebApiClient {
     return (body['ledgers'] as List).cast<Map<String, dynamic>>();
   }
 
+  /// 新增流水
+  /// [type]: 'expense' | 'income' | 'balance'
+  Future<Map<String, dynamic>> createLedger({
+    required double amount,
+    required String type,
+    required int categoryId,
+    required DateTime occurredAt,
+    String? note,
+  }) async {
+    final r = await http.post(
+      Uri.parse('$_baseUrl/api/ledgers'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'amount': amount,
+        'type': type,
+        'categoryId': categoryId,
+        'occurredAt': occurredAt.toUtc().toIso8601String(),
+        'note': ?note,
+      }),
+    );
+    final body = _decodeJson(r);
+    return body['ledger'] as Map<String, dynamic>;
+  }
+
   /// 分类列表
   Future<List<Map<String, dynamic>>> listCategories({String? type}) async {
     final qp = <String, String>{};
