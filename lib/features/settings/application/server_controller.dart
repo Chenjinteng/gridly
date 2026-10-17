@@ -23,6 +23,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../core/database/app_database.dart';
+import '../../../core/database/providers.dart';
 import '../../../core/server/gridly_server.dart';
 import '../../../core/server/lan_web_task_handler.dart';
 
@@ -85,9 +87,12 @@ class LanWebState {
 /// - macOS dev 模式不支持 fg_task,走 direct shelf server 路径(不经 fg_task)
 ///   让 macOS 也能 toggle 测试 server 部分;fg_service 那块(锁屏/常驻通知)必须 Android 真机测
 class LanWebController extends StateNotifier<LanWebState> {
-  LanWebController() : super(LanWebState.initial) {
+  LanWebController(this._db) : super(LanWebState.initial) {
     _init();
   }
+
+  /// AppDatabase 注入(startGridlyServer 需要)
+  final AppDatabase _db;
 
   /// 当前平台是否支持 fg_task(仅 Android / iOS,macOS 不支持)
   /// false 时走 dev mode:直接 startGridlyServer() / stopGridlyServer()
@@ -168,7 +173,7 @@ class LanWebController extends StateNotifier<LanWebState> {
   /// macOS dev 上能跑通 shelf HTTP server,让浏览器访问 http://127.0.0.1:8123/ 验 JSON
   Future<bool> _startServerDirect() async {
     try {
-      final server = await startGridlyServer();
+      final server = await startGridlyServer(db: _db);
       return server != null;
     } catch (e) {
       debugPrint('dev mode startGridlyServer error: $e');
@@ -227,7 +232,7 @@ class LanWebController extends StateNotifier<LanWebState> {
 
     // 3. start HTTP server in main isolate
     try {
-      await startGridlyServer();
+      await startGridlyServer(db: _db);
       return true;
     } catch (e) {
       // server 起不来就回滚 fg_service
@@ -259,5 +264,5 @@ class LanWebController extends StateNotifier<LanWebState> {
 /// Provider 入口
 final lanWebControllerProvider =
     StateNotifierProvider<LanWebController, LanWebState>((ref) {
-  return LanWebController();
+  return LanWebController(ref.read(databaseProvider));
 });

@@ -10,9 +10,14 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart'; // shelf_plus 不 re-export shelf_io,显式 import 拿 serve()
 import 'package:shelf_plus/shelf_plus.dart';
 
+import '../database/app_database.dart';
 import 'auth.dart';
 import 'handlers/auth_handler.dart';
+import 'handlers/budget_handler.dart';
+import 'handlers/categories_handler.dart';
 import 'handlers/health_handler.dart';
+import 'handlers/ledgers_handler.dart';
+import 'handlers/stats_handler.dart';
 
 /// LAN_WEB 服务端口(LAN_WEB.md 钉死:8123,避开 80/8080 高占用)
 const int kLanWebPort = 8123;
@@ -35,22 +40,26 @@ final SessionStore sessionStore = SessionStore();
 /// P1:GET / 健康检查
 /// P2:+ 鉴权路由 /api/auth/* + 流水 / 分类 / 报表 / 预算
 ///
+/// [db] 注入:数据 API 直接 query Drift,无 IPC 复杂度
 /// 由 [LanWebController.setEnabled] 在 main isolate 调(dev mode + Android 都走这条)
-Future<HttpServer> startGridlyServer() async {
+Future<HttpServer> startGridlyServer({required AppDatabase db}) async {
   if (_server != null) return _server!;
   // 先加载持久化的 sessions(in-memory cache 准备好)
   await sessionStore.load();
 
   final app = Router().plus;
 
-  // P1 健康检查
+  // P1 健康检查(public)
   app.get('/', () => healthHandler());
 
-  // P2 鉴权路由(/api/auth/*)
+  // P2 鉴权路由(/api/auth/*,内部 public 不需 cookie)
   registerAuthHandlers(app, pairingCodeStore, sessionStore);
 
-  // P2 数据 API(/api/ledgers /api/categories /api/stats /api/budget)
-  // 后续 commit 3-6 加
+  // P2 数据 API(protected,middleware 校验 cookie)
+  registerLedgersHandlers(app, db);
+  registerCategoriesHandlers(app, db);
+  registerStatsHandlers(app, db);
+  registerBudgetHandlers(app, db);
 
   // 鉴权 middleware(自动跳过 /api/auth/* + /api/health)
   final handler = const Pipeline()
