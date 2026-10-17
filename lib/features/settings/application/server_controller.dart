@@ -28,31 +28,31 @@ import '../../../core/server/lan_web_task_handler.dart';
 
 const _kLanWebEnabledKey = 'lan_web_enabled';
 
-/// LAN_WEB 状态:enable 持久化 + 当前 WiFi IP + fg service 是否在跑
+/// LAN_WEB 状态:enable 持久化 + 当前 WiFi IP + service 是否在跑
 class LanWebState {
   const LanWebState({
     required this.enabled,
     required this.ip,
     required this.serviceRunning,
-    required this.supported,
+    required this.devMode,
   });
 
   final bool enabled;
   final String? ip;            // 当前 WiFi IP(enabled = true 时显示)
-  final bool serviceRunning;   // fg service 是否在跑
-  final bool supported;        // 当前平台是否支持 fg service(Android/iOS = true,macOS = false)
+  final bool serviceRunning;   // 服务是否在跑(fg_service on Android,direct server on macOS dev)
+  final bool devMode;          // dev mode = 当前平台不支持 fg_task(macOS),走 direct server 路径
 
   LanWebState copyWith({
     bool? enabled,
     String? ip,
     bool? serviceRunning,
-    bool? supported,
+    bool? devMode,
   }) {
     return LanWebState(
       enabled: enabled ?? this.enabled,
       ip: ip ?? this.ip,
       serviceRunning: serviceRunning ?? this.serviceRunning,
-      supported: supported ?? this.supported,
+      devMode: devMode ?? this.devMode,
     );
   }
 
@@ -66,7 +66,7 @@ class LanWebState {
     enabled: false,
     ip: null,
     serviceRunning: false,
-    supported: true,
+    devMode: false,
   );
 }
 
@@ -75,46 +75,53 @@ class LanWebState {
 /// 注意:
 /// - addTaskDataCallback 在 init() 之后才生效,所以 dispose 时必须 remove
 /// - isRunningService 是异步查询,UI 显示可能有 1-2 秒延迟
-/// - macOS 不支持 fg_task,所有 fg_task 调用在 !supported 平台早返,避免 macOS dev 崩
+/// - macOS dev 模式不支持 fg_task,走 direct shelf server 路径(不经 fg_task)
+///   让 macOS 也能 toggle 测试 server 部分;fg_service 那块(锁屏/常驻通知)必须 Android 真机测
 class LanWebController extends StateNotifier<LanWebState> {
   LanWebController() : super(LanWebState.initial) {
     _init();
   }
 
-  /// 当前平台是否支持 fg_task(仅 Android / iOS,macOS dev 模式不支持)
+  /// 当前平台是否支持 fg_task(仅 Android / iOS,macOS 不支持)
+  /// false 时走 dev mode:直接 startGridlyServer() / stopGridlyServer()
   static bool get _isSupportedPlatform =>
       Platform.isAndroid || Platform.isIOS;
 
   Future<void> _init() async {
     final supported = _isSupportedPlatform;
+    final devMode = !supported;
+
     // 1. 加载持久化的 enable 状态
     final prefs = await SharedPreferences.getInstance();
     final savedEnabled = prefs.getBool(_kLanWebEnabledKey) ?? false;
 
-    // 2. 检测当前 WiFi IP(Android 平台)
+    // 2. 检测当前 WiFi IP(任何平台都试,macOS dev 也能显示)
     String? ip;
-    if (Platform.isAndroid) {
-      try {
-        ip = await NetworkInfo().getWifiIP();
-      } catch (e) {
-        // network_info_plus 在没有 WiFi / 飞行模式会抛
-        debugPrint('NetworkInfo.getWifiIP error: $e');
-      }
+    try {
+      ip = await NetworkInfo().getWifiIP();
+    } catch (e) {
+      // network_info_plus 在没 WiFi / 飞行模式会抛
+      debugPrint('NetworkInfo.getWifiIP error: $e');
     }
 
-    // 3. 检测 fg service 当前是否在跑(可能上次没正确停)
+    // 3. 检测服务是否在跑
+    //   - supported:查 fg_task 的真实状态
+    //   - devMode:看持久化的 enable(简化处理,init 时假设上次状态有效)
     bool isRunning = false;
     if (supported) {
       isRunning = await FlutterForegroundTask.isRunningService;
       // 4. 注册 service → main 通信回调(P1 不用,但保留接口给 P2)
       FlutterForegroundTask.addTaskDataCallback(_onServiceData);
+    } else {
+      // dev mode:无 fg_task,init 时无法查 server 真实状态,后续 toggle 即可
+      isRunning = false;
     }
 
     state = LanWebState(
       enabled: savedEnabled && isRunning,
       ip: ip,
       serviceRunning: isRunning,
-      supported: supported,
+      devMode: devMode,
     );
   }
 
@@ -125,26 +132,42 @@ class LanWebController extends StateNotifier<LanWebState> {
   /// 用户切换开关
   Future<void> setEnabled(bool enabled) async {
     if (enabled == state.enabled) return;
-    if (!state.supported) {
-      // macOS / 不支持平台:不启停 service,仅持久化(后续 macOS 重启会失效)
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_kLanWebEnabledKey, enabled);
-      state = state.copyWith(enabled: enabled);
-      return;
-    }
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kLanWebEnabledKey, enabled);
 
     bool serviceRunning;
     if (enabled) {
-      await _ensureNotificationPermission();
-      serviceRunning = await _startService();
+      if (state.devMode) {
+        // dev mode (macOS):直接起 shelf server,绕开 fg_task
+        serviceRunning = await _startServerDirect();
+      } else {
+        await _ensureNotificationPermission();
+        serviceRunning = await _startService();
+      }
     } else {
-      serviceRunning = !(await _stopService());
+      if (state.devMode) {
+        await stopGridlyServer();
+        serviceRunning = false;
+      } else {
+        serviceRunning = !(await _stopService());
+      }
     }
 
     state = state.copyWith(enabled: enabled, serviceRunning: serviceRunning);
+  }
+
+  /// dev mode 启动:直接调 startGridlyServer()(跟 fg_task 路径同一个 server 实现)
+  /// macOS dev 上能跑通 shelf HTTP server,让浏览器访问 http://127.0.0.1:8123/ 验 JSON
+  Future<bool> _startServerDirect() async {
+    try {
+      final server = await startGridlyServer();
+      // 注意:server 跑在 main isolate,跟 fg_service 不同(锁屏不会保活)
+      return server != null;
+    } catch (e) {
+      debugPrint('dev mode startGridlyServer error: $e');
+      return false;
+    }
   }
 
   Future<NotificationPermission> _ensureNotificationPermission() async {

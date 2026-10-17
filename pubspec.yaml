@@ -2,7 +2,7 @@ name: gridly
 description: "格子记账 — 一格一账的本地优先记账工具"
 publish_to: 'none'
 
-version: 2.0.0+113  # v2.0.0 · 局域网 Web 伴侣端开发期(2026-10-17 LAN_WEB Open Questions 拍板后升版)
+version: 2.0.0+114  # v2.0.0 · 局域网 Web 伴侣端开发期(2026-10-17 LAN_WEB Open Questions 拍板后升版)
 # - v1.0.0+104 是 2026-10-15 D69 定版,D68.3 D68.4 compileSdk 36 fix 的实际 commit 数
 # - v2.0.0 作为 LAN_WEB 里程碑主功能,跨过 v0.5.0 / v0.6.0 / v0.7.0 几个中间里程碑
 #   详细:docs/LAN_WEB.md
