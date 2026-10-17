@@ -56,10 +56,17 @@ class LanWebState {
     );
   }
 
-  /// 用户访问 URL(enabled + serviceRunning + ip 都齐才非空)
+  /// 用户访问 URL(enabled + serviceRunning 必齐,ip 可 fallback)
+  ///
+  /// ip 优先级:
+  /// 1. NetworkInfo.getWifiIP() 真实 IP(同 WiFi 设备可访问)
+  /// 2. dev mode + ip == null → 127.0.0.1(macOS dev 本机浏览器兜底)
+  /// 3. 都拿不到 → null(生产模式 UI 不显示 URL)
   String? get accessUrl {
-    if (!enabled || !serviceRunning || ip == null) return null;
-    return 'http://$ip:$kLanWebPort';
+    if (!enabled || !serviceRunning) return null;
+    final displayIp = ip ?? (devMode ? '127.0.0.1' : null);
+    if (displayIp == null) return null;
+    return 'http://$displayIp:$kLanWebPort';
   }
 
   static const initial = LanWebState(
