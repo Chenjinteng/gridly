@@ -647,4 +647,33 @@ void main() {
       expect(bCheck.statusCode, 200);
     });
   });
+
+  // ========================= G. body size limit =========================
+
+  group('G. body size limit', () {
+    test('G1: 2MB body → 413 body_too_large', () async {
+      final big = 'x' * (2 * 1024 * 1024); // 2 MB
+      final r = await client.post(
+        base.replace(path: '/api/ledgers'),
+        headers: {'Content-Type': 'application/json'},
+        body: big,
+      );
+      expect(r.statusCode, 413);
+      final body = jsonDecode(r.body) as Map<String, dynamic>;
+      expect(body['error'], 'body_too_large');
+    });
+
+    test('G2: 100KB body 正常处理(走完 handler 路径)', () async {
+      // 100KB 不算大,正常走 400 invalid_body(body 不是 JSON)
+      // 用 public endpoint /api/auth/pair(避免 auth 401 干扰验 body 路径)
+      final ok = 'x' * (100 * 1024);
+      final r = await client.post(
+        base.replace(path: '/api/auth/pair'),
+        headers: {'Content-Type': 'application/json'},
+        body: ok,
+      );
+      // body 解析失败 → 400(走 tryReadJsonMap 路径)
+      expect(r.statusCode, 400);
+    });
+  });
 }

@@ -70,8 +70,10 @@ Future<HttpServer> startGridlyServer({
 
   // 鉴权 middleware(自动跳过 /api/auth/* + /api/health)
   // + errorHandler(任何 throw → 500 JSON,不漏 stack)
+  // + bodySizeLimit(> 1MB 早返 413,防 OOM)
   final handler = const Pipeline()
       .addMiddleware(errorHandler())
+      .addMiddleware(bodySizeLimit())
       .addMiddleware(authMiddleware(sessionStore))
       .addHandler(app.call);
 
