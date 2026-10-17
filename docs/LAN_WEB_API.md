@@ -13,11 +13,22 @@
 - **鉴权**:首次访问需 6 位配对码(5 分钟有效),配对成功后拿 7 天 cookie
 - **Cookie 名**:`gridly_session`
 - **请求 / 响应格式**:JSON(`Content-Type: application/json`)
-- **错误格式**:`{"error": "<code>"}`,HTTP 状态码:400 / 401 / 404 / 413 / 500
+- **错误格式**:`{"error": "<code>"}`,HTTP 状态码:400 / 401 / 404 / 413 / 429 / 500
 - **Body 体积上限**:**1 MB**(P2 commit 9 加的防御性 middleware)。
   超过返 `413 {"error": "body_too_large", "limitBytes": 1048576}`。
   本机记账类 API 远用不到这么大,顶 1MB 够最长的 note + 几十个 budget category;
   1MB+ 多半是 DoS。
+- **CORS**:P2 commit 13 加的 preflight middleware。
+  - 跨源请求(P3 web UI 部署在不同端口时)需先 OPTIONS 预检,server 返 204 + `Access-Control-Allow-*` headers
+  - 实际请求带 `Origin` 头时,响应 echo 回 `Access-Control-Allow-Origin: <origin>`(LAN 场景无需严格 origin 白名单)
+  - cookie 凭据允许(`Access-Control-Allow-Credentials: true`)
+  - 预检缓存 1 小时(`Access-Control-Max-Age: 3600`)
+- **Rate limit**:P2 commit 14 加的滑窗 middleware。
+  - 每 session token(从 `gridly_session` cookie 解析)1 秒最多 60 req
+  - 无 cookie 走 "anonymous" bucket(所有匿名共享)
+  - 超限返 `429 rate_limited` + `Retry-After: 1` header
+  - OPTIONS 预检不限流(避免 CORS 失败)
+  - 正常 web UI 1-2 req/s,60/s 留足 headroom
 
 ### 公共端点(无需 cookie)
 - `GET /`  —— 健康检查 + 简单 JSON
@@ -463,6 +474,7 @@ curl -X PUT -b cookies.txt http://192.168.1.5:8123/api/budget \
 | 404 | `*_not_found` | 资源不存在(ledger / category / session) |
 | 404 | `route_not_found` | 路径未匹配(兜底,任何未知 URL) |
 | 413 | `body_too_large` | body > 1 MB(P2 commit 9 body size middleware) |
+| 429 | `rate_limited` | 1 秒内 > 60 req(P2 commit 14 rate limit middleware),带 `Retry-After: 1` |
 | 500 | `internal_error` | 内部错误,看 `flutter run` 终端 log |
 
 ---
