@@ -93,6 +93,17 @@ class WebApiClient {
     return (body['ledgers'] as List).cast<Map<String, dynamic>>();
   }
 
+  /// 分类列表
+  Future<List<Map<String, dynamic>>> listCategories({String? type}) async {
+    final qp = <String, String>{};
+    if (type != null) qp['type'] = type;
+    final r = await http.get(
+      Uri.parse('$_baseUrl/api/categories').replace(queryParameters: qp),
+    );
+    final body = _decodeJson(r);
+    return (body['categories'] as List).cast<Map<String, dynamic>>();
+  }
+
   /// 月度汇总
   Future<Map<String, dynamic>> monthlyStats(int year, int month) async {
     final r = await http.get(
