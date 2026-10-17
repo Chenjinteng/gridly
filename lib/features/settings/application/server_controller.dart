@@ -272,8 +272,8 @@ class LanWebController extends StateNotifier<LanWebState> {
   /// 列出已配对的 active sessions
   List<ActiveSession> listActiveSessions() => sessionStore.list();
 
-  /// 撤销某 session(返回是否真撤销了)
-  bool revokeSession(String token) => sessionStore.revoke(token);
+  /// 撤销某 session(返回是否真撤销了;异步,await 写完 prefs)
+  Future<bool> revokeSession(String token) => sessionStore.revoke(token);
 }
 
 /// Provider 入口

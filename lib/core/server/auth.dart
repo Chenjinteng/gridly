@@ -166,8 +166,8 @@ class SessionStore {
     _sessions.removeWhere((s) => s.isExpired);
   }
 
-  /// 创建新 session
-  ActiveSession create({String label = 'Device'}) {
+  /// 创建新 session(异步,await _save 写完再返 —— 避免调用方在写 prefs 完成前重启)
+  Future<ActiveSession> create({String label = 'Device'}) async {
     _purgeExpired();
     final session = ActiveSession(
       token: _generateToken(),
@@ -176,29 +176,29 @@ class SessionStore {
       label: label,
     );
     _sessions.add(session);
-    _save();
+    await _save();
     return session;
   }
 
-  /// 查 token,找到就更新 lastSeenAt 并返 session
-  ActiveSession? findByToken(String token) {
+  /// 查 token,找到就更新 lastSeenAt 并返 session(异步,await _save 写完再返)
+  Future<ActiveSession?> findByToken(String token) async {
     _purgeExpired();
     for (final s in _sessions) {
       if (s.token == token) {
         s.lastSeenAt = DateTime.now();
-        _save();
+        await _save();
         return s;
       }
     }
     return null;
   }
 
-  /// 撤销某 token 的 session
-  bool revoke(String token) {
+  /// 撤销某 token 的 session(异步,await _save 写完再返 —— 避免调用方在写 prefs 完成前重启)
+  Future<bool> revoke(String token) async {
     final before = _sessions.length;
     _sessions.removeWhere((s) => s.token == token);
     if (_sessions.length < before) {
-      _save();
+      await _save();
       return true;
     }
     return false;
@@ -251,7 +251,7 @@ Middleware authMiddleware(SessionStore sessions) {
         return _unauthorized('missing_cookie');
       }
 
-      final session = sessions.findByToken(token);
+      final session = await sessions.findByToken(token);
       if (session == null) {
         return _unauthorized('session_expired');
       }

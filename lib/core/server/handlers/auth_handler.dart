@@ -50,8 +50,8 @@ void registerAuthHandlers(
 
     // 配对成功:创建 session + 清掉配对码(防复用)
     final label = (body['label'] as String?)?.trim();
-    final session =
-        sessions.create(label: (label != null && label.isNotEmpty) ? label : 'Device');
+    final session = await sessions.create(
+        label: (label != null && label.isNotEmpty) ? label : 'Device');
     pairingCode.clear();
 
     return Response.ok(
@@ -67,11 +67,11 @@ void registerAuthHandlers(
   });
 
   // POST /api/auth/logout
-  app.post('/api/auth/logout', (Request request) {
+  app.post('/api/auth/logout', (Request request) async {
     final cookieHeader = request.headers['Cookie'] ?? '';
     final token = _parseCookie(cookieHeader, LanWebAuth.cookieName);
     if (token != null) {
-      sessions.revoke(token);
+      await sessions.revoke(token);
     }
     return Response(
       200,
@@ -97,7 +97,7 @@ void registerAuthHandlers(
   });
 
   // DELETE /api/auth/sessions/:token
-  app.delete('/api/auth/sessions/<token>', (Request request, String token) {
+  app.delete('/api/auth/sessions/<token>', (Request request, String token) async {
     // 安全:只能撤销非当前 session(防自己误踢自己)
     final cookieHeader = request.headers['Cookie'] ?? '';
     final currentToken = _parseCookie(cookieHeader, LanWebAuth.cookieName);
@@ -106,7 +106,7 @@ void registerAuthHandlers(
           body: jsonEncode(<String, String>{'error': 'cannot_revoke_current'}),
           headers: <String, String>{'Content-Type': 'application/json'});
     }
-    final ok = sessions.revoke(token);
+    final ok = await sessions.revoke(token);
     if (!ok) {
       return Response(404,
           body: jsonEncode(<String, String>{'error': 'session_not_found'}),
