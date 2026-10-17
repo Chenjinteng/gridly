@@ -13,7 +13,11 @@
 - **鉴权**:首次访问需 6 位配对码(5 分钟有效),配对成功后拿 7 天 cookie
 - **Cookie 名**:`gridly_session`
 - **请求 / 响应格式**:JSON(`Content-Type: application/json`)
-- **错误格式**:`{"error": "<code>"}`,HTTP 状态码:400 / 401 / 404 / 500
+- **错误格式**:`{"error": "<code>"}`,HTTP 状态码:400 / 401 / 404 / 413 / 500
+- **Body 体积上限**:**1 MB**(P2 commit 9 加的防御性 middleware)。
+  超过返 `413 {"error": "body_too_large", "limitBytes": 1048576}`。
+  本机记账类 API 远用不到这么大,顶 1MB 够最长的 note + 几十个 budget category;
+  1MB+ 多半是 DoS。
 
 ### 公共端点(无需 cookie)
 - `GET /`  —— 健康检查 + 简单 JSON
@@ -457,7 +461,9 @@ curl -X PUT -b cookies.txt http://192.168.1.5:8123/api/budget \
 | 401 | `invalid_or_expired` | 6 位配对码错或过期 |
 | 401 | `invalid_code_format` | 配对码不是 6 位数字 |
 | 404 | `*_not_found` | 资源不存在(ledger / category / session) |
-| 500 | (无 error code) | 内部错误,看 `flutter run` 终端 log |
+| 404 | `route_not_found` | 路径未匹配(兜底,任何未知 URL) |
+| 413 | `body_too_large` | body > 1 MB(P2 commit 9 body size middleware) |
+| 500 | `internal_error` | 内部错误,看 `flutter run` 终端 log |
 
 ---
 
