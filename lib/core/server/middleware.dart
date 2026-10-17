@@ -54,6 +54,53 @@ Handler catchAllHandler() {
   };
 }
 
+/// CORS middleware
+///
+/// 给所有响应加 `Access-Control-Allow-*` headers,支持浏览器跨源请求(P3 Web UI)。
+///
+/// 设计:
+/// - OPTIONS 预检请求直接 204 返,不进入 auth/routing(预检不应被鉴权)
+/// - 其它请求 echo back Origin(因为 LAN_WEB 配对码只服务同 WiFi,无需严格 origin 白名单)
+/// - 允许 credentials(cookie gridly_session),所以 Allow-Origin 不能 `*`,要回具体 origin
+/// - 缓存预检 1 小时(3600s),避免每个 POST 都触发 OPTIONS
+Middleware cors() {
+  return (Handler inner) {
+    return (Request request) async {
+      final origin = request.headers['Origin'] ?? '';
+
+      // 1. OPTIONS 预检:直接 204 返
+      if (request.method == 'OPTIONS') {
+        return Response(
+          204,
+          headers: <String, String>{
+            'Access-Control-Allow-Origin': origin,
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers':
+                'Content-Type, Cookie, X-Requested-With',
+            'Access-Control-Allow-Credentials': 'true',
+            'Access-Control-Max-Age': '3600',
+            if (origin.isNotEmpty) 'Vary': 'Origin',
+          },
+        );
+      }
+
+      // 2. 其它请求:加 CORS headers 到响应
+      final resp = await inner(request);
+      if (origin.isNotEmpty) {
+        // resp.headers 是 unmodifiable;用 change() 拿新 Response
+        final updated = <String, String>{
+          ...resp.headers,
+          'Access-Control-Allow-Origin': origin,
+          'Access-Control-Allow-Credentials': 'true',
+          'Vary': 'Origin',
+        };
+        return resp.change(headers: updated);
+      }
+      return resp;
+    };
+  };
+}
+
 /// Body size limit middleware
 ///
 /// 1. 看 Content-Length header,> 1MB 直接 413

@@ -676,4 +676,42 @@ void main() {
       expect(r.statusCode, 400);
     });
   });
+
+  // ========================= H. CORS preflight =========================
+
+  group('H. CORS preflight', () {
+    test('H1: OPTIONS /api/auth/code 预检 → 204 + Allow-Origin echo', () async {
+      final r = await client.send(http.Request('OPTIONS',
+              base.replace(path: '/api/auth/code'))
+          ..headers['Origin'] = 'http://localhost:3000'
+          ..headers['Access-Control-Request-Method'] = 'GET');
+      expect(r.statusCode, 204);
+      expect(
+        r.headers['access-control-allow-origin'],
+        'http://localhost:3000',
+      );
+      expect(r.headers['access-control-allow-credentials'], 'true');
+      expect(r.headers['access-control-max-age'], '3600');
+    });
+
+    test('H2: 实际请求带 Origin → 响应带 Allow-Origin echo', () async {
+      final r = await client.get(
+        base.replace(path: '/'),
+        headers: {'Origin': 'http://localhost:3000'},
+      );
+      expect(r.statusCode, 200);
+      expect(
+        r.headers['access-control-allow-origin'],
+        'http://localhost:3000',
+      );
+      expect(r.headers['access-control-allow-credentials'], 'true');
+    });
+
+    test('H3: 不带 Origin → 不加 CORS 头(curl/原生命令行场景)', () async {
+      final r = await client.get(base.replace(path: '/'));
+      expect(r.statusCode, 200);
+      // 没 Origin 就没 Allow-Origin
+      expect(r.headers.containsKey('access-control-allow-origin'), false);
+    });
+  });
 }
