@@ -1,48 +1,49 @@
 // lib/core/server/lan_web_task_handler.dart
-// LAN_WEB v2.0.0 P1 foreground service TaskHandler
+// LAN_WEB v2.0.0 P2 keep-alive TaskHandler
+//
+// P2 架构变更:
+// - HTTP server 移到 main isolate(直接 DB 访问,避免 fg_service ↔ main IPC 复杂度)
+// - fg_service 改 keep-alive 心跳:不跑 server,只保活进程 + 显示常驻通知
+// - lock screen 仍能访问(server 在 main isolate,fg_service 保活进程)
 //
 // flutter_foreground_task 11.x 模式:
 // - top-level @pragma('vm:entry-point') 回调注册 TaskHandler
-// - TaskHandler 跑在 foreground service 的 background isolate
-// - 启动 HTTP server 在这个 isolate 里(锁屏 server 仍活)
+// - TaskHandler 跑在 foreground service 的 background isolate(本 commit 几乎空)
 //
 // 详细:
-// - docs/LAN_WEB.md P1 拍板
+// - docs/LAN_WEB.md P2 拍板(2026-10-17)
 // - pub.dev/packages/flutter_foreground_task(11.0.3, Dev-hwang / pravera.me)
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
-import 'gridly_server.dart';
-
 /// foreground service 启动回调(top-level + @pragma('vm:entry-point') 必须)
-/// 由 FlutterForegroundTask.startService(callback: lanWebStartCallback) 触发
+/// 由 FlutterForegroundTask.startService(callback: lanWebKeepAliveCallback) 触发
 @pragma('vm:entry-point')
-void lanWebStartCallback() {
-  FlutterForegroundTask.setTaskHandler(LanWebTaskHandler());
+void lanWebKeepAliveCallback() {
+  FlutterForegroundTask.setTaskHandler(KeepAliveTaskHandler());
 }
 
-/// gridly 局域网服务 TaskHandler
+/// gridly 局域网服务 Keep-Alive TaskHandler
 ///
-/// - onStart:启动 shelf_plus HTTP server(serve 完成后 isolate 持续存活,server 监听端口)
-/// - onDestroy:关闭 server 释放端口
-/// - onRepeatEvent:P1 无需定时任务,空实现
-class LanWebTaskHandler extends TaskHandler {
+/// P2 角色:fg_service 只用于
+/// 1. 显示「gridly 局域网服务」常驻通知
+/// 2. 保持 Android 进程不被系统杀(dataSync type)
+/// 3. onRepeatEvent 心跳:60s 一次,未来可用来健康检查 / 更新通知
+///
+/// 注意:不启动 HTTP server(那在 main isolate 跑)
+/// 注意:Android 15 dataSync 限 24h 内 6h,超时系统会调 onDestroy(isTimeout=true)
+class KeepAliveTaskHandler extends TaskHandler {
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
-    // startGridlyServer 内部 await serve(...),返回时 server 已 bind 端口
-    // server 在 background isolate 里持续 listen,直到 onDestroy close 它
-    // 注意:Android 15 dataSync 限 24h 内 6h(用户拉前台重置),
-    //       超时系统会调 onDestroy(isTimeout=true),后续 P4 加 UI 提示
-    await startGridlyServer();
+    // No-op:HTTP server 跑在 main isolate
   }
 
   @override
   void onRepeatEvent(DateTime timestamp) {
-    // P1 不需要定时任务
-    // P2 可能用来推数据更新到 web(但当前实时性策略是手动刷新,这里仍留空)
+    // 60s 心跳,目前 P2 无需做事;P3 / P4 可加健康检查
   }
 
   @override
   Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
-    await stopGridlyServer();
+    // No-op:fg_service stop 时 main isolate 也调 stopGridlyServer
   }
 }

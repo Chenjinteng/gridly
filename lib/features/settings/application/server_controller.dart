@@ -164,12 +164,11 @@ class LanWebController extends StateNotifier<LanWebState> {
     state = state.copyWith(enabled: enabled, serviceRunning: serviceRunning);
   }
 
-  /// dev mode 启动:直接调 startGridlyServer()(跟 fg_task 路径同一个 server 实现)
+  /// dev mode 启动:直接调 startGridlyServer()(跟 fg_service 路径同一个 server 实现)
   /// macOS dev 上能跑通 shelf HTTP server,让浏览器访问 http://127.0.0.1:8123/ 验 JSON
   Future<bool> _startServerDirect() async {
     try {
       final server = await startGridlyServer();
-      // 注意:server 跑在 main isolate,跟 fg_service 不同(锁屏不会保活)
       return server != null;
     } catch (e) {
       debugPrint('dev mode startGridlyServer error: $e');
@@ -187,8 +186,12 @@ class LanWebController extends StateNotifier<LanWebState> {
     return FlutterForegroundTask.checkNotificationPermission();
   }
 
+  /// Android 路径:start fg_service (keep-alive) + start HTTP server (in main isolate)
+  /// - fg_service 用 lanWebKeepAliveCallback,只保活 + 显示通知,不跑 server
+  /// - HTTP server 跑 main isolate,直接 DB 访问,无 IPC 复杂度
+  /// - 失败回滚:server 起不来就 stopService
   Future<bool> _startService() async {
-    // 初始化 fg_task 选项(必须在 startService 前调一次)
+    // 1. 初始化 fg_task 选项(必须在 startService 前调一次)
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
         channelId: 'gridly_lan_web',
@@ -199,33 +202,51 @@ class LanWebController extends StateNotifier<LanWebState> {
       iosNotificationOptions:
           const IOSNotificationOptions(showNotification: false),
       foregroundTaskOptions: ForegroundTaskOptions(
-        // P1 不需要定时任务(实时性策略是手动刷新);保留 repeat 兜底
-        eventAction: ForegroundTaskEventAction.repeat(5000),
-        autoRunOnBoot: false,           // 开机不自启(自用可控开关)
+        // 60s 心跳(KeepAliveTaskHandler.onRepeatEvent),保活 + 未来加健康检查
+        eventAction: ForegroundTaskEventAction.repeat(60000),
+        autoRunOnBoot: false,
         autoRunOnMyPackageReplaced: false,
-        allowWakeLock: false,           // HTTP server IO 密集,不必 wake CPU
-        allowWifiLock: true,            // 保持 WiFi 唤醒,避免锁屏断流
+        allowWakeLock: false,
+        allowWifiLock: true,
       ),
     );
 
-    final result = await FlutterForegroundTask.startService(
+    // 2. start fg_service (keep-alive)
+    final fgResult = await FlutterForegroundTask.startService(
       serviceId: 256,
       notificationTitle: 'gridly 局域网服务',
       notificationText: state.accessUrl ?? '正在启动…',
       notificationIcon: null,
-      callback: lanWebStartCallback,
+      callback: lanWebKeepAliveCallback,
     );
 
-    // ServiceRequestResult.success / failed / ignore
-    return result == ServiceRequestSuccess;
+    if (fgResult != ServiceRequestSuccess) {
+      debugPrint('fg_service startService failed: $fgResult');
+      return false;
+    }
+
+    // 3. start HTTP server in main isolate
+    try {
+      await startGridlyServer();
+      return true;
+    } catch (e) {
+      // server 起不来就回滚 fg_service
+      debugPrint('startGridlyServer failed, rolling back fg_service: $e');
+      await FlutterForegroundTask.stopService();
+      return false;
+    }
   }
 
+  /// Android 路径:stop HTTP server first,then stop fg_service
+  /// - 反序:server 先关(释放端口),再 stop fg_service(关闭常驻通知 + 释放保活)
   Future<bool> _stopService() async {
+    // 1. stop HTTP server first
+    await stopGridlyServer();
+    // 2. stop fg_service
     await FlutterForegroundTask.stopService();
-    // 重新查询真实状态(避免 UI 短暂显示错)
+    // 3. 重新查询真实状态
     await Future.delayed(const Duration(milliseconds: 200));
-    final stillRunning = await FlutterForegroundTask.isRunningService;
-    return stillRunning;
+    return await FlutterForegroundTask.isRunningService;
   }
 
   @override
