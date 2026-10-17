@@ -19,6 +19,7 @@ import '../../../core/utils/formatters.dart';
 import '../application/server_controller.dart';
 import 'widgets/backup_restore_sheet.dart';
 import 'widgets/csv_export_sheet.dart';
+import 'widgets/lan_web_modals.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -395,11 +396,11 @@ class _InfoTile extends StatelessWidget {
   }
 }
 
-/// LAN_WEB v2.0.0 P1:局域网服务开关 + 状态 + 访问 URL
+/// LAN_WEB v2.0.0 P2:局域网服务开关 + 状态 + 访问 URL + 配对 modal
 ///
 /// UI 跟「隐私」section 的 ListTile+AquaSwitch 不同,自定义 card 因为:
-/// - 状态 + 访问 URL 需要更明确展示
-/// - 后续 P2 可能加配对码 / 二维码,放卡片更好扩
+/// - 状态 + 访问 URL + 配对按钮需要更明确展示
+/// - P2 加 2 个 modal(配对码 + 已配对设备)入口按钮
 class _LanWebTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -490,6 +491,43 @@ class _LanWebTile extends ConsumerWidget {
                 ),
               ),
             ],
+            // P2:服务运行后才显示配对按钮(关闭时无意义)
+            if (state.serviceRunning) ...[
+              const SizedBox(height: AppSpacing.s3),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _openPairingCodeModal(context),
+                      icon: const Icon(Icons.pin_outlined, size: 16),
+                      label: const Text('显示配对码',
+                          style: TextStyle(fontSize: 13)),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: AppSpacing.s2),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: AppRadius.brMd),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.s2),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _openSessionsModal(context),
+                      icon: const Icon(Icons.devices, size: 16),
+                      label: const Text('已配对设备',
+                          style: TextStyle(fontSize: 13)),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: AppSpacing.s2),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: AppRadius.brMd),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -510,5 +548,29 @@ class _LanWebTile extends ConsumerWidget {
       return '正在启动…';
     }
     return '关闭 · 仅同 WiFi 局域网可访问,无需公网';
+  }
+
+  void _openPairingCodeModal(BuildContext context) {
+    showAppModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      builder: (_) => const PairingCodeModal(),
+    );
+  }
+
+  void _openSessionsModal(BuildContext context) {
+    showAppModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      builder: (_) => const SessionsModal(),
+    );
   }
 }

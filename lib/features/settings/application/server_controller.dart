@@ -25,6 +25,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/providers.dart';
+import '../../../core/server/auth.dart';
 import '../../../core/server/gridly_server.dart';
 import '../../../core/server/lan_web_task_handler.dart';
 
@@ -259,6 +260,20 @@ class LanWebController extends StateNotifier<LanWebState> {
     FlutterForegroundTask.removeTaskDataCallback(_onServiceData);
     super.dispose();
   }
+
+  // ====== P2 鉴权 / sessions 操作(给 UI modal 用)======
+
+  /// 拿当前 6 位配对码(过期或无则重新生成)
+  PairingCode getCurrentPairingCode() => pairingCodeStore.current();
+
+  /// 强制刷新 6 位配对码(用户点"刷新"按钮时调)
+  PairingCode refreshPairingCode() => pairingCodeStore.refresh();
+
+  /// 列出已配对的 active sessions
+  List<ActiveSession> listActiveSessions() => sessionStore.list();
+
+  /// 撤销某 session(返回是否真撤销了)
+  bool revokeSession(String token) => sessionStore.revoke(token);
 }
 
 /// Provider 入口
