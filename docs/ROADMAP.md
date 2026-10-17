@@ -178,9 +178,10 @@ v0.3.5 增量(见下):投资场景三段拆分、调拨方向修正、6 段色�
 - **v1.0.0** ✅ 正式发布(D69 定版,2026-10-15)
 - **v2.0.0** 📋 局域网 Web 伴侣端(2026-10-17 升版,原 v0.5.5,见 [`LAN_WEB.md`](LAN_WEB.md))
   - P1 骨架:5-7 天(server + foreground service + UI toggle)
-  - P2 API:5-6 天(流水 / 报表 / 分类 / 预算)
+  - P2 API:5-6 天(流水 / 报表 / 分类 / 预算 + 配对码鉴权)
   - P3 Web:5-7 天(Flutter Web 复用 + 响应式)
   - P4 polish:3-4 天(异常处理 / 分页 / 错误页 / README)
+  - API 文档:[`docs/LAN_WEB_API.md`](LAN_WEB_API.md)(P2 拍板)
 
 ---
 
