@@ -69,3 +69,27 @@ Response jsonError(int status, String code) => Response(
       body: jsonEncode(<String, String>{'error': code}),
       headers: <String, String>{'Content-Type': 'application/json'},
     );
+
+/// 安全读 request body → `Map<String, dynamic>`。
+/// - body 为空 / 非 JSON / 解析失败 / 不是 object → 返 400 invalid_body Response
+/// - 成功 → 返 (true, parsedMap)
+/// 用法:
+/// ```dart
+/// final (ok, parsed) = await tryReadJsonMap(request);
+/// if (!ok) return parsed as Response; // 400
+/// final body = parsed as Map<String, dynamic>;
+/// ```
+Future<(bool, Object)> tryReadJsonMap(Request request) async {
+  // body 为空 → 直接返 invalid_body(避免 shelf body.asJson 抛 FormatException)
+  final raw = await request.readAsString();
+  if (raw.isEmpty) {
+    return (false, jsonError(400, 'invalid_body'));
+  }
+  try {
+    final parsed = jsonDecode(raw);
+    if (parsed is Map<String, dynamic>) return (true, parsed);
+    return (false, jsonError(400, 'invalid_body'));
+  } catch (_) {
+    return (false, jsonError(400, 'invalid_body'));
+  }
+}

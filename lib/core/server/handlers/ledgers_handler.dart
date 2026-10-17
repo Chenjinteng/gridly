@@ -76,8 +76,9 @@ void registerLedgersHandlers(RouterPlus app, AppDatabase db) {
 
   // POST /api/ledgers
   app.post('/api/ledgers', (Request request) async {
-    final body = await request.body.asJson;
-    if (body is! Map<String, dynamic>) return jsonError(400, 'invalid_body');
+    final (ok, parsed) = await tryReadJsonMap(request);
+    if (!ok) return parsed as Response;
+    final body = parsed as Map<String, dynamic>;
 
     final amount = (body['amount'] as num?)?.toDouble();
     final type = body['type'] as String?;
@@ -121,8 +122,9 @@ void registerLedgersHandlers(RouterPlus app, AppDatabase db) {
   app.put('/api/ledgers/<id>', (Request request, String id) async {
     final tid = int.tryParse(id);
     if (tid == null) return jsonError(400, 'invalid_id');
-    final body = await request.body.asJson;
-    if (body is! Map<String, dynamic>) return jsonError(400, 'invalid_body');
+    final (ok, parsed) = await tryReadJsonMap(request);
+    if (!ok) return parsed as Response;
+    final body = parsed as Map<String, dynamic>;
 
     final existing = await (db.select(db.transactions)
           ..where((tx) => tx.id.equals(tid)))

@@ -128,6 +128,13 @@ class SessionStore {
   final Random _rng = Random.secure();
   bool _loaded = false;
 
+  /// 测试用:清空 in-memory cache(下一次 load() 会从 prefs 重读)
+  /// 不删 SharedPreferences(那是持久化层,测试用 setMockInitialValues 兜底)
+  void clear() {
+    _sessions.clear();
+    _loaded = false;
+  }
+
   /// 启动时调一次(异步,从 SharedPreferences 加载)
   Future<void> load() async {
     if (_loaded) return;

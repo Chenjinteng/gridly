@@ -38,8 +38,9 @@ void registerCategoriesHandlers(RouterPlus app, AppDatabase db) {
 
   // POST /api/categories
   app.post('/api/categories', (Request request) async {
-    final body = await request.body.asJson;
-    if (body is! Map<String, dynamic>) return jsonError(400, 'invalid_body');
+    final (ok, parsed) = await tryReadJsonMap(request);
+    if (!ok) return parsed as Response;
+    final body = parsed as Map<String, dynamic>;
 
     final name = body['name'] as String?;
     final type = body['type'] as String?;
@@ -93,8 +94,9 @@ void registerCategoriesHandlers(RouterPlus app, AppDatabase db) {
   app.put('/api/categories/<id>', (Request request, String id) async {
     final cid = int.tryParse(id);
     if (cid == null) return jsonError(400, 'invalid_id');
-    final body = await request.body.asJson;
-    if (body is! Map<String, dynamic>) return jsonError(400, 'invalid_body');
+    final (ok, parsed) = await tryReadJsonMap(request);
+    if (!ok) return parsed as Response;
+    final body = parsed as Map<String, dynamic>;
 
     final existing = await (db.select(db.categories)
           ..where((c) => c.id.equals(cid)))

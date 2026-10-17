@@ -14,6 +14,7 @@ import 'dart:convert';
 
 import 'package:shelf_plus/shelf_plus.dart';
 
+import 'json_helpers.dart';
 import '../auth.dart';
 
 /// 鉴权 endpoint 注册入口(gridly_server 用)
@@ -31,12 +32,9 @@ void registerAuthHandlers(
 
   // POST /api/auth/pair
   app.post('/api/auth/pair', (Request request) async {
-    final body = await request.body.asJson;
-    if (body is! Map<String, dynamic>) {
-      return Response(400,
-          body: jsonEncode(<String, String>{'error': 'invalid_body'}),
-          headers: <String, String>{'Content-Type': 'application/json'});
-    }
+    final (ok, parsed) = await tryReadJsonMap(request);
+    if (!ok) return parsed as Response;
+    final body = parsed as Map<String, dynamic>;
     final input = body['code'] as String?;
     if (input == null || input.length != 6) {
       return Response(400,

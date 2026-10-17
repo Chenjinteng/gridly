@@ -79,8 +79,9 @@ void registerBudgetHandlers(RouterPlus app, AppDatabase db) {
 
   // PUT /api/budget
   app.put('/api/budget', (Request request) async {
-    final body = await request.body.asJson;
-    if (body is! Map<String, dynamic>) return jsonError(400, 'invalid_body');
+    final (ok, parsed) = await tryReadJsonMap(request);
+    if (!ok) return parsed as Response;
+    final body = parsed as Map<String, dynamic>;
     final year = body['year'] as int?;
     final month = body['month'] as int?;
     final total = (body['total'] as num?)?.toDouble();
