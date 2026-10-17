@@ -51,6 +51,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     pairingCodeStore.clear();
     sessionStore.clear(); // 清 in-memory cache,避免跨测试 session 污染
+    clearRateLimiter(); // 滑窗计数器清零,避免之前测试的 60 req/s 残留
     await CategoryRepository(db).seedDefaultsIfEmpty();
     await AssetRepository(db).seedDefaultsIfEmpty();
     final s = await startGridlyServer(db: db, port: 0);
@@ -712,6 +713,42 @@ void main() {
       expect(r.statusCode, 200);
       // 没 Origin 就没 Allow-Origin
       expect(r.headers.containsKey('access-control-allow-origin'), false);
+    });
+  });
+
+  // ========================= R. rate limit =========================
+
+  group('R. rate limit', () {
+    test('R1: 70 req in 1 sec → 至少 1 个 429 rate_limited', () async {
+      // 公共端点 + 无 cookie 走 "anonymous" bucket,默认 60/s
+      int rate429 = 0;
+      for (var i = 0; i < 70; i++) {
+        final r = await client.get(base.replace(path: '/'));
+        if (r.statusCode == 429) rate429++;
+      }
+      // 60/s 限制,70 req 至少 10 个应超限
+      expect(rate429, greaterThanOrEqualTo(1),
+          reason: '70 req 应触发至少 1 次 429');
+    });
+
+    test('R2: 429 响应带 Retry-After + limit + windowSeconds', () async {
+      // 跑满一次限流拿 429
+      for (var i = 0; i < 70; i++) {
+        await client.get(base.replace(path: '/'));
+      }
+      // 第 71 次必超
+      final r = await client.get(base.replace(path: '/'));
+      if (r.statusCode == 429) {
+        expect(r.headers['retry-after'], '1');
+        final body = jsonDecode(r.body) as Map<String, dynamic>;
+        expect(body['error'], 'rate_limited');
+        expect(body['limit'], '60');
+        expect(body['windowSeconds'], '1');
+      } else {
+        // 如果没超 60(可能上一次清空了),skip 严格断言
+        // 但我们刚刚 setUp 清了 + 跑了 70,所以必超
+        fail('应该返 429 但拿到 ${r.statusCode}');
+      }
     });
   });
 }

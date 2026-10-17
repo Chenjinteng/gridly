@@ -39,6 +39,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     pairingCodeStore.clear();
     sessionStore.clear();
+    clearRateLimiter();
     await CategoryRepository(db).seedDefaultsIfEmpty();
     await AssetRepository(db).seedDefaultsIfEmpty();
     final s = await startGridlyServer(db: db, port: 0);

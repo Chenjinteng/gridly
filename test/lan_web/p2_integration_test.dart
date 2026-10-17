@@ -44,8 +44,10 @@ void main() {
     // 2. 初始化 SharedPreferences mock(sessions 持久化)
     SharedPreferences.setMockInitialValues({});
 
-    // 3. 重置 pairingCode singleton(state 污染防护)
+    // 3. 重置 pairingCode + sessionStore + rateLimit singleton(state 污染防护)
     pairingCodeStore.clear();
+    sessionStore.clear();
+    clearRateLimiter();
 
     // 4. seed 默认分类 + 默认资产(生产路径走 main.dart,测试里手动调)
     await CategoryRepository(db).seedDefaultsIfEmpty();

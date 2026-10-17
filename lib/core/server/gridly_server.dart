@@ -19,6 +19,9 @@ import 'handlers/ledgers_handler.dart';
 import 'handlers/stats_handler.dart';
 import 'middleware.dart';
 
+// 暴露给测试用:setUp 里清 rate limit 滑窗,避免跨测试污染
+export 'middleware.dart' show clearRateLimiter;
+
 /// LAN_WEB 服务端口(LAN_WEB.md 钉死:8123,避开 80/8080 高占用)
 const int kLanWebPort = 8123;
 
@@ -72,11 +75,15 @@ Future<HttpServer> startGridlyServer({
   // + errorHandler(任何 throw → 500 JSON,不漏 stack)
   // + bodySizeLimit(> 1MB 早返 413,防 OOM)
   // + cors(OPTIONS 预检 204;其它响应 echo Origin 让 P3 web UI 跨源)
+  // + rateLimit(每 session token 60 req/sec;超返 429 带 Retry-After:1)
+  //   顺序:rateLimit 在 auth 之后,这样 key 是 session token(更准);
+  //   但 401/404 等错误也会消耗 1 次额度(可接受,反正超 60/s 才会限)
   final handler = const Pipeline()
       .addMiddleware(errorHandler())
       .addMiddleware(cors())
       .addMiddleware(bodySizeLimit())
       .addMiddleware(authMiddleware(sessionStore))
+      .addMiddleware(rateLimit())
       .addHandler(app.call);
 
   // InternetAddress.anyIPv4 == '0.0.0.0',监听所有网卡(同 WiFi 设备可访问)
