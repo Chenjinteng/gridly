@@ -6,7 +6,6 @@
 // 详细:docs/LAN_WEB.md
 import 'dart:io';
 
-import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart'; // shelf_plus 不 re-export shelf_io,显式 import 拿 serve()
 import 'package:shelf_plus/shelf_plus.dart';
 

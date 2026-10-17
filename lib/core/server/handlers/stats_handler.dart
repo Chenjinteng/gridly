@@ -7,7 +7,6 @@
 //
 // 全部需 cookie,跟 home / stats 页口径一致(D62 收紧:cash_flow 收支 only)
 import 'package:drift/drift.dart';
-import 'package:shelf/shelf.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 
 import '../../database/app_database.dart';
@@ -27,7 +26,6 @@ void registerStatsHandlers(RouterPlus app, AppDatabase db) {
 
     // D62 口径:income/expense 只算 cash_flow 段
     final typeCol = db.transactions.type;
-    final amountCol = db.transactions.amount.sum();
     final catTypeCol = db.categories.type;
 
     final joined = db.select(db.transactions).join([

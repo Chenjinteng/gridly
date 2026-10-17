@@ -87,7 +87,7 @@ class _PairingCodeModalState extends ConsumerState<PairingCodeModal> {
               height: 4,
               margin: const EdgeInsets.only(bottom: AppSpacing.s3),
               decoration: BoxDecoration(
-                color: AppGray.g300,
+                color: AppGray.g200,
                 borderRadius: AppRadius.brSm,
               ),
             ),
@@ -255,7 +255,7 @@ class _SessionsModalState extends ConsumerState<SessionsModal> {
               height: 4,
               margin: const EdgeInsets.only(bottom: AppSpacing.s3),
               decoration: BoxDecoration(
-                color: AppGray.g300,
+                color: AppGray.g200,
                 borderRadius: AppRadius.brSm,
               ),
             ),

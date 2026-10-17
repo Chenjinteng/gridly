@@ -4,11 +4,9 @@
 // 跨 handler 复用:toJson、jsonOk、jsonCreated、jsonError
 import 'dart:convert';
 
-import 'package:shelf/shelf.dart';
+import 'package:shelf_plus/shelf_plus.dart';
 
-import '../../database/app_database.dart';
-import '../../database/tables/assets.dart';
-import '../../database/tables/categories.dart';
+import '../../database/app_database.dart'; // AppDatabase + Category/Asset 数据类(re-export via .g.dart)
 
 /// Transaction → JSON
 Map<String, dynamic> ledgerToJson(Transaction t) => <String, dynamic>{
@@ -25,29 +23,31 @@ Map<String, dynamic> ledgerToJson(Transaction t) => <String, dynamic>{
     };
 
 /// Category → JSON
+/// Category.color 是 IntColumn(ARGB 32-bit),web 端自己 int → hex
 Map<String, dynamic> categoryToJson(Category c) => <String, dynamic>{
       'id': c.id,
       'name': c.name,
       'type': c.type,
-      'color': c.color,
+      'color': c.color,           // int (ARGB)
       'icon': c.icon,
       'sortOrder': c.sortOrder,
-      'isDefault': c.isDefault,
+      'isSystem': c.isSystem,     // P2:系统预置分类标记(原 isDefault 改名)
     };
 
 /// Asset → JSON
+/// Asset.color 是 IntColumn(ARGB 32-bit)
 Map<String, dynamic> assetToJson(Asset a) => <String, dynamic>{
       'id': a.id,
       'name': a.name,
       'type': a.type,
-      'color': a.color,
+      'color': a.color,                          // int (ARGB)
       'icon': a.icon,
       'initialBalance': a.initialBalance,
       'includeInTransactions': a.includeInTransactions,
-      'isDefault': a.isDefault,
+      'isDefault': a.isDefault,                  // cash_flow 段默认账户
+      'actAsCashFlow': a.actAsCashFlow,          // receivable 段充当现金流
+      'isLender': a.isLender,                    // receivable 段借出/借入
       'displayOrder': a.displayOrder,
-      'actAsCashFlow': a.actAsCashFlow,
-      'note': a.note,
     };
 
 /// 200 OK + JSON

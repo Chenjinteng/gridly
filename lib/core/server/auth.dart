@@ -13,7 +13,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:shelf/shelf.dart';
+import 'package:shelf_plus/shelf_plus.dart';
 
 /// LAN_WEB 鉴权常量
 class LanWebAuth {
@@ -93,10 +93,11 @@ class PairingCodeStore {
 class ActiveSession {
   final String token;        // 32 字符 hex
   final DateTime createdAt;
-  final DateTime lastSeenAt;
+  // lastSeenAt 可变:每次 findByToken 命中就更新(避免每次创建新对象)
+  DateTime lastSeenAt;
   final String label;        // user 起的标签或 "Device 1"
 
-  const ActiveSession({
+  ActiveSession({
     required this.token,
     required this.createdAt,
     required this.lastSeenAt,

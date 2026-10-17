@@ -174,8 +174,8 @@ class LanWebController extends StateNotifier<LanWebState> {
   /// macOS dev 上能跑通 shelf HTTP server,让浏览器访问 http://127.0.0.1:8123/ 验 JSON
   Future<bool> _startServerDirect() async {
     try {
-      final server = await startGridlyServer(db: _db);
-      return server != null;
+      await startGridlyServer(db: _db);
+      return true;
     } catch (e) {
       debugPrint('dev mode startGridlyServer error: $e');
       return false;
@@ -226,7 +226,7 @@ class LanWebController extends StateNotifier<LanWebState> {
       callback: lanWebKeepAliveCallback,
     );
 
-    if (fgResult != ServiceRequestSuccess) {
+    if (fgResult is! ServiceRequestSuccess) {
       debugPrint('fg_service startService failed: $fgResult');
       return false;
     }

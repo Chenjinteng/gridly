@@ -9,10 +9,7 @@
 //
 // 全部需 cookie(authMiddleware 已守卫)
 // 详细:docs/LAN_WEB.md
-import 'dart:convert';
-
 import 'package:drift/drift.dart';
-import 'package:shelf/shelf.dart';
 import 'package:shelf_plus/shelf_plus.dart';
 
 import '../../database/app_database.dart';
@@ -111,7 +108,7 @@ void registerLedgersHandlers(RouterPlus app, AppDatabase db) {
             categoryId: categoryId,
             occurredAt: occurredAt,
             note: Value(note),
-            accountId: Value(effectiveAccountId),
+            accountId: effectiveAccountId,
             destinationAccountId: Value(destAccountId),
           ),
         );
