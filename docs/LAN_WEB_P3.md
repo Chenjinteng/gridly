@@ -94,22 +94,32 @@
 ## Dev 迭代流程
 
 ```bash
-# 一次性:装 web platform(已 commit,以后不需)
-flutter create --platforms=web .  # 之前已做
+# 1. 改 web 代码后重 build(拷到 macos/Runner/Resources/web/ 让 Xcode Run Script 自动 bundle)
+./scripts/build_web_for_macos.sh --release   # 或 --debug
 
-# 改 web 代码后重 build:
-flutter build web --target=lib/web_main.dart --release
+# 2. 跑 macOS app
+./scripts/dev_run_macos.sh
+# 或者更省事,一步到位:
+./scripts/dev_run_macos.sh --build-web
 
-# 跑 macOS app(server 跑 main isolate)
-flutter run -d macos
-
-# Chrome 浏览器开:
-http://localhost:8123/        # 或 192.168.x.x:8123 同 WiFi
+# 3. Chrome 浏览器开
+http://localhost:8123/
 ```
+
+**Xcode Run Script 自动化**(P3 commit 14 修):`macos/Runner.xcodeproj/project.pbxproj` 里的 `Bundle Web Assets` build phase 会在每次 Xcode build 时自动 `cp -R build/web/* → .app/Contents/Resources/web/`,所以不用手动复制,改了 web 代码 → 跑 build script → 跑 macOS 即可。
 
 > ⚠️ web 平台不能用 `dart:ffi`(sqlite3/drift 在 web 不可用)
 > 所以 `lib/web/` 不能 import `app_database.dart` / `drift` / `sqlite3`
 > 共享常量(版本号)抽到 `lib/core/server/version.dart` 独立文件
+
+> ⚠️ macOS sandbox 隔离(2026-10-17 D69.x debug 发现)
+> - cwd 沙箱: `~/Library/Containers/<bundle>/Data/`
+> - Platform.script 沙箱: `.../Data/main.dart`
+> - 两个都 walk-up 不到项目根
+> - env var 也被 sandbox 拒读
+> - **唯一可靠路径**:把 web bundle 进 .app/Contents/Resources/web/(P3 commit 14)
+> - server _resolveWebDir 多策略 fallback:env var → walk-up cwd → walk-up script →
+>   walk-up resolvedExecutable + 额外试 Contents/Resources/web/(沙箱内)
 
 ---
 
