@@ -73,7 +73,15 @@ void main() {
     final body = jsonDecode(r.body) as Map<String, dynamic>;
     expect(body['name'], 'gridly web');
     expect(body['version'], '2.0.0');
-    expect(body['phase'], 'P1 prototype');
+    expect(body['phase'], 'P2 API ready');
+    // P2 commit 16 增强字段
+    expect(body['build'], greaterThanOrEqualTo(131));
+    expect(body['dbSchemaVersion'], 9);
+    expect(body['transactions'], 0);
+    expect(body['categories'], greaterThan(0)); // seed 了
+    expect(body['assets'], greaterThan(0)); // seed 了
+    expect(body['uptimeSeconds'], greaterThanOrEqualTo(0));
+    expect(body['serverTime'], isA<String>());
   });
 
   test('GET /api/auth/code returns 6-digit code', () async {

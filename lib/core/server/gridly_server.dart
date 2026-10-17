@@ -29,6 +29,9 @@ const int kLanWebPort = 8123;
 /// - 不暴露给 fg_service isolate(避免两个 isolate 同时操作 server 句柄)
 HttpServer? _server;
 
+/// server 启动时间(健康检查算 uptime 用)
+DateTime? _serverStartedAt;
+
 /// 当前 server 是否在运行(供 controller 查询)
 bool get isGridlyServerRunning => _server != null;
 
@@ -56,8 +59,9 @@ Future<HttpServer> startGridlyServer({
 
   final app = Router().plus;
 
-  // P1 健康检查(public)
-  app.get('/', () => healthHandler());
+  // P1 健康检查(P2 commit 16 增强:db counts + uptime + serverTime)
+  _serverStartedAt = DateTime.now();
+  app.get('/', () async => healthHandler(db: db, startedAt: _serverStartedAt!));
 
   // P2 鉴权路由(/api/auth/*,内部 public 不需 cookie)
   registerAuthHandlers(app, pairingCodeStore, sessionStore);
@@ -95,4 +99,5 @@ Future<HttpServer> startGridlyServer({
 Future<void> stopGridlyServer() async {
   await _server?.close(force: true);
   _server = null;
+  _serverStartedAt = null;
 }
