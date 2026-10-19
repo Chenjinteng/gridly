@@ -34,6 +34,19 @@
 //   - 用法跟 showModalBottomSheet 1:1,call site 替换即可,无业务改动。
 //   - 影响范围:全仓库 11 处 call site(流水 picker 3 + 我的 CSV + 记一笔 picker 3
 //     + budget + date picker + 报表 range 2 + 分类管理 form)。
+//
+// 2026-10-19 D70.4 修(1.0.1 装机实测 user 反馈仍有 2 个 sheet — 我的 CSV 导出 +
+//   流水快速筛选 — 退 app):
+//   - 单独 PopScope 防御在某些场景仍被绕开(可能是 Flutter 3.47.7 + GoRouter 14.8.1
+//     下 PopScope 的 PopEntry 注册时序问题,或 popDisposition 走到 bubble 分支)
+//   - 加 WillPopScope(legacy API,直接调 addScopedWillPopCallback 钩 ModalRoute.willPop)
+//     做 belt-and-suspenders 兜底,跟 PopScope 互不影响
+//     · WillPopScope.onWillPop → Future.value(false) → 阻止 back 弹掉 modal route
+//     · 用户期待"按 back 关掉 sheet",但默认 modal route 是会自己 pop 掉
+//     · 关键是 WillPopScope 拦下 back 后手动 Navigator.pop(ctx),走 ModalRoute
+//       自带的 onDidPopNext/onDispose 清理栈,不会让 back 漏到 GoRouter 兜底
+//   - PopScope 保留作为现代 API 优先路径(canPop:false → popDisposition doNotPop)
+//   - 两层任一生效就够,互不冲突
 import 'package:flutter/material.dart';
 
 /// 应用级 modal bottom sheet —— 修 Android 系统返回键退 app 跟 iOS swipe-down
@@ -49,10 +62,14 @@ import 'package:flutter/material.dart';
 /// );
 /// ```
 ///
-/// 跟原 [showModalBottomSheet] 的差异(D66 内置):
+/// 跟原 [showModalBottomSheet] 的差异(D66 + D70.4 内置):
 /// - [useRootNavigator] 强制 false —— sheet 跟调用方同 Navigator 栈。
-/// - builder 内容外包 [PopScope] (canPop: false) —— 系统 back 命中 sheet 自拦截,
-///   手动 `Navigator.of(ctx).pop()`,不走 GoRouter.delegate.popRoute 兜底分支。
+/// - builder 内容外双层防御:
+///   · PopScope (canPop: false) —— Flutter 3.12+ 现代 API,hook popDisposition
+///   · WillPopScope (onWillPop → false, 内部 pop) —— legacy API,直接 addScopedWillPopCallback
+///     hook ModalRoute.willPop。两者互不冲突,任一生效都够
+/// - 命中任一拦截 → 手动 `Navigator.of(ctx).pop()` 关闭 sheet,
+///   不走到 GoRouter.delegate.popRoute 兜底 → 不再退 app
 Future<T?> showAppModalBottomSheet<T>({
   required BuildContext context,
   required WidgetBuilder builder,
@@ -77,15 +94,30 @@ Future<T?> showAppModalBottomSheet<T>({
     barrierColor: barrierColor,
     shape: shape,
     routeSettings: routeSettings,
-    // D66-②:PopScope 自包含 back handler,拦截系统 back → 手动 pop sheet,
-    // 不走到 GoRouter 的 popRoute 兜底 → 不再退 app。
-    builder: (ctx) => PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
-        Navigator.of(ctx).pop();
-      },
-      child: Builder(builder: builder),
-    ),
+    builder: (ctx) {
+      // D66-②:PopScope 自包含 back handler,拦截系统 back → 手动 pop sheet,
+      // 不走到 GoRouter 的 popRoute 兜底 → 不再退 app。
+      // D70.4:保留作为现代 API 优先路径
+      final popScopeLayer = PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop) return;
+          Navigator.of(ctx).pop();
+        },
+        child: Builder(builder: builder),
+      );
+      // D70.4:WillPopScope 兜底层,直接调 addScopedWillPopCallback 钩
+      // ModalRoute.willPop(legacy API,Flutter 3.12 标记 deprecated 但仍 work)。
+      // 跟 PopScope 互不影响 —— 一个 hook popDisposition,一个 hook willPop,
+      // Navigator.maybePop 链路上任一拦下就够,不会漏到 GoRouter 兜底退 app。
+      // ignore: deprecated_member_use
+      return WillPopScope(
+        onWillPop: () async {
+          Navigator.of(ctx).pop();
+          return false; // 阻止 back 弹掉 route 本身(我们已经手动 pop 了)
+        },
+        child: popScopeLayer,
+      );
+    },
   );
 }
