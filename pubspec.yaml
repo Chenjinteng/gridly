@@ -2,26 +2,18 @@ name: gridly
 description: "格子记账 — 一格一账的本地优先记账工具"
 publish_to: 'none'
 
-version: 1.0.1+4  # v1.0.1 首个 patch release (D70 金额可见性 local override 全局)
+version: 1.0.1+5  # v1.0.1 首个 patch release (D70 金额可见性 local override 全局)
 # - 2026-10-19 user 拍板:发版后修复按 semver 重置 build 号
 #   · v1.0.0 = 首发(stable),对应 f97593e,build 0.1.0+104
 #   · v1.0.1 = 首个 patch(D70),build 从 0 重新计
 #   · v1.0.1+1 = D70.3 修复 commit,XOR 公式 + widget-local state + lift to HomePage
 #   · v1.0.1+2 = D70.4 修复 commit,showAppModalBottomSheet 加 WillPopScope 兜底
 #   · v1.0.1+3 = D70.5 修复 commit,useRootNavigator 改回 true(反 D66)
-#                 logcat 抓到 root cause:go_router 14.8.1 _findCurrentNavigator
-#                 在 shell sub-navigator 上 NPE (delegate.dart:114) → popRoute
-#                 异常 → back 没处理 → SystemNavigator.pop() 杀 app
-#                 反过来 useRootNavigator:true 让 modal 在 root navigator,
-#                 GoRouter matches.last 是 RouteMatch,while 循环不进
-#                 ShellRouteMatch 分支,绕开 NPE
 #   · v1.0.1+4 = D70.6 修复 commit,WidgetsBindingObserver 全局拦截 back
-#                 D70.5 装机实测 useRootNavigator 反转没修到 — NPE 跟 modal 位置无关
-#                 真正修法:在 main.dart 启动时注册一个 WidgetsBindingObserver
-#                 早于 RootBackButtonDispatcher,系统 back 先到我们这里;
-#                 modal 打开时 observer 自己 pop 模态 + 返回 true (handled),
-#                 绕开 GoRouter 14.8.1 的 _findCurrentNavigator NPE
-# - 后续 1.0.1+5 / 1.0.1+6 ... 同一 patch group 内部 +1
+#                 + 装机实测验证 fix 有效,4 个 sheet 全部 pass
+#                 (我的 CSV 导出 + 流水 类型/月份/分类 dropdown)
+#   · v1.0.1+5 = D70.6 清理 commit,移除 debug log(纯运行时不需)
+# - 后续 1.0.1+6 / 1.0.1+7 ... 同一 patch group 内部 +1
 # - 后续 1.0.2 / 1.0.3 另起 patch group 时 build 也重置 0
 # - 1.1.0 / 1.2.0 等 minor 跳同理重置 build 0
 # - 1.0.x 修复只走 release/1.0 分支(本分支),不影响 main / feature/lan-web-p1(=2.0)

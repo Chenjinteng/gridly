@@ -140,12 +140,10 @@ class _ModalBackInterceptor with WidgetsBindingObserver {
     required Future<T?> Function() showSheet,
   }) {
     _stack.add(navigator);
-    debugPrint('D70.6: modal pushed, stack=${_stack.length}, nav=$navigator');
     final completer = Completer<T?>();
     showSheet().then((result) {
       // 模态关闭:从 stack 移除(可能不在顶端,使用 removeWhere 容错)
       _stack.removeWhere((n) => identical(n, navigator));
-      debugPrint('D70.6: modal closed, stack=${_stack.length}');
       if (!completer.isCompleted) completer.complete(result);
     }).catchError((Object e, StackTrace s) {
       _stack.removeWhere((n) => identical(n, navigator));
@@ -156,12 +154,10 @@ class _ModalBackInterceptor with WidgetsBindingObserver {
 
   @override
   Future<bool> didPopRoute() async {
-    debugPrint('D70.6: didPopRoute called, stack=${_stack.length}');
     if (_stack.isNotEmpty) {
       // 弹栈顶,pop 它
       final nav = _stack.last;
       if (nav.canPop()) {
-        debugPrint('D70.6: popping modal via nav=$nav');
         nav.pop();
         return true;
       }
