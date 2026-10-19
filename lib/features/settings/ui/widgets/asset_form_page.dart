@@ -156,11 +156,25 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
     super.initState();
     final a = widget.existing;
     _nameController = TextEditingController(text: a?.name ?? '');
-    _balanceController = TextEditingController(
-      text: a == null || a.initialBalance == 0
-          ? ''
-          : a.initialBalance.toString(),
-    );
+    // D73 改:input 默认填"当前余额"(不是 initialBalance),让用户直观看到真实值
+    //   - 编辑模式:异步 fetch currentBalance 后填 input(初始先空,build 时 load)
+    //   - 新增模式:input 空(用户自己输初始值)
+    //   - 即时显示旧值:避免 user 误以为他看到的是 init,然后删掉重输 2.25 时把 init 覆盖
+    _balanceController = TextEditingController(text: '');
+    if (a != null) {
+      // 异步 fetch currentBalance,完成后 setState 填 input
+      // 不能在 initState 里直接 await(避免 build 中 setState),用 postFrameCallback
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        final cur = await ref.read(assetBalanceProvider(a.id).future);
+        if (!mounted) return;
+        // 只有当 user 还没手动改过 input 时才填(避免覆盖用户的编辑)
+        if (_balanceController.text.isEmpty ||
+            _balanceController.text == '0') {
+          _balanceController.text = cur.toStringAsFixed(2);
+        }
+      });
+    }
     _type = a?.type ?? 'cash_flow';
     _icon = a?.icon ?? 'account_balance_wallet';
     _color = a?.color ?? 0xFF14B8A6; // AppBrand.teal 默认
@@ -191,31 +205,25 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
     super.dispose();
   }
 
-  /// D72 加:编辑资产"期初余额"时,如果用户输入 ≠ 旧 currentBalance,
-  /// 自动生成一笔 type='balance' 流水(amount = oldCurrent - newInit)抹平差值,
-  /// 让 newCurrent = newInit。背景:
-  ///   - bug:之前 update() 直接覆盖 initialBalance,导致 newCurrent = newInit + delta,
-  ///     user 改余额"平账"几毛一块时,流水 delta 大会让资产变负。
-  ///   - 修法:用 type='balance' 流水(不算月度收支,只动资产)补足差值,
-  ///     cat='余额调整'(isSystem=true, UI 隐藏,启动 seed 兜底)。
-  ///   - 公式:newCurrent = newInit + (delta + adj)
-  ///     设 newCurrent = newInit(用户期望) → adj = -delta = oldInit - oldCurrent
-  ///   - 容差:差值 < 0.005 元(半分钱)算浮点误差,跳过流水(避免无意义 0.00 ~ 0.004 噪音)。
-  ///   - 注意:必须在 update asset.initialBalance 之前调,否则 oldCurrent 重新算会变。
+  /// D72 加:D73 重写为"编辑当前余额"语义,不动 initialBalance 字段:
+  ///   - input 默认值 = oldCurrentBalance(不是 initialBalance),label 改"当前余额"
+  ///   - user 编辑输入的"新当前余额" → 我们写 adjustment 流水让 delta 跟用户期望对齐
+  ///   - 不改 initialBalance,保持语义稳定("期初" 字段不动)
+  ///   - formula:newCurrent = oldInit + (oldDelta + adjustment)
+  ///           = oldInit + (oldCurrent - oldInit + adjustment)
+  ///     想要 newCurrent = userInput → adjustment = userInput - oldCurrent
+  ///   - 容差:差值 < 0.005 元(半分钱)算浮点误差,跳过
+  ///   - 注意:必须在 update asset 之前调,oldCurrent 才会准确
   Future<void> _maybeCreateBalanceAdjust({
     required Asset existing,
-    required double newInit,
+    required double newCurrentBalance,
   }) async {
     final oldCurrent = await ref.read(assetBalanceProvider(existing.id).future);
-    final oldInit = existing.initialBalance;
-    // adj 让 newCurrent = newInit:adj = oldInit - oldCurrent = -delta
-    final adjustment = oldInit - oldCurrent;
+    final adjustment = newCurrentBalance - oldCurrent;
     if (adjustment.abs() < 0.005) return; // 浮点容差
 
     final cat = await ref.read(categoryRepositoryProvider).findByName('余额调整');
     if (cat == null) {
-      // 极端兜底:启动 seed 没跑(或被 user 删了"余额调整"),弹 toast 不阻塞保存,
-      // user 看到再去"我的 → 备份还原"重置或手动加流水。
       _toast('缺少"余额调整"分类,请重启 App 或联系开发者');
       return;
     }
@@ -272,17 +280,17 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
           isLender: _isLender,
         );
       } else {
-        // D72:先调 balance adjust(在 update initialBalance 之前,oldCurrent 才正确)
+        // D73:edit mode 调 balance adjust(input 含义是"想要的当前余额",不动 initialBalance)
         await _maybeCreateBalanceAdjust(
           existing: widget.existing!,
-          newInit: balance,
+          newCurrentBalance: balance,
         );
         final updated = widget.existing!.copyWith(
           name: name,
           type: _type,
           icon: _icon,
           color: _color,
-          initialBalance: balance,
+          // D73:不再覆盖 initialBalance(input 是"当前余额",不修改期初字段)
           includeInTransactions: _includeInTransactions,
           isDefault: markDefault,
           // 2026-10-15 D61:同新增,所有 type 都传(非 receivable 段切到时已清零)
@@ -476,12 +484,16 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
                 const SizedBox(height: AppSpacing.s4),
               ],
 
-              // 期初余额(可负,代表初始欠款)
+              // 当前余额(D73 改语义:input 直接编辑"当前余额",不动 initialBalance 字段)
+              //   - 用户看到的数字 = asset.currentBalance(asset.initialBalance + 流水 delta 之和)
+              //   - user 修改后,我们生一笔 type='balance' 流水让 delta 跟用户期望对齐
+              //   - 公式:adjustment = newCurrentBalance - oldCurrent
+              //   - 不动 initialBalance 字段(DB 语义稳定,真正的期初不动)
               // 2026-10-13 P6 改:
               //   - inputFormatter 实时拒绝超过 9,999,999.99 的输入(超过不让进)
               //   - 输入框下面红字提示"上限 9,999,999.99"作为说明(永远显示)
               //   - _save() 不再校验上限(inputFormatter 已经卡住,重复了)
-              const _SectionLabel('期初余额'),
+              const _SectionLabel('当前余额'),
               const SizedBox(height: AppSpacing.s2),
               TextField(
                 controller: _balanceController,

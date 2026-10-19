@@ -2,7 +2,7 @@ name: gridly
 description: "格子记账 — 一格一账的本地优先记账工具"
 publish_to: 'none'
 
-version: 1.0.1+22  # v1.0.1 patch 18 (D71.x 粉色主题 + D72 余额调整平账)
+version: 1.0.1+23  # v1.0.1 patch 19 (D73 修 编辑余额 form input 显示 init 而非 currentBalance + 不动 init 字段 + ledger 隐藏余额调整流水)
 # - 2026-10-19 user 拍板:发版后修复按 semver 重置 build 号
 #   · v1.0.0 = 首发(stable),对应 f97593e,build 0.1.0+104
 #   · v1.0.1 = 首个 patch(D70),build 从 0 重新计
