@@ -1,10 +1,18 @@
 // lib/features/home/ui/widgets/budget_progress.dart
 // 预算进度条:已花 / 预算,颜色按状态
 // 金额默认受 amountVisibilityProvider 控制(防偷窥 / 截图分享)
+//
+// D70.3 改(user 1.0.1 装机实测反馈,跟 MonthlySummary 一起回归到 XOR 公式):
+//   - 之前:跟 MonthlySummary 一起读 `combineAmountVisibilityProvider`
+//     (D64.51 创的组合 Provider,公式 hidden = !global || !local)
+//   - 现在:HomePage 提升 _localVisible 后,BudgetProgress 通过 props 接收
+//     localVisible;与 MonthlySummary 共享同一份 local state(避免两张卡
+//     "分裂" —— 点月度汇总卡按钮预算卡不动)
+//   - 公式:hidden = global ^ localVisible(XOR),跟 MonthlySummary 行为完全一致
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/settings/home_amount_visibility_provider.dart';
+import '../../../../core/settings/amount_visibility_provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -14,7 +22,12 @@ import '../../../../core/utils/formatters.dart';
 import '../../../ledger/application/transactions_providers.dart';
 
 class BudgetProgress extends ConsumerWidget {
-  const BudgetProgress({super.key});
+  const BudgetProgress({super.key, required this.localVisible});
+
+  /// D70.3:HomePage 持有的 widget-local "显示金额" 状态
+  ///   - MonthlySummary(有按钮) toggle 它,BudgetProgress(无按钮)只读
+  ///   - 切 tab 时 HomePage widget 销毁重建,值重置为 true
+  final bool localVisible;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -24,11 +37,11 @@ class BudgetProgress extends ConsumerWidget {
     final spent = summary.expense;
     final percent = (spent / budget).clamp(0.0, 1.5);
     final state = _status(spent, budget);
-    // D64.51:hidden = 组合(全局 || 首页 local),任一隐藏则隐藏
-    //   - 跟 MonthlySummary 保持一致的可见性逻辑,避免首页两卡片行为分裂
-    //   - 全局 = false(我的页关) → 首页也隐藏
-    //   - 全局 = true + 首页关 → 只首页隐藏
-    final hidden = ref.watch(combineAmountVisibilityProvider);
+    // D70.3:hidden = global ^ localVisible (XOR),跟 MonthlySummary 同公式
+    //   - 全局决定默认,local 临时 toggle
+    //   - 真值表跟 MonthlySummary 一致,两张卡行为不分裂
+    final globalVisible = ref.watch(amountVisibilityProvider);
+    final hidden = globalVisible ^ localVisible;
 
     // 隐藏时金额占位(数字与单位都用 •••••• 替代,保留长度感)
     // withUnit=false → 整卡顶层 `本月预算(万元)` 已声明单位,数字不重复
@@ -55,9 +68,7 @@ class BudgetProgress extends ConsumerWidget {
             children: [
               // 动态单位:amountVisibility 控制时去掉 parens(避免误导显示)
               Text(
-                hidden
-                    ? '本月预算'
-                    : Formatters.labelledUnit('本月预算', budget),
+                hidden ? '本月预算' : Formatters.labelledUnit('本月预算', budget),
                 style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -98,10 +109,7 @@ class BudgetProgress extends ConsumerWidget {
                 hidden
                     ? '预算'
                     : '${Formatters.labelledUnit('预算', budget)}${money(budget)}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppGray.g600,
-                ),
+                style: const TextStyle(fontSize: 12, color: AppGray.g600),
               ),
             ],
           ),

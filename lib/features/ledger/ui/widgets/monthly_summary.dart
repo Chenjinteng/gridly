@@ -4,10 +4,29 @@
 //   - 主数字区(深色底):本月结余大字
 //   - 收入 / 支出两个 cell(等高,IntrinsicHeight 强制),中间 1px 分隔线
 //   - 日均支出行(底部独立小行),防止 cell 内容不对称导致底不齐
+//
+// D70.3 改(user 1.0.1 装机实测反馈,跟 D64.51/D70 反反复复到现在):
+//   - user 实际要的:global 决定默认 hidden,home 按钮能临时 toggle,
+//     切 tab 时 home 的 local state 重置
+//   - 公式:hidden = global ^ localVisible(XOR)
+//     · global=开 + local=开(true,默认) = 显示
+//     · global=开 + local=关(点了一次) = 隐藏(local 临时遮蔽)
+//     · global=关 + local=开(true,默认) = 隐藏(看 global)
+//     · global=关 + local=关(点了一次) = 显示(local 临时突破 global)
+//   - local state 提升到 HomePage 层(原来是 D64.51 的 StateProvider + D70
+//     第一稿的 MonthlySummary 自己持有 widget-local,导致 MonthlySummary 和
+//     BudgetProgress 行为分裂,点月度汇总卡眼睛按钮预算卡不变)
+//   - 当前 MonthlySummary 改回 ConsumerWidget,localVisible / onToggleLocal
+//     从 HomePage 注入;BudgetProgress 同理从 HomePage 注入同一个 localVisible
+//     这样两张卡行为一致(同月隐藏 / 同月显示)
+//   - 切 tab 走 shell AnimatedSwitcher -> 旧 HomePage widget 销毁,新 HomePage
+//     initState 把 _localVisible 重置为 true,"当前生效"语义自然实现
+//   - 删 homeAmountVisibilityProvider / combineAmountVisibilityProvider,
+//     直接用 amountVisibilityProvider(global)+ props 传入的 localVisible 计算 hidden
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/settings/home_amount_visibility_provider.dart';
+import '../../../../core/settings/amount_visibility_provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -17,21 +36,31 @@ import '../../../../core/widgets/gridly_mark.dart';
 import '../../application/transactions_providers.dart';
 
 class MonthlySummary extends ConsumerWidget {
-  const MonthlySummary({super.key});
+  const MonthlySummary({
+    super.key,
+    required this.localVisible,
+    required this.onToggleLocal,
+  });
+
+  /// D70.3:HomePage 持有的 widget-local "显示金额" 状态
+  ///   - 默认 true(跟 global 默认一致)
+  ///   - 切 tab 时 HomePage widget 销毁重建,自动 reset
+  final bool localVisible;
+
+  /// D70.3:MonthlySummary 持有的眼睛按钮 onTap → HomePage._toggleLocal,
+  ///   通过 prop 注入,让 MonthlySummary 自己 stateless
+  final VoidCallback onToggleLocal;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final summary = ref.watch(monthSummaryProvider);
-    // D70:hidden = !global && !local(任一为 visible 都 visible,local 能临时 override 全局)
-    //   - 全局开 + local 开 = 显示
-    //   - 全局开 + local 关 = 隐藏(local 临时遮蔽,适合截图分享)
-    //   - 全局关 + local 开 = 显示(D70 改:local 临时突破全局,user 1.0.0 release
-    //     反馈 D64.51 "任一为 hidden 都 hidden" 太严格,点按钮无效)
-    //   - 全局关 + local 关 = 隐藏(user 明确全要藏)
-    final hidden = ref.watch(combineAmountVisibilityProvider);
-    // D64.51:眼睛按钮文字/icon 基于 home local(不是 global),
-    //   因为按钮只控制 local;global 被 toggle 时按钮状态不动
-    final homeHidden = !ref.watch(homeAmountVisibilityProvider);
+    // D70.3:hidden = globalVisible ^ localVisible (XOR)
+    //   - global 决定默认,local 临时 toggle
+    //   - 真值表见文件头
+    final globalVisible = ref.watch(amountVisibilityProvider);
+    final hidden = globalVisible ^ localVisible;
+    // D70.3:按钮文字/icon 基于 local(不是 global),按钮状态反映 local
+    final homeHidden = !localVisible;
     final now = DateTime.now();
     final sheetTitle = '${now.year}年${now.month}月';
     final theme = Theme.of(context);
@@ -93,16 +122,14 @@ class MonthlySummary extends ConsumerWidget {
                     ],
                   ),
                   // 眼睛按钮 —— 切换金额显示/隐藏
-                  // D64.51:onTap 改 toggle `homeAmountVisibilityProvider`(首页 local),
-                  //   不再 toggle 全局(避免 user 反馈 bug:点首页按钮同时关掉
-                  //   "我的"页那个全局开关)
-                  // D64.51:按钮文字/icon 基于 homeHidden(不是全局 hidden),
+                  // D70.3:onTap 调 onToggleLocal (HomePage.setState),不再 toggle
+                  //   全局(避免 user 反馈 bug:点首页按钮同时关掉"我的"页那个
+                  //   全局开关)
+                  // D70.3:按钮文字/icon 基于 localVisible(不是 global hidden),
                   //   按钮状态反映 local 状态,global 切换不影响按钮显示
                   InkWell(
                     borderRadius: BorderRadius.circular(12),
-                    onTap: () =>
-                        ref.read(homeAmountVisibilityProvider.notifier).state =
-                            !ref.read(homeAmountVisibilityProvider),
+                    onTap: onToggleLocal,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 6,
@@ -113,7 +140,9 @@ class MonthlySummary extends ConsumerWidget {
                           Text(
                             homeHidden ? '显示金额' : '本月结余',
                             style: TextStyle(
-                              color: homeHidden ? AppSecondary.cream : AppGray.g400,
+                              color: homeHidden
+                                  ? AppSecondary.cream
+                                  : AppGray.g400,
                               fontSize: 11,
                               fontWeight: homeHidden
                                   ? FontWeight.w600
@@ -126,7 +155,9 @@ class MonthlySummary extends ConsumerWidget {
                                 ? Icons.visibility_outlined
                                 : Icons.visibility_off_outlined,
                             size: 14,
-                            color: homeHidden ? AppSecondary.cream : AppGray.g400,
+                            color: homeHidden
+                                ? AppSecondary.cream
+                                : AppGray.g400,
                           ),
                         ],
                       ),
