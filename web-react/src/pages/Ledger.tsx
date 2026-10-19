@@ -11,6 +11,7 @@ import {
 import { api, type Ledger, type Category, type Account, type LedgerType } from '../api/client';
 import { useTheme } from '../theme';
 import { TypeChip } from '../components/TypeChip';
+import { EditableCell } from '../components/EditableCell';
 import AddTransactionModal from '../components/AddTransactionModal';
 
 const fmt = (n: number) =>
@@ -106,6 +107,32 @@ export default function Ledger() {
     });
   }, [ledgers, filterType, search]);
 
+  // 乐观更新行(失败 revert)
+  async function updateRow(id: number, patch: Partial<Ledger>) {
+    const prev = ledgers.find((l) => l.id === id);
+    if (!prev) return;
+    // 乐观写本地
+    setLedgers((curr) => curr.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+    try {
+      await api.updateLedger(id, patch);
+    } catch (e) {
+      // revert
+      setLedgers((curr) => curr.map((l) => (l.id === id ? prev : l)));
+      throw e;
+    }
+  }
+
+  async function deleteRow(id: number) {
+    const prev = ledgers;
+    setLedgers((curr) => curr.filter((l) => l.id !== id));
+    try {
+      await api.deleteLedger(id);
+    } catch (e) {
+      setLedgers(prev);
+      throw e;
+    }
+  }
+
   // 表格列
   const columns = useMemo<ColumnDef<Ledger>[]>(
     () => [
@@ -139,21 +166,24 @@ export default function Ledger() {
         accessorKey: 'amount',
         size: 160,
         cell: (info) => {
-          const t = info.row.original.type;
-          const c = t === 'expense' ? theme.expense : t === 'income' ? theme.income : theme.transfer;
+          const row = info.row.original;
+          const c = row.type === 'expense' ? theme.expense : row.type === 'income' ? theme.income : theme.transfer;
+          const sign = row.type === 'expense' ? '-' : row.type === 'income' ? '+' : '';
           return (
-            <span
-              style={{
-                fontFamily: theme.fontFamilyMono,
-                fontWeight: 500,
-                color: c,
-                textAlign: 'right',
-                display: 'block',
-              }}
-            >
-              {t === 'expense' ? '-' : t === 'income' ? '+' : ''}
-              {fmt(info.getValue() as number)}
-            </span>
+            <div style={{ textAlign: 'right' }}>
+              <EditableCell
+                value={`${sign}${fmt(row.amount)}`}
+                type="text"
+                align="right"
+                style={{ color: c, fontFamily: theme.fontFamilyMono, fontWeight: 500 }}
+                onCommit={async (next) => {
+                  const cleaned = next.replace(/[+\-,¥\s]/g, '');
+                  const num = parseFloat(cleaned);
+                  if (!Number.isFinite(num) || num < 0) throw new Error('金额格式不对');
+                  await updateRow(row.id, { amount: num });
+                }}
+              />
+            </div>
           );
         },
       },
@@ -169,10 +199,31 @@ export default function Ledger() {
         accessorFn: (row) => row.note ?? '',
         id: 'note',
         size: noteSize,
+        cell: (info) => {
+          const row = info.row.original;
+          return (
+            <EditableCell
+              value={row.note ?? ''}
+              placeholder="—"
+              style={{ color: theme.textSecondary }}
+              onCommit={async (next) => {
+                await updateRow(row.id, { note: next || null });
+              }}
+            />
+          );
+        },
+      },
+      {
+        id: 'actions',
+        header: '',
+        size: 36,
         cell: (info) => (
-          <span style={{ color: theme.textSecondary }}>
-            {(info.getValue() as string) || '—'}
-          </span>
+          <DeleteRowButton
+            onDelete={async () => {
+              if (!confirm('删除这条流水?')) return;
+              await deleteRow(info.row.original.id);
+            }}
+          />
         ),
       },
     ],
@@ -439,3 +490,29 @@ const SummaryCard = ({ label, value, color, theme: t }: { label: string; value: 
     </div>
   </div>
 );
+
+// 行尾的 × 删除按钮:默认 30% 透明,hover 100%
+const DeleteRowButton = ({ onDelete }: { onDelete: () => void }) => {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      onClick={onDelete}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      title="删除"
+      style={{
+        background: 'transparent',
+        border: 'none',
+        color: '#F87171',
+        cursor: 'pointer',
+        fontSize: 16,
+        lineHeight: 1,
+        padding: 4,
+        opacity: hover ? 1 : 0.3,
+        transition: 'opacity 0.15s',
+      }}
+    >
+      ×
+    </button>
+  );
+};
