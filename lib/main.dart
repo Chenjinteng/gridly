@@ -5,9 +5,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
 import 'core/database/providers.dart';
+// 2026-10-19 D70.6 加:在 runApp 前注册 modal back 拦截器,WidgetsBindingObserver
+//   按注册顺序遍历 back,我们的 observer 早于 MaterialApp.router 创建的
+//   RootBackButtonDispatcher,系统 back 先到我们这里 — modal 打开时自己 pop
+//   模态 + 返回 true(handled),绕开 go_router 14.8.1 _findCurrentNavigator NPE
+import 'core/widgets/show_app_modal_sheet.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // D70.6:先注册 modal back 拦截器(在 MaterialApp.router / RootBackButtonDispatcher 之前)
+  registerModalBackInterceptor();
   final container = ProviderContainer();
   // 首次启动(或表空时)seed 默认分类
   await container.read(categoryRepositoryProvider).seedDefaultsIfEmpty();

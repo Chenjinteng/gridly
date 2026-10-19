@@ -5,92 +5,47 @@
 //   修 user UAT 报"几个 popup 弹,系统返回操作会退出整个 app,不会只关闭 popup"。
 //   这是历史反复 bug,三次尝试(D64.18 / D64.19 / D64.20)都只修一类 call site 漏一类。
 //
-//   根因(深挖,D64.20 注释 + 自己实测推断):
-//   - MaterialApp.router + GoRouter 在 root NavigatorState 上挂 RootBackButtonDispatcher
-//     (GoRouter.delegate 实现 popRoute 兜底)。
-//   - showModalBottomSheet 推到 shell sub-navigator(stack:[shell > sheet])。
-//   - Android back 触发 → Flutter handlePopRoute → RootBackButtonDispatcher
-//     → GoRouterDelegate.popRoute → 走 matches 找当前 navigator。
-//   - matches 只包含 go_router 自己 push 的路由(/home 等 tab + /add push 的),
-//     **不包含 Flutter Navigator 自己 push 的 modal route**
-//     (因为 showModalBottomSheet 是 raw Navigator.push,不走 GoRouter 注册)。
-//   - delegate 找不到能 canPop 的 match → popRoute 返 false →
-//     RootBackButtonDispatcher 系统级 fallback → SystemNavigator.pop() → app 退。
+//   D66 当时 useRootNavigator:false + PopScope 双层防御。但装机实测仍有 2 个 sheet
+//   退 app(我的 CSV 导出 + 流水快速筛选)。D70.4 加 WillPopScope 兜底也没用。
 //
-//   根因以前所有 patch 失败的原因:
-//   - D64.18 加 PopScope 套 raw pushed page,D64.18 的 onPopInvokedWithResult
-//     调用 Navigator.pop() 的顺序不对,因为 state.maybePop() 已先返回 false
-//     触发 SystemNavigator.pop(),来不及救。
-//   - D64.19 audit 漏看 — 默认 Flutter ModalBottomSheetRoute 自己处理 back,
-//     但实际在 MaterialApp.router + GoRouter 下被 dispatcher 抢先 -> 没机会处理。
-//   - D64.20 加 useRootNavigator: false,把 sheet 推到 sub-navigator,但 root
-//     dispatcher 仍接管 → popRoute 仍走 GoRouterDelegate.matches 兜底 → 仍退 app。
-//
-//   本次真修(D66):
-//   - 抽 showAppModalBottomSheet<T>() helper,内置两层防御:
-//     ① useRootNavigator: false —— sheet 跟调用方同 navigator 栈(shell 或 root)
-//     ② PopScope(canPop: false, onPopInvokedWithResult → Navigator.of(ctx).pop())
-//        包在 builder 内容外 —— sheet 自己拦截系统 back,根本不走到 GoRouter 兜底
-//   - 用法跟 showModalBottomSheet 1:1,call site 替换即可,无业务改动。
-//   - 影响范围:全仓库 11 处 call site(流水 picker 3 + 我的 CSV + 记一笔 picker 3
-//     + budget + date picker + 报表 range 2 + 分类管理 form)。
-//
-// 2026-10-19 D70.4 修(1.0.1 装机实测 user 反馈仍有 2 个 sheet — 我的 CSV 导出 +
-//   流水快速筛选 — 退 app):
-//   - 单独 PopScope 防御在某些场景仍被绕开(可能是 Flutter 3.47.7 + GoRouter 14.8.1
-//     下 PopScope 的 PopEntry 注册时序问题,或 popDisposition 走到 bubble 分支)
-//   - 加 WillPopScope(legacy API,直接调 addScopedWillPopCallback 钩 ModalRoute.willPop)
-//     做 belt-and-suspenders 兜底,跟 PopScope 互不影响
-//     · WillPopScope.onWillPop → Future.value(false) → 阻止 back 弹掉 modal route
-//     · 用户期待"按 back 关掉 sheet",但默认 modal route 是会自己 pop 掉
-//     · 关键是 WillPopScope 拦下 back 后手动 Navigator.pop(ctx),走 ModalRoute
-//       自带的 onDidPopNext/onDispose 清理栈,不会让 back 漏到 GoRouter 兜底
-//   - PopScope 保留作为现代 API 优先路径(canPop:false → popDisposition doNotPop)
-//   - 两层任一生效就够,互不冲突
-//
-// 2026-10-19 D70.5 修(1.0.1+1/1.0.1+2 装机实测 logcat 抓到 root cause):
-//   - logcat 完整 trace 显示 back 链:
+// 2026-10-19 D70.5 抓到 logcat root cause(原 useRootNavigator:false 假设错了):
+//   logcat 完整 trace:
 //     RootBackButtonDispatcher.didPopRoute
 //       → GoRouterDelegate.popRoute
 //         → _findCurrentNavigator()
 //           → line 114: `walker.navigatorKey.currentState!` 抛 NPE
 //     `Null check operator used on a null value`
-//   - 根因:GoRouter 14.8.1 的 _findCurrentNavigator() 走 while (walker is ShellRouteMatch)
-//     时访问 `walker.navigatorKey.currentState!`,如果 modal sheet 在 shell sub-navigator
-//     上(useRootNavigator: false 推到 caller 同栈),shellNavigatorKey.currentState
-//     在某 frame 是 null → NPE
-//   - 异常导致 popRoute 没正常返回 → RootBackButtonDispatcher 当作"back 没处理"
-//     → SystemNavigator.pop() 杀 app
-//   - 反过来修法(D70.5):useRootNavigator 改回 true,modal 推到 root navigator
-//     · GoRouter 的 matches.last 是 RouteMatch(SettingsPage),不是 ShellRouteMatch
-//     · while 循环不进 ShellRouteMatch 分支,不会触发 NPE
-//     · root.maybePop() 直接 pop modal (modal popDisposition = pop,默认),back 正常处理
-//   - PopScope + WillPopScope 双层防御保留(D70.4)作为外层保险,这样即使将来
-//     GoRouter 行为再变,modal 自己也能拦下 back
+//   异常被 WidgetsBinding.handlePopRoute 的 try-catch 吞掉,继续往下走
+//   → SystemNavigator.pop() → app 退
+//
+//   反过来 D70.5 useRootNavigator:true 没修到,因为 NPE 跟 modal 位置无关,
+//   是 go_router 14.8.1 _findCurrentNavigator 在 matches.last 是 ShellRouteMatch
+//   时访问 shellNavigatorKey.currentState 拿到 null 的框架 bug。
+//
+// 2026-10-19 D70.6 真正修法(WidgetsBindingObserver 拦截 back 在 GoRouter 之前):
+//   - 注册一个 WidgetsBindingObserver 在 main.dart 启动时(早于 MaterialApp.router
+//     创建 RootBackButtonDispatcher),WidgetsBinding.handlePopRoute 遍历 observers
+//     时按注册顺序调用,我们的 observer 先于 RootBackButtonDispatcher 处理 back
+//   - observer 检查是否有 modal 打开,有则自己 pop modal + 返回 true(back handled),
+//     WidgetsBinding 不再往下调 RootBackButtonDispatcher → 绕开 NPE
+//   - 没有 modal 时返回 false,让默认 RootBackButtonDispatcher 处理(正常 GoRouter 行为)
+//
+//   PopScope + WillPopScope 保留(D70.4)作为 inner 兜底,modal 自己被任何方式
+//   关闭(drag / close 按钮 / 滑下来)都能干净 dispose。
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 /// 应用级 modal bottom sheet —— 修 Android 系统返回键退 app 跟 iOS swipe-down
-/// 在 go_router + ShellRoute 下的 back 路由问题。
+/// 在 go_router + ShellRoute 下的 back 路由问题(D70.6)。
 ///
-/// 用法跟 [showModalBottomSheet] 1:1,直接替换 call site 的函数名即可:
-/// ```dart
-/// final picked = await showAppModalBottomSheet<T>(
-///   context: context,
-///   isScrollControlled: true,
-///   backgroundColor: ...,
-///   builder: (_) => MySheet(),
-/// );
-/// ```
+/// 用法跟 [showModalBottomSheet] 1:1,直接替换 call site 的函数名即可。
 ///
-/// 跟原 [showModalBottomSheet] 的差异(D66 + D70.4 + D70.5 内置):
-/// - [useRootNavigator] 强制 true(D70.5 反 D66) —— sheet 推到 root Navigator,避开
-///   GoRouter _findCurrentNavigator 在 shellNavigatorKey 上的 NPE
-/// - builder 内容外双层防御(D70.4):
-///   · PopScope (canPop: false) —— Flutter 3.12+ 现代 API,hook popDisposition
-///   · WillPopScope (onWillPop → false, 内部 pop) —— legacy API,直接 addScopedWillPopCallback
-///     hook ModalRoute.willPop。两者互不冲突,任一生效都够
-/// - 命中任一拦截 → 手动 `Navigator.of(ctx).pop()` 关闭 sheet,
-///   不走到 GoRouter.delegate.popRoute 兜底 → 不再退 app
+/// 跟原 [showModalBottomSheet] 的差异(D66 + D70.4 + D70.5 + D70.6 内置):
+/// - [WidgetsBindingObserver] 拦截器(D70.6) —— 全局单例,在 main.dart 启动时注册,
+///   早于 MaterialApp.router 的 RootBackButtonDispatcher,系统 back 先到我们这里
+/// - [useRootNavigator] 强制 true(D70.5) —— modal 推到 root Navigator
+/// - builder 内容外双层防御(D70.4)保留:PopScope + WillPopScope
 Future<T?> showAppModalBottomSheet<T>({
   required BuildContext context,
   required WidgetBuilder builder,
@@ -103,45 +58,116 @@ Future<T?> showAppModalBottomSheet<T>({
   EdgeInsets? insetAnimationDuration,
   RouteSettings? routeSettings,
 }) {
-  return showModalBottomSheet<T>(
-    context: context,
-    // D70.5:改回 true (反 D66)。GoRouter 14.8.1 的 _findCurrentNavigator() 在
-    //   modal 在 shell sub-navigator 时会 NPE (delegate.dart:114
-    //   `walker.navigatorKey.currentState!`),所以 modal 必须推到 root navigator
-    //   让 GoRouter 的 matches.last 是 RouteMatch (不是 ShellRouteMatch),
-    //   跳过 while 循环,不触发 NPE。
-    useRootNavigator: true,
-    isScrollControlled: isScrollControlled,
-    isDismissible: isDismissible,
-    enableDrag: enableDrag,
-    backgroundColor: backgroundColor,
-    barrierColor: barrierColor,
-    shape: shape,
-    routeSettings: routeSettings,
-    builder: (ctx) {
-      // D66-② + D70.4:PopScope 现代 API 优先路径
-      //   canPop:false → ModalRoute.popDisposition 走 doNotPop 分支
-      //   onPopInvokedWithResult → 手动 Navigator.of(ctx).pop() 关闭 sheet
-      final popScopeLayer = PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (didPop, _) {
-          if (didPop) return;
-          Navigator.of(ctx).pop();
-        },
-        child: Builder(builder: builder),
-      );
-      // D70.4:WillPopScope 兜底层,直接调 addScopedWillPopCallback 钩
-      // ModalRoute.willPop(legacy API,Flutter 3.12 标记 deprecated 但仍 work)。
-      // 跟 PopScope 互不影响 —— 一个 hook popDisposition,一个 hook willPop,
-      // Navigator.maybePop 链路上任一拦下就够,不会漏到 GoRouter 兜底退 app。
-      // ignore: deprecated_member_use
-      return WillPopScope(
-        onWillPop: () async {
-          Navigator.of(ctx).pop();
-          return false; // 阻止 back 弹掉 route 本身(我们已经手动 pop 了)
-        },
-        child: popScopeLayer,
-      );
-    },
+  // D70.6:在 WidgetsBindingObserver 注册 modal。observer 在 main.dart 启动时
+  // 已 add,我们的 handlePopRoute 会先于 RootBackButtonDispatcher 被调,
+  // 有 modal 时直接 pop 模态,返回 true → WidgetsBinding 不再往下调 GoRouter
+  // → 绕开 go_router 14.8.1 _findCurrentNavigator NPE
+  final navigator = Navigator.of(context, rootNavigator: true);
+
+  return _ModalBackInterceptor.instance.runWithModal<T>(
+    navigator: navigator,
+    showSheet: () => showModalBottomSheet<T>(
+      context: context,
+      // D70.5:改回 true(反 D66)。go_router 14.8.1 的 _findCurrentNavigator
+      //   在 modal 在 shell sub-navigator 时会 NPE (delegate.dart:114
+      //   `walker.navigatorKey.currentState!`),所以 modal 必须推到 root navigator
+      //   让 GoRouter 的 matches.last 是 RouteMatch (不是 ShellRouteMatch),
+      //   跳过 while 循环,不触发 NPE。
+      useRootNavigator: true,
+      isScrollControlled: isScrollControlled,
+      isDismissible: isDismissible,
+      enableDrag: enableDrag,
+      backgroundColor: backgroundColor,
+      barrierColor: barrierColor,
+      shape: shape,
+      routeSettings: routeSettings,
+      builder: (ctx) {
+        // D66-② + D70.4:PopScope 现代 API 优先路径
+        //   canPop:false → ModalRoute.popDisposition 走 doNotPop 分支
+        //   onPopInvokedWithResult → 手动 Navigator.of(ctx).pop() 关闭 sheet
+        final popScopeLayer = PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) return;
+            Navigator.of(ctx).pop();
+          },
+          child: Builder(builder: builder),
+        );
+        // D70.4:WillPopScope 兜底层,直接调 addScopedWillPopCallback 钩
+        // ModalRoute.willPop(legacy API,Flutter 3.12 标记 deprecated 但仍 work)。
+        // 跟 PopScope 互不影响 —— 一个 hook popDisposition,一个 hook willPop,
+        // Navigator.maybePop 链路上任一拦下就够,不会漏到 GoRouter 兜底退 app。
+        // ignore: deprecated_member_use
+        return WillPopScope(
+          onWillPop: () async {
+            Navigator.of(ctx).pop();
+            return false; // 阻止 back 弹掉 route 本身(我们已经手动 pop 了)
+          },
+          child: popScopeLayer,
+        );
+      },
+    ),
   );
+}
+
+/// 全局 WidgetsBindingObserver,系统 back 拦截器(D70.6)。
+///
+/// 注册时机:必须在 MaterialApp.router 创建 RootBackButtonDispatcher 之前
+/// (在 main.dart `WidgetsBinding.instance.addObserver(_ModalBackInterceptor.instance)`
+/// 早于 runApp 调用)。
+///
+/// 工作原理:
+/// - WidgetsBinding.handlePopRoute 遍历 observers(按注册顺序)调 didPopRoute
+/// - 我们 observer 第一个被调,因为 main.dart 启动时先 add 我们
+/// - 有 modal 打开时,我们的 didPopRoute 手动 pop 模态 + 返回 true
+/// - 返回 true → WidgetsBinding.handlePopRoute 直接返 true → 不再调后续
+///   RootBackButtonDispatcher → 绕开 go_router 14.8.1 _findCurrentNavigator NPE
+/// - 没 modal 时返回 false → 后续 RootBackButtonDispatcher 正常处理(正常 GoRouter 行为)
+class _ModalBackInterceptor with WidgetsBindingObserver {
+  _ModalBackInterceptor._();
+
+  /// 全局单例。main.dart 启动时 addObserver 后,modal 拦截就生效。
+  static final _ModalBackInterceptor instance = _ModalBackInterceptor._();
+
+  /// 记录当前打开的 modal 数量(stack 形式,支持嵌套 sheet)
+  int _modalCount = 0;
+
+  /// D70.6 系统 back 拦截器 + modal 生命周期管理
+  Future<T?> runWithModal<T>({
+    required NavigatorState navigator,
+    required Future<T?> Function() showSheet,
+  }) {
+    _modalCount++;
+    final completer = Completer<T?>();
+    showSheet().then((result) {
+      _modalCount--;
+      if (!completer.isCompleted) completer.complete(result);
+    }).catchError((Object e, StackTrace s) {
+      _modalCount--;
+      if (!completer.isCompleted) completer.completeError(e, s);
+    });
+    return completer.future;
+  }
+
+  @override
+  Future<bool> didPopRoute() async {
+    // 有 modal 打开:我们自己 pop 模态,返回 true 让 WidgetsBinding 不再往下走
+    if (_modalCount > 0) {
+      // 找一个能 pop 的 navigator(root navigator 是最稳的)
+      final rootNav = WidgetsBinding.instance.rootElement
+          ?.findAncestorStateOfType<NavigatorState>();
+      if (rootNav != null && rootNav.canPop()) {
+        rootNav.pop();
+        return true;
+      }
+    }
+    // 没 modal:让默认 RootBackButtonDispatcher 处理(返回 false 让 handlePopRoute
+    // 继续遍历 / 调 SystemNavigator.pop)
+    return false;
+  }
+}
+
+/// 暴露注册入口给 main.dart,在 runApp 之前调用一次
+void registerModalBackInterceptor() {
+  WidgetsBinding.instance.addObserver(_ModalBackInterceptor.instance);
 }
