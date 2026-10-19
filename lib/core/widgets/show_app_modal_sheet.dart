@@ -47,6 +47,26 @@
 //       自带的 onDidPopNext/onDispose 清理栈,不会让 back 漏到 GoRouter 兜底
 //   - PopScope 保留作为现代 API 优先路径(canPop:false → popDisposition doNotPop)
 //   - 两层任一生效就够,互不冲突
+//
+// 2026-10-19 D70.5 修(1.0.1+1/1.0.1+2 装机实测 logcat 抓到 root cause):
+//   - logcat 完整 trace 显示 back 链:
+//     RootBackButtonDispatcher.didPopRoute
+//       → GoRouterDelegate.popRoute
+//         → _findCurrentNavigator()
+//           → line 114: `walker.navigatorKey.currentState!` 抛 NPE
+//     `Null check operator used on a null value`
+//   - 根因:GoRouter 14.8.1 的 _findCurrentNavigator() 走 while (walker is ShellRouteMatch)
+//     时访问 `walker.navigatorKey.currentState!`,如果 modal sheet 在 shell sub-navigator
+//     上(useRootNavigator: false 推到 caller 同栈),shellNavigatorKey.currentState
+//     在某 frame 是 null → NPE
+//   - 异常导致 popRoute 没正常返回 → RootBackButtonDispatcher 当作"back 没处理"
+//     → SystemNavigator.pop() 杀 app
+//   - 反过来修法(D70.5):useRootNavigator 改回 true,modal 推到 root navigator
+//     · GoRouter 的 matches.last 是 RouteMatch(SettingsPage),不是 ShellRouteMatch
+//     · while 循环不进 ShellRouteMatch 分支,不会触发 NPE
+//     · root.maybePop() 直接 pop modal (modal popDisposition = pop,默认),back 正常处理
+//   - PopScope + WillPopScope 双层防御保留(D70.4)作为外层保险,这样即使将来
+//     GoRouter 行为再变,modal 自己也能拦下 back
 import 'package:flutter/material.dart';
 
 /// 应用级 modal bottom sheet —— 修 Android 系统返回键退 app 跟 iOS swipe-down
@@ -62,9 +82,10 @@ import 'package:flutter/material.dart';
 /// );
 /// ```
 ///
-/// 跟原 [showModalBottomSheet] 的差异(D66 + D70.4 内置):
-/// - [useRootNavigator] 强制 false —— sheet 跟调用方同 Navigator 栈。
-/// - builder 内容外双层防御:
+/// 跟原 [showModalBottomSheet] 的差异(D66 + D70.4 + D70.5 内置):
+/// - [useRootNavigator] 强制 true(D70.5 反 D66) —— sheet 推到 root Navigator,避开
+///   GoRouter _findCurrentNavigator 在 shellNavigatorKey 上的 NPE
+/// - builder 内容外双层防御(D70.4):
 ///   · PopScope (canPop: false) —— Flutter 3.12+ 现代 API,hook popDisposition
 ///   · WillPopScope (onWillPop → false, 内部 pop) —— legacy API,直接 addScopedWillPopCallback
 ///     hook ModalRoute.willPop。两者互不冲突,任一生效都够
@@ -84,9 +105,12 @@ Future<T?> showAppModalBottomSheet<T>({
 }) {
   return showModalBottomSheet<T>(
     context: context,
-    // D66-①:sheet 推到调用方最深的 Navigator(跟 ledger_page/settings_page 同栈),
-    //          不再走 root Navigator。
-    useRootNavigator: false,
+    // D70.5:改回 true (反 D66)。GoRouter 14.8.1 的 _findCurrentNavigator() 在
+    //   modal 在 shell sub-navigator 时会 NPE (delegate.dart:114
+    //   `walker.navigatorKey.currentState!`),所以 modal 必须推到 root navigator
+    //   让 GoRouter 的 matches.last 是 RouteMatch (不是 ShellRouteMatch),
+    //   跳过 while 循环,不触发 NPE。
+    useRootNavigator: true,
     isScrollControlled: isScrollControlled,
     isDismissible: isDismissible,
     enableDrag: enableDrag,
@@ -95,9 +119,9 @@ Future<T?> showAppModalBottomSheet<T>({
     shape: shape,
     routeSettings: routeSettings,
     builder: (ctx) {
-      // D66-②:PopScope 自包含 back handler,拦截系统 back → 手动 pop sheet,
-      // 不走到 GoRouter 的 popRoute 兜底 → 不再退 app。
-      // D70.4:保留作为现代 API 优先路径
+      // D66-② + D70.4:PopScope 现代 API 优先路径
+      //   canPop:false → ModalRoute.popDisposition 走 doNotPop 分支
+      //   onPopInvokedWithResult → 手动 Navigator.of(ctx).pop() 关闭 sheet
       final popScopeLayer = PopScope(
         canPop: false,
         onPopInvokedWithResult: (didPop, _) {
