@@ -213,7 +213,6 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final now = DateTime.now();
     final key = BudgetMonthKey(now.year, now.month);
     final overviewAsync = ref.watch(budgetOverviewForMonthProvider(key));
@@ -355,7 +354,7 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
                               size: 16,
                               color: overAllocated
                                   ? AppStatus.error
-                                  : AppBrand.teal,
+                                  : Theme.of(context).colorScheme.primary,
                             ),
                             const SizedBox(width: AppSpacing.s2),
                             Expanded(
@@ -444,9 +443,10 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
                               shape: RoundedRectangleBorder(
                                 borderRadius: AppRadius.brLg,
                               ),
-                              foregroundColor: AppBrand.teal,
-                              side: const BorderSide(
-                                color: AppBrand.teal,
+                              // D71.2:跟随 palette(浅粉 → 深粉,默认 → 青绿)
+                              foregroundColor: Theme.of(context).colorScheme.primary,
+                              side: BorderSide(
+                                color: Theme.of(context).colorScheme.primary,
                                 width: 1,
                               ),
                               padding: const EdgeInsets.symmetric(
@@ -463,10 +463,11 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
                         child: FilledButton(
                           onPressed: (_saving || overAllocated) ? null : _save,
                           style: FilledButton.styleFrom(
-                            backgroundColor: isDark
-                                ? AppSecondary.cream
-                                : AppBrand.ink,
-                            foregroundColor: isDark ? AppBrand.ink : null,
+                            // D71.2:跟随 palette
+                            backgroundColor:
+                                Theme.of(context).colorScheme.inverseSurface,
+                            foregroundColor:
+                                Theme.of(context).colorScheme.onInverseSurface,
                             padding: const EdgeInsets.symmetric(
                               vertical: AppSpacing.s3,
                             ),
@@ -475,12 +476,14 @@ class _BudgetSheetState extends ConsumerState<BudgetSheet> {
                             ),
                           ),
                           child: _saving
-                              ? const SizedBox(
+                              ? SizedBox(
                                   width: 18,
                                   height: 18,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: AppBrand.gold,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onInverseSurface,
                                   ),
                                 )
                               : Text(overAllocated ? '已分配超出总额度' : '保存预算'),

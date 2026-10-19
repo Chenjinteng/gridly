@@ -44,9 +44,9 @@ class TopExpenses extends ConsumerWidget {
               Tab(text: '单笔'),
               Tab(text: '分类'),
             ],
-            labelColor: AppBrand.teal,
-            unselectedLabelColor: AppGray.g600,
-            indicatorColor: AppBrand.teal,
+            // D71.5.5:labelColor / indicatorColor / unselectedLabelColor
+            //  都去掉,完全由 app_theme.dart 的 tabBarTheme 接管
+            //   (palette.accent / scheme.onSurfaceVariant),跟随 palette
             dividerHeight: 0,
           ),
         ),

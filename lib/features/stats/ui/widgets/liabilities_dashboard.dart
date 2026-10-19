@@ -217,13 +217,20 @@ class LiabilitiesDashboard extends ConsumerWidget {
                   Icon(
                     Icons.check_circle_outline_rounded,
                     size: 20,
-                    color: AppBrand.teal.withValues(alpha: 0.85),
+                    // D71.2:跟随 palette
+                    color: Theme.of(context)
+                        .colorScheme
+                        .primary
+                        .withValues(alpha: 0.85),
                   ),
                   const SizedBox(width: AppSpacing.s2),
                   Text(
                     '当前无负债',
                     style: TextStyle(
-                      color: AppBrand.teal.withValues(alpha: 0.85),
+                      color: Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withValues(alpha: 0.85),
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                     ),

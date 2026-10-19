@@ -593,13 +593,17 @@ class _EmptyState extends StatelessWidget {
             width: 80,
             height: 80,
             decoration: BoxDecoration(
-              color: AppBrand.teal.withValues(alpha: 0.1),
+              // D71.2:empty state 装饰跟随 palette(浅粉→深粉,默认→青绿)
+              color: Theme.of(context)
+                  .colorScheme
+                  .primary
+                  .withValues(alpha: 0.1),
               borderRadius: AppRadius.brLg,
             ),
             child: Icon(
               searching ? Icons.search_off_outlined : Icons.inbox_outlined,
               size: 36,
-              color: AppBrand.teal,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
           const SizedBox(height: AppSpacing.s3),
@@ -669,9 +673,10 @@ class _DaySection extends ConsumerWidget {
                   if (dailyIncome > 0)
                     Text(
                       '+¥${Formatters.amount(dailyIncome)} ',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: AppBrand.gold,
+                        // D71.2:收入金→跟随 palette(浅粉→亮粉,默认→金黄)
+                        color: Theme.of(context).colorScheme.secondary,
                       ),
                     ),
                   if (dailyExpense > 0)
@@ -745,7 +750,6 @@ class _MultiSelectAssetSheetState extends State<_MultiSelectAssetSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     return DraggableScrollableSheet(
       initialChildSize: 0.7,
       minChildSize: 0.4,
@@ -867,8 +871,10 @@ class _MultiSelectAssetSheetState extends State<_MultiSelectAssetSheet> {
                 child: FilledButton(
                   onPressed: () => Navigator.pop(ctx, _selected),
                   style: FilledButton.styleFrom(
-                    backgroundColor: isDark ? AppSecondary.cream : AppBrand.ink,
-                    foregroundColor: isDark ? AppBrand.ink : null,
+                    // D71.2:跟随 palette
+                    backgroundColor: Theme.of(context).colorScheme.inverseSurface,
+                    foregroundColor:
+                        Theme.of(context).colorScheme.onInverseSurface,
                     padding: const EdgeInsets.symmetric(
                       vertical: AppSpacing.s3,
                     ),
@@ -876,10 +882,10 @@ class _MultiSelectAssetSheetState extends State<_MultiSelectAssetSheet> {
                   ),
                   child: Text(
                     _selected.isEmpty ? '显示全部' : '确定(${_selected.length})',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                      color: Theme.of(context).colorScheme.onInverseSurface,
                     ),
                   ),
                 ),

@@ -329,8 +329,9 @@ class _BudgetOverviewBodyState extends State<_BudgetOverviewBody> {
                                 // 剩余段:0~1 圈(teal 绿,commit 105 改)
                                 //   - user 反馈"剩余额度"用主题绿更"健康"
                                 //   - 跟分类预算行"未超额 teal"风格统一
+                                // D71.2:跟随 palette
                                 value: (1.0 - _progress).clamp(0.0, 1.0),
-                                color: AppBrand.teal,
+                                color: scheme.primary,
                                 radius: 18,
                               ),
                             if (!_hasBudget)
@@ -426,7 +427,7 @@ class _BudgetOverviewBodyState extends State<_BudgetOverviewBody> {
                           )
                         else
                           _legendRow(
-                            AppBrand.teal,
+                            scheme.primary,
                             '剩余',
                             ((1 - _progress).clamp(0.0, 1.0) * 100)
                                 .toStringAsFixed(0),
@@ -471,7 +472,8 @@ class _BudgetOverviewBodyState extends State<_BudgetOverviewBody> {
                   Icon(
                     Icons.account_balance_wallet_outlined,
                     size: 14,
-                    color: AppBrand.teal,
+                    // D71.2:跟随 palette
+                    color: scheme.primary,
                   ),
                   const SizedBox(width: AppSpacing.s2),
                   Expanded(
@@ -605,6 +607,7 @@ class _CategoryBudgetBarRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final color = Color(item.category.color);
     final spent = item.spent;
     final amount = item.amount;
@@ -612,13 +615,14 @@ class _CategoryBudgetBarRow extends StatelessWidget {
     final ratio = realRatio.clamp(0.0, 1.5);
     // 三档状态(commit 98 加 warning 段,跟 _stateColor 规则一致):
     //   < 80% teal / 80-100% warning 黄 / > 100% error 红
+    // D71.2:< 80% 跟随 palette
     final over = amount > 0 && spent > amount;
     final warning = !over && amount > 0 && realRatio >= 0.8;
     final barColor = over
         ? AppStatus.error
         : warning
         ? AppStatus.warning
-        : AppBrand.teal;
+        : theme.colorScheme.primary;
     final ratioDisplay = amount > 0
         ? (realRatio * 100).clamp(0, 9999).toStringAsFixed(0)
         : '0';

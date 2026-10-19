@@ -313,6 +313,24 @@ class DefaultCategories {
       sortOrder: 0,
     ),
   ];
+
+  /// 余额调整 1 类 —— 2026-10-19 D72 加:
+  ///   - '余额调整':资产 form 编辑"期初余额"时,如果用户输入 ≠ 当前 currentBalance,
+  ///     自动生成一笔 type='balance' 流水(amount = oldCurrent - newInit)抹平差值,
+  ///     让 newCurrent = newInit。这种流水不算月度收支,但参与资产 currentBalance 计算。
+  ///   - UI 隐藏(TransactionForm 不显示这个 cat),跟 investment/benefit/receivable/other
+  ///     同 pattern —— 自动 fallback 给 asset_form_page 调用
+  ///   - cat.type 跟 cat 物理表的 enum 兼容(schema 不需 migration,纯字符串)
+  ///   - 跟其它段的 cat(其它/福利/债务/投资)一样,DB NOT NULL 字段需要填
+  static const List<DefaultCategory> balanceAdjust = [
+    DefaultCategory(
+      name: '余额调整',
+      icon: 'tune', // tune 图标(微调 / 调音)语义最贴
+      color: AppCategory.other, // 复用其它段灰色,跟其它"系统隐藏 cat"一致
+      type: 'adjust',
+      sortOrder: 0,
+    ),
+  ];
 }
 
 /// v1 → v2 图标 key 迁移表,按 name 匹配老数据。

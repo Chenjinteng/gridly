@@ -431,7 +431,10 @@ class _DeleteConfirmDialog extends StatelessWidget {
     final Category? catOrNull = cat;
     final catColor = catOrNull == null ? AppGray.g400 : Color(catOrNull.color);
     final isIncome = transaction.type == 'income';
-    final amountColor = isIncome ? AppBrand.gold : AppStatus.error;
+    final amountColor = isIncome
+        // D71.2:收入色跟随 palette(浅粉 → 亮粉,默认 → 金黄)
+        ? theme.colorScheme.secondary
+        : AppStatus.error;
     final amountPrefix = isIncome ? '+' : '-';
 
     return Dialog(

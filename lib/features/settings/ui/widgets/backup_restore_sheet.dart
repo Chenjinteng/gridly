@@ -184,7 +184,6 @@ class _BackupRestoreSheetState extends ConsumerState<BackupRestoreSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
@@ -232,8 +231,10 @@ class _BackupRestoreSheetState extends ConsumerState<BackupRestoreSheet> {
                 icon: const Icon(Icons.cloud_upload_outlined, size: 20),
                 label: Text(_busy ? '处理中...' : '导出数据库备份'),
                 style: FilledButton.styleFrom(
-                  backgroundColor: isDark ? AppSecondary.cream : AppBrand.ink,
-                  foregroundColor: isDark ? AppBrand.ink : null,
+                  // D71.2:跟随 palette(粉色 light → 深紫红,默认 light → 炭黑)
+                  backgroundColor: Theme.of(context).colorScheme.inverseSurface,
+                  foregroundColor:
+                      Theme.of(context).colorScheme.onInverseSurface,
                   padding: const EdgeInsets.symmetric(vertical: AppSpacing.s3),
                   shape: RoundedRectangleBorder(borderRadius: AppRadius.brLg),
                 ),

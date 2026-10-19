@@ -37,6 +37,7 @@ class BudgetProgress extends ConsumerWidget {
     final spent = summary.expense;
     final percent = (spent / budget).clamp(0.0, 1.5);
     final state = _status(spent, budget);
+    final statusColor = _statusColor(context, state);
     // D70.3:hidden = global ^ localVisible (XOR),跟 MonthlySummary 同公式
     //   - 全局决定默认,local 临时 toggle
     //   - 真值表跟 MonthlySummary 一致,两张卡行为不分裂
@@ -79,7 +80,7 @@ class BudgetProgress extends ConsumerWidget {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: _statusColor(state),
+                  color: statusColor,
                 ),
               ),
             ],
@@ -91,7 +92,7 @@ class BudgetProgress extends ConsumerWidget {
               value: percent,
               minHeight: 8,
               backgroundColor: AppGray.g200,
-              valueColor: AlwaysStoppedAnimation<Color>(_statusColor(state)),
+              valueColor: AlwaysStoppedAnimation<Color>(statusColor),
             ),
           ),
           const SizedBox(height: AppSpacing.s2),
@@ -125,9 +126,10 @@ class BudgetProgress extends ConsumerWidget {
     return _BudgetState.over;
   }
 
-  Color _statusColor(_BudgetState s) {
+  Color _statusColor(BuildContext context, _BudgetState s) {
+    // D71.2:ok 状态色跟随 palette(浅粉 → 深粉,默认 → 青绿)
     return switch (s) {
-      _BudgetState.ok => AppBrand.teal,
+      _BudgetState.ok => Theme.of(context).colorScheme.primary,
       _BudgetState.warning => AppStatus.warning,
       _BudgetState.over => AppStatus.error,
     };

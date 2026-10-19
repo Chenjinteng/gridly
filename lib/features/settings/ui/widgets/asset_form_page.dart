@@ -191,6 +191,44 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
     super.dispose();
   }
 
+  /// D72 加:编辑资产"期初余额"时,如果用户输入 ≠ 旧 currentBalance,
+  /// 自动生成一笔 type='balance' 流水(amount = oldCurrent - newInit)抹平差值,
+  /// 让 newCurrent = newInit。背景:
+  ///   - bug:之前 update() 直接覆盖 initialBalance,导致 newCurrent = newInit + delta,
+  ///     user 改余额"平账"几毛一块时,流水 delta 大会让资产变负。
+  ///   - 修法:用 type='balance' 流水(不算月度收支,只动资产)补足差值,
+  ///     cat='余额调整'(isSystem=true, UI 隐藏,启动 seed 兜底)。
+  ///   - 公式:newCurrent = newInit + (delta + adj)
+  ///     设 newCurrent = newInit(用户期望) → adj = -delta = oldInit - oldCurrent
+  ///   - 容差:差值 < 0.005 元(半分钱)算浮点误差,跳过流水(避免无意义 0.00 ~ 0.004 噪音)。
+  ///   - 注意:必须在 update asset.initialBalance 之前调,否则 oldCurrent 重新算会变。
+  Future<void> _maybeCreateBalanceAdjust({
+    required Asset existing,
+    required double newInit,
+  }) async {
+    final oldCurrent = await ref.read(assetBalanceProvider(existing.id).future);
+    final oldInit = existing.initialBalance;
+    // adj 让 newCurrent = newInit:adj = oldInit - oldCurrent = -delta
+    final adjustment = oldInit - oldCurrent;
+    if (adjustment.abs() < 0.005) return; // 浮点容差
+
+    final cat = await ref.read(categoryRepositoryProvider).findByName('余额调整');
+    if (cat == null) {
+      // 极端兜底:启动 seed 没跑(或被 user 删了"余额调整"),弹 toast 不阻塞保存,
+      // user 看到再去"我的 → 备份还原"重置或手动加流水。
+      _toast('缺少"余额调整"分类,请重启 App 或联系开发者');
+      return;
+    }
+    await ref.read(transactionRepositoryProvider).add(
+      amount: adjustment,
+      type: 'balance',
+      categoryId: cat.id,
+      occurredAt: DateTime.now(),
+      note: '余额调整',
+      accountId: existing.id,
+    );
+  }
+
   Future<void> _save() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
@@ -234,6 +272,11 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
           isLender: _isLender,
         );
       } else {
+        // D72:先调 balance adjust(在 update initialBalance 之前,oldCurrent 才正确)
+        await _maybeCreateBalanceAdjust(
+          existing: widget.existing!,
+          newInit: balance,
+        );
         final updated = widget.existing!.copyWith(
           name: name,
           type: _type,
@@ -355,7 +398,8 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
                       ? Icons.star_rounded
                       : Icons.star_outline_rounded,
                   iconColor: _isDefault
-                      ? AppBrand.gold
+                      // D71.2:跟随 palette(浅粉 → 亮粉,默认 → 金黄)
+                      ? theme.colorScheme.secondary
                       : theme.colorScheme.onSurfaceVariant,
                   title: '设为默认账户',
                   subtitle: _isDefault
@@ -529,8 +573,11 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
                       decoration: BoxDecoration(
                         color: color,
                         shape: BoxShape.circle,
+                        // D71.2:选中边框跟随 palette(粉色 → 深紫红)
                         border: Border.all(
-                          color: selected ? AppBrand.ink : Colors.transparent,
+                          color: selected
+                              ? Theme.of(context).colorScheme.inverseSurface
+                              : Colors.transparent,
                           width: 3,
                         ),
                       ),

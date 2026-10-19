@@ -80,7 +80,6 @@ Future<Object?> showSingleSelectSheet<T>(
     ),
     builder: (ctx) {
       final theme = Theme.of(ctx);
-      final isDark = theme.brightness == Brightness.dark;
       return DraggableScrollableSheet(
         // P12-3:max = initial → 锁死在 0.7,上滑无效
         initialChildSize: 0.7,
@@ -185,10 +184,11 @@ Future<Object?> showSingleSelectSheet<T>(
                         child: FilledButton(
                           onPressed: () => Navigator.pop(ctx, allPicked),
                           style: FilledButton.styleFrom(
-                            backgroundColor: isDark
-                                ? AppSecondary.cream
-                                : AppBrand.ink,
-                            foregroundColor: isDark ? AppBrand.ink : null,
+                            // D71.2:跟随 palette
+                            backgroundColor:
+                                Theme.of(ctx).colorScheme.inverseSurface,
+                            foregroundColor:
+                                Theme.of(ctx).colorScheme.onInverseSurface,
                             padding: const EdgeInsets.symmetric(
                               vertical: AppSpacing.s3,
                             ),
@@ -196,12 +196,12 @@ Future<Object?> showSingleSelectSheet<T>(
                               borderRadius: AppRadius.brLg,
                             ),
                           ),
-                          child: const Text(
+                          child: Text(
                             '显示全部',
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w600,
-                              color: Colors.white,
+                              color: Theme.of(ctx).colorScheme.onInverseSurface,
                             ),
                           ),
                         ),
@@ -253,7 +253,6 @@ class _MultiSelectCategorySheetState extends State<MultiSelectCategorySheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     return DraggableScrollableSheet(
       // P12-3:max = initial → 锁死在 0.7,上滑无效
       initialChildSize: 0.7,
@@ -381,10 +380,11 @@ class _MultiSelectCategorySheetState extends State<MultiSelectCategorySheet> {
                       child: FilledButton(
                         onPressed: () => Navigator.pop(ctx, _selected),
                         style: FilledButton.styleFrom(
-                          backgroundColor: isDark
-                              ? AppSecondary.cream
-                              : AppBrand.ink,
-                          foregroundColor: isDark ? AppBrand.ink : null,
+                          // D71.2:跟随 palette
+                          backgroundColor:
+                              Theme.of(ctx).colorScheme.inverseSurface,
+                          foregroundColor:
+                              Theme.of(ctx).colorScheme.onInverseSurface,
                           padding: const EdgeInsets.symmetric(
                             vertical: AppSpacing.s3,
                           ),
@@ -396,10 +396,10 @@ class _MultiSelectCategorySheetState extends State<MultiSelectCategorySheet> {
                           _selected.isEmpty
                               ? '显示全部'
                               : '确定(${_selected.length})',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
-                            color: Colors.white,
+                            color: Theme.of(ctx).colorScheme.onInverseSurface,
                           ),
                         ),
                       ),
@@ -463,7 +463,6 @@ class _MultiSelectAssetSheetState extends State<MultiSelectAssetSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     return DraggableScrollableSheet(
       initialChildSize: 0.7,
       minChildSize: 0.4,
@@ -585,8 +584,10 @@ class _MultiSelectAssetSheetState extends State<MultiSelectAssetSheet> {
                 child: FilledButton(
                   onPressed: () => Navigator.pop(ctx, _selected),
                   style: FilledButton.styleFrom(
-                    backgroundColor: isDark ? AppSecondary.cream : AppBrand.ink,
-                    foregroundColor: isDark ? AppBrand.ink : null,
+                    // D71.2:跟随 palette
+                    backgroundColor: Theme.of(ctx).colorScheme.inverseSurface,
+                    foregroundColor:
+                        Theme.of(ctx).colorScheme.onInverseSurface,
                     padding: const EdgeInsets.symmetric(
                       vertical: AppSpacing.s3,
                     ),
@@ -594,10 +595,10 @@ class _MultiSelectAssetSheetState extends State<MultiSelectAssetSheet> {
                   ),
                   child: Text(
                     _selected.isEmpty ? '显示全部' : '确定(${_selected.length})',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                      color: Theme.of(ctx).colorScheme.onInverseSurface,
                     ),
                   ),
                 ),

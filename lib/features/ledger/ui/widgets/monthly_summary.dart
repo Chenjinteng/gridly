@@ -31,6 +31,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/card_shadows.dart';
+import '../../../../core/theme/gridly_palette.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/gridly_mark.dart';
 import '../../application/transactions_providers.dart';
@@ -78,10 +79,12 @@ class MonthlySummary extends ConsumerWidget {
       margin: const EdgeInsets.all(AppSpacing.s4),
       decoration: BoxDecoration(
         borderRadius: AppRadius.brLg,
-        // rim light border:深色卡需要亮边才能"立体"
-        // 浅色下用白色 15%(rim light 效果),深色下白色 8%(减轻避免过载)
+        // D71.3:rim light 用 onInkSurface(cream)
         border: Border.all(
-          color: Colors.white.withValues(alpha: isDark ? 0.08 : 0.15),
+          color: theme
+              .extension<GridlyPalette>()!
+              .onInkSurface
+              .withValues(alpha: isDark ? 0.08 : 0.15),
           width: 1.0,
         ),
         boxShadow: CardShadows.dark(context),
@@ -92,15 +95,19 @@ class MonthlySummary extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // 顶部 sheet title(浅色底)
+            // D71.3:背景永远 ink(默认黑 / 粉色 → 深紫红)
             Container(
               padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.s4,
                 vertical: AppSpacing.s2,
               ),
-              decoration: const BoxDecoration(
-                color: AppBrand.ink,
+              decoration: BoxDecoration(
+                color: theme.extension<GridlyPalette>()!.inkSurface,
                 border: Border(
-                  bottom: BorderSide(color: AppBrand.gold, width: 1.5),
+                  bottom: BorderSide(
+                    color: theme.colorScheme.secondary,
+                    width: 1.5,
+                  ),
                 ),
               ),
               child: Row(
@@ -113,8 +120,8 @@ class MonthlySummary extends ConsumerWidget {
                       const SizedBox(width: AppSpacing.s2),
                       Text(
                         sheetTitle,
-                        style: const TextStyle(
-                          color: AppSecondary.cream,
+                        style: TextStyle(
+                          color: theme.extension<GridlyPalette>()!.onInkSurface,
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),
@@ -141,8 +148,9 @@ class MonthlySummary extends ConsumerWidget {
                             homeHidden ? '显示金额' : '本月结余',
                             style: TextStyle(
                               color: homeHidden
-                                  ? AppSecondary.cream
-                                  : AppGray.g400,
+                                  ? theme.extension<GridlyPalette>()!.onInkSurface
+                                  : theme.extension<GridlyPalette>()!.onInkSurface
+                                      .withValues(alpha: 0.6),
                               fontSize: 11,
                               fontWeight: homeHidden
                                   ? FontWeight.w600
@@ -156,8 +164,9 @@ class MonthlySummary extends ConsumerWidget {
                                 : Icons.visibility_off_outlined,
                             size: 14,
                             color: homeHidden
-                                ? AppSecondary.cream
-                                : AppGray.g400,
+                                ? theme.extension<GridlyPalette>()!.onInkSurface
+                                : theme.extension<GridlyPalette>()!.onInkSurface
+                                    .withValues(alpha: 0.6),
                           ),
                         ],
                       ),
@@ -167,6 +176,7 @@ class MonthlySummary extends ConsumerWidget {
               ),
             ),
             // 主体:大数字区
+            // D71.3:永远 ink
             Container(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.s4,
@@ -174,7 +184,7 @@ class MonthlySummary extends ConsumerWidget {
                 AppSpacing.s4,
                 AppSpacing.s3,
               ),
-              color: AppBrand.ink,
+              color: theme.extension<GridlyPalette>()!.inkSurface,
               child: Align(
                 alignment: Alignment.centerLeft,
                 // 余额同样可能接近 9999999.99(7 位整数 + 2 位小数),
@@ -200,17 +210,21 @@ class MonthlySummary extends ConsumerWidget {
                             text: ' (万元)', // 前导空格 ≈ 4px 呼吸
                             style: TextStyle(
                               fontSize: 14,
-                              color: AppGray.g400,
+                              color: theme.extension<GridlyPalette>()!.onInkSurface
+                                  .withValues(alpha: 0.6),
                               fontWeight: FontWeight.w500,
                             ),
                           ),
                       ],
                     ),
                     style: TextStyle(
-                      // 结余按值动态选色(正 teal / 负 error / 零 cream)
-                      // 隐藏金额时降到 AppGray.g400,不在视觉上喧宾夺主
+                      // D71.5.7:在默认主题 / 白天+粉色时代,这部分
+                      //   焦 ink 卡是 #0F1419 黑 / #4A1942 冷紫,
+                      //   balanceFor 的 teal/error/cream 三色都 readable
+                      //   所以保持原逻辑
                       color: hidden
-                          ? AppGray.g400
+                          ? theme.extension<GridlyPalette>()!.onInkSurface
+                              .withValues(alpha: 0.6)
                           : AppSemantic.balanceFor(summary.balance),
                       fontSize: 30,
                       fontWeight: FontWeight.w700,
@@ -232,7 +246,8 @@ class MonthlySummary extends ConsumerWidget {
                           ? '收入'
                           : Formatters.labelledUnit('收入', summary.income),
                       amount: hidden ? null : summary.income,
-                      color: AppBrand.gold,
+                      // D71.2:收入色跟随 palette(浅粉 → 亮粉,默认 → 金黄)
+                      color: theme.colorScheme.secondary,
                       showDivider: true,
                     ),
                   ),
@@ -250,15 +265,19 @@ class MonthlySummary extends ConsumerWidget {
               ),
             ),
             // 日均支出行(独立底部,避免两 cell 内容不对齐)
+            // D71.3:永远 ink
             Container(
               padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.s4,
                 vertical: AppSpacing.s2,
               ),
-              decoration: const BoxDecoration(
-                color: AppBrand.ink,
+              decoration: BoxDecoration(
+                color: theme.extension<GridlyPalette>()!.inkSurface,
                 border: Border(
-                  top: BorderSide(color: AppBrand.gold, width: 0.5),
+                  top: BorderSide(
+                    color: theme.colorScheme.secondary,
+                    width: 0.5,
+                  ),
                 ),
               ),
               child: Row(
@@ -266,7 +285,11 @@ class MonthlySummary extends ConsumerWidget {
                   Text(
                     // 动态单位后缀
                     hidden ? '日均支出' : Formatters.labelledUnit('日均支出', dailyAvg),
-                    style: const TextStyle(color: AppGray.g400, fontSize: 11),
+                    style: TextStyle(
+                      color: theme.extension<GridlyPalette>()!.onInkSurface
+                          .withValues(alpha: 0.6),
+                      fontSize: 11,
+                    ),
                   ),
                   const Spacer(),
                   Text(
@@ -274,7 +297,10 @@ class MonthlySummary extends ConsumerWidget {
                         ? '••••••'
                         : '¥${Formatters.amount(dailyAvg, withUnit: false)}',
                     style: TextStyle(
-                      color: hidden ? AppGray.g400 : AppStatus.error,
+                      color: hidden
+                          ? theme.extension<GridlyPalette>()!.onInkSurface
+                              .withValues(alpha: 0.6)
+                          : AppStatus.error,
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                     ),
@@ -305,16 +331,18 @@ class _Cell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = Theme.of(context).extension<GridlyPalette>()!;
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.s4,
         vertical: AppSpacing.s3,
       ),
+      // D71.3:永远 ink
       decoration: BoxDecoration(
-        color: AppBrand.ink,
+        color: palette.inkSurface,
         border: Border(
-          top: const BorderSide(
-            color: AppBrand.gold, // cell 顶线:3 条品牌金横线之一
+          top: BorderSide(
+            color: Theme.of(context).colorScheme.secondary, // cell 顶线
             width: 0.5,
           ),
           // 收入 cell 才有分隔线 —— 画在 RIGHT 边,自然落在两 cell 中间。
@@ -325,8 +353,8 @@ class _Cell extends StatelessWidget {
           // 2026-10-11 UAT:改成跟卡片内 3 条品牌金横线同色 + 同宽,
           // 整张卡 4 条分隔线 = 同一种语言,不再"横金竖灰"混杂。
           right: showDivider
-              ? const BorderSide(
-                  color: AppBrand.gold, // 跟 card 顶/cell 顶/cell 底 3 条金横线一致
+              ? BorderSide(
+                  color: Theme.of(context).colorScheme.secondary, // 跟 card 顶/cell 顶/cell 底 3 条金横线一致
                   width: 0.5,
                 )
               : BorderSide.none,
@@ -340,7 +368,10 @@ class _Cell extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(color: AppGray.g400, fontSize: 11),
+            style: TextStyle(
+              color: palette.onInkSurface.withValues(alpha: 0.6),
+              fontSize: 11,
+            ),
           ),
           const SizedBox(height: AppSpacing.s05),
           // 数字 length 受"7 位整数 + 2 位小数"语义上限保护(走 transaction_form),
@@ -354,7 +385,9 @@ class _Cell extends StatelessWidget {
                   ? '••••••'
                   : '¥${Formatters.amount(amount!, withUnit: false)}',
               style: TextStyle(
-                color: amount == null ? AppGray.g400 : color,
+                color: amount == null
+                    ? palette.onInkSurface.withValues(alpha: 0.6)
+                    : color,
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
               ),

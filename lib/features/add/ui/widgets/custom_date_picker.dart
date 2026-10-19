@@ -20,7 +20,6 @@
 //   - caller 显式传 `lastDate: null` 可关闭限制(目前未用,后续如有调度场景可开)
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/widgets/show_app_modal_sheet.dart';
@@ -275,16 +274,21 @@ class _CustomDatePickerSheetState extends State<CustomDatePickerSheet> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.s2),
           decoration: BoxDecoration(
-            color: AppBrand.teal.withValues(alpha: 0.10),
+            // D71.2:跟随 palette
+            color: Theme.of(context)
+                .colorScheme
+                .primary
+                .withValues(alpha: 0.10),
             borderRadius: AppRadius.brMd,
           ),
           alignment: Alignment.center,
           child: Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: AppBrand.teal,
+              // D71.2:跟随 palette
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
         ),
@@ -361,14 +365,16 @@ class _CustomDatePickerSheetState extends State<CustomDatePickerSheet> {
       border = null;
       onTap = null;
     } else if (isSelected) {
-      bg = AppBrand.teal;
+      // D71.2:跟随 palette
+      bg = theme.colorScheme.primary;
       fg = Colors.white;
       border = null;
       onTap = () => _select(d);
     } else if (isToday) {
       bg = Colors.transparent;
-      fg = AppBrand.teal;
-      border = Border.all(color: AppBrand.teal, width: 1.5);
+      // D71.2:跟随 palette
+      fg = theme.colorScheme.primary;
+      border = Border.all(color: theme.colorScheme.primary, width: 1.5);
       onTap = () => _select(d);
     } else if (!inMonth) {
       bg = Colors.transparent;
@@ -429,7 +435,8 @@ class _CustomDatePickerSheetState extends State<CustomDatePickerSheet> {
         FilledButton(
           onPressed: () => Navigator.of(context).pop(_selected),
           style: FilledButton.styleFrom(
-            backgroundColor: AppBrand.teal,
+            // D71.2:跟随 palette
+            backgroundColor: Theme.of(context).colorScheme.primary,
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.s5,
               vertical: AppSpacing.s2,

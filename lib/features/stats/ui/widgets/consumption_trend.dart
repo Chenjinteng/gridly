@@ -70,9 +70,7 @@ class _MonthlyConsumptionTrend extends StatelessWidget {
               Tab(text: '类别'),
               Tab(text: '周几'),
             ],
-            labelColor: AppBrand.teal,
-            unselectedLabelColor: AppGray.g600,
-            indicatorColor: AppBrand.teal,
+            // D71.5.5:tabBarTheme 接管
             dividerHeight: 0,
           ),
         ),
@@ -344,9 +342,7 @@ class _YearlyConsumptionTrend extends StatelessWidget {
               Tab(text: '结余'),
               Tab(text: '预算'),
             ],
-            labelColor: AppBrand.teal,
-            unselectedLabelColor: AppGray.g600,
-            indicatorColor: AppBrand.teal,
+            // D71.5.5:tabBarTheme 接管
             dividerHeight: 0,
           ),
         ),
@@ -476,8 +472,10 @@ class _BalanceTab extends ConsumerWidget {
             minVal: minVal, // D64.21c 负轴:负柱(支出>收入)自动朝下
             chartNeedsWan: chartNeedsWan,
             // 颜色按正负区分:正结余用 teal(正向),负结余用 error 红
-            barColorResolver: (i, b) =>
-                b.value >= 0 ? AppBrand.teal : AppStatus.error,
+            // D71.2:跟随 palette
+            barColorResolver: (i, b) => b.value >= 0
+                ? Theme.of(context).colorScheme.primary
+                : AppStatus.error,
             // D64.22 改:稀疏化到 1 / 6 / 12 三个月(起 / 中 / 末)
             xLabelBuilder: (i, b) {
               final m = data[i].month;
@@ -552,7 +550,8 @@ class _BudgetTab extends ConsumerWidget {
               maxVal: maxChart,
               chartNeedsWan: chartNeedsWan,
               // 预算 teal(品牌色,跟"还剩 ¥X"home 顶部配色对齐)
-              primaryColor: AppBrand.teal,
+              // D71.2:跟随 palette
+              primaryColor: Theme.of(context).colorScheme.primary,
               // 实际支出 error 红(跟 range_summary 支出配色一致)
               secondaryColor: AppStatus.error,
               // 跟 收支 tab D64.23 同款细柱

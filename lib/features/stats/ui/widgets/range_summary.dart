@@ -18,6 +18,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/card_shadows.dart';
+import '../../../../core/theme/gridly_palette.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/animated_counter.dart';
 import '../../application/stats_providers.dart';
@@ -46,7 +47,7 @@ class RangeSummary extends ConsumerWidget {
     //   - 颜色逻辑跟结余一致:正 teal(健康) / 负 error(超支) / 零 onSurfaceVariant
     final savingsRate = s.income > 0 ? (s.balance / s.income) * 100 : 0.0;
     final savingsRateColor = savingsRate > 0
-        ? AppBrand.teal
+        ? Theme.of(context).colorScheme.primary
         : savingsRate < 0
         ? AppStatus.error
         : Theme.of(context).colorScheme.onSurfaceVariant;
@@ -54,11 +55,15 @@ class RangeSummary extends ConsumerWidget {
       margin: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
       padding: const EdgeInsets.all(AppSpacing.s4),
       decoration: BoxDecoration(
-        color: AppBrand.ink,
+        // D71.3:永远走 inkPalette.inkSurface(深色模式不变 cream)
+        color: Theme.of(context).extension<GridlyPalette>()!.inkSurface,
         borderRadius: AppRadius.brLg,
         // rim light border,与月度汇总卡保持一致
         border: Border.all(
-          color: Colors.white.withValues(alpha: isDark ? 0.08 : 0.15),
+          color: Theme.of(context)
+              .extension<GridlyPalette>()!
+              .onInkSurface
+              .withValues(alpha: isDark ? 0.08 : 0.15),
           width: 1.0,
         ),
         // 黑底卡:重阴影,与月度汇总卡保持一致(dark mode 自动切白阴影)
@@ -78,7 +83,8 @@ class RangeSummary extends ConsumerWidget {
                 child: _Stat(
                   label: Formatters.labelledUnit('收入', s.income),
                   amount: s.income,
-                  color: AppBrand.gold,
+                  // D71.2:收入色跟随 palette(浅粉 → 亮粉,默认 → 金黄)
+                  color: Theme.of(context).colorScheme.secondary,
                   yoy: yoy.income,
                 ),
               ),
@@ -220,7 +226,7 @@ class _YoYBadge extends StatelessWidget {
       color = Theme.of(context).colorScheme.onSurfaceVariant;
       icon = Icons.remove_rounded;
     } else if (y.isUp) {
-      color = AppBrand.teal;
+      color = Theme.of(context).colorScheme.primary;
       icon = Icons.arrow_drop_up_rounded;
     } else {
       color = AppStatus.error;

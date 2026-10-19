@@ -54,7 +54,8 @@ class InvestmentDashboard extends ConsumerWidget {
               children: [
                 _LegendDot(color: AppStatus.error, label: '投入'),
                 const SizedBox(width: AppSpacing.s3),
-                _LegendDot(color: AppBrand.teal, label: '收益'),
+                // D71.2:收益 dot 跟随 palette(浅粉 → 深粉,默认 → 青绿)
+                _LegendDot(color: Theme.of(context).colorScheme.primary, label: '收益'),
               ],
             )
           : null,
@@ -262,7 +263,10 @@ class _YearlyBars extends StatelessWidget {
       //   - 收益 ≥ 0 绿(默认) / 收益 < 0 变红(财务直觉:亏 = 红)
       secondaryColorResolver: (i, b) {
         final ret = b.secondaryValue ?? 0;
-        return ret < 0 ? AppStatus.error : AppBrand.teal;
+        // D71.2:收益 ≥ 0 跟随 palette(浅粉 → 深粉,默认 → 青绿)
+        return ret < 0
+            ? AppStatus.error
+            : Theme.of(context).colorScheme.primary;
       },
       barWidth: 5,
       barsSpace: 1,

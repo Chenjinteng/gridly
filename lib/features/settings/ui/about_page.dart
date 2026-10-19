@@ -10,6 +10,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/card_shadows.dart';
+import '../../../core/theme/gridly_palette.dart';
 import '../../../core/utils/gridly_banner.dart';
 import '../../../core/utils/refresh_providers.dart';
 import '../../../core/widgets/gridly_mark.dart';
@@ -40,11 +41,15 @@ class AboutPage extends ConsumerWidget {
             child: Container(
               padding: const EdgeInsets.all(AppSpacing.s5),
               decoration: BoxDecoration(
-                color: AppBrand.ink,
+                // D71.3:永远走 inkPalette.inkSurface — 深色模式不会变 cream
+                color: Theme.of(context).extension<GridlyPalette>()!.inkSurface,
                 borderRadius: AppRadius.brLg,
                 // rim light border + 阴影,与其他黑底卡保持一致
                 border: Border.all(
-                  color: Colors.white.withValues(alpha: isDark ? 0.08 : 0.15),
+                  color: Theme.of(context)
+                      .extension<GridlyPalette>()!
+                      .onInkSurface
+                      .withValues(alpha: isDark ? 0.08 : 0.15),
                   width: 1.0,
                 ),
                 boxShadow: CardShadows.dark(context),
@@ -53,10 +58,12 @@ class AboutPage extends ConsumerWidget {
                 children: [
                   const GridlyMark(size: 64, onDark: true),
                   const SizedBox(height: AppSpacing.s3),
-                  const Text(
+                  Text(
                     '格子记账',
                     style: TextStyle(
-                      color: AppSecondary.cream,
+                      // D71.3:onInkSurface 永远是 cream
+                      color:
+                          Theme.of(context).extension<GridlyPalette>()!.onInkSurface,
                       fontSize: 22,
                       fontWeight: FontWeight.w700,
                     ),
@@ -64,7 +71,14 @@ class AboutPage extends ConsumerWidget {
                   const SizedBox(height: 4),
                   Text(
                     versionTagline,
-                    style: const TextStyle(color: AppGray.g400, fontSize: 12),
+                    style: TextStyle(
+                      // D71.3:次级文字用 onInkSurface 60% alpha
+                      color: Theme.of(context)
+                          .extension<GridlyPalette>()!
+                          .onInkSurface
+                          .withValues(alpha: 0.6),
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ),
@@ -98,14 +112,12 @@ class AboutPage extends ConsumerWidget {
                 '- 所有流水、分类、设置只存在你的手机/电脑本地数据库中。\n'
                 '- 不会上传到任何服务器,不会收集任何使用统计。\n\n'
                 '**导出**\n'
-                '- CSV 导出由你主动触发,文件用系统分享发出去。\n'
+                '- CSV 导出只导流水(收入/支出/分类/账户/时间/备注),由你主动触发,用系统分享发出去。\n'
+                '- 数据库备份导出完整 SQLite(流水 + 分类 + 资产 + 预算 + 设置),适合带完整备份 / 换机迁移。\n'
                 '- 你可以选择用 AirDrop、邮件、微信等任何渠道,数据流向完全由你控制。\n\n'
                 '**权限**\n'
                 '- 不申请通讯录 / 短信 / 定位等敏感权限。\n'
-                '- 写笔记账只需你主动点击"+"按钮,无需后台监控。\n\n'
-                '**开源 / 第三方**\n'
-                '- 本应用使用 Flutter / Riverpod / Drift / fl_chart / share_plus 等开源库。\n'
-                '- 这些库各自遵循 MIT / BSD / Apache 协议,源代码公开。',
+                '- 写笔记账只需你主动点击"+"按钮,无需后台监控。',
           ),
 
           _Section(title: '免责说明'),
@@ -115,7 +127,7 @@ class AboutPage extends ConsumerWidget {
                 '格子记账是作者用爱发电的个人作品,源代码按 AGPL-3.0 协议开源。\n'
                 '不保证无 bug、不保证数据 100% 安全、不保证长期持续维护。\n\n'
                 '**请自行备份数据**\n'
-                '- 强烈建议定期使用"导出 CSV"功能备份你的流水。\n'
+                '- 强烈建议定期使用"导出数据库备份"或"导出 CSV"功能备份你的数据。\n'
                 '- 一旦设备损坏、丢失、刷机,本地数据无法找回,作者无法恢复。\n'
                 '- 本应用不是云端服务,数据只在你手上,备份也只在你手上。\n\n'
                 '**责任限制**\n'
@@ -123,13 +135,15 @@ class AboutPage extends ConsumerWidget {
                 '作者不承担任何责任。\n'
                 '- 记账数据请以官方银行 / 支付平台账单为准,本应用只作辅助记录。\n\n'
                 '**反馈**\n'
-                '- 欢迎到 GitHub 仓库提 issue,但不保证回复时效。\n'
+                '- 官方站点 gridly.sretalk.com 提供最新 APK 下载、版本日志、反馈入口。\n'
+                '- 源码 / Issue:github.com/Chenjinteng/gridly。\n'
                 '- 这不是一个商业产品,没有客服、没有 SLA、也没有承诺。',
           ),
 
           _Section(title: '联系'),
           _BodyCard(
             text:
+                '· 官网:gridly.sretalk.com\n'
                 '· 仓库:github.com/Chenjinteng/gridly\n'
                 '· 项目代号:gridly\n'
                 '· 包名:cn.jinteng.gridly',

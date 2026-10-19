@@ -87,37 +87,44 @@ class _MainShellState extends ConsumerState<MainShell> {
   ///   - user 反馈:跟所有"期权/负债"统一用"负债"称呼
   ///   - DB key 仍是 'receivable'(API enum 内部不变),只改 UI label
   /// 配色跟 asset_type 配色一致(gold/success/warning/info/gray600)
-  static const _speedDialItems = <SpeedDialItem>[
-    SpeedDialItem(
-      key: 'investment',
-      label: '投资',
-      icon: Icons.trending_up_rounded,
-      color: AppBrand.gold,
-    ),
-    SpeedDialItem(
-      key: 'benefit',
-      label: '福利',
-      icon: Icons.favorite_rounded,
-      color: AppStatus.success,
-    ),
-    SpeedDialItem(
-      key: 'receivable',
-      // 2026-10-14 D51 v2:user 反馈"负债"改"债务",口语更直观
-      label: '债务',
-      icon: Icons.handshake_rounded,
-      color: AppStatus.warning,
-    ),
-    // 2026-10-14 D54:删 'fixed_asset' 不动产
-    //   user:"不动产应该变动的很少,应该没有必要在流水这里出现"
-    //   "把记一笔(不动产)这个入口先去掉,不动产直接在资产管理中进行修改就行"
-    //   不动产 6 段保留(资产表单仍能选),只是 Speed Dial 不再暴露入口
-    SpeedDialItem(
-      key: 'other',
-      label: '其它',
-      icon: Icons.category_rounded,
-      color: AppGray.g600,
-    ),
-  ];
+  ///
+  /// D71.2 改:不再 static,改为 build 时按 palette 动态取色
+  ///   - investment(原 AppBrand.gold)→ 跟随 palette secondary(浅粉 → 亮粉)
+  ///   - benefit/receivable/other 状态色保留(跟主题无关的语义色)
+  List<SpeedDialItem> _buildSpeedDialItems(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return <SpeedDialItem>[
+      SpeedDialItem(
+        key: 'investment',
+        label: '投资',
+        icon: Icons.trending_up_rounded,
+        color: scheme.secondary,
+      ),
+      SpeedDialItem(
+        key: 'benefit',
+        label: '福利',
+        icon: Icons.favorite_rounded,
+        color: AppStatus.success,
+      ),
+      SpeedDialItem(
+        key: 'receivable',
+        // 2026-10-14 D51 v2:user 反馈"负债"改"债务",口语更直观
+        label: '债务',
+        icon: Icons.handshake_rounded,
+        color: AppStatus.warning,
+      ),
+      // 2026-10-14 D54:删 'fixed_asset' 不动产
+      //   user:"不动产应该变动的很少,应该没有必要在流水这里出现"
+      //   "把记一笔(不动产)这个入口先去掉,不动产直接在资产管理中进行修改就行"
+      //   不动产 6 段保留(资产表单仍能选),只是 Speed Dial 不再暴露入口
+      SpeedDialItem(
+        key: 'other',
+        label: '其它',
+        icon: Icons.category_rounded,
+        color: AppGray.g600,
+      ),
+    ];
+  }
 
   void _openSpeedDial() {
     if (_speedDialOpen) return; // 防重入
@@ -441,7 +448,7 @@ class _MainShellState extends ConsumerState<MainShell> {
         //     跟 _CenterFab 同 widget tree,100% 接收 events
         if (_speedDialOpen)
           SpeedDialListPopup(
-            items: _speedDialItems,
+            items: _buildSpeedDialItems(context),
             hoveredIndex: _hoveredIndex,
             onHoveredIndexChanged: _onSpeedDialHoveredIndexChanged,
             onSelected: (item) {
@@ -466,7 +473,7 @@ class _CenterFab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
     return GestureDetector(
       // onTap 留空:让父 NavigationBar 转发 tap → onDestinationSelected → _handleDestSelected
       // 只在 _CenterFab 内部处理 longPress,避免双重响应
@@ -479,12 +486,13 @@ class _CenterFab extends StatelessWidget {
         width: 56,
         height: 56,
         decoration: BoxDecoration(
-          color: isDark ? AppSecondary.cream : AppBrand.ink,
+          // D71.2:跟随 palette(粉色 → 深紫红,默认 → 炭黑;粉色 dark → 暖白,默认 dark → 浅灰)
+          color: scheme.inverseSurface,
           shape: BoxShape.circle,
         ),
         child: Icon(
           Icons.add_rounded,
-          color: isDark ? AppBrand.ink : AppBrand.gold,
+          color: scheme.onInverseSurface,
           size: 32,
         ),
       ),

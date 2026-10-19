@@ -70,7 +70,10 @@ class Numpad extends StatelessWidget {
 
   Color _keyColor(BuildContext context, String k) {
     if (k == 'C') return AppStatus.error;
-    if ('+-×÷%='.contains(k)) return AppBrand.teal;
+    // D71.2:运算键跟随 palette(浅粉 → 深粉,默认 → 青绿)
+    if ('+-×÷%='.contains(k)) {
+      return Theme.of(context).colorScheme.primary;
+    }
     return Theme.of(context).colorScheme.onSurface;
   }
 }

@@ -28,7 +28,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/charts/chart_card.dart';
 import '../../../../core/widgets/charts/pie_chart_card.dart';
@@ -56,9 +55,7 @@ class ExpenseAnalysis extends ConsumerWidget {
               Tab(text: '分类'),
               Tab(text: '账户'),
             ],
-            labelColor: AppBrand.teal,
-            unselectedLabelColor: AppGray.g600,
-            indicatorColor: AppBrand.teal,
+            // D71.5.5:tabBarTheme 接管
             dividerHeight: 0,
           ),
         ),

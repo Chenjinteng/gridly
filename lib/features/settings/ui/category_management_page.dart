@@ -221,9 +221,13 @@ class _CategoryTile extends StatelessWidget {
                 '系统预置',
                 style: TextStyle(fontSize: 11, color: AppGray.g600),
               )
-            : const Text(
+            : Text(
                 '自定义',
-                style: TextStyle(fontSize: 11, color: AppBrand.teal),
+                style: TextStyle(
+                    fontSize: 11,
+                    // D71.2:"自定义"文字跟随 palette(浅粉 → 深粉,默认 → 青绿)
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
               ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,

@@ -889,7 +889,7 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                         ? '今天'
                         : '${_occurredAt.month}月${_occurredAt.day}日',
                     highlighted: isToday,
-                    highlightColor: AppBrand.teal,
+                    highlightColor: theme.colorScheme.primary,
                     onTap: _pickDate,
                   ),
                 ),
@@ -936,7 +936,7 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                         ? '今天'
                         : '${_occurredAt.month}月${_occurredAt.day}日',
                     highlighted: isToday,
-                    highlightColor: AppBrand.teal,
+                    highlightColor: theme.colorScheme.primary,
                     onTap: _pickDate,
                   ),
                 ),

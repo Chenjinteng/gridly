@@ -36,7 +36,7 @@
 **通用约定**:
 - 所有表都有 `id` (autoIncrement, PK) + `createdAt` + `updatedAt`(Drift `currentDateAndTime` 默认)
 - 所有 FK 都开启 `PRAGMA foreign_keys = ON`(`MigrationStrategy.beforeOpen`)
-- 时间戳统一 `DateTime`(Drift 内部存 `INTEGER` Unix epoch ms)
+- 时间戳统一 `DateTime`(Drift 内部存 `INTEGER` Unix epoch **seconds** — drift 默认 `storeDateTimeValuesAsText = false`,**见 §10 D71.7**)
 
 ---
 
@@ -306,3 +306,34 @@ Future<void> clearAllData() async {
 
 > **修订历史**:
 > - 2026-10-15 初版(D64.8 同步归档):覆盖 schemaVersion 7 全量结构 + 22+3 种子数据
+> - 2026-10-19 D71.7 补:把 §10 时间戳单位错位教训写进文档(秒 vs ms,seed 脚本必须写秒)
+
+---
+
+## 10. 已知坑:D71.7 drift 时间戳单位错位
+
+### 真相
+- **drift 默认 `storeDateTimeValuesAsText = false`**(drift_dev 2.31.0 `analysis/options.dart:172`)
+- 这意味着 DateTimeColumn 内部存的是 **`INTEGER` Unix epoch seconds**(10 位),**不是** ms(13 位)
+- 实际 SQL DEFAULT:`CAST(strftime('%s', CURRENT_TIMESTAMP) AS INTEGER)`(只 cast,**没有** × 1000)
+- drift 读写内部自动转换:`DateTime → seconds → INTEGER`,反之 `INTEGER → seconds → DateTime`,Dart 端始终是 `DateTime`
+
+### 反面教材(踩过的坑)
+- **app 装机显示"58792 年"**:某个 seed 脚本用 `int(dt.timestamp() * 1000)` 写 ms(13 位),drift 读出当成 seconds(1.79e12),又 × 1000 转 ms → `DateTime(58792 年 4 月)`。每个 `occurred_at` / `created_at` 都是 58792 年,流水列表 / 日期选择器全错。
+- **污染源**:Python seed 脚本 `int(dt.timestamp() * 1000)`(ms)→ db 列实际期望 seconds(10 位)。drift 不做单位检查,默默 × 1000 当 ms 用 → 58792 年。
+
+### 修法(seed 脚本必须写秒)
+- **正确**:`int(dt.timestamp())` → seconds(10 位,匹配 drift 期望)
+- **错误**:`int(dt.timestamp() * 1000)` → ms(13 位,drift 会错位 → 58792 年)
+- **验证**:`sqlite3 db "SELECT datetime(MIN(created_at),'unixepoch') FROM transactions"` 必须是 2020+ 年(`unixepoch` 修饰符把 INTEGER 当 seconds 解读)
+
+### app 内部读写(无坑)
+- `DateTime.now()` → drift 内部转 seconds 写 db
+- drift 读出 → 自动 `seconds * 1000` 转回 DateTime
+- Dart 端代码(`t.occurredAt.year` 等)永远是正常 DateTime,不需要 × 1000 / ÷ 1000
+- **唯一例外**:seed 脚本 / 外部工具(直接 SQL INSERT)必须写 seconds,不能写 ms
+
+### 适用范围
+- 所有 gridly 1.X / 2.X 的 SQLite db(共用同一份 schema 概念)
+- 任何用 drift + SQLite 的项目:先查 `analysis/options.dart:storeDateTimeValuesAsText` 默认值,再决定 seed 脚本单位
+- 外部测试 / mock 工具:避免使用 `DateTime.now().millisecondsSinceEpoch`(13 位),改用 `DateTime.now().millisecondsSinceEpoch ~/ 1000`(10 位,drift 期望)

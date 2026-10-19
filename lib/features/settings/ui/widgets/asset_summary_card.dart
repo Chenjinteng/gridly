@@ -43,6 +43,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/card_shadows.dart';
+import '../../../../core/theme/gridly_palette.dart';
 import '../../../../core/utils/asset_balance_provider.dart';
 import '../../../../core/utils/formatters.dart';
 
@@ -94,11 +95,14 @@ class AssetSummaryCard extends ConsumerWidget {
       margin: const EdgeInsets.symmetric(horizontal: AppSpacing.s4),
       padding: const EdgeInsets.all(AppSpacing.s4),
       decoration: BoxDecoration(
-        color: AppBrand.ink,
+        // D71.3:永远走 inkPalette.inkSurface(深色模式不变 cream)
+        color: theme.extension<GridlyPalette>()!.inkSurface,
         borderRadius: AppRadius.brLg,
         // rim light border + 阴影,跟其他黑底卡(月度汇总 / 关于卡)保持一致
         border: Border.all(
-          color: Colors.white.withValues(alpha: isDark ? 0.08 : 0.15),
+          color: theme.extension<GridlyPalette>()!.onInkSurface.withValues(
+            alpha: isDark ? 0.08 : 0.15,
+          ),
           width: 1.0,
         ),
         boxShadow: CardShadows.dark(context),
@@ -107,23 +111,28 @@ class AssetSummaryCard extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // D64.46:标题"总资产" → "净资产",跟 D64.36 口径一致
-          const Text(
+          // D71.3:次级文字用 onInkSurface 60% alpha(在任何 ink 底上都 OK)
+          Text(
             '净资产',
             style: TextStyle(
-              color: AppGray.g400,
+              color: theme
+                  .extension<GridlyPalette>()!
+                  .onInkSurface
+                  .withValues(alpha: 0.6),
               fontSize: 11,
               letterSpacing: 0.4,
             ),
           ),
           const SizedBox(height: AppSpacing.s1),
           // D64.46:大数 totalAll(6 段全加) → netAssets(5 真资产 - 负债)
+          // D71.3:永远走 onInkSurface(cream)
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
             child: Text(
               '¥${Formatters.amount(netAssets)}',
-              style: const TextStyle(
-                color: AppSecondary.cream,
+              style: TextStyle(
+                color: theme.extension<GridlyPalette>()!.onInkSurface,
                 fontSize: 28,
                 fontWeight: FontWeight.w700,
                 height: 1.1,
@@ -215,7 +224,14 @@ class _TypeRow extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            style: const TextStyle(color: AppGray.g400, fontSize: 13),
+            // D71.3:次级文字用 onInkSurface 60% alpha
+            style: TextStyle(
+              color: Theme.of(context)
+                  .extension<GridlyPalette>()!
+                  .onInkSurface
+                  .withValues(alpha: 0.6),
+              fontSize: 13,
+            ),
           ),
         ),
         Text(

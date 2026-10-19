@@ -177,7 +177,6 @@ class _CategoryFormSheetState extends ConsumerState<CategoryFormSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.fromLTRB(
@@ -297,8 +296,11 @@ class _CategoryFormSheetState extends ConsumerState<CategoryFormSheet> {
                       decoration: BoxDecoration(
                         color: color,
                         shape: BoxShape.circle,
+                        // D71.2:选中边框跟随 palette(粉色 → 深紫红)
                         border: Border.all(
-                          color: selected ? AppBrand.ink : Colors.transparent,
+                          color: selected
+                              ? Theme.of(context).colorScheme.inverseSurface
+                              : Colors.transparent,
                           width: 3,
                         ),
                       ),
@@ -320,21 +322,23 @@ class _CategoryFormSheetState extends ConsumerState<CategoryFormSheet> {
                 child: FilledButton(
                   onPressed: _saving ? null : _save,
                   style: FilledButton.styleFrom(
-                    // dark mode 仿 onDark:ink → cream
-                    backgroundColor: isDark ? AppSecondary.cream : AppBrand.ink,
-                    foregroundColor: isDark ? AppBrand.ink : null,
+                    // D71.2:跟随 palette
+                    backgroundColor: Theme.of(context).colorScheme.inverseSurface,
+                    foregroundColor:
+                        Theme.of(context).colorScheme.onInverseSurface,
                     padding: const EdgeInsets.symmetric(
                       vertical: AppSpacing.s3,
                     ),
                     shape: RoundedRectangleBorder(borderRadius: AppRadius.brLg),
                   ),
                   child: _saving
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: AppBrand.gold,
+                            color:
+                                Theme.of(context).colorScheme.onInverseSurface,
                           ),
                         )
                       : Text(widget.existing == null ? '新增' : '保存'),

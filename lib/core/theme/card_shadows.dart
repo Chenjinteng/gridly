@@ -10,10 +10,14 @@
 //   2026-10-13 P7 user UAT:"切换以及所有按钮要增加一点点投影,不然没立体感"
 //   单层 black alpha 0.04 + blur 4 + offset (0, 1),刚好离开白纸面。
 //
-// dark mode 自动用白色阴影(否则黑阴影在黑底上不可见)。
+// D71.4:深色模式阴影 tint 走 GridlyPalette.accent
+//   - 默认 = AppBrand.gold(暖金光感)
+//   - 粉色 = AppPinkBrand.gold(粉色光感)
+//   - 之前 dark mode shadow 统一硬编码 gold → 夜晚+粉色时 tint 自动换成粉
+//   - 浅色模式保持黑(传统投影)
 import 'package:flutter/material.dart';
 
-import 'app_colors.dart';
+import 'gridly_palette.dart';
 
 class CardShadows {
   CardShadows._();
@@ -21,9 +25,10 @@ class CardShadows {
   /// 黑底卡(月度汇总卡 / range summary)
   static List<BoxShadow> dark(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    // 深色模式用品牌金(AppBrand.gold)做暖色光感,呼应 Ink/Gold/Teal 三色;
+    final palette = Theme.of(context).extension<GridlyPalette>();
+    // 深色模式用 palette.accent 做暖色光感(默认金 / 粉色亮粉),
     // 浅色模式保持黑(传统投影)
-    final color = isDark ? AppBrand.gold : Colors.black;
+    final color = isDark && palette != null ? palette.accent : Colors.black;
     return [
       BoxShadow(
         color: color.withValues(alpha: isDark ? 0.06 : 0.12),
@@ -42,7 +47,8 @@ class CardShadows {
   /// 白底卡(预算 / 设置主题 / Top10 / 流水 / 分类 / 月度趋势 / 饼图 / 隐私)
   static List<BoxShadow> light(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final color = isDark ? AppBrand.gold : Colors.black;
+    final palette = Theme.of(context).extension<GridlyPalette>();
+    final color = isDark && palette != null ? palette.accent : Colors.black;
     return [
       BoxShadow(
         color: color.withValues(alpha: isDark ? 0.06 : 0.05),
@@ -61,10 +67,11 @@ class CardShadows {
   /// - 适用:小尺寸 pill / 按钮(TypeToggle 外层 / 行动 row 3 pill / 保存按钮)
   /// - 视觉:刚好离开纸面,有立体感但不抢戏
   /// - 浅色:black alpha 0.04 + blur 4 + offset (0, 1)
-  /// - 深色:AppBrand.gold alpha 0.08(暖光感呼应 Ink/Gold/Teal 三色)
+  /// - 深色:palette.accent alpha 0.08(暖光感,默认金 / 粉亮粉)
   static List<BoxShadow> pill(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final color = isDark ? AppBrand.gold : Colors.black;
+    final palette = Theme.of(context).extension<GridlyPalette>();
+    final color = isDark && palette != null ? palette.accent : Colors.black;
     return [
       BoxShadow(
         color: color.withValues(alpha: isDark ? 0.08 : 0.04),

@@ -47,7 +47,6 @@ class _CsvExportSheetState extends ConsumerState<CsvExportSheet> {
   @override
   Widget build(BuildContext context) {
     final range = _ranges[_selectedIndex];
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
@@ -104,9 +103,11 @@ class _CsvExportSheetState extends ConsumerState<CsvExportSheet> {
               child: FilledButton(
                 onPressed: _exporting ? null : _export,
                 style: FilledButton.styleFrom(
-                  // dark mode 仿 onDark 模式:ink → cream,避免和 sheet surface 融掉
-                  backgroundColor: isDark ? AppSecondary.cream : AppBrand.ink,
-                  foregroundColor: isDark ? AppBrand.ink : null,
+                  // D71.2:4 模式统一走 scheme 跟随(浅粉→深紫红,浅默认→炭黑,
+                  //   深粉→暖白,深默认→浅灰;文字反向)
+                  backgroundColor: Theme.of(context).colorScheme.inverseSurface,
+                  foregroundColor:
+                      Theme.of(context).colorScheme.onInverseSurface,
                   padding: const EdgeInsets.symmetric(vertical: AppSpacing.s3),
                   shape: RoundedRectangleBorder(borderRadius: AppRadius.brLg),
                 ),
@@ -116,8 +117,7 @@ class _CsvExportSheetState extends ConsumerState<CsvExportSheet> {
                         height: 18,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          // loading 圈颜色和按钮底色对调(深→浅)
-                          color: isDark ? AppBrand.ink : AppBrand.gold,
+                          color: Theme.of(context).colorScheme.onInverseSurface,
                         ),
                       )
                     : Text('导出 · ${range.label}'),
@@ -153,12 +153,15 @@ class _RangeOption extends StatelessWidget {
           vertical: AppSpacing.s3,
         ),
         decoration: BoxDecoration(
+          // D71.2:chip 选中色跟随 palette(浅粉 → 深粉,默认 → 青绿)
           color: selected
-              ? AppBrand.teal.withValues(alpha: 0.08)
+              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.08)
               : Theme.of(context).colorScheme.surfaceContainerLow,
           borderRadius: AppRadius.brLg,
           border: Border.all(
-            color: selected ? AppBrand.teal : Colors.transparent,
+            color: selected
+                ? Theme.of(context).colorScheme.primary
+                : Colors.transparent,
             width: 1.5,
           ),
         ),
@@ -168,7 +171,9 @@ class _RangeOption extends StatelessWidget {
               selected
                   ? Icons.radio_button_checked
                   : Icons.radio_button_unchecked,
-              color: selected ? AppBrand.teal : AppGray.g400,
+              color: selected
+                  ? Theme.of(context).colorScheme.primary
+                  : AppGray.g400,
               size: 20,
             ),
             const SizedBox(width: AppSpacing.s3),

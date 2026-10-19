@@ -8,12 +8,14 @@ import '../../../core/settings/amount_visibility_provider.dart';
 import '../../../core/settings/app_info_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/card_shadows.dart';
+import '../../../core/theme/gridly_palette.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/aqua_switch.dart';
 import '../../../core/widgets/gridly_mark.dart';
 import '../../../core/widgets/show_app_modal_sheet.dart';
 import '../../../core/theme/theme_mode_provider.dart';
+import '../../../core/theme/theme_palette_provider.dart';
 import '../../../core/utils/budget_provider.dart';
 import '../../../core/utils/formatters.dart';
 import 'widgets/backup_restore_sheet.dart';
@@ -25,6 +27,7 @@ class SettingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(themeModeProvider);
+    final palette = ref.watch(themePaletteProvider);
     final amountVisible = ref.watch(amountVisibilityProvider);
     final pkgInfo = ref.watch(packageInfoProvider).valueOrNull;
     // 版本号:加载中显示占位符;正常显示 'v0.1.0+1' / 完整时 'v0.1.0+1'
@@ -52,11 +55,16 @@ class SettingsPage extends ConsumerWidget {
             child: Container(
               padding: const EdgeInsets.all(AppSpacing.s4),
               decoration: BoxDecoration(
-                color: AppBrand.ink,
+                // D71.3:inkSurface 永远是 dark(默认黑 / 浅粉色 → 深紫红),
+                //   深色模式不会变 cream
+                color: theme.extension<GridlyPalette>()!.inkSurface,
                 borderRadius: AppRadius.brLg,
                 // rim light border + 阴影,与其他黑底卡(月度汇总/range summary)保持一致
                 border: Border.all(
-                  color: Colors.white.withValues(alpha: isDark ? 0.08 : 0.15),
+                  color: theme
+                      .extension<GridlyPalette>()!
+                      .onInkSurface
+                      .withValues(alpha: isDark ? 0.08 : 0.15),
                   width: 1.0,
                 ),
                 boxShadow: CardShadows.dark(context),
@@ -67,7 +75,10 @@ class SettingsPage extends ConsumerWidget {
                     width: 56,
                     height: 56,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.06),
+                      color: theme
+                          .extension<GridlyPalette>()!
+                          .onInkSurface
+                          .withValues(alpha: 0.06),
                       borderRadius: AppRadius.brMd,
                     ),
                     child: const Padding(
@@ -80,10 +91,12 @@ class SettingsPage extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           '格子记账',
                           style: TextStyle(
-                            color: AppSecondary.cream,
+                            // D71.3:onInkSurface(cream)永远是 ink 卡片上的主文字
+                            color:
+                                theme.extension<GridlyPalette>()!.onInkSurface,
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
                           ),
@@ -91,8 +104,12 @@ class SettingsPage extends ConsumerWidget {
                         const SizedBox(height: AppSpacing.s05),
                         Text(
                           versionTagline,
-                          style: const TextStyle(
-                            color: AppGray.g400,
+                          // D71.3:次级文字用 onInkSurface 60% alpha(在任何 ink 底上都 OK)
+                          style: TextStyle(
+                            color: theme
+                                .extension<GridlyPalette>()!
+                                .onInkSurface
+                                .withValues(alpha: 0.6),
                             fontSize: 12,
                           ),
                         ),
@@ -155,7 +172,7 @@ class SettingsPage extends ConsumerWidget {
                         ),
                         RadioListTile<ThemeMode>(
                           value: ThemeMode.light,
-                          title: Text('浅色'),
+                          title: Text('白天'),
                           secondary: Icon(Icons.light_mode_outlined, size: 18),
                           dense: true,
                           visualDensity: VisualDensity.compact,
@@ -163,8 +180,44 @@ class SettingsPage extends ConsumerWidget {
                         ),
                         RadioListTile<ThemeMode>(
                           value: ThemeMode.dark,
-                          title: Text('深色'),
+                          title: Text('夜晚'),
                           secondary: Icon(Icons.dark_mode_outlined, size: 18),
+                          dense: true,
+                          visualDensity: VisualDensity.compact,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ],
+                    ),
+                  ),
+                  // D71.1 加:色调选择 —— 跟"主题"正交,切换品牌色板
+                  //   默认品牌色(炭黑/金/青) / 粉色(深紫红/亮粉/柔粉)
+                  const SizedBox(height: AppSpacing.s4),
+                  const Text(
+                    '色调',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: AppSpacing.s3),
+                  RadioGroup<ThemePalette>(
+                    groupValue: palette,
+                    onChanged: (v) {
+                      if (v != null) {
+                        ref.read(themePaletteProvider.notifier).set(v);
+                      }
+                    },
+                    child: const Column(
+                      children: [
+                        RadioListTile<ThemePalette>(
+                          value: ThemePalette.defaultBrand,
+                          title: Text('默认品牌色'),
+                          secondary: Icon(Icons.palette_outlined, size: 18),
+                          dense: true,
+                          visualDensity: VisualDensity.compact,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                        RadioListTile<ThemePalette>(
+                          value: ThemePalette.pink,
+                          title: Text('粉色'),
+                          secondary: Icon(Icons.favorite_outline, size: 18),
                           dense: true,
                           visualDensity: VisualDensity.compact,
                           contentPadding: EdgeInsets.zero,

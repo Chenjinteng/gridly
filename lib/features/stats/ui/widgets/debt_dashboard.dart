@@ -38,6 +38,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/card_shadows.dart';
+import '../../../../core/theme/gridly_palette.dart';
 import 'liabilities_dashboard.dart';
 import 'receivables_dashboard.dart';
 
@@ -73,10 +74,12 @@ class _DebtDashboardState extends ConsumerState<DebtDashboard> {
         // ink 底警示色,跟原 LiabilitiesDashboard 一致 — user 切到"负债"
         // tab 看到警示红字数字,切到"借出" tab 看到 teal 字数字,警示色/
         // 友好色都包在同一个 ink 卡片里,user 一眼区分
-        color: AppBrand.ink,
+        color: theme.extension<GridlyPalette>()!.inkSurface,
         borderRadius: AppRadius.brLg,
         border: Border.all(
-          color: Colors.white.withValues(alpha: isDark ? 0.08 : 0.15),
+          color: theme.extension<GridlyPalette>()!.onInkSurface.withValues(
+            alpha: isDark ? 0.08 : 0.15,
+          ),
           width: 1.0,
         ),
         boxShadow: CardShadows.dark(context),
@@ -135,7 +138,7 @@ class _DebtDashboardState extends ConsumerState<DebtDashboard> {
                         height: _underlineH,
                         child: DecoratedBox(
                           decoration: BoxDecoration(
-                            color: AppBrand.teal,
+                            color: Theme.of(context).colorScheme.primary,
                             borderRadius: BorderRadius.circular(1),
                           ),
                         ),
@@ -187,7 +190,7 @@ class _DebtTabSegment extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final fg = selected ? AppBrand.teal : theme.colorScheme.onSurfaceVariant;
+    final fg = selected ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant;
     return GestureDetector(
       onTap: selected ? null : onTap,
       behavior: HitTestBehavior.opaque,

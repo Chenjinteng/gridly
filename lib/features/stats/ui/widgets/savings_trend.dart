@@ -96,10 +96,12 @@ class SavingsTrend extends ConsumerWidget {
               // D64.53 改:加 `%` 单位,user UAT 反馈"单位是什么,我看到还有
               //   负数的" — Y 轴 60/40/-80 没标% user 困惑,加 % 让单位明确
               axisLabelBuilder: (v, _) => '${v.toStringAsFixed(0)}%',
-              lineColor: AppBrand.teal,
+              // D71.2:跟随 palette(浅粉 → 深粉,默认 → 青绿)
+              lineColor: Theme.of(context).colorScheme.primary,
               // 节点颜色:正储蓄率 teal,负储蓄率 error 红
-              pointColorResolver: (i, p) =>
-                  p.value >= 0 ? AppBrand.teal : AppStatus.error,
+              pointColorResolver: (i, p) => p.value >= 0
+                  ? Theme.of(context).colorScheme.primary
+                  : AppStatus.error,
               // X 轴 label 稀疏化到 1 / 6 / 12 月(跟 D64.22 同款)
               xLabelBuilder: (i, p) {
                 final m = data[i].month;

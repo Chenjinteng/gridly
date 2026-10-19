@@ -89,6 +89,22 @@ class CategoryRepository {
     });
   }
 
+  /// 2026-10-19 D72 加:余额调整 1 cat 升级路径,
+  /// 跟 ensureInvestmentCategories / ensureBenefitCategories 同 pattern,
+  /// 幂等插入(老 device DB 没种子时补上)。asset_form_page 编辑期初余额时调用,
+  /// 自动生成一笔 type='balance' 流水抹平差值,source = 该资产。
+  Future<void> ensureBalanceAdjustCategory() async {
+    final existing = await all();
+    final names = existing.map((c) => c.name).toSet();
+    await _db.batch((batch) {
+      for (final c in DefaultCategories.balanceAdjust) {
+        if (!names.contains(c.name)) {
+          batch.insert(_db.categories, _toCompanion(c));
+        }
+      }
+    });
+  }
+
   /// 2026-10-14 D57 加:其它段 1 cat 升级路径(其它),
   /// 跟 ensureInvestmentCategories / ensureBenefitCategories / ensureReceivableCategories 同 pattern,
   /// 幂等插入(老 device DB 没种子时补上)
@@ -117,6 +133,14 @@ class CategoryRepository {
           ..where((c) => c.type.equals(type))
           ..orderBy([(c) => OrderingTerm.asc(c.sortOrder)]))
         .get();
+  }
+
+  /// 按 name 找分类(返回 first 或 null),用于 D72 asset_form 编辑期初余额时
+  /// 查找"余额调整"系统 cat。name 在 DB 唯一(unique index 在 schema 上,但
+  /// 这里保险用 getSingleOrNull)。
+  Future<Category?> findByName(String name) {
+    return (_db.select(_db.categories)..where((c) => c.name.equals(name)))
+        .getSingleOrNull();
   }
 
   /// 新增分类

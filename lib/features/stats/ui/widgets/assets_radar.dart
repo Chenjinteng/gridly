@@ -136,13 +136,15 @@ class _AssetsRadarState extends ConsumerState<AssetsRadar> {
                   _RadarEntry(
                     label: AppSegment.labelFor('cash_flow'),
                     value: totals.totalCashFlow,
-                    color: AppBrand.teal, // 保持原色 0xFF14B8A6 亮青绿,跟 brand 一致
+                    // D71.2:跟随 palette(浅粉 → 深粉,默认 → 青绿)
+                    color: theme.colorScheme.primary,
                     percent: pctOf(totals.totalCashFlow),
                   ),
                   _RadarEntry(
                     label: AppSegment.labelFor('investment'),
                     value: totals.totalInvestment,
-                    color: AppBrand.gold,
+                    // D71.2:跟随 palette(浅粉 → 亮粉,默认 → 金黄)
+                    color: theme.colorScheme.secondary,
                     percent: pctOf(totals.totalInvestment),
                   ),
                   _RadarEntry(
@@ -210,8 +212,8 @@ class _AssetsRadarState extends ConsumerState<AssetsRadar> {
                               fontWeight: FontWeight.w500,
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
-                            primary: AppBrand.teal,
-                            primaryFill: AppBrand.teal.withValues(alpha: 0.18),
+                            primary: theme.colorScheme.primary,
+                            primaryFill: theme.colorScheme.primary.withValues(alpha: 0.18),
                           ),
                           size: Size.infinite,
                         ),

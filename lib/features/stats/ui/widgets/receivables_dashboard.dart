@@ -117,8 +117,9 @@ class ReceivablesDashboard extends ConsumerWidget {
               prefix: '¥',
               formatter: (v) => Formatters.amount(v),
               duration: const Duration(milliseconds: 480),
-              style: const TextStyle(
-                color: AppBrand.teal,
+              style: TextStyle(
+                // D71.2:跟随 palette
+                color: theme.colorScheme.primary,
                 fontSize: 28,
                 fontWeight: FontWeight.w700,
                 height: 1.1,
@@ -155,13 +156,19 @@ class ReceivablesDashboard extends ConsumerWidget {
                   Icon(
                     Icons.check_circle_outline_rounded,
                     size: 20,
-                    color: AppBrand.teal.withValues(alpha: 0.85),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .primary
+                        .withValues(alpha: 0.85),
                   ),
                   const SizedBox(width: AppSpacing.s2),
                   Text(
                     '当前无借出',
                     style: TextStyle(
-                      color: AppBrand.teal.withValues(alpha: 0.85),
+                      color: Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withValues(alpha: 0.85),
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                     ),
@@ -223,8 +230,8 @@ class _LendRow extends StatelessWidget {
       name: item.name,
       color: item.color,
       amount: item.balance,
-      // 借出金额:正数 teal(跟大字一致)
-      amountColor: AppBrand.teal,
+      // D71.2:跟随 palette(浅粉 → 深粉,默认 → 青绿)
+      amountColor: Theme.of(context).colorScheme.primary,
       totalForPercent: totalLend,
       // 白底卡片用 onSurfaceVariant(默认)
     );

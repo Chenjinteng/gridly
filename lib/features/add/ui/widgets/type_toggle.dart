@@ -163,10 +163,21 @@ class TypeToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final selectedIndex = segments.indexWhere((seg) => seg.key == value);
+    // D71.2:硬编码 brand 颜色二次映射到 palette 色 token
+    //   cashFlowSegments / investmentSegments 是 static const,没法直接改
+    //   这里按原 color 跟 brand token 匹配,重写到 palette 对应 token
+    final mappedSegments = segments
+        .map((s) => ToggleSegment(
+              key: s.key,
+              label: s.label,
+              icon: s.icon,
+              color: _mapSegmentColor(s.color, theme.colorScheme),
+            ))
+        .toList();
+    final selectedIndex = mappedSegments.indexWhere((seg) => seg.key == value);
     final selectedColor = selectedIndex >= 0
-        ? segments[selectedIndex].color
-        : segments.first.color;
+        ? mappedSegments[selectedIndex].color
+        : mappedSegments.first.color;
 
     return Container(
       height: 48,
@@ -183,7 +194,7 @@ class TypeToggle extends StatelessWidget {
       ),
       child: LayoutBuilder(
         builder: (ctx, c) {
-          final segWidth = c.maxWidth / segments.length;
+          final segWidth = c.maxWidth / mappedSegments.length;
           return Stack(
             children: [
               // 滑动 pill:在 segment 之间水平移动
@@ -208,7 +219,7 @@ class TypeToggle extends StatelessWidget {
               // 3 segment 本体(无 bg,只文字 + icon)
               Row(
                 children: [
-                  for (final seg in segments)
+                  for (final seg in mappedSegments)
                     Expanded(
                       child: _Segment(
                         label: seg.label,
@@ -225,6 +236,19 @@ class TypeToggle extends StatelessWidget {
         },
       ),
     );
+  }
+
+  /// D71.2:把 static const segments 里硬编码的 brand 色按 palette 重映射
+  ///   - AppBrand.teal(支出/收入调拨场景):→ primary(浅粉 → 深粉,默认 → 青绿)
+  ///   - AppBrand.gold(投资场景投入/收益):→ secondary(浅粉 → 亮粉,默认 → 金黄)
+  ///   - AppSecondary.softGold(投资调拨):→ secondaryContainer(浅粉容器,默认浅金)
+  ///   - AppStatus.error(支出):保留(语义色,跟主题无关)
+  ///   - 其它:原值(非 brand 色保留)
+  Color _mapSegmentColor(Color c, ColorScheme scheme) {
+    if (c == AppBrand.teal) return scheme.primary;
+    if (c == AppBrand.gold) return scheme.secondary;
+    if (c == AppSecondary.softGold) return scheme.secondaryContainer;
+    return c;
   }
 }
 

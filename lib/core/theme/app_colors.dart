@@ -25,6 +25,22 @@ class AppBrand {
   static const Color navy = Color(0xFF1B2A41);
 }
 
+/// 粉色主题专用色板(D71.1 加 · 2026-10-19)
+///   跟 AppBrand 平行,主品牌三色替换为暖粉调
+///   使用方式:AppTheme.pinkLight() / AppTheme.pinkDark() 内取用
+///   跟"主题"(light/dark)正交叠加,可组合出 4 种(浅粉/深粉/浅默认/深默认)
+class AppPinkBrand {
+  AppPinkBrand._();
+  static const Color ink = Color(0xFF4A1942);       // 深紫红(D71.5.11:回归 #4A1942 冷紫)
+  static const Color charcoal = Color(0xFF6B2C5F);   // 中紫
+  static const Color gold = Color(0xFFFF5C8A);       // 亮粉(替代金)
+  static const Color teal = Color(0xFFE84B7F);       // 深粉(替代青)
+  static const Color softGold = Color(0xFFFFD9E5);  // 浅粉(替代 soft-gold)
+  static const Color lightTeal = Color(0xFFFFE0EC); // 粉白(替代 light-teal)
+  static const Color cream = Color(0xFFFFF5F8);      // 暖白(替代 cream)
+  static const Color navy = Color(0xFF6B2C5F);       // 中紫(深色场景底色)
+}
+
 /// 辅助色
 class AppSecondary {
   AppSecondary._();

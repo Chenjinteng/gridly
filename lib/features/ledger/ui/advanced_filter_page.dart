@@ -408,21 +408,18 @@ class _AdvancedFilterPageState extends ConsumerState<AdvancedFilterPage> {
             child: FilledButton(
               onPressed: () => context.pop(),
               style: FilledButton.styleFrom(
-                backgroundColor: theme.brightness == Brightness.dark
-                    ? AppSecondary.cream
-                    : AppBrand.ink,
-                foregroundColor: theme.brightness == Brightness.dark
-                    ? AppBrand.ink
-                    : null,
+                // D71.2:跟随 palette
+                backgroundColor: theme.colorScheme.inverseSurface,
+                foregroundColor: theme.colorScheme.onInverseSurface,
                 padding: const EdgeInsets.symmetric(vertical: AppSpacing.s3),
                 shape: RoundedRectangleBorder(borderRadius: AppRadius.brLg),
               ),
-              child: const Text(
+              child: Text(
                 '应用筛选',
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white,
+                  color: theme.colorScheme.onInverseSurface,
                 ),
               ),
             ),
