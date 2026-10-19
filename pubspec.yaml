@@ -2,7 +2,14 @@ name: gridly
 description: "格子记账 — 一格一账的本地优先记账工具"
 publish_to: 'none'
 
-version: 1.0.0+104  # v1.0.0 正式发布(D69 阶段累计 69+ 个 commit 后,user 拍板定版)
+version: 1.0.1+0  # v1.0.1 首个 patch release (D70 金额可见性 local override 全局)
+# - 2026-10-19 user 拍板:发版后修复按 semver 重置 build 号
+#   · v1.0.0 = 首发(stable),对应 f97593e,build 0.1.0+104
+#   · v1.0.1 = 首个 patch(D70 本 commit),build 从 0 重新计
+# - 后续 1.0.1+1 / 1.0.1+2 ... 同一 patch group 内部 +1
+# - 后续 1.0.2 / 1.0.3 另起 patch group 时 build 也重置 0
+# - 1.1.0 / 1.2.0 等 minor 跳同理重置 build 0
+# - 1.0.x 修复只走 release/1.0 分支(本分支),不影响 main / feature/lan-web-p1(=2.0)
 # - 此前 0.3.5 阶段是开发期迭代版本,user 准备发布时改为 1.0.0(首个稳定版)
 # - build 保持 +101(compileSdk 36 fix 的实际 commit 数),后续 user 使用期修复
 #   按 semver 叠加 1.0.1+102 / 1.0.2+103 ...

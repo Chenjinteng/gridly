@@ -22,9 +22,12 @@ class MonthlySummary extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final summary = ref.watch(monthSummaryProvider);
-    // D64.51:hidden = 组合判断(全局 || 首页 local),任一为隐藏都隐藏金额
-    //   - 全局关 = user 显式在"我的"页关全局 → 所有页面都隐藏
-    //   - 全局开 + 首页关 = 首页按钮 toggle local → 只首页隐藏
+    // D70:hidden = !global && !local(任一为 visible 都 visible,local 能临时 override 全局)
+    //   - 全局开 + local 开 = 显示
+    //   - 全局开 + local 关 = 隐藏(local 临时遮蔽,适合截图分享)
+    //   - 全局关 + local 开 = 显示(D70 改:local 临时突破全局,user 1.0.0 release
+    //     反馈 D64.51 "任一为 hidden 都 hidden" 太严格,点按钮无效)
+    //   - 全局关 + local 关 = 隐藏(user 明确全要藏)
     final hidden = ref.watch(combineAmountVisibilityProvider);
     // D64.51:眼睛按钮文字/icon 基于 home local(不是 global),
     //   因为按钮只控制 local;global 被 toggle 时按钮状态不动
