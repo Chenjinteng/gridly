@@ -212,8 +212,14 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
   ///   - formula:newCurrent = oldInit + (oldDelta + adjustment)
   ///           = oldInit + (oldCurrent - oldInit + adjustment)
   ///     想要 newCurrent = userInput → adjustment = userInput - oldCurrent
-  ///   - 容差:差值 < 0.005 元(半分钱)算浮点误差,跳过
-  ///   - 注意:必须在 update asset 之前调,oldCurrent 才会准确
+  ///
+  /// D74 修:D73 公式用 type='balance' 是错的 —— `balanceDeltaByAssetId()` 对 source
+  ///   account_id 走 `-Σsum(source)`,所以 +amount 贡献反而是 -amount,余额往反方向飘
+  ///   (实测 user:输 2.25,save 后余额 -0.71;代数化简 newCurrent = 2·oldCurrent - newCurrent)。
+  ///   改用 type='income'(`+Σsum(account_id)`,贡献方向 = amount),公式 amount = +(newCurrent - oldCurrent)。
+  ///   配套:`excluded_from_totals.dart` 加 `adjustCategoryIds`,让月度汇总不计入这笔 income。
+  ///   容差:差值 < 0.005 元(半分钱)算浮点误差,跳过
+  ///   注意:必须在 update asset 之前调,oldCurrent 才会准确
   Future<void> _maybeCreateBalanceAdjust({
     required Asset existing,
     required double newCurrentBalance,
@@ -229,7 +235,7 @@ class _AssetFormPageState extends ConsumerState<AssetFormPage> {
     }
     await ref.read(transactionRepositoryProvider).add(
       amount: adjustment,
-      type: 'balance',
+      type: 'income', // D74 修:改 'income',让 delta 贡献 = +amount(跟 user 输入方向一致)
       categoryId: cat.id,
       occurredAt: DateTime.now(),
       note: '余额调整',

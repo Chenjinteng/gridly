@@ -17,20 +17,27 @@ import '../../features/ledger/application/transactions_providers.dart';
 import '../database/app_database.dart';
 import 'asset_balance_provider.dart';
 
-/// 不计入月度/日结汇总的 id 集合(投资 cat id + 排除账户 id)
+/// 不计入月度/日结汇总的 id 集合(投资 cat id + 排除账户 id + 余额调整 cat id)
 ///   - 投资 record(cat.type='investment')→ 永远不计入(P18 user 决定)
+///   - 余额调整 record(cat.type='adjust')→ 不计入(D74 — D73 把 type 改成
+///     'income' 让 delta 公式方向对了,但 income 默认会被 monthSummaryProvider
+///     算入月度收入,所以这里把"余额调整"cat 也加进排除集合,跟 D18 "不计入汇总
+///     ≠ 隐藏" 原则一致:流水 tile 仍显示可管理,只是不进月度)
 ///   - source asset.includeInTransactions=false → 不计入(user 在资产页关开关)
 ///   - 跟 D18 "不计入汇总 ≠ 隐藏" 一致,流水 tile 仍显示
 class ExcludedFromTotalsIds {
   const ExcludedFromTotalsIds({
     required this.investmentCategoryIds,
+    required this.adjustCategoryIds,
     required this.excludeAccountIds,
   });
   final Set<int> investmentCategoryIds;
+  final Set<int> adjustCategoryIds;
   final Set<int> excludeAccountIds;
 
   static const empty = ExcludedFromTotalsIds(
     investmentCategoryIds: <int>{},
+    adjustCategoryIds: <int>{},
     excludeAccountIds: <int>{},
   );
 }
@@ -42,6 +49,10 @@ final excludedFromTotalsIdsProvider =
   return ExcludedFromTotalsIds(
     investmentCategoryIds: cats
         .where((c) => c.type == 'investment')
+        .map((c) => c.id)
+        .toSet(),
+    adjustCategoryIds: cats
+        .where((c) => c.type == 'adjust')
         .map((c) => c.id)
         .toSet(),
     excludeAccountIds: assets
@@ -56,6 +67,7 @@ final excludedFromTotalsIdsProvider =
 ///   - 1k 笔流水下 O(1) per-record,3 处共用避免各自 filter
 bool isExcludedFromTotals(Transaction t, ExcludedFromTotalsIds ids) {
   if (ids.investmentCategoryIds.contains(t.categoryId)) return true;
+  if (ids.adjustCategoryIds.contains(t.categoryId)) return true; // D74 加
   if (ids.excludeAccountIds.contains(t.accountId)) return true;
   return false;
 }

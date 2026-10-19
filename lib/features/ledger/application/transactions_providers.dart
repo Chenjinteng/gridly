@@ -173,8 +173,9 @@ final filteredTransactionsByDayProvider =
       //     余额调整是系统根据 user 编辑自动生成,user 不需要管理
       //   - 但 DB 仍保留(资产详情页 / 备份导出仍能看到)
       //   - 启发式匹配:note='余额调整' 就行,不依赖 cat 名称
-      bool isBalanceAdjust(Transaction t) =>
-          t.note == '余额调整' && t.type == 'balance';
+      // D74 改:type 由 'balance' 改成 'income'(公式方向对了),所以 isBalanceAdjust
+      //   只查 note,不依赖 type
+      bool isBalanceAdjust(Transaction t) => t.note == '余额调整';
       final filtered = all.where((t) {
         if (isBalanceAdjust(t)) return false;
         // 类型(多选 OR:空 = 全部,非空 = 命中任一选中的 type)
