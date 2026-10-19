@@ -129,21 +129,26 @@ class _ModalBackInterceptor with WidgetsBindingObserver {
   /// 全局单例。main.dart 启动时 addObserver 后,modal 拦截就生效。
   static final _ModalBackInterceptor instance = _ModalBackInterceptor._();
 
-  /// 记录当前打开的 modal 数量(stack 形式,支持嵌套 sheet)
-  int _modalCount = 0;
+  /// Modal navigator stack(支持嵌套 modal)。
+  /// 每个 modal push 时把它的 NavigatorState 入栈,close 时出栈。
+  /// didPopRoute 弹栈顶 + pop() 关闭最上层 modal。
+  final List<NavigatorState> _stack = <NavigatorState>[];
 
   /// D70.6 系统 back 拦截器 + modal 生命周期管理
   Future<T?> runWithModal<T>({
     required NavigatorState navigator,
     required Future<T?> Function() showSheet,
   }) {
-    _modalCount++;
+    _stack.add(navigator);
+    debugPrint('D70.6: modal pushed, stack=${_stack.length}, nav=$navigator');
     final completer = Completer<T?>();
     showSheet().then((result) {
-      _modalCount--;
+      // 模态关闭:从 stack 移除(可能不在顶端,使用 removeWhere 容错)
+      _stack.removeWhere((n) => identical(n, navigator));
+      debugPrint('D70.6: modal closed, stack=${_stack.length}');
       if (!completer.isCompleted) completer.complete(result);
     }).catchError((Object e, StackTrace s) {
-      _modalCount--;
+      _stack.removeWhere((n) => identical(n, navigator));
       if (!completer.isCompleted) completer.completeError(e, s);
     });
     return completer.future;
@@ -151,13 +156,13 @@ class _ModalBackInterceptor with WidgetsBindingObserver {
 
   @override
   Future<bool> didPopRoute() async {
-    // 有 modal 打开:我们自己 pop 模态,返回 true 让 WidgetsBinding 不再往下走
-    if (_modalCount > 0) {
-      // 找一个能 pop 的 navigator(root navigator 是最稳的)
-      final rootNav = WidgetsBinding.instance.rootElement
-          ?.findAncestorStateOfType<NavigatorState>();
-      if (rootNav != null && rootNav.canPop()) {
-        rootNav.pop();
+    debugPrint('D70.6: didPopRoute called, stack=${_stack.length}');
+    if (_stack.isNotEmpty) {
+      // 弹栈顶,pop 它
+      final nav = _stack.last;
+      if (nav.canPop()) {
+        debugPrint('D70.6: popping modal via nav=$nav');
+        nav.pop();
         return true;
       }
     }
