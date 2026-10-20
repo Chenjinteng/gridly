@@ -258,6 +258,12 @@ class _CategoryTab extends ConsumerWidget {
             //   - xLabelReservedSize 64:7 字 × 9sp ≈ 63px 竖排高度上限
             xLabelReservedSize: 64,
             xLabelBuilder: (i, b) => VerticalBarLabel(b.label),
+            // 2026-10-20 D64.73:关掉触摸时的"顶部 label"chip
+            //   - 顶部 chip 固定 56px 宽,装不下长中文分类名("房租水电燃媒" 6 字)
+            //     → 换行成 2 行(≈60px 高),而 tooltip 从 top:28 开始
+            //     → 两个框垂直重叠(user UAT 实测截图)
+            //   - 且 tooltip 第一行已经是分类名(D64.72 加的),顶部 chip 纯冗余
+            showTouchedLabel: false,
             touchedLabelBuilder: (i, b) => b.label,
             tooltipBuilder: (i, b) =>
                 '${b.label}\n¥${Formatters.amount(shown[i].currAmount)}',

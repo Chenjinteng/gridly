@@ -123,6 +123,13 @@ class AnimatedBarChart extends StatefulWidget {
     this.groupsSpace = 4, // 组间间距
     this.xLabelAngle = 0.0, // D64.72 加:X 轴 label 旋转角(0 = 水平)
     this.xLabelReservedSize, // D64.72 加:斜排时底部 label 预留高度(null = 自动)
+    // 2026-10-20 D64.73 加:是否显示触摸时的"顶部 label"
+    //   - true(默认):顶部显示分类/日期小 chip(老行为)
+    //   - false:只显示金额 tooltip
+    //   - 用例:消费趋势「类别」tab —— 顶部 label 装不下长中文分类名
+    //     (56px 宽 → 换行 2 行 → 跟 tooltip 垂直重叠),而 tooltip 第一行
+    //     已经是分类名,顶部 label 完全冗余 → 直接关掉
+    this.showTouchedLabel = true,
   });
 
   final List<BarChartBar> bars;
@@ -155,6 +162,13 @@ class AnimatedBarChart extends StatefulWidget {
   /// 斜排时底部 label 预留高度(null = 自动:水平 18 / 斜排 40)
   ///   - 斜排 4 字中文 label(≈36px 宽)在 45° 下投影高 ≈36px,需要 40 留白
   final double? xLabelReservedSize;
+
+  /// 2026-10-20 D64.73 加:是否显示触摸时的"顶部 label"chip
+  ///   - true(默认)= 顶部显示 label(跟 tooltip 上下排布)
+  ///   - false = 只显示金额 tooltip
+  ///   - 什么时候该关:顶部 label 的文字在 tooltip 里已经出现过(冗余),
+  ///     且文字长到撑高 chip → 跟 tooltip 垂直重叠(user UAT 实测截图)
+  final bool showTouchedLabel;
 
   @override
   State<AnimatedBarChart> createState() => _AnimatedBarChartState();
@@ -336,6 +350,9 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
   }
 
   void _onPointerEnd() {
+    // D64.73:widget 可能已被 dispose(用户 touch 图表后立刻退页面 / 列表项被回收),
+    //   此时 setState 会抛 "setState() called after dispose()"
+    if (!mounted) return;
     if (_touchedIdx != null ||
         _touchedCenterX != null ||
         _touchedValue != null) {
@@ -345,6 +362,45 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
         _touchedValue = null;
       });
     }
+  }
+
+  /// 算触摸 overlay(顶部 label / tooltip)的 left
+  /// 2026-10-20 D64.73:
+  ///   - 老代码 `left: centerX - width/2` 不看边界 → touch 最右边的柱时
+  ///     tooltip 右边缘超出 chart 66px,被外层 ChartCard 切掉(user 实测截图)
+  ///   - 规则:
+  ///     ① 优先**居中**对齐柱子(视觉上 tooltip 指着哪根柱最清楚)
+  ///     ② 右边缘越界 → 改成**右边缘对齐柱心**(tooltip 紧贴柱子左侧,
+  ///       既不越界、又仍明确指向该柱;比简单 clamp 到 chart 边缘好,
+  ///       后者会让 tooltip 跟柱子脱节)
+  ///     ③ 左边缘越界 → 贴左边界
+  double _overlayLeft(double centerX, double width, double chartWidth) {
+    var left = centerX - width / 2;
+    if (left + width > chartWidth) {
+      left = centerX - width;
+    }
+    if (left < 0) left = 0;
+    if (left + width > chartWidth) {
+      left = math.max(0.0, chartWidth - width);
+    }
+    return left;
+  }
+
+  /// 量 tooltip 文字的实际宽度(shrink-wrap 宽度,加左右 padding)
+  ///   - tooltip 容器是内容自适应(不是固定 140 宽),所以 clamp 时
+  ///     必须知道真实宽度才能贴边
+  double _measureTooltipWidth(String text) {
+    const padding = 8.0;
+    const maxTextWidth = 140.0 - padding * 2;
+    final tp = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: const TextStyle(fontSize: 10, height: 1.4),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 3,
+    )..layout(maxWidth: maxTextWidth);
+    return math.min(tp.width + padding * 2, 140.0);
   }
 
   @override
@@ -365,7 +421,7 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
                   onPointerMove: (e) => _onPointerMove(e, chartWidth),
                   onPointerUp: (_) => _onPointerEnd(),
                   onPointerCancel: (_) => _onPointerEnd(),
-                  child: _buildChart(),
+                  child: _buildChart(chartWidth),
                 );
               },
             ),
@@ -375,8 +431,20 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
     );
   }
 
-  Widget _buildChart() {
+  Widget _buildChart(double chartWidth) {
     final scheme = Theme.of(context).colorScheme;
+    // D64.73:先算 tooltip 文本 + 实际宽度(容器是内容自适应,不是固定 140 宽),
+    //   贴边定位时必须知道真实宽度
+    final tooltipText = (_touchedIdx != null && _touchedValue != null)
+        ? (widget.tooltipBuilder?.call(
+              _touchedIdx!,
+              widget.bars[_touchedIdx!],
+            ) ??
+            '')
+        : null;
+    final tooltipWidth = tooltipText != null
+        ? _measureTooltipWidth(tooltipText)
+        : 0.0;
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -509,33 +577,51 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
             ),
           ),
           // 顶部 label
-          Positioned(
-            left: _touchedCenterX! + _leftReservedSize - 28,
-            top: 0,
-            width: 56,
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: scheme.surface,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: scheme.outlineVariant, width: 0.5),
-                ),
-                child: Text(
-                  widget.touchedLabelBuilder?.call(
-                        _touchedIdx!,
-                        widget.bars[_touchedIdx!],
-                      ) ??
-                      '',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: scheme.onSurface,
+          //   D64.73 三处改:
+          //   ① 水平 clamp —— touch 最右边的柱时不再溢出 chart(被卡片切掉)
+          //   ② FittedBox + maxLines:1 + softWrap:false —— 强制单行,
+          //      长文字缩放而不是换行。换行会把 chip 撑到 2 行(≈60px),
+          //      而 tooltip 从 top:28 开始 → 两者垂直重叠(user 实测截图)
+          //   ③ showTouchedLabel=false 时整个不渲染
+          //      (类别 tab 的 tooltip 第一行已是分类名,顶部 chip 纯冗余)
+          if (widget.showTouchedLabel)
+            Positioned(
+              left: _overlayLeft(
+                _touchedCenterX! + _leftReservedSize,
+                56,
+                chartWidth,
+              ),
+              top: 0,
+              width: 56,
+              child: Center(
+                child: Container(
+                  key: const Key('chart-touched-label'),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: scheme.surface,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: scheme.outlineVariant, width: 0.5),
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      widget.touchedLabelBuilder?.call(
+                            _touchedIdx!,
+                            widget.bars[_touchedIdx!],
+                          ) ??
+                          '',
+                      maxLines: 1,
+                      softWrap: false,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: scheme.onSurface,
+                      ),
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
           // 金额 tooltip
           // D64.55 改:样式跟 AnimatedLineChart (储蓄走势 user 喜欢的) 同款:
           //   - 80px → 140px(储蓄走势 140 宽,多行自然换行)
@@ -546,46 +632,46 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
           //   - 加 border 0.5 outlineVariant(跟 surface 区分)
           //   - 加 boxShadow 0 2 4 black alpha 0.08(浮动感)
           //   - top 26 → 28(跟 label 4px gap)
-          if (_touchedValue != null)
+          if (tooltipText != null)
             Positioned(
-              left: _touchedCenterX! + _leftReservedSize - 70,
+              // D64.73:靠右的柱 touch 时,tooltip 右边缘对齐柱心(不越 chart 右边界)
+              left: _overlayLeft(
+                _touchedCenterX! + _leftReservedSize,
+                tooltipWidth,
+                chartWidth,
+              ),
               top: 28,
-              width: 140,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 6,
+              width: tooltipWidth,
+              child: Container(
+                key: const Key('chart-tooltip'),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: scheme.surface,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: scheme.outlineVariant,
+                    width: 0.5,
                   ),
-                  decoration: BoxDecoration(
-                    color: scheme.surface,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: scheme.outlineVariant,
-                      width: 0.5,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.08),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.08),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Text(
-                    widget.tooltipBuilder?.call(
-                          _touchedIdx!,
-                          widget.bars[_touchedIdx!],
-                        ) ??
-                        '',
-                    textAlign: TextAlign.center,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 10,
-                      height: 1.4,
-                      color: scheme.onSurface,
-                    ),
+                  ],
+                ),
+                child: Text(
+                  tooltipText,
+                  textAlign: TextAlign.center,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10,
+                    height: 1.4,
+                    color: scheme.onSurface,
                   ),
                 ),
               ),
