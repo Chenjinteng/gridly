@@ -21,14 +21,19 @@
 //   - 颜色:借出 = AppSegment.receivable (#F59E0B 橙);借入 = AppStatus.error (#EF4444 红,警示我欠)
 //
 // 颜色语义化(user UAT 反馈:支出/收入要"主题蓝色"):
-//   - 支出 (expense) → AppStatus.error (#EF4444 红)
-//   - 收入 (income)  → AppBrand.teal (#14B8A6 主题蓝)
+//   - 支出 (expense) → AppSemantic.expense (#EF4444 红,恒定)
+//   - 收入 (income)  → AppSemantic.income  (#14B8A6 绿,恒定)
 //   - 调拨 (balance) → AppSecondary.softGold (#FFEAA7 浅金,中性,跟 income 区分)
 //   - 投入 (input)   → AppBrand.gold (#F5BC1F 投资主题金,跟资产 'investment' 配色一致)
 //   - 收益 (output)  → AppBrand.gold (#F5BC1F 投资主题金)
 //   - transfer       → AppSecondary.softGold (浅金,跟 input/output 区分)
 //   - 借出 (lend_out)→ AppSegment.receivable #F59E0B(负债段语义色)
 //   - 借入 (borrow_in)→ AppStatus.error #EF4444(警示我欠)
+//
+// 2026-10-20 D64.76 改:收支两段(支出 / 收入)是**语义色,恒定不跟 palette 走**
+//   - 之前收入 teal 被映射成 scheme.primary,4 个主题里 3 个跟同屏金额大数字对不上
+//     (深色=浅青 / 粉浅=深粉 / 粉深=亮粉)
+//   - 现在 toggle 段色 ≡ AmountDisplay 大数字 ≡ 每日小结 ≡ 流水列表金额,全 app 一套
 //
 // 业务规则(TransactionForm 内):
 //   - cash_flow: type='expense' / 'income' / 'balance' 直接对应 DB
@@ -92,13 +97,13 @@ class TypeToggle extends StatelessWidget {
       key: 'expense',
       label: '支出',
       icon: Icons.arrow_outward_rounded,
-      color: AppStatus.error, // #EF4444
+      color: AppSemantic.expense, // #EF4444 恒定红
     ),
     ToggleSegment(
       key: 'income',
       label: '收入',
       icon: Icons.south_west_rounded,
-      color: AppBrand.teal, // #14B8A6
+      color: AppSemantic.income, // #14B8A6 恒定绿
     ),
     ToggleSegment(
       key: 'balance',
@@ -239,13 +244,22 @@ class TypeToggle extends StatelessWidget {
   }
 
   /// D71.2:把 static const segments 里硬编码的 brand 色按 palette 重映射
-  ///   - AppBrand.teal(支出/收入调拨场景):→ primary(浅粉 → 深粉,默认 → 青绿)
   ///   - AppBrand.gold(投资场景投入/收益):→ secondary(浅粉 → 亮粉,默认 → 金黄)
-  ///   - AppSecondary.softGold(投资调拨):→ secondaryContainer(浅粉容器,默认浅金)
-  ///   - AppStatus.error(支出):保留(语义色,跟主题无关)
+  ///   - AppSecondary.softGold(调拨):→ secondaryContainer(浅粉容器,默认浅金)
   ///   - 其它:原值(非 brand 色保留)
+  ///
+  /// 2026-10-20 D64.76 改:**收支语义色不再参与 palette 重映射**
+  ///   - 之前 teal(收入)→ scheme.primary,导致 4 个主题里 3 个跟同屏金额大数字对不上:
+  ///       默认深色:浅青 #A7F3E0 ≠ 大数字 #14B8A6
+  ///       粉红浅色:深粉 #E84B7F ≠ 绿
+  ///       粉红深色:亮粉 #FF5C8A ≠ 绿
+  ///     (只有默认浅色碰巧一致,primary 正好 = teal)
+  ///   - 改成:收支两段恒定绿 / 红,跟 AmountDisplay 大数字、每日小结、
+  ///     月度汇总卡、流水列表金额同一套语言
+  ///   - 投资段(gold)和调拨(softGold)是品牌强调色,继续跟 palette 走
   Color _mapSegmentColor(Color c, ColorScheme scheme) {
-    if (c == AppBrand.teal) return scheme.primary;
+    // 收支语义色恒定,不跟 palette 走
+    if (c == AppSemantic.income || c == AppSemantic.expense) return c;
     if (c == AppBrand.gold) return scheme.secondary;
     if (c == AppSecondary.softGold) return scheme.secondaryContainer;
     return c;

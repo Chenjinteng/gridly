@@ -39,14 +39,18 @@ class TxDisplayStyle {
   final String prefix;
 
   /// 5 种 DB type 静态实例,集中常量,避免重复 new
+  ///
+  /// 2026-10-20 D64.76:收支两档显式绑到 AppSemantic.income / .expense
+  ///   - 绿正 / 红负,恒定不跟 palette 走(粉红主题下也不变)
+  ///   - 跟每日小结 / 月度汇总卡 / 区间汇总同一套语言
   static const TxDisplayStyle expense = TxDisplayStyle(
     label: '支出',
-    color: AppStatus.error,
+    color: AppSemantic.expense,
     prefix: '-',
   );
   static const TxDisplayStyle income = TxDisplayStyle(
     label: '收入',
-    color: AppBrand.teal,
+    color: AppSemantic.income,
     prefix: '+',
   );
   static const TxDisplayStyle balance = TxDisplayStyle(
@@ -54,6 +58,9 @@ class TxDisplayStyle {
     color: AppSecondary.softGold,
     prefix: '',
   );
+  // D51 决策保留:债务段用借出 / 借入自己的语义色,不套用普通收支绿红
+  //   - 借出 = 债权色(橙),借入 = 负债警示色(红)
+  //   - user 2026-10-14 明确"债务账户用借出/借入语义,不要复用支出/收入语义"
   static const TxDisplayStyle lendOut = TxDisplayStyle(
     label: '借出',
     color: AppSegment.receivable,

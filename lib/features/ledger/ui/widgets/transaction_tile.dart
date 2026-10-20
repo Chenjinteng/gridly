@@ -44,19 +44,18 @@ class TransactionTile extends ConsumerWidget {
           }
         }
         final color = cat == null ? AppGray.g400 : Color(cat.color);
-        // 2026-10-14 P18:流水金额色 = accountId 对应资产段色
-        //   - 跟 _AccountBadge icon 色统一(都按 asset.type 段色)
-        //   - 跨页视觉一致:流水页 + 资产页 6 段色用同一 token
-        //   - prefix 仍按 transaction.type 分(+/-/空)区分收入/支出/调拨
-        //   - user 反馈:'流水颜色保持一致,不然不够好看'
-        // 2026-10-14:asset.type 走 AppSegment,asset 找不到时 fallback 用 transaction.type 段
-        final txAssetAsync = ref.watch(
-          assetByIdProvider(transaction.accountId),
-        );
-        final txAsset = txAssetAsync.valueOrNull;
-        final accountType =
-            txAsset?.type ?? _fallbackAccountType(transaction.type);
-        final amountColor = AppSegment.colorFor(accountType);
+        // 2026-10-20 D64.76 改:流水金额色 = 收支语义色(绿正 / 红负),不再按资产段色
+        //   - user 反馈:"大问题的都是流动资金,就会有大面积的亮蓝色,有点不是很好分辨"
+        //     cash_flow 段色 #0EA5E9 亮蓝铺满整屏,收入/支出只能读 +/- 符号区分
+        //   - 选方案 1:金额走 TxDisplayStyle 集中表
+        //     支出红 / 收入绿 / 调拨浅金(中性) / 借出橙 / 借入红
+        //     跟"记一笔"大数字(AmountDisplay)同一张表 → 记与看完全一致
+        //   - 资产段色**没丢**:退到账户 chip 的 icon 上(_SingleChip 仍走 AppSegment),
+        //     "这笔属于哪个段"的信息还在,只是不再由金额承担
+        //   - D51 决策保留:债务段用借出/借入语义色,不套用普通收支绿红
+        // 2026-10-16 D64.77:prefix / label 也走 TxDisplayStyle 集中表
+        final style = TxDisplayStyle.forType(transaction.type);
+        final amountColor = style.color;
         // 2026-10-14 P18:不计入流水判断
         //   - 投资 record(cat.type='investment')→ 永远不计入(投资本质资产内部流转)
         //   - source asset.includeInTransactions=false → 不计入(user 在资产页关了开关)
@@ -77,7 +76,6 @@ class TransactionTile extends ConsumerWidget {
         //   - 这跟资产记录里"借出 += amount / 借入 -= amount"是相反的
         //     (ledger 走"现金流向"语义,asset 走"债务方向"语义,双视角)
         // 2026-10-16 D64.77 改:prefix 走 TxDisplayStyle 集中表(原本 4 case switch)
-        final style = TxDisplayStyle.forType(transaction.type);
         final showPrefix = transaction.type != 'balance';
         final prefix = style.prefix;
         final theme = Theme.of(context);
@@ -265,14 +263,6 @@ class TransactionTile extends ConsumerWidget {
   /// 代价:流水列表暂时被盖掉(失去"在当前 tab 编辑"上下文)。
   void _onEditRequested(BuildContext context) {
     context.push('/edit/${transaction.id}');
-  }
-
-  /// 2026-10-14 P18:asset 还没加载或找不到时,根据 transaction.type 推断 fallback 段
-  ///   - expense/income/balance 多数是 cash_flow(日常流水/工资/调拨)
-  ///   - 投资 record 走 type='income'/'balance',但 fallback 仍是 cash_flow(暂态)
-  ///     asset loaded 后会变正确段色
-  static String _fallbackAccountType(String txType) {
-    return 'cash_flow'; // 多数流水属 cash_flow 段
   }
 
   /// 2026-10-14 D51 v2 加:流水 tile 类型 label 优先走 transaction.type
