@@ -43,7 +43,14 @@ class CsvExporter {
     final txs =
         await (_db.select(_db.transactions)
               ..where((t) => t.occurredAt.isBetweenValues(start, end))
-              ..orderBy([(t) => OrderingTerm.asc(t.occurredAt)]))
+              // 2026-10-20 D64.74:加 `id ASC` tiebreaker —— 同一天内顺序确定
+              //   (原来只有 occurred_at 单键,SQLite 对并列行不保证顺序)
+              //   注意:id 升序 = 插入顺序 = 时间正序,**导出顺序跟原来完全一致**,
+              //   仍是"最早在前",对账友好
+              ..orderBy([
+                (t) => OrderingTerm.asc(t.occurredAt),
+                (t) => OrderingTerm.asc(t.id),
+              ]))
             .get();
 
     final cats = await _db.select(_db.categories).get();

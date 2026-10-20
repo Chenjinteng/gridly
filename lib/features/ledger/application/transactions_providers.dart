@@ -7,6 +7,7 @@ import '../../../core/database/app_database.dart';
 import '../../../core/database/providers.dart';
 import '../../../core/utils/excluded_from_totals.dart';
 import '../../../core/utils/open_swipe_id_provider.dart';
+import '../../../core/utils/transaction_grouping.dart';
 
 // 2026-10-16 D64.42:openSwipeIdProvider 从本文件挪到
 //   core/utils/open_swipe_id_provider.dart(跨 tile 类型通用,asset 现在也用)。
@@ -27,7 +28,10 @@ final monthRangeProvider = Provider<({DateTime start, DateTime end})>((ref) {
   );
 });
 
-/// 当前月份的所有流水(按时间倒序)
+/// 当前月份的所有流水(按时间倒序;同一天内按 id 倒序 = 插入顺序,新的在前)
+/// 2026-10-20 D64.74:ORDER BY 加 `id DESC` 第二排序键
+///   - 原来只有 `occurred_at DESC` 单键,SQLite 对并列行不保证顺序
+///   - `id` 是 AUTOINCREMENT → id 序 ≡ 插入序
 final monthTransactionsProvider = FutureProvider<List<Transaction>>((
   ref,
 ) async {
@@ -35,7 +39,10 @@ final monthTransactionsProvider = FutureProvider<List<Transaction>>((
   final db = ref.watch(databaseProvider);
   return (db.select(db.transactions)
         ..where((t) => t.occurredAt.isBetweenValues(range.start, range.end))
-        ..orderBy([(t) => OrderingTerm.desc(t.occurredAt)]))
+        ..orderBy([
+          (t) => OrderingTerm.desc(t.occurredAt),
+          (t) => OrderingTerm.desc(t.id),
+        ]))
       .get();
 });
 
@@ -205,15 +212,7 @@ final filteredTransactionsByDayProvider =
         return true;
       });
 
-      final map = <DateTime, List<Transaction>>{};
-      for (final t in filtered) {
-        final day = DateTime(
-          t.occurredAt.year,
-          t.occurredAt.month,
-          t.occurredAt.day,
-        );
-        map.putIfAbsent(day, () => []).add(t);
-      }
+      final map = groupTransactionsByDay(filtered.toList());
       return map;
     });
 

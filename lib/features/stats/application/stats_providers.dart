@@ -71,7 +71,11 @@ final statsTransactionsProvider = FutureProvider<List<Transaction>>((
   final db = ref.watch(databaseProvider);
   return (db.select(db.transactions)
         ..where((t) => t.occurredAt.isBetweenValues(w.start, w.end))
-        ..orderBy([(t) => OrderingTerm.desc(t.occurredAt)]))
+        // 2026-10-20 D64.74:加 `id DESC` 第二排序键(同一天内 id 倒序 = 插入序)
+        ..orderBy([
+          (t) => OrderingTerm.desc(t.occurredAt),
+          (t) => OrderingTerm.desc(t.id),
+        ]))
       .get();
 });
 

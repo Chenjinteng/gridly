@@ -23,6 +23,13 @@ part 'app_database.g.dart';
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
+  /// 测试用:in-memory 构造
+  /// 2026-10-20 D64.74 加 —— 生产走 `AppDatabase()` → `_openConnection()`(真机文件),
+  ///   测试走 `NativeDatabase.memory()`,不碰真机数据文件
+  ///
+  /// drift 不会自动生成 `connect`(因为本类自定义了构造函数),这里显式补一个。
+  AppDatabase.forTesting(super.e);
+
   // 2026-10-12 commit 90:1 → 2,新增 CategoryBudgets 表
   // 2026-10-12 commit 110:2 → 3,新增 Assets 表 + transactions.accountId NOT NULL + FK
   //   - 旧设备升级时走 onUpgrade 创建新表 + 预置 3 个默认账户

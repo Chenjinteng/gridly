@@ -2,6 +2,7 @@
 // 流水 Repository —— 业务层唯一接触 Transaction DAO 的地方
 import 'package:drift/drift.dart';
 
+import '../../utils/transaction_grouping.dart';
 import '../app_database.dart';
 
 class TransactionRepository {
@@ -61,11 +62,20 @@ class TransactionRepository {
     return a.id;
   }
 
-  /// 全部流水(按时间倒序)
+  /// 全部流水(按时间倒序;同一天内按 id 倒序 = 插入顺序,新的在前)
+  /// 2026-10-20 D64.74:ORDER BY 加 `id DESC` 作为第二排序键
+  ///   - 原来只有 `occurred_at DESC` 单键,SQLite 对并列行不保证顺序
+  ///     → 同一天多条实际按 rowid 升序(先插入的在前),看着像"随机"
+  ///   - `id` 是 AUTOINCREMENT(单调递增、删除不复用)→ id 序 ≡ 插入序
+  ///   - 组内的精确规则见 core/utils/transaction_grouping.dart
   Future<List<Transaction>> all() {
     return (_db.select(
       _db.transactions,
-    )..orderBy([(t) => OrderingTerm.desc(t.occurredAt)])).get();
+    )..orderBy([
+          (t) => OrderingTerm.desc(t.occurredAt),
+          (t) => OrderingTerm.desc(t.id),
+        ]))
+        .get();
   }
 
   /// 按 id 取单笔(2026-10-11 新增:EditTransactionPage 全屏编辑用)
@@ -77,18 +87,10 @@ class TransactionRepository {
   }
 
   /// 按日分组(返回 `Map<日期, List<Transaction>>`)
+  /// 2026-10-20 D64.74:组内排序规则下沉到 core/utils/transaction_grouping.dart
+  ///   (按 id 降序 = 插入顺序,最新插入的最前面)
   Future<Map<DateTime, List<Transaction>>> groupedByDay() async {
-    final all = await this.all();
-    final map = <DateTime, List<Transaction>>{};
-    for (final t in all) {
-      final day = DateTime(
-        t.occurredAt.year,
-        t.occurredAt.month,
-        t.occurredAt.day,
-      );
-      map.putIfAbsent(day, () => []).add(t);
-    }
-    return map;
+    return groupTransactionsByDay(await all());
   }
 
   /// 删一笔
