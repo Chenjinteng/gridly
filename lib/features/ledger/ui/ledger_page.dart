@@ -675,8 +675,10 @@ class _DaySection extends ConsumerWidget {
                       '+¥${Formatters.amount(dailyIncome)} ',
                       style: TextStyle(
                         fontSize: 12,
-                        // D71.2:收入金→跟随 palette(浅粉→亮粉,默认→金黄)
-                        color: Theme.of(context).colorScheme.secondary,
+                        // D64.75:小结正负恒定绿/红,不跟 palette 走
+                        //   之前走 colorScheme.secondary → 默认金黄 / 粉红主题亮粉,
+                        //   亮粉跟支出红在粉底上分不开(视觉"正负都是红")
+                        color: AppSemantic.income,
                       ),
                     ),
                   if (dailyExpense > 0)
@@ -684,7 +686,7 @@ class _DaySection extends ConsumerWidget {
                       '-¥${Formatters.amount(dailyExpense)}',
                       style: const TextStyle(
                         fontSize: 12,
-                        color: AppStatus.error,
+                        color: AppSemantic.expense,
                       ),
                     ),
                 ],

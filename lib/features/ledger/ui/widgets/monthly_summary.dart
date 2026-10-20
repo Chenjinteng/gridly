@@ -246,8 +246,8 @@ class MonthlySummary extends ConsumerWidget {
                           ? '收入'
                           : Formatters.labelledUnit('收入', summary.income),
                       amount: hidden ? null : summary.income,
-                      // D71.2:收入色跟随 palette(浅粉 → 亮粉,默认 → 金黄)
-                      color: theme.colorScheme.secondary,
+                      // D64.75:小结正负恒定绿/红(不跟 palette 走)
+                      color: AppSemantic.income,
                       showDivider: true,
                     ),
                   ),
@@ -257,7 +257,7 @@ class MonthlySummary extends ConsumerWidget {
                           ? '支出'
                           : Formatters.labelledUnit('支出', summary.expense),
                       amount: hidden ? null : summary.expense,
-                      color: AppStatus.error,
+                      color: AppSemantic.expense,
                       showDivider: false,
                     ),
                   ),

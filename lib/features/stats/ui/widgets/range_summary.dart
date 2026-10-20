@@ -83,8 +83,8 @@ class RangeSummary extends ConsumerWidget {
                 child: _Stat(
                   label: Formatters.labelledUnit('收入', s.income),
                   amount: s.income,
-                  // D71.2:收入色跟随 palette(浅粉 → 亮粉,默认 → 金黄)
-                  color: Theme.of(context).colorScheme.secondary,
+                  // D64.75:小结正负恒定绿/红(不跟 palette 走)
+                  color: AppSemantic.income,
                   yoy: yoy.income,
                 ),
               ),
@@ -93,7 +93,7 @@ class RangeSummary extends ConsumerWidget {
                 child: _Stat(
                   label: Formatters.labelledUnit('支出', s.expense),
                   amount: s.expense,
-                  color: AppStatus.error,
+                  color: AppSemantic.expense,
                   yoy: yoy.expense,
                 ),
               ),

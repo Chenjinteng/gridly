@@ -72,8 +72,19 @@ class AppStatus {
 /// 记账语义色 —— 业务层用
 class AppSemantic {
   AppSemantic._();
-  static const Color income = AppBrand.gold; // 收入 → 金
-  static const Color expense = AppStatus.error; // 支出 → 红(警示,刺眼)
+
+  /// 收入 / 正向金额 —— 绿
+  ///
+  /// 2026-10-20 D64.75 改:AppBrand.gold(金黄) → AppBrand.teal(#14B8A6)
+  ///   - user 要求:"小结这里是要绿色为正,红色为负"
+  ///   - 改之前收入色走 theme.colorScheme.secondary —— 默认主题是金黄,
+  ///     切粉红主题 secondary 变 AppPinkBrand.gold(#FF5C8A 亮粉),
+  ///     亮粉跟支出红(#EF4444)在粉底上几乎分不开 → 视觉上"正负都是红"
+  ///   - 现在语义色**恒定**,不跟 palette / colorScheme 走:
+  ///     任何主题(默认浅/深/粉浅/粉深)下正负都是绿 / 红
+  ///   - 与 TxDisplayStyle.income.color(AppBrand.teal)同一套语言
+  static const Color income = AppBrand.teal;
+  static const Color expense = AppStatus.error; // 支出 / 负向金额 → 红(警示,刺眼)
   static const Color overBudget = AppStatus.error; // 超支 → 红
   // commit 100 加:深红,用于"超额"段(区别于"已花"的 error 红)
   //   已花 = error 红(#EF4444),超额 = overBudgetDeep(#B91C1C,更深更暗)
@@ -91,12 +102,14 @@ class AppSemantic {
   ///   v < 0   → error #EF4444  (与支出红同系,警示一致性)
   ///   v == 0  → cream #F5F1E8  (中性,在 ink 背景上仍可读,无正/负信号)
   ///
+  /// 2026-10-20 D64.75:正/负两档复用 income / expense 常量,单一数据源。
+  ///
   /// 不用 const const Color —— 值由 runtime 决定;业务层直接调
   /// `AppSemantic.balanceFor(value)`,不要硬编码 AppBrand.teal/AppStatus.error
   /// 否则未来色板微调时还得改多处。
   static Color balanceFor(double v) {
-    if (v > 0) return AppBrand.teal;
-    if (v < 0) return AppStatus.error;
+    if (v > 0) return income;
+    if (v < 0) return expense;
     return AppSecondary.cream;
   }
 }
