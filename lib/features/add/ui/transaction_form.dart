@@ -135,6 +135,15 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   // 2026-10-13 P8:investment 场景下 _accountId 是"转出",_destinationAccountId 是"转入"
   int? _accountId;
   int? _destinationAccountId;
+
+  /// 2026-10-20 D64.83 加:资产列表缓存(切段校正用)
+  ///   - 切段时要按新段的类型 filter 校验已选账户(source / dest),
+  ///     需要知道每个账户的 asset.type
+  ///   - initState 的 postFrameCallback 里 repo.all() 一次,缓存下来,
+  ///     切段时**同步**校验 → 不需要 await,避免一帧闪烁
+  ///   - 缓存为空时跳过类型校验(见 _matchesType),宁可不动也不误清
+  List<Asset> _assetsCache = const [];
+
   final _noteController = TextEditingController();
   final _calc = _CalcState();
 
@@ -320,10 +329,25 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
           if (!mounted) return;
           // source=cash_flow 视为投入(input),其它视为调拨(transfer)
           if (sourceAsset?.type == 'cash_flow') {
-            setState(() => _intent = 'input');
+            setState(() {
+              _intent = 'input';
+              // 2026-10-20 D64.83:intent 从 transfer 修正成 input 后,
+              //   段类型 filter 变了(source 限 cash_flow / dest 限 investment),
+              //   重新校验一次,避免残留 dest 跟新段不匹配
+              //   - preset:false —— 编辑模式不静默改 user 已有记录的账户,
+              //     只清掉类型失配的,让 user 自己重选
+              _syncAccountsForIntent(preset: false);
+            });
           }
         });
       }
+      // 2026-10-20 D64.83 加:编辑模式也缓存资产列表(切段校正要读 asset.type)
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        final assets = await ref.read(assetRepositoryProvider).all();
+        if (!mounted) return;
+        setState(() => _assetsCache = assets);
+      });
     } else {
       // 新增模式:默认账户取 preselectedAssetType 段优先的
       //   (2026-10-13 P6:从硬编码 'cash_flow' 改成参数化,支持中央 + 长按选 type)
@@ -343,48 +367,22 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       //   - 调拨 (_intent='transfer'):不预填(_accountId/_destinationAccountId 都 null)
       //     user 反馈"只清理就好",转出/转入互不预设
       //   - cash_flow:原行为,取第一个 cash_flow(isDefault 优先)
-      final preselectedType = widget.preselectedAssetType ?? 'cash_flow';
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
         final repo = ref.read(assetRepositoryProvider);
         final assets = await repo.all();
         if (!mounted) return;
 
-        // 通用 helper:从指定 type 段挑第一个(isDefault 优先)
-        Asset? pickFirst(String type) {
-          final list = assets.where((a) => a.type == type).toList();
-          for (final a in list) {
-            if (a.isDefault) return a;
-          }
-          return list.isEmpty ? null : list.first;
-        }
-
-        int? pickedAccountId;
-        int? pickedDestId;
-        if (_isInvestmentContext) {
-          switch (_intent) {
-            case 'input':
-              // 投入:cash_flow(转出)+ investment(转入)
-              pickedAccountId = pickFirst('cash_flow')?.id;
-              pickedDestId = pickFirst('investment')?.id;
-            case 'output':
-              // 收益:investment(单账户)
-              pickedAccountId = pickFirst('investment')?.id;
-              pickedDestId = null;
-            case 'transfer':
-              // 调拨:不预填
-              pickedAccountId = null;
-              pickedDestId = null;
-          }
-        } else {
-          // cash_flow:原行为,取 preselectedType 段第 1 个(isDefault 优先)
-          pickedAccountId = pickFirst(preselectedType)?.id;
-          pickedDestId = null;
-        }
-
         setState(() {
-          _accountId ??= pickedAccountId;
-          _destinationAccountId ??= pickedDestId;
+          // 2026-10-20 D64.83:缓存资产列表(切段校正要读 asset.type)
+          _assetsCache = assets;
+          // D64.83:预填规则抽成共用方法 _presetEmptyAccounts()
+          //   (跟"切段后重填空槽位"走同一套规则,不会再两处漂移)
+          //   - investment 投入:cash_flow → investment
+          //   - investment 收益:investment(单账户)
+          //   - investment 调拨:不预填(user 反馈"只清理就好,转出/转入互不预设")
+          //   - 其它段:preselectedType 段第 1 个(isDefault 优先)
+          _presetEmptyAccounts();
         });
       });
     }
@@ -466,6 +464,131 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       return ['cash_flow', 'receivable'];
     }
     return null; // cash_flow:无 destination
+  }
+
+  // ==========================================================================
+  // 账户校正(D64.83)—— 切段后按**新段**校验 / 重填 source & dest
+  // ==========================================================================
+
+  /// 切段后按新段的类型 filter 校正已选账户
+  ///
+  /// 背景(user 2026-10-20 UAT 截图,记一笔(投资)):
+  ///   投入段预填 工资卡 → 基金,切到「收益」段后:
+  ///   - source 槽位仍显示工资卡(收益段只允许投资账户)
+  ///   - dest 槽位残留「基金」,而 source picker 用 dest 当 excludeId
+  ///     → 打开 picker 时「基金」被排除掉,根本选不到,来回切才能恢复
+  ///
+  /// 根因(旧写法):
+  ///   onChanged 里先 `_intent = v` 再用 `_needsDualAccount` 判断要不要清,
+  ///   而 `_needsDualAccount` 读的是**新** intent → 语义反了:
+  ///   切到单账户段(收益)不清,切到双账户段(投入/调拨)才清。
+  ///   回归引入于 0d953f8(D64.79)。
+  ///
+  /// 本次修法(方向 3):不再靠"清不清"二选一,而是按新段的 filter 校正:
+  ///   1. 单账户段 → dest 必须清(残留 dest 会被 excludeId 排除 picker 选项)
+  ///   2. source / dest 各自按新段 filter 校验,类型失配 → 清
+  ///   3. source == dest 互斥(D50)→ 清 dest
+  ///   4. 空槽位按新段预填规则补上(只补空,不覆盖 user 已选的合法账户)
+  ///
+  /// [preset] false 时只做 1-3 不做 4 —— 编辑模式用:
+  ///   不静默改 user 已有记录的账户,只清掉类型失配的让 user 自己重选。
+  /// [clearAll] true 时清空两个槽位 —— 投资段切 toggle 用:
+  ///   投入 / 调拨 / 收益三段的账户语义完全不同(source 类型、单双账户都不同),
+  ///   沿用旧选择几乎总是错位。P8 UAT user 原话:"切 toggle 时必须重置"。
+  void _syncAccountsForIntent({bool preset = true, bool clearAll = false}) {
+    if (clearAll) {
+      // 1. 整段重置(投资段切 toggle)
+      _accountId = null;
+      _destinationAccountId = null;
+    } else {
+      // 2. 单账户段:dest 槽位不存在,残留值必须清
+      //   (残留 dest 会被 source picker 当 excludeId,把唯一可选账户排除掉)
+      if (!_needsDualAccount) {
+        _destinationAccountId = null;
+      }
+      // 3. 类型校验:按新段 filter 判 source / dest
+      if (!_matchesType(_accountId, _accountTypeFilter)) {
+        _accountId = null;
+      }
+      if (!_matchesType(_destinationAccountId, _destinationTypeFilter)) {
+        _destinationAccountId = null;
+      }
+    }
+    // 4. source == dest 互斥(D50):同一账户自转没意义,还会引发双重扣款
+    if (_accountId != null && _accountId == _destinationAccountId) {
+      _destinationAccountId = null;
+    }
+    // 5. 空槽位按新段预填
+    if (preset) {
+      _presetEmptyAccounts();
+    }
+  }
+
+  /// 各段的预填规则:(source 类型, dest 类型),null = 该槽位不预填
+  ///
+  /// 跟 initState 的初始预填共用同一张表 —— 切段重填和打开 form 预填
+  /// 走同一套规则,不会两处漂移。
+  (String?, String?) get _presetTypes {
+    if (_isInvestmentContext) {
+      switch (_intent) {
+        case 'input':
+          // 投入:cash_flow(转出)→ investment(转入)
+          return ('cash_flow', 'investment');
+        case 'output':
+          // 收益:investment(单账户),无 dest
+          return ('investment', null);
+        case 'transfer':
+          // 调拨:不预填(user 反馈"只清理就好,转出/转入互不预设")
+          return (null, null);
+      }
+    }
+    if (_isReceivableContext) {
+      // 借出 / 借入 / 调拨:source 预填债务账户,dest 由 user 选
+      return ('receivable', null);
+    }
+    return (widget.preselectedAssetType ?? 'cash_flow', null);
+  }
+
+  /// 空槽位按当前段的预填规则补上(只补空,不覆盖已选)
+  void _presetEmptyAccounts() {
+    final (srcType, dstType) = _presetTypes;
+    if (_accountId == null && srcType != null) {
+      _accountId = _pickFirstOfType(srcType);
+    }
+    if (_needsDualAccount &&
+        _destinationAccountId == null &&
+        dstType != null) {
+      _destinationAccountId = _pickFirstOfType(dstType);
+    }
+  }
+
+  /// 从缓存里挑指定类型的第 1 个账户(isDefault 优先)
+  int? _pickFirstOfType(String type) {
+    final list = _assetsCache.where((a) => a.type == type).toList();
+    for (final a in list) {
+      if (a.isDefault) return a.id;
+    }
+    return list.isEmpty ? null : list.first.id;
+  }
+
+  /// 已选账户是否满足该段的类型 filter
+  ///
+  /// - [types] null = 本段不限制类型 → 恒 true
+  /// - 没选(id null)→ 恒 true(没东西可校验)
+  /// - 缓存里找不到该账户(缓存还没加载)→ 恒 true
+  ///   宁可不动也不误清:切段时缓存通常已就绪,这是兜底
+  bool _matchesType(int? id, List<String>? types) {
+    if (id == null || types == null) return true;
+    final asset = _assetById(id);
+    if (asset == null) return true;
+    return types.contains(asset.type);
+  }
+
+  Asset? _assetById(int id) {
+    for (final a in _assetsCache) {
+      if (a.id == id) return a;
+    }
+    return null;
   }
 
   @override
@@ -644,6 +767,30 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       _toast('选个转入账户');
       return;
     }
+    // 2026-10-20 D64.83 加:账户类型兜底校验(UI 之外再挡一层)
+    //   - 切段校正(_syncAccountsForIntent)已保证 source/dest 类型跟当前段匹配,
+    //     但编辑模式 / 极端路径仍可能不一致 —— 这里再校验一次
+    //   - 防的是"收益段把工资卡记成 income"这种脏数据:
+    //     资产页余额和报表口径都会被污染,user 事后很难查
+    final assetRepo = ref.read(assetRepositoryProvider);
+    final sourceAsset = await assetRepo.byId(_accountId!);
+    final sourceTypes = _accountTypeFilter;
+    if (sourceTypes != null &&
+        sourceAsset != null &&
+        !sourceTypes.contains(sourceAsset.type)) {
+      _toast('账户跟当前操作不匹配,请重新选择');
+      return;
+    }
+    if (_needsDualAccount) {
+      final destAsset = await assetRepo.byId(_destinationAccountId!);
+      final destTypes = _destinationTypeFilter;
+      if (destTypes != null &&
+          destAsset != null &&
+          !destTypes.contains(destAsset.type)) {
+        _toast('转入账户跟当前操作不匹配,请重新选择');
+        return;
+      }
+    }
     // 2026-10-14 P18 D49:余额校验 —— 转出类流水 source 账户余额不足时阻断
     //   - 转出类:_type ∈ {'expense', 'balance'}(现金支出 / 调拨 / 投资投入 / 投资调拨)
     //   - 所有非 负债 类型账户(source)必校验:日常现金流出不能超过实际余额
@@ -655,19 +802,16 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     //   - type='income'(现金收入 / 投资收益)不校验:账户增加,无上限
     //   - 编辑模式:只有金额变化时校验,其它情况跳过(因为余额已变化过)
     final isTransferOut = _type == 'expense' || _type == 'balance';
-    if (isTransferOut) {
-      final repo = ref.read(assetRepositoryProvider);
-      final sourceAsset = await repo.byId(_accountId!);
-      if (sourceAsset != null && sourceAsset.type != 'receivable') {
-        final balances = await ref.read(assetBalancesProvider.future);
-        final sourceBalance =
-            balances[_accountId!] ?? sourceAsset.initialBalance;
-        if (sourceBalance < value) {
-          _toast(
-            '${sourceAsset.name} 余额 ¥${sourceBalance.toStringAsFixed(2)} 不足',
-          );
-          return;
-        }
+    if (isTransferOut &&
+        sourceAsset != null &&
+        sourceAsset.type != 'receivable') {
+      final balances = await ref.read(assetBalancesProvider.future);
+      final sourceBalance = balances[_accountId!] ?? sourceAsset.initialBalance;
+      if (sourceBalance < value) {
+        _toast(
+          '${sourceAsset.name} 余额 ¥${sourceBalance.toStringAsFixed(2)} 不足',
+        );
+        return;
       }
     }
     // 2026-10-13 P8:investment 场景下 DB transactions.categoryId NOT NULL 字段
@@ -1327,15 +1471,17 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                         if (!_isReceivableContext) {
                           _categoryId = null;
                         }
-                        // 2026-10-16 D64.79 改:切 toggle 统一按 _needsDualAccount 清双账户
-                        //   - 之前仅 _isInvestmentContext 清 _accountId / _destinationAccountId,
-                        //     receivable 调拨段(_isReceivableContext && _intent=='transfer')是
-                        //     双账户但没清 → 残留 dest 跟 source/dest 互斥(D50)错配
-                        //   - 改成统一条件:任何双账户 intent 切换都清 source + dest
-                        if (_needsDualAccount) {
-                          _accountId = null;
-                          _destinationAccountId = null;
-                        }
+                        // 2026-10-20 D64.83 改:切 toggle 时按**新段**校正账户
+                        //   - 之前 D64.79 的写法是 `_intent = v` 之后用 `_needsDualAccount`
+                        //     判断要不要清 —— 而 _needsDualAccount 读的是**新** intent,
+                        //     语义反了(切到单账户段不清,切到双账户段才清)
+                        //   - 改成 _syncAccountsForIntent():按新段的类型 filter 校验 +
+                        //     空槽位重填 → 切投入 → 收益时 source 自动换成投资账户,
+                        //     残留 dest 也被清掉(picker 不再把它 exclude 掉)
+                        //   - 投资段整段重置(P8 UAT user:"切 toggle 时必须重置",
+                        //     投入/调拨/收益三段账户语义完全不同);其它段只做
+                        //     类型校验 + 重填(cash_flow 切支出/收入保留账户 —— P16)
+                        _syncAccountsForIntent(clearAll: _isInvestmentContext);
                         // cash_flow 短按+(_needsDualAccount=false):保留 _accountId(同 context 切 intent)
                       }),
                     ),
