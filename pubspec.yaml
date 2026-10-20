@@ -2,7 +2,7 @@ name: gridly
 description: "格子记账 — 一格一账的本地优先记账工具"
 publish_to: 'none'
 
-version: 1.0.2+10203  # v1.0.2 (D74 修 编辑余额 adjustment 流水公式方向 — type 从 'balance' 改成 'income',amount = newCurrent - oldCurrent,贡献 = +amount;加 cat.type='adjust' 进月度排除,避免误算入收入) build 号 = MAJOR×10000 + MINOR×100 + PATCH = 1×10000 + 0×100 + 2 = 10200 + 3 = 10203 (D64.73 修触摸 overlay:靠右的柱 tooltip/顶部 label 横向溢出卡片 + 类别 tab 顶部 label 跟 tooltip 垂直重叠;同 patch group 内 +1) ⚠️ 10201 是 D64.71 中间态(把类别 tab X 轴 label 整个删掉,user 反馈"没有横坐标"),已于 2026-10-20 作废;10202 才是真正的 D64.72 修复
+version: 1.0.2+10204  # v1.0.2 (D74 修 编辑余额 adjustment 流水公式方向 — type 从 'balance' 改成 'income',amount = newCurrent - oldCurrent,贡献 = +amount;加 cat.type='adjust' 进月度排除,避免误算入收入) build 号 = MAJOR×10000 + MINOR×100 + PATCH = 1×10000 + 0×100 + 2 = 10200 + 4 = 10204 (D64.74 流水列表当天组内按插入时间倒序,最新插入的最前;同 patch group 内 +1) ⚠️ 10201 是 D64.71 中间态(把类别 tab X 轴 label 整个删掉),已于 2026-10-20 作废;10202 才是真正的 D64.72 修复;10203 含 D64.73 触摸提示框排版修复
 # - 2026-10-19 user 拍板:发版后修复按 semver 重置 build 号
 #   · v1.0.0 = 首发(stable),对应 f97593e,build 0.1.0+104
 #   · v1.0.1 = 首个 patch(D70),build 从 0 重新计
