@@ -1,11 +1,9 @@
 ---
 name: gridly-migrate
 description: |
-  把其它记账 App 的旧数据(CSV / Excel)迁移进 gridly(格子记账),产出可直接导入 app 的
-  gridly-migrated.sqlite,并生成一份 Markdown 报告列出无法迁移/降级迁移的数据。
-  Use this skill when the user wants to migrate old ledger/accounting data into gridly,
-  import a CSV or Excel bill export (Alipay/WeChat/随手记 etc) into gridly, or produce a
-  gridly-compatible sqlite file from another bookkeeping app.
+  把旧记账数据(支付宝/微信 CSV/Excel)迁移进 gridly,产出可导入 sqlite + 未迁移报告。Use when importing/migrating bills into gridly;不用于 gridly 备份还原。
+  能力:识别旧账单格式(支付宝/微信/随手记/通用 CSV-Excel)→ 映射资产/分类/流水 →
+  生成 gridly-migrated.sqlite + 一份列出无法迁移数据的 Markdown 报告。
   触发词:迁移旧数据、导入账单、gridly 迁移、记账数据搬家、支付宝账单导入、
   微信账单导入、把旧的记账数据转到 gridly、migrate ledger data into gridly。
   不要用于:gridly 自身的数据库备份/还原(app 内「备份还原」功能即可)、
