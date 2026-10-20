@@ -54,7 +54,7 @@ gridly/
 │   ├── ROADMAP.md              # 当前阶段 + 路线图 + 已知限制
 │   ├── DEV.md                  # 目录结构 + 技术决策 + D 系列
 │   ├── UI_UX.md                # UI/UX 工程师 AI 助手指令
-│   ├── SCHEMA.md               # SQLite 表结构(categories/transactions/assets/category_budgets)
+│   ├── SCHEMA.md               # SQLite 表结构(categories/transactions/assets/category_budgets/monthly_budgets)
 │   └── design/                 # 设计稿源文件(theme.html 等)
 ├── lib/
 │   ├── main.dart               # 入口(seed + sync)
