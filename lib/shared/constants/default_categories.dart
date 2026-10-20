@@ -98,6 +98,8 @@ class CategoryIcons {
     'luggage': Icons.luggage_rounded,
     // 收入补充
     'trending_up': Icons.trending_up_rounded,
+    // 2026-10-20 D64.77 加:投资亏损(收益为负时用)
+    'trending_down': Icons.trending_down_rounded,
     'account_balance_wallet': Icons.account_balance_wallet_rounded,
     'emoji_events': Icons.emoji_events_rounded,
 
@@ -263,6 +265,20 @@ class DefaultCategories {
       color: AppCategory.invest,
       type: 'investment',
       sortOrder: 1,
+    ),
+    // 2026-10-20 D64.77 加:投资亏损(收益为负时用)
+    //   - 场景:基金/股票跌了,用户要记一笔负收益。DB 存 type='income' +
+    //     amount = -184.88(余额公式 +Σ → 账户余额减少,数学正确)
+    //   - 单独一个 cat 而不是复用'投资收益':流水列表 label 显示 cat.name,
+    //     显示"投资亏损 - ¥184.88"比"投资收益 - ¥184.88"清楚得多
+    //   - cat.type 仍是 'investment' → 不进月度收支 / 报表收支口径,
+    //     也不进分类管理页(该页只列 expense / income 两类)
+    DefaultCategory(
+      name: '投资亏损',
+      icon: 'trending_down',
+      color: AppStatus.error,
+      type: 'investment',
+      sortOrder: 2,
     ),
   ];
 

@@ -23,7 +23,16 @@ class AmountDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = TxDisplayStyle.forType(type).color;
+    // 2026-10-20 D64.83 改:forType → forAmount(按金额符号)
+    //   - 投资「收益」段可以记负数(亏损),负数用红色(亏损语义),不是"收入绿"
+    //   - 负号拆出来放 ¥ 前面:显示 "- ¥184.88",不是 "¥-184.88"
+    final parsed = double.tryParse(amount);
+    final style = TxDisplayStyle.forAmount(type, parsed ?? 0);
+    final color = style.color;
+    final isNegative = (parsed ?? 0) < 0;
+    final raw = amount.isEmpty ? '0' : amount;
+    final sign = isNegative ? '-' : '';
+    final digits = isNegative ? raw.replaceFirst('-', '') : raw;
     return Container(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.s4),
       child: Row(
@@ -31,6 +40,18 @@ class AmountDisplay extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.baseline,
         textBaseline: TextBaseline.alphabetic,
         children: [
+          if (sign.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(right: 2),
+              child: Text(
+                sign,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.only(right: 4),
             child: Text(
@@ -47,7 +68,7 @@ class AmountDisplay extends StatelessWidget {
             child: FittedBox(
               fit: BoxFit.scaleDown,
               child: Text(
-                amount.isEmpty ? '0' : amount,
+                digits,
                 style: TextStyle(
                   color: color,
                   fontSize: 56,

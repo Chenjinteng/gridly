@@ -746,8 +746,14 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
 
   Future<void> _save() async {
     final value = double.tryParse(_calc.display);
-    if (value == null || value <= 0) {
-      _toast('金额要大于 0');
+    // 2026-10-20 D64.83 改:投资「收益」段允许负数(亏损)
+    //   - DB 约定:type='income' + amount 为负 → 余额公式 +Σ 让账户余额减少,
+    //     数学正确(下游投资看板 returned / D65.3 负轴 / 报表口径全按负收益设计好了)
+    //   - 只是入口一直被 "金额要大于 0" 拦死,user 没法记亏损
+    //   - 只放开投资收益段:其它段负数没业务含义,继续拦
+    final allowNegative = _isInvestmentContext && _intent == 'output';
+    if (value == null || (allowNegative ? value == 0 : value <= 0)) {
+      _toast(allowNegative ? '金额不能为 0' : '金额要大于 0');
       return;
     }
     // 2026-10-13 P8:分类只在 cash_flow 必需;investment 不需要分类
@@ -817,9 +823,10 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     // 2026-10-13 P8:investment 场景下 DB transactions.categoryId NOT NULL 字段
     //   需要非空值,虽然 investment 不用分类。fallback 用任意一个有效 category id
     //   (DB schema 限制,语义上忽略)。后续如要彻底不要分类,需把 schema 改 nullable。
+    // 2026-10-20 D64.83 改:传金额进去 —— 投资亏损(负数)要用「投资亏损」分类
     final categoryForSave = _needsCategory
         ? _categoryId!
-        : ((await _firstCategoryId()) ?? 0);
+        : ((await _firstCategoryId(value)) ?? 0);
     final note = _noteController.text.isEmpty ? null : _noteController.text;
     // 2026-10-14 P18:投资收益单账户 → destinationAccountId 强制 null
     //   - _needsDualAccount=false(收益)→ destForSave=null,DB 只存 accountId
@@ -1255,7 +1262,11 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   /// 2026-10-14 D57 加:其它场景 fallback 取 cat.type='other' 的第一个分类
   ///   - 跟福利/债权同 pattern:UI 隐藏 cat,DB NOT NULL 通过 1 个内置 cat 兜底
   ///   - D56 旧版按账户 type 映射(6 类 cat 都考虑),D57 改成单一其它 cat
-  Future<int?> _firstCategoryId() async {
+  /// 2026-10-20 D64.83 加:[amount] —— 投资亏损(负收益)用「投资亏损」分类
+  ///   - 负收益存 type='income' + amount 为负,cat 用「投资亏损」
+  ///   - 流水列表 label 走 cat.name,显示"投资亏损"比"投资收益"清楚得多
+  ///   - cat.type 仍是 'investment' → 不进月度收支 / 报表收支口径
+  Future<int?> _firstCategoryId([double? amount]) async {
     final repo = ref.read(categoryRepositoryProvider);
     final cats = await repo.all();
     if (cats.isEmpty) return null;
@@ -1263,7 +1274,16 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       // 2026-10-14 P18:按 _intent 选投资分类,名字固定 seed 出来
       const investmentInName = '投资投入';
       const investmentOutName = '投资收益';
-      final target = _intent == 'output' ? investmentOutName : investmentInName;
+      // 2026-10-20 D64.83:负收益 → 投资亏损
+      const investmentLossName = '投资亏损';
+      final String target;
+      if (_intent == 'output') {
+        target = (amount != null && amount < 0)
+            ? investmentLossName
+            : investmentOutName;
+      } else {
+        target = investmentInName;
+      }
       for (final c in cats) {
         if (c.name == target) return c.id;
       }

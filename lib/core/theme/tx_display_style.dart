@@ -90,4 +90,28 @@ class TxDisplayStyle {
         return expense;
     }
   }
+
+  /// 按**金额符号**取显示风格(2026-10-20 D64.77 加)
+  ///
+  /// 为什么需要:投资收益可以是负数(亏损)。DB 约定是
+  /// `type='income'` + `amount = -184.88`(余额公式 +Σ 天然让账户减少,
+  /// 投资看板 returned < 0 也是 D65.3 负轴设计好的)。
+  /// 但如果直接用 `forType('income')`,渲染出来是 "+ ¥-184.88" —— 双负号,
+  /// 而且颜色还是"收入绿",财务上"亏"应该是红的。
+  ///
+  /// 规则:
+  ///   - amount < 0  → prefix '-' + AppSemantic.expense(红)
+  ///   - amount >= 0 → 走 forType 原表
+  ///
+  /// label 不在这里改 —— 流水 tile 的 label 走 cat.name(亏损 cat = '投资亏损')
+  static TxDisplayStyle forAmount(String type, double amount) {
+    if (amount < 0) {
+      return TxDisplayStyle(
+        label: forType(type).label,
+        color: AppSemantic.expense,
+        prefix: '-',
+      );
+    }
+    return forType(type);
+  }
 }

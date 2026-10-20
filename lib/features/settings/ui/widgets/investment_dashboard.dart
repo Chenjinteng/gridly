@@ -40,7 +40,11 @@ class InvestmentDashboard extends ConsumerWidget {
     }
     final summary = summaryAsync.valueOrNull;
     if (summary == null) return const SizedBox.shrink();
-    final hasAny = summary.monthly.any((m) => m.invested > 0 || m.returned > 0);
+    // 2026-10-20 D64.83 改:returned > 0 → returned != 0
+    //   - 只记了亏损的月份 returned < 0,原来的 > 0 判断会判成"没有数据",
+    //     看板显示"本年暂无投资",user 明明记了亏损
+    //   - != 0 覆盖正负两种情况(负数是 D65.3 负轴设计好的数据)
+    final hasAny = summary.monthly.any((m) => m.invested > 0 || m.returned != 0);
 
     final theme = Theme.of(context);
     // 空态也画卡片(跟 stats 其他 widget 一致 — 永远展示容器,内部分支)

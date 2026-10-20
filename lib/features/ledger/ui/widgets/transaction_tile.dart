@@ -54,7 +54,11 @@ class TransactionTile extends ConsumerWidget {
         //     "这笔属于哪个段"的信息还在,只是不再由金额承担
         //   - D51 决策保留:债务段用借出/借入语义色,不套用普通收支绿红
         // 2026-10-16 D64.77:prefix / label 也走 TxDisplayStyle 集中表
-        final style = TxDisplayStyle.forType(transaction.type);
+        // 2026-10-20 D64.83 改:forType → forAmount(按金额符号)
+        //   - 投资收益可以是负数(亏损,DB: type='income' + amount 为负)
+        //   - forType('income') 会渲染成 "+ ¥-184.88"(双负号)而且还是"收入绿"
+        //   - forAmount:amount < 0 → prefix '-' + 红色(亏损语义),跟记一笔大数字一致
+        final style = TxDisplayStyle.forAmount(transaction.type, transaction.amount);
         final amountColor = style.color;
         // 2026-10-14 P18:不计入流水判断
         //   - 投资 record(cat.type='investment')→ 永远不计入(投资本质资产内部流转)
@@ -78,6 +82,10 @@ class TransactionTile extends ConsumerWidget {
         // 2026-10-16 D64.77 改:prefix 走 TxDisplayStyle 集中表(原本 4 case switch)
         final showPrefix = transaction.type != 'balance';
         final prefix = style.prefix;
+        // 2026-10-20 D64.83:负数取绝对值 —— 负号由 prefix 承担,
+        //   否则会渲染成 "- ¥-184.88"(双负号)
+        //   balance(调拨)不显示 prefix,负号保留在数值里(¥-184.88)
+        final amountValue = transaction.amount.abs();
         final theme = Theme.of(context);
         return SwipeToActions(
           key: ValueKey('tx-${transaction.id}'),
@@ -166,7 +174,7 @@ class TransactionTile extends ConsumerWidget {
                           Text(
                             // 2026-10-12 P3:balance 流水不显示 ± prefix(正负自定)
                             showPrefix
-                                ? '$prefix ¥${Formatters.amount(transaction.amount)}'
+                                ? '$prefix ¥${Formatters.amount(amountValue)}'
                                 : '¥${Formatters.amount(transaction.amount)}',
                             style: TextStyle(
                               fontSize: 16,
@@ -420,12 +428,13 @@ class _DeleteConfirmDialog extends StatelessWidget {
     // local final 可提升 → ternary 内部 catColor.cat 拿到 Category 类型。
     final Category? catOrNull = cat;
     final catColor = catOrNull == null ? AppGray.g400 : Color(catOrNull.color);
-    final isIncome = transaction.type == 'income';
-    final amountColor = isIncome
-        // D64.75:小结/预览正负恒定绿/红(不跟 palette 走)
-        ? AppSemantic.income
-        : AppSemantic.expense;
-    final amountPrefix = isIncome ? '+' : '-';
+    // 2026-10-20 D64.83 改:走 TxDisplayStyle.forAmount(跟流水 tile 同一套显示)
+    //   - 负数(投资亏损)→ '-' prefix + 红色,不再显示 "+ ¥-184.88"
+    //   - 调拨(balance)prefix 为空,跟流水 tile 一致(之前这里硬编码 '-')
+    final style = TxDisplayStyle.forAmount(transaction.type, transaction.amount);
+    final amountColor = style.color;
+    final amountPrefix = style.prefix;
+    final amountValue = transaction.amount.abs();
 
     return Dialog(
       backgroundColor: theme.colorScheme.surface,
@@ -540,7 +549,7 @@ class _DeleteConfirmDialog extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '$amountPrefix ¥${Formatters.amount(transaction.amount)}',
+                      '$amountPrefix ¥${Formatters.amount(amountValue)}',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
