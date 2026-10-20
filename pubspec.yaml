@@ -20,7 +20,15 @@ version: 1.0.2+10201  # v1.0.2 (D74 修 编辑余额 adjustment 流水公式方�
 # - 此前 0.3.5 阶段是开发期迭代版本,user 准备发布时改为 1.0.0(首个稳定版)
 # - build 保持 +101(compileSdk 36 fix 的实际 commit 数),后续 user 使用期修复
 #   按 semver 叠加 1.0.1+102 / 1.0.2+103 ...
-# - D64.54 build+1 约定仍生效:每次 commit bump 1
+# - D64.54 build+1 约定(开发阶段):未发布前每次 commit bump 1
+#
+# - 2026-10-20 user 拍板(已发布后):**不主动 bump build 号**
+#   · app 已发布,user 边用边发现更多问题,累积一批修完再统一叠一次发版
+#   · 所以从 1.0.2+10201 起,修 bug 的 commit **不动 version 这一行**
+#   · 只有 user 明确说"可以发版 / 叠版本 / 出包"时才 bump
+#   · 修复 commit message 里写明"build 号保持 1.0.2+10201(等 user 发版统一叠)"
+#   · 配套:versionCode 必须单调递增(Android 拒装降级),所以"不 bump"期间
+#     所有修复共用同一 build,user 需自己重编译安装(不能靠改版本号触发更新)
 
 environment:
   sdk: ^3.13.5
