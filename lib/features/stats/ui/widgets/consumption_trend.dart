@@ -28,6 +28,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/utils/budget_provider.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/charts/vertical_bar_label.dart';
 import '../../../../core/widgets/charts/animated_bar_chart.dart';
 import '../../../../core/widgets/charts/chart_card.dart';
 import '../../application/stats_providers.dart';
@@ -245,15 +246,21 @@ class _CategoryTab extends ConsumerWidget {
             secondaryColor: AppGray.g200,
             barWidth: 8,
             barsSpace: 2,
-            // 2026-10-20 D64.71:9 个分类 label 重叠,完全去掉 X 轴 label
-            //   - 保留 touchedLabelBuilder 触摸时顶部显示分类名(无干扰)
-            //   - tooltip 已经有 "分类名 + 金额",X 轴 label 冗余
-            //   - 跟 savings_trend / investment_dashboard sparse label 不同的设计:
-            //     类别对比场景 9 个分类密度高,sparse 1/3/5 也救不了,直接裸奔
-            //     靠触摸查询最干净
-            xLabelBuilder: (i, b) => const SizedBox.shrink(),
+            // 2026-10-20 D64.72:9 个中文分类名横排重叠 → 改**中文竖排**
+            //   - D64.71 曾完全去掉 X 轴 label,user UAT 反馈"没有横坐标有点奇怪"
+            //   - 实测(widget test,真机 ChartCard 内容宽 296dp,9 分类):
+            //     45° 斜排 + 10sp → 5 对重叠 / +9sp → 3 对 / +8sp → 1 对
+            //     55°/60° + 8sp → 0 对(字太小)
+            //     70° + 9sp → 0 对(字符被转 70°,读要歪头)
+            //     **中文竖排(字正立)+ 9sp → 0 对,字最清楚** ← user 选定
+            //   - 用 `VerticalBarLabel`(字符保持正立、上下堆叠),
+            //     不是把整段文字旋转 90°(那样中文几乎不可读)
+            //   - xLabelReservedSize 64:7 字 × 9sp ≈ 63px 竖排高度上限
+            xLabelReservedSize: 64,
+            xLabelBuilder: (i, b) => VerticalBarLabel(b.label),
             touchedLabelBuilder: (i, b) => b.label,
-            tooltipBuilder: (i, b) => '${b.label}\n¥${Formatters.amount(shown[i].currAmount)}',
+            tooltipBuilder: (i, b) =>
+                '${b.label}\n¥${Formatters.amount(shown[i].currAmount)}',
           ),
         );
       },

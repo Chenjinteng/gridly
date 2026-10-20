@@ -121,6 +121,8 @@ class AnimatedBarChart extends StatefulWidget {
     this.barWidth = 5,
     this.barsSpace = 2, // 双柱内间距
     this.groupsSpace = 4, // 组间间距
+    this.xLabelAngle = 0.0, // D64.72 加:X 轴 label 旋转角(0 = 水平)
+    this.xLabelReservedSize, // D64.72 加:斜排时底部 label 预留高度(null = 自动)
   });
 
   final List<BarChartBar> bars;
@@ -142,6 +144,17 @@ class AnimatedBarChart extends StatefulWidget {
   final double barWidth;
   final double barsSpace;
   final double groupsSpace;
+
+  /// 2026-10-20 D64.72 加:X 轴 label 旋转角(弧度)
+  ///   - 0(默认)= 水平 label(短 label 场景:每日/周几/本年 月份)
+  ///   - -pi/4 = 斜排,文字行"从右上到左下"(长 label 场景:类别对比 9 个中文分类名)
+  ///     旋转支点用 `Alignment.topRight`(文字右上角固定,向左下延伸),
+  ///     保证旋转后的内容不会往上顶进柱体区域,只往下占 label 预留带
+  final double xLabelAngle;
+
+  /// 斜排时底部 label 预留高度(null = 自动:水平 18 / 斜排 40)
+  ///   - 斜排 4 字中文 label(≈36px 宽)在 45° 下投影高 ≈36px,需要 40 留白
+  final double? xLabelReservedSize;
 
   @override
   State<AnimatedBarChart> createState() => _AnimatedBarChartState();
@@ -431,7 +444,10 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
                   showTitles: true,
                   // 2026-10-15 D64.5:从 14 提到 18,留够 2 字中文 category label
                   // (如"购物")的 padding(原 14 太紧,部分 label 被 fl_chart skip)。
-                  reservedSize: 18,
+                  // 2026-10-20 D64.72:斜排(xLabelAngle != 0)时改用更大预留高度,
+                  //   否则 45° 旋转后的 label 会被底边切掉。
+                  reservedSize: widget.xLabelReservedSize ??
+                      (widget.xLabelAngle == 0 ? 18.0 : 40.0),
                   interval: 1,
                   getTitlesWidget: (v, meta) {
                     final idx = v.toInt();
@@ -439,18 +455,36 @@ class _AnimatedBarChartState extends State<AnimatedBarChart>
                       return const SizedBox.shrink();
                     }
                     final b = widget.xLabelBuilder;
+                    Widget? label;
                     if (b != null) {
-                      return b(idx, widget.bars[idx]) ??
-                          const SizedBox.shrink();
-                    }
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 1),
-                      child: Text(
-                        widget.bars[idx].label,
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: scheme.onSurfaceVariant,
+                      label = b(idx, widget.bars[idx]);
+                    } else {
+                      label = Padding(
+                        padding: const EdgeInsets.only(top: 1),
+                        child: Text(
+                          widget.bars[idx].label,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: scheme.onSurfaceVariant,
+                          ),
                         ),
+                      );
+                    }
+                    if (label == null) return const SizedBox.shrink();
+                    if (widget.xLabelAngle == 0) return label;
+                    // D64.72 斜排:
+                    //   - UnconstrainedBox:让 label 保持"自然高度"(文字本身高),
+                    //     否则 fl_chart 会把它拉满到 reservedSize(40),旋转时
+                    //     空盒子也参与计算,AABB 从 27px 变 48px → 相邻 label 重叠
+                    //   - Transform.rotate(alignment: topRight):支点固定在文字
+                    //     右上角,文字向左下延伸 —— 最高点仍在预留带顶部,
+                    //     不会往上顶进柱体;横向占位 ≈ 文字宽 × cos45
+                    return UnconstrainedBox(
+                      alignment: Alignment.topRight,
+                      child: Transform.rotate(
+                        angle: widget.xLabelAngle,
+                        alignment: Alignment.topRight,
+                        child: label,
                       ),
                     );
                   },
