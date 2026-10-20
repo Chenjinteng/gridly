@@ -2,7 +2,7 @@ name: gridly
 description: "格子记账 — 一格一账的本地优先记账工具"
 publish_to: 'none'
 
-version: 1.0.2+10201  # v1.0.2 (D74 修 编辑余额 adjustment 流水公式方向 — type 从 'balance' 改成 'income',amount = newCurrent - oldCurrent,贡献 = +amount;加 cat.type='adjust' 进月度排除,避免误算入收入) build 号 = MAJOR×10000 + MINOR×100 + PATCH = 1×10000 + 0×100 + 2 = 10200 + 1 = 10201 (D64.71 类别 tab 去 X 轴 label 修复 commit,同 patch group 内 +1;Google 官方推荐算式,versionName 三位数跟 versionCode 一一对应)
+version: 1.0.2+10202  # v1.0.2 (D74 修 编辑余额 adjustment 流水公式方向 — type 从 'balance' 改成 'income',amount = newCurrent - oldCurrent,贡献 = +amount;加 cat.type='adjust' 进月度排除,避免误算入收入) build 号 = MAJOR×10000 + MINOR×100 + PATCH = 1×10000 + 0×100 + 2 = 10200 + 2 = 10202 (D64.72 消费趋势类别 tab X 轴 label 改中文竖排,含 D64.71 中间态;同 patch group 内 +1;Google 官方推荐算式,versionName 三位数跟 versionCode 一一对应) ⚠️ 10201 是 D64.71 中间态(把类别 tab X 轴 label 整个删掉,user 反馈"没有横坐标"),已于 2026-10-20 作废并由 10202 取代
 # - 2026-10-19 user 拍板:发版后修复按 semver 重置 build 号
 #   · v1.0.0 = 首发(stable),对应 f97593e,build 0.1.0+104
 #   · v1.0.1 = 首个 patch(D70),build 从 0 重新计
