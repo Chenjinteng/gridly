@@ -245,18 +245,15 @@ class _CategoryTab extends ConsumerWidget {
             secondaryColor: AppGray.g200,
             barWidth: 8,
             barsSpace: 2,
-            xLabelBuilder: (i, b) => Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                b.label,
-                style: const TextStyle(fontSize: 10),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
+            // 2026-10-20 D64.71:9 个分类 label 重叠,完全去掉 X 轴 label
+            //   - 保留 touchedLabelBuilder 触摸时顶部显示分类名(无干扰)
+            //   - tooltip 已经有 "分类名 + 金额",X 轴 label 冗余
+            //   - 跟 savings_trend / investment_dashboard sparse label 不同的设计:
+            //     类别对比场景 9 个分类密度高,sparse 1/3/5 也救不了,直接裸奔
+            //     靠触摸查询最干净
+            xLabelBuilder: (i, b) => const SizedBox.shrink(),
             touchedLabelBuilder: (i, b) => b.label,
-            tooltipBuilder: (i, b) =>
-                '¥${Formatters.amount(shown[i].currAmount)}',
+            tooltipBuilder: (i, b) => '${b.label}\n¥${Formatters.amount(shown[i].currAmount)}',
           ),
         );
       },
