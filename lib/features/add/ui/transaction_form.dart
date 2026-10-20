@@ -46,6 +46,7 @@ class TransactionForm extends ConsumerStatefulWidget {
   const TransactionForm({
     super.key,
     this.editTransaction,
+    this.editCategoryName,
     this.onSaved,
     this.preselectedAssetType,
     this.allowBalance = true,
@@ -55,6 +56,16 @@ class TransactionForm extends ConsumerStatefulWidget {
   /// 非空 → 编辑模式(预填 + 保存 update)
   /// 为空 → 新增模式(保存 insert)
   final Transaction? editTransaction;
+
+  /// 2026-10-20 D64.84:编辑模式下这笔流水的**分类名**(由 EditTransactionPage 传入)
+  /// - 表单要靠它区分两种"投资 cat + expense 方向"的行:
+  ///   ① 「投资收益」+ expense = **亏损**(迁移数据的旧口径,正金额)
+  ///      → 编辑时规范化成 type='income' + 负金额 + 「投资亏损」分类
+  ///   ② 「投资费用」+ expense = **真费用**(手续费 / 转换费)
+  ///      → 编辑时必须保持原 type='expense' + 正金额 + 原分类,
+  ///        手续费被当成"亏损"是语义错
+  /// - 新增模式传 null
+  final String? editCategoryName;
 
   /// 保存成功后回调(由调用方决定:AddTransactionPage 跳 /home,edit sheet 仅 dismiss)
   final VoidCallback? onSaved;
@@ -115,7 +126,12 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   ///   - 借出/借入 单账户操作,无 destinationAccountId;调拨 跟 cash_flow 调拨同 schema
   String get _type {
     if (_isInvestmentContext) {
-      if (_intent == 'output') return 'income'; // 收益:单账户增加
+      if (_intent == 'output') {
+        // 2026-10-20 D64.84:「投资费用」这类费用行在投资段没有对应表达
+        //   → 编辑时保持原 type='expense'(别把手续费变成"收益")
+        if (_editKeepType != null) return _editKeepType!;
+        return 'income'; // 收益:单账户增加
+      }
       return 'balance'; // 投入/调拨:source → dest
     }
     if (_isReceivableContext) {
@@ -258,6 +274,19 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
 
   bool get _isEdit => widget.editTransaction != null;
 
+  /// 2026-10-20 D64.84:编辑模式下需要**保持原样**的 DB type
+  /// - 投资段的「收益」这一段只能表达 type='income'(收益 / 亏损)
+  /// - 但「投资费用」这类 cat(type='expense',手续费 / 转换费)在投资段里
+  ///   没有对应表达 → 编辑时保持原 type,别把它变成"收益"
+  /// - 新增模式恒为 null
+  String? _editKeepType;
+
+  /// 2026-10-20 D64.84:编辑模式下的"投资亏损"规范化标记
+  /// - 「投资收益」cat + type='expense'(迁移数据旧口径,正金额)
+  ///   → 保存时规范化成 type='income' + 负金额 + 「投资亏损」分类
+  /// - 余额效果不变(expense -Σ(+x) == income +Σ(-x)),显示也不变
+  bool _editNormalizeLoss = false;
+
   @override
   void initState() {
     super.initState();
@@ -291,29 +320,59 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       //   - 看 source account type:source=cash_flow 视为 'input' (投入),
       //     其它视为 'transfer' (调拨),符合 user 实际大多数场景
       if (_isInvestmentContext) {
-        // investment 段:按 cat.type 判定,然后再按 source 决定 input vs transfer
+        // investment 段:单账户(收益 / 亏损 / 费用)vs 双账户(投入 / 调拨)
         //   - DB type='income' → 投资收益 → _intent='output'
-        //   - DB type='balance' + dest=null → 理论上不存在(投资只能单/双账户)
-        //   - DB type='balance' + dest!=null → 投资投入/调拨,需看 source
-        if (t.type == 'income') {
+        //   - DB type='expense' → 分两种(靠分类名区分,见下面 displayAmount):
+        //     · 「投资收益」+ expense = 亏损(迁移数据旧口径,正金额)
+        //     · 「投资费用」+ expense = 真费用(手续费),必须保持原样
+        //     两者都是单账户 → _intent='output'
+        //     实测迁移库:投资 cat 下 income 148 条 + expense 164 条,全部 dest=null
+        //   - DB type='balance' → 双账户(投入 / 调拨),需看 source 才能分
+        //     (实测迁移库 184 条全部 dest != null)
+        if (t.type == 'income' || t.type == 'expense') {
           _intent = 'output';
         } else {
           // 临时先按 'transfer',source asset 加载后修正
           _intent = 'transfer';
         }
+      } else if (_isReceivableContext) {
+        // 2026-10-20 D64.84 补:债务段调拨(DB type='balance')→ 'transfer'
+        //   - 之前一律 _intent = t.type,'balance' 不在 receivableSegments
+        //     ['lend_out','borrow_in','transfer'] 之外的路径上会选不中
+        //   - 调拨是双账户(_needsDualAccount = _intent == 'transfer')
+        _intent = t.type == 'balance' ? 'transfer' : t.type;
       } else {
-        _intent = t.type; // cash_flow / receivable 直接 1:1
+        _intent = t.type; // cash_flow / benefit / other 直接 1:1
       }
       _categoryId = _needsCategory ? t.categoryId : null;
       _accountId = t.accountId;
       _destinationAccountId = t.destinationAccountId;
       _occurredAt = t.occurredAt;
       _noteController.text = t.note ?? '';
+      // 2026-10-20 D64.84:编辑模式的两类特殊处理
+      final catName = widget.editCategoryName;
+      // ① 投资亏损行(投资收益 cat + expense 方向 + 正金额)→ 规范化
+      _editNormalizeLoss = _isInvestmentContext &&
+          t.type == 'expense' &&
+          catName == '投资收益';
+      // ② 投资费用等真费用(其它投资 cat + expense 方向)→ 保持原 type='expense'
+      _editKeepType = _isInvestmentContext &&
+              t.type == 'expense' &&
+              !_editNormalizeLoss
+          ? 'expense'
+          : null;
+      // 亏损行规范化成新口径(type='income' + 负金额)——
+      //   编辑时展示负数,保存后:
+      //   ① 余额效果不变:expense -Σ(+592.77) = income +Σ(-592.77) = -592.77
+      //   ② 显示不变:红 + "- ¥592.77"(forAmount 按符号取色取 prefix)
+      //   ③ 分类自动落到「投资亏损」,语义比"投资收益"准
+      final displayAmount = _editNormalizeLoss ? -t.amount.abs() : t.amount;
       // 金额显示:整数显示整数,小数保留原值
-      if (t.amount == t.amount.truncateToDouble() && t.amount.abs() < 1e15) {
-        _calc.display = t.amount.toInt().toString();
+      if (displayAmount == displayAmount.truncateToDouble() &&
+          displayAmount.abs() < 1e15) {
+        _calc.display = displayAmount.toInt().toString();
       } else {
-        _calc.display = t.amount.toString();
+        _calc.display = displayAmount.toString();
       }
       // 2026-10-16 D64.85:异步加载 source asset,investment 双账户区分 input/transfer
       //   - postFrameCallback 第一次 build 时 ref 还没 ready,直接 read 会触发
@@ -806,16 +865,28 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     //   - 负债 (receivable) 不校验:负债账户语义是"我欠的",余额正常为负,
     //     调拨 / 支出时继续扣到更负代表"我多欠了",逻辑正确
     //   - type='income'(现金收入 / 投资收益)不校验:账户增加,无上限
-    //   - 编辑模式:只有金额变化时校验,其它情况跳过(因为余额已变化过)
+    //   - 编辑模式(D64.84):余额里已经含了本笔的扣款,比较时要把本笔加回去
+    //     (「不含本笔的余额」>= 新金额),否则只改备注都会被拦死
     final isTransferOut = _type == 'expense' || _type == 'balance';
     if (isTransferOut &&
         sourceAsset != null &&
         sourceAsset.type != 'receivable') {
       final balances = await ref.read(assetBalancesProvider.future);
       final sourceBalance = balances[_accountId!] ?? sourceAsset.initialBalance;
-      if (sourceBalance < value) {
+      // 2026-10-20 D64.84 改:编辑模式要把**这笔自己的扣款**加回去再比
+      //   - currentBalance 已经含了本笔流水的 -oldAmount(expense / balance
+      //     的 source 都是 -Σ),直接拿它比 value → 连"只改备注"这种没动金额
+      //     的编辑都会被拦死(余额本来就不够,因为这笔已经扣过了)
+      //   - 扣回本笔 → 「不含本笔的余额」>= 新金额 才算余额够
+      //   - 换了源账户的话本笔没扣在新账户上 → 不能加回,按新账户余额算
+      final oldTx = widget.editTransaction;
+      final sameAccount = oldTx != null && oldTx.accountId == _accountId;
+      final effectiveBalance = sameAccount
+          ? sourceBalance + oldTx.amount
+          : sourceBalance;
+      if (effectiveBalance < value) {
         _toast(
-          '${sourceAsset.name} 余额 ¥${sourceBalance.toStringAsFixed(2)} 不足',
+          '${sourceAsset.name} 余额 ¥${effectiveBalance.toStringAsFixed(2)} 不足',
         );
         return;
       }
@@ -823,10 +894,15 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     // 2026-10-13 P8:investment 场景下 DB transactions.categoryId NOT NULL 字段
     //   需要非空值,虽然 investment 不用分类。fallback 用任意一个有效 category id
     //   (DB schema 限制,语义上忽略)。后续如要彻底不要分类,需把 schema 改 nullable。
-    // 2026-10-20 D64.83 改:传金额进去 —— 投资亏损(负数)要用「投资亏损」分类
+    // 2026-10-20 D64.84 改:编辑模式**保持原分类**,不重新推导
+    //   - 之前编辑模式也走 _firstCategoryId() → 投资段的其它 cat(比如
+    //     「投资费用」的手续费)会被悄悄换成「投资收益」→ 分类语义错
+    //   - 唯一的例外是「亏损规范化」(_editNormalizeLoss):那条要落到「投资亏损」
     final categoryForSave = _needsCategory
         ? _categoryId!
-        : ((await _firstCategoryId(value)) ?? 0);
+        : (_isEdit && !_editNormalizeLoss
+            ? widget.editTransaction!.categoryId
+            : ((await _firstCategoryId(value)) ?? 0));
     final note = _noteController.text.isEmpty ? null : _noteController.text;
     // 2026-10-14 P18:投资收益单账户 → destinationAccountId 强制 null
     //   - _needsDualAccount=false(收益)→ destForSave=null,DB 只存 accountId
