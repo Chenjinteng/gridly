@@ -56,6 +56,9 @@ gridly/
 │   ├── UI_UX.md                # UI/UX 工程师 AI 助手指令
 │   ├── SCHEMA.md               # SQLite 表结构(categories/transactions/assets/category_budgets/monthly_budgets)
 │   └── design/                 # 设计稿源文件(theme.html 等)
+├── skills/                     # 可分发的 AI skills(当前:gridly-migrate 数据迁移)
+│   ├── README.md               # skills 索引 + 安装说明
+│   └── gridly-migrate/         # 旧记账数据 → gridly-migrated.sqlite
 ├── lib/
 │   ├── main.dart               # 入口(seed + sync)
 │   ├── app.dart                # MaterialApp + 主题 + 路由
@@ -143,6 +146,15 @@ features/<name>/
 - 新增研发文档 → 放 `docs/` 下,README 的"研发文档"章节加链接
 - 设计稿源文件(HTML)放 `docs/design/`,改 UI 前必读
 - 不在 README 里堆路线图 / 已知限制 / 阶段进度(会膨胀)
+
+### Schema 与 skills 同步
+
+- **DB schema 一改 → `docs/SCHEMA.md` 同步更新**(表结构 / 列 / enum / 迁移历史)
+- **DB schema 一改 → `skills/gridly-migrate/` 同步更新**:
+  - `references/target-schema.md` —— 目标 DDL + 枚举 + 自检清单
+  - `references/seed_data.json` —— 系统预置分类/资产(从 `default_categories.dart` / `default_assets.dart` 解析生成)
+  - `scripts/build_migrated_db.py` 的 `SCHEMA_VERSION` 常量
+- 漏了这一步 → 迁移产物 `user_version` 对不上,app 导入后会触发 migration 把数据冲掉
 
 ---
 

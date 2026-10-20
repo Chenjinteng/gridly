@@ -73,6 +73,7 @@ flutter run -d macos
 - 🤖 **[`docs/UI_UX.md`](docs/UI_UX.md)** —— UI/UX 工程师助手指令(交互 / 动画 / 无障碍原则)
 - 🔧 **[`docs/REFACTOR_D64.md`](docs/REFACTOR_D64.md)** —— 2026-10-16 D64 code review + 重构归档(13 commit / 24 finding / 排查指引)
 - 🎨 **[`docs/design/`](docs/design/)** —— 设计稿源文件(视觉系统 + LOGO + 圆角 / 间距 / 配色)
+- 📦 **[`skills/`](skills/)** —— 可分发的 AI skills(当前:`gridly-migrate`,把其它记账 App 的旧数据迁进 gridly)
 
 > README 只放用户面内容(品牌 / 平台支持 / 上手指南 / 协议),避免信息膨胀。
 

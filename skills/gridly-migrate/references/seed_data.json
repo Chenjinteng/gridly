@@ -1,0 +1,268 @@
+{
+  "_note": "gridly app 系统预置数据,权威来源 release/1.0 分支 lib/shared/constants/default_categories.dart + lib/core/database/seeds/default_assets.dart。由 scripts/regenerate_seed.py 生成,勿手改。",
+  "categories": [
+    {
+      "name": "餐饮",
+      "icon": "restaurant",
+      "type": "expense",
+      "sort_order": 0,
+      "color": 4294286859
+    },
+    {
+      "name": "交通",
+      "icon": "directions_bus",
+      "type": "expense",
+      "sort_order": 1,
+      "color": 4282090230
+    },
+    {
+      "name": "购物",
+      "icon": "shopping_bag",
+      "type": "expense",
+      "sort_order": 2,
+      "color": 4293675161
+    },
+    {
+      "name": "居住",
+      "icon": "home",
+      "type": "expense",
+      "sort_order": 3,
+      "color": 4287774734
+    },
+    {
+      "name": "通讯",
+      "icon": "phone_iphone",
+      "type": "expense",
+      "sort_order": 4,
+      "color": 4278630100
+    },
+    {
+      "name": "医疗",
+      "icon": "medical_services",
+      "type": "expense",
+      "sort_order": 5,
+      "color": 4293870660
+    },
+    {
+      "name": "教育",
+      "icon": "school",
+      "type": "expense",
+      "sort_order": 6,
+      "color": 4287323382
+    },
+    {
+      "name": "娱乐",
+      "icon": "movie",
+      "type": "expense",
+      "sort_order": 7,
+      "color": 4279286145
+    },
+    {
+      "name": "居家",
+      "icon": "chair",
+      "type": "expense",
+      "sort_order": 8,
+      "color": 4292441862
+    },
+    {
+      "name": "美妆",
+      "icon": "spa",
+      "type": "expense",
+      "sort_order": 9,
+      "color": 4294197086
+    },
+    {
+      "name": "宠物",
+      "icon": "pets",
+      "type": "expense",
+      "sort_order": 10,
+      "color": 4294677052
+    },
+    {
+      "name": "其他",
+      "icon": "more_horiz",
+      "type": "expense",
+      "sort_order": 99,
+      "color": 4288782762
+    },
+    {
+      "name": "工资",
+      "icon": "payments",
+      "type": "income",
+      "sort_order": 0,
+      "color": 4294925450
+    },
+    {
+      "name": "奖金",
+      "icon": "card_giftcard",
+      "type": "income",
+      "sort_order": 1,
+      "color": 4294951175
+    },
+    {
+      "name": "理财",
+      "icon": "savings",
+      "type": "income",
+      "sort_order": 2,
+      "color": 4279286145
+    },
+    {
+      "name": "兼职",
+      "icon": "work",
+      "type": "income",
+      "sort_order": 3,
+      "color": 4289222135
+    },
+    {
+      "name": "退款",
+      "icon": "replay",
+      "type": "income",
+      "sort_order": 99,
+      "color": 4288782762
+    },
+    {
+      "name": "投资投入",
+      "icon": "savings",
+      "type": "investment",
+      "sort_order": 0,
+      "color": 4279286145
+    },
+    {
+      "name": "投资收益",
+      "icon": "trending_up",
+      "type": "investment",
+      "sort_order": 1,
+      "color": 4279286145
+    },
+    {
+      "name": "福利",
+      "icon": "favorite",
+      "type": "benefit",
+      "sort_order": 0,
+      "color": 4293675161
+    },
+    {
+      "name": "债务",
+      "icon": "request_quote",
+      "type": "liability",
+      "sort_order": 0,
+      "color": 4293870660
+    },
+    {
+      "name": "其它",
+      "icon": "category",
+      "type": "other",
+      "sort_order": 0,
+      "color": 4285624698
+    },
+    {
+      "name": "余额调整",
+      "icon": "tune",
+      "type": "adjust",
+      "sort_order": 0,
+      "color": 4285624698
+    }
+  ],
+  "assets": [
+    {
+      "name": "现金",
+      "type": "cash_flow",
+      "icon": "payments",
+      "color": 4294294559,
+      "display_order": 0,
+      "is_default": 1
+    },
+    {
+      "name": "银行卡",
+      "type": "cash_flow",
+      "icon": "credit_card",
+      "color": 4279548070,
+      "display_order": 1,
+      "is_default": 0
+    },
+    {
+      "name": "微信支付",
+      "type": "cash_flow",
+      "icon": "account_balance_wallet",
+      "color": 4279548070,
+      "display_order": 2,
+      "is_default": 0
+    }
+  ],
+  "hash_palette": [
+    4294677052,
+    4293675161,
+    4278630100,
+    4289222135,
+    4292441862,
+    4294197086,
+    4284704497,
+    4279548070,
+    4293571336,
+    4286893078,
+    4278751666,
+    4286331629
+  ],
+  "icon_map_keys": [
+    "restaurant",
+    "directions_bus",
+    "shopping_bag",
+    "home",
+    "phone_iphone",
+    "medical_services",
+    "school",
+    "movie",
+    "chair",
+    "spa",
+    "pets",
+    "more_horiz",
+    "payments",
+    "card_giftcard",
+    "savings",
+    "work",
+    "replay",
+    "local_cafe",
+    "cake",
+    "local_dining",
+    "local_bar",
+    "directions_car",
+    "local_taxi",
+    "flight",
+    "directions_bike",
+    "shopping_cart",
+    "redeem",
+    "bed",
+    "kitchen",
+    "cleaning_services",
+    "lightbulb",
+    "wifi",
+    "devices",
+    "laptop_mac",
+    "local_pharmacy",
+    "monitor_heart",
+    "menu_book",
+    "auto_stories",
+    "music_note",
+    "videogame_asset",
+    "sports_esports",
+    "headphones",
+    "face",
+    "content_cut",
+    "favorite",
+    "request_quote",
+    "fitness_center",
+    "hotel",
+    "luggage",
+    "trending_up",
+    "account_balance_wallet",
+    "emoji_events",
+    "circle",
+    "square",
+    "triangle",
+    "diamond",
+    "star",
+    "hexagon",
+    "pentagon",
+    "category"
+  ]
+}
