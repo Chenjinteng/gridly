@@ -70,11 +70,21 @@ class ChartCard extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                // 2026-10-21 D64.90 修:标题加 Flexible(loose)
+                //   窄屏(实测 ≤320 宽)标题 + trailing(TabBar)自然宽度之和 > 卡片内容宽
+                //   → 标题是 Row 里的 non-flex child,拿到的是"整行"约束而不是"剩余"约束
+                //   → 两边都按自然宽度摆,加起来超出 → RenderFlex 溢出(实测 320 宽溢出 39px)
+                //   修:标题改 Flexible(loose) —— 够宽时按自然宽度(间距跟原来完全一样),
+                //   不够时压缩 + 省略号,不再溢出
+                Flexible(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 ?trailing,

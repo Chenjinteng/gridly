@@ -19,6 +19,7 @@
 import 'package:drift/drift.dart' as drift;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -162,10 +163,13 @@ void main() {
     expect(find.text('5 笔'), findsOneWidget);
     expect(find.text('1 笔'), findsOneWidget);
 
-    // 均价 + 合计
-    expect(find.text('均价 ¥3,400 · 合计 ¥40,800'), findsOneWidget);
-    expect(find.text('均价 ¥60 · 合计 ¥300'), findsOneWidget);
-    expect(find.text('均价 ¥9,353 · 合计 ¥9,353'), findsOneWidget);
+    // 均价在副标题(短,永不截断);合计在右侧大号数字下面的小字位
+    expect(find.text('均价 ¥3,400'), findsOneWidget);
+    expect(find.text('均价 ¥60'), findsOneWidget);
+    expect(find.text('均价 ¥9,353'), findsOneWidget);
+    expect(find.text('¥40,800'), findsOneWidget);
+    expect(find.text('¥300'), findsOneWidget);
+    expect(find.text('¥9,353'), findsOneWidget);
 
     // 排序:笔数多的在上
     final rentY = tester.getTopLeft(find.text('房租')).dy;
@@ -188,7 +192,7 @@ void main() {
     expect(find.text('12 笔'), findsOneWidget);
   });
 
-  testWidgets('窄屏(390 宽)不溢出:均价/合计 副标题能截断', (tester) async {
+  testWidgets('窄屏(390 宽)不溢出:均价副标题完整显示不被截断', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -198,9 +202,37 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 
-    // 副标题「均价 ¥3,400 · 合计 ¥40,800」在窄屏放不下时按 ellipsis 截断,
     // 不能抛 RenderFlex overflow
     expect(tester.takeException(), isNull);
     expect(find.text('12 笔'), findsOneWidget);
+
+    // 均价那一行必须完整显示(没被 ellipsis 截断)
+    // —— user 2026-10-21 担心:"均价和合计太长,金额显示不全"
+    final para = tester.renderObject<RenderParagraph>(
+      find.text('均价 ¥3,400'),
+    );
+    expect(para.didExceedMaxLines, isFalse);
+  });
+
+  testWidgets('窄屏(320 宽)不溢出:卡片标题行也不炸(既有 ChartCard bug)', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await seedYearData();
+    await tester.pumpWidget(wrap(StatsRange.thisYear));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // 320 宽下标题 + TabBar 自然宽度之和 > 卡片内容宽
+    // (修前:RenderFlex overflowed by 39 pixels on the right)
+    expect(tester.takeException(), isNull);
+    // 均价依然完整
+    final para = tester.renderObject<RenderParagraph>(
+      find.text('均价 ¥3,400'),
+    );
+    expect(para.didExceedMaxLines, isFalse);
   });
 }

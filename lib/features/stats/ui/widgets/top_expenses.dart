@@ -125,10 +125,15 @@ class _TopList extends ConsumerWidget {
 
 /// 2026-10-21 D64.90 加:年视角「笔数 / 均价」tab
 ///
-/// 每行 = 分类图标 + 分类名 + 「均价 ¥X · 合计 ¥Y」+ 右侧大号「N 笔」
+/// 每行 = 分类图标 + 分类名 + 「均价 ¥X」+ 右侧大号「N 笔」+ 其下小号「¥合计」
 /// 排序:笔数降序(笔数相同按合计金额降序,再按名称稳定)
-/// 为什么大号数字是笔数而不是金额:这张榜就是按笔数排的,大号数字 = 排序键,
-/// 均价/合计作为副信息放在标题下面(合计是背景信息,均价才是这张榜的新洞察)。
+///
+/// **为什么均价和合计分开放(user 担心副标题太长显示不全)**:
+///   副标题如果写成「均价 ¥43 · 合计 ¥16,992.33」,窄屏(实测 320/360/390 全部)
+///   会被 ellipsis 截断 —— 截掉的正好是金额,信息失真。
+///   拆开后:副标题只剩「均价 ¥43」(实测最宽 61px,可用 ≥97px,永不截断),
+///   合计挪到右侧大号「N 笔」下面的小字位 —— 那里本来就是放小字的,
+///   跟「单笔」tab 的日期同一个位置。
 class _TopByCount extends ConsumerWidget {
   const _TopByCount();
 
@@ -160,10 +165,12 @@ class _TopByCount extends ConsumerWidget {
                 color: Color(top[i].color),
                 iconKey: _iconKeyForCategory(top[i].categoryId, cats),
                 primary: top[i].name,
-                secondary:
-                    '均价 ¥${_avgLabel(top[i].avg)} · 合计 ¥${Formatters.amount(top[i].amount, trimTrailingZeros: true)}',
+                secondary: '均价 ¥${_avgLabel(top[i].avg)}',
                 trailing: '${top[i].count} 笔',
+                trailingSub:
+                    '¥${Formatters.amount(top[i].amount, trimTrailingZeros: true)}',
                 trailingColor: Color(top[i].color),
+                scaleDownTexts: true,
               ),
             // 不足 10 条,补空行 —— 浅灰显示 "#N" 占位序号
             for (int i = top.length; i < _slotCount; i++)
@@ -250,6 +257,7 @@ class _DataRow extends StatelessWidget {
     required this.trailing,
     this.trailingSub,
     required this.trailingColor,
+    this.scaleDownTexts = false,
   });
   // 1-based slot 序号(#1 #2 ... #10)
   // 跟 _EmptyRow 渲染同样的 "#N" 文案,数据行 + 占位空行视觉上前后行
@@ -263,6 +271,9 @@ class _DataRow extends StatelessWidget {
   final String trailing;
   final String? trailingSub;
   final Color trailingColor;
+
+  /// 副标题 + 右侧小字:放不下时自动缩小而不是截断(见 _fit)
+  final bool scaleDownTexts;
 
   @override
   Widget build(BuildContext context) {
@@ -324,11 +335,18 @@ class _DataRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   if (secondary != null && secondary!.isNotEmpty)
-                    Text(
-                      secondary!,
-                      style: const TextStyle(fontSize: 11, color: AppGray.g600),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    _fit(
+                      scaleDownTexts,
+                      Alignment.centerLeft,
+                      Text(
+                        secondary!,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppGray.g600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                 ],
               ),
@@ -347,9 +365,18 @@ class _DataRow extends StatelessWidget {
                   ),
                 ),
                 if (trailingSub != null && trailingSub!.isNotEmpty)
-                  Text(
-                    trailingSub!,
-                    style: const TextStyle(fontSize: 10, color: AppGray.g600),
+                  _fit(
+                    scaleDownTexts,
+                    Alignment.centerRight,
+                    Text(
+                      trailingSub!,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: AppGray.g600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
               ],
             ),
@@ -357,6 +384,18 @@ class _DataRow extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// 放不下时**自动缩小**而不是截断
+  ///
+  /// 2026-10-21 D64.90:user 担心"均价/合计太长,金额显示不全"。
+  /// 金额被 ellipsis 截掉是信息失真(用户看到 "合计 ¥16,9…" 会误判),
+  /// 所以金额类文字改成放不下就等比缩小 —— 永远完整显示。
+  /// 只给「笔数」tab 用(它的副标题 + 右侧小字都是金额/数字);
+  /// 「单笔」tab 的备注是自由文本,截断成省略号更合适,保持原样。
+  static Widget _fit(bool scaleDown, Alignment alignment, Widget child) {
+    if (!scaleDown) return child;
+    return FittedBox(fit: BoxFit.scaleDown, alignment: alignment, child: child);
   }
 }
 
