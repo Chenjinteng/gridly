@@ -188,6 +188,111 @@ final expenseByCategoryProvider = FutureProvider<List<CategoryExpense>>((
   return out;
 });
 
+/// 支出按分类的「笔数 / 均价」汇总(笔数从多到少)
+///
+/// 2026-10-21 D64.90 加:年视角 Top 10 支出的新 tab。
+/// 动机(user 2026-10-21 UAT):
+///   "切换到全年视角的话,TOP10 的单笔支出就基本是每个月的房租,12 个月的话 top10 被它霸屏了,
+///    有用的就只有 top10 分类"
+///   → 年视角下"单笔"排序键(单笔金额)天然被固定开销占满,信息密度归零。
+///   → 换成"笔数"维度:揭示钱是被一笔笔小额磨掉的
+///     (例:全年 392 笔正餐、均价 ¥43 —— 按金额排的分类榜和单笔榜都看不到这一层)。
+///
+/// 口径跟 `expenseByCategoryProvider` **完全一致**(真支出 + 现金→债务还款作为虚拟分类),
+/// 这样同一张卡的两个 tab 口径可比,用户来回切不会觉得"数字对不上"。
+class CategoryExpenseStat {
+  const CategoryExpenseStat({
+    required this.categoryId,
+    required this.name,
+    required this.color,
+    required this.count,
+    required this.amount,
+    required this.maxAmount,
+  });
+  final int categoryId;
+
+  /// 分类名(虚拟"债务"分类为 '债务')
+  final String name;
+  final int color;
+
+  /// 笔数
+  final int count;
+
+  /// 合计金额
+  final double amount;
+
+  /// 最大单笔
+  final double maxAmount;
+
+  /// 均价 = 合计 / 笔数
+  double get avg => count <= 0 ? 0 : amount / count;
+}
+
+final expenseByCategoryCountProvider = FutureProvider<List<CategoryExpenseStat>>((
+  ref,
+) async {
+  final txs = await ref.watch(statsTransactionsProvider.future);
+  final cats = await ref.watch(allCategoriesProvider.future);
+  if (cats.isEmpty) return const [];
+  final catById = {for (final c in cats) c.id: c};
+  final catTypeById = {for (final c in cats) c.id: c.type};
+  final countByCat = <int, int>{};
+  final amountByCat = <int, double>{};
+  final maxByCat = <int, double>{};
+  // D62:现金→债务的调拨作为虚拟分类(跟 expenseByCategoryProvider 同一个口径)
+  double repayment = 0;
+  int repaymentCount = 0;
+  double repaymentMax = 0;
+  for (final t in txs) {
+    final cType = catTypeById[t.categoryId];
+    if (t.type == 'expense' && cType == 'expense') {
+      countByCat[t.categoryId] = (countByCat[t.categoryId] ?? 0) + 1;
+      amountByCat[t.categoryId] = (amountByCat[t.categoryId] ?? 0) + t.amount;
+      final m = maxByCat[t.categoryId] ?? 0;
+      if (t.amount > m) maxByCat[t.categoryId] = t.amount;
+    } else if (t.type == 'balance' && cType == 'liability') {
+      repayment += t.amount;
+      repaymentCount += 1;
+      if (t.amount > repaymentMax) repaymentMax = t.amount;
+    }
+  }
+  final out = <CategoryExpenseStat>[];
+  for (final e in countByCat.entries) {
+    final c = catById[e.key];
+    out.add(
+      CategoryExpenseStat(
+        categoryId: e.key,
+        name: c?.name ?? '未分类',
+        color: c?.color ?? 0xFFA1A1AA,
+        count: e.value,
+        amount: amountByCat[e.key] ?? 0,
+        maxAmount: maxByCat[e.key] ?? 0,
+      ),
+    );
+  }
+  if (repaymentCount > 0) {
+    out.add(
+      CategoryExpenseStat(
+        categoryId: -1,
+        name: '债务',
+        color: 0xFFEF4444,
+        count: repaymentCount,
+        amount: repayment,
+        maxAmount: repaymentMax,
+      ),
+    );
+  }
+  // 笔数降序;笔数相同按合计金额降序;再按名称保证排序稳定(测试可预期)
+  out.sort((a, b) {
+    final c = b.count.compareTo(a.count);
+    if (c != 0) return c;
+    final m = b.amount.compareTo(a.amount);
+    if (m != 0) return m;
+    return a.name.compareTo(b.name);
+  });
+  return out;
+});
+
 /// Top 10 支出单笔(从大到小,按当前时间窗)
 /// D62 改:口径跟 expenseByCategoryProvider 一致
 ///   - tx.type='expense'(真支出,任何 cat.type)

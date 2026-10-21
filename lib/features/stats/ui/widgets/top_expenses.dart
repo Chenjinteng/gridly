@@ -4,6 +4,14 @@
 // 分类:复用 expenseByCategoryProvider,截取前 10,每行 = 图标 + 名字 + 金额 + 占比
 //
 // 2026-10-15 D64.3 改:容器改用 `ChartCard`,TabBar 放 trailing,showDivider=false
+// 2026-10-21 D64.90 改:第一个 tab 随 range 变(年视角不再用"单笔")
+//   - 本月:单笔 / 分类 —— 一个月里房租就是一条,单笔榜信息密度正常,保留
+//   - 本年:笔数 / 分类 —— 年视角下固定开销按月重复(12 个月房租),
+//     "单笔"排序键(单笔金额)被固定开销占满 → top10 霸屏,信息密度归零
+//     (user 2026-10-21 原话:"TOP10 的单笔支出就基本是每个月的房租,
+//       12 个月的话 top10 被它霸屏了,有用的就只有 top10 分类")
+//   - 换成"笔数"维度:揭示钱是被一笔笔小额磨掉的
+//     (例:全年 392 笔正餐、均价 ¥43 —— 按金额排的分类榜 / 单笔榜都看不到这一层)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -23,6 +31,8 @@ class TopExpenses extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // D64.90:年视角第一个 tab 换口径(笔数),月视角保持单笔
+    final isYear = ref.watch(statsRangeProvider) == StatsRange.thisYear;
     // 2026-10-15 D64.4 修:DefaultTabController 必须包整个 widget,
     // 这样 trailing 里的 TabBar 跟 child 里的 TabBarView 都在
     // DefaultTabController 子树里,共享同一个 controller。
@@ -40,9 +50,9 @@ class TopExpenses extends ConsumerWidget {
             isScrollable: true,
             indicatorSize: TabBarIndicatorSize.label,
             labelPadding: const EdgeInsets.symmetric(horizontal: 8),
-            tabs: const [
-              Tab(text: '单笔'),
-              Tab(text: '分类'),
+            tabs: [
+              Tab(text: isYear ? '笔数' : '单笔'),
+              const Tab(text: '分类'),
             ],
             // D71.5.5:labelColor / indicatorColor / unselectedLabelColor
             //  都去掉,完全由 app_theme.dart 的 tabBarTheme 接管
@@ -50,11 +60,13 @@ class TopExpenses extends ConsumerWidget {
             dividerHeight: 0,
           ),
         ),
-        child: const SizedBox(
+        child: SizedBox(
           height: 520,
           child: TabBarView(
             physics: NeverScrollableScrollPhysics(),
-            children: [_TopList(), _TopByCategory()],
+            children: isYear
+                ? const [_TopByCount(), _TopByCategory()]
+                : const [_TopList(), _TopByCategory()],
           ),
         ),
       ),
@@ -109,6 +121,70 @@ class _TopList extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// 2026-10-21 D64.90 加:年视角「笔数 / 均价」tab
+///
+/// 每行 = 分类图标 + 分类名 + 「均价 ¥X · 合计 ¥Y」+ 右侧大号「N 笔」
+/// 排序:笔数降序(笔数相同按合计金额降序,再按名称稳定)
+/// 为什么大号数字是笔数而不是金额:这张榜就是按笔数排的,大号数字 = 排序键,
+/// 均价/合计作为副信息放在标题下面(合计是背景信息,均价才是这张榜的新洞察)。
+class _TopByCount extends ConsumerWidget {
+  const _TopByCount();
+
+  static const int _slotCount = 10;
+  static const double _rowHeight = 50;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final statsAsync = ref.watch(expenseByCategoryCountProvider);
+    final cats =
+        ref.watch(allCategoriesProvider).valueOrNull ?? const <Category>[];
+    return statsAsync.when(
+      data: (data) {
+        final top = data.take(_slotCount).toList();
+        if (top.isEmpty) {
+          return Column(
+            children: List.generate(
+              _slotCount,
+              (i) => _EmptyRow(height: _rowHeight, slot: i + 1),
+            ),
+          );
+        }
+        return Column(
+          children: [
+            for (int i = 0; i < top.length && i < _slotCount; i++)
+              _DataRow(
+                rank: i + 1,
+                height: _rowHeight,
+                color: Color(top[i].color),
+                iconKey: _iconKeyForCategory(top[i].categoryId, cats),
+                primary: top[i].name,
+                secondary:
+                    '均价 ¥${_avgLabel(top[i].avg)} · 合计 ¥${Formatters.amount(top[i].amount, trimTrailingZeros: true)}',
+                trailing: '${top[i].count} 笔',
+                trailingColor: Color(top[i].color),
+              ),
+            // 不足 10 条,补空行 —— 浅灰显示 "#N" 占位序号
+            for (int i = top.length; i < _slotCount; i++)
+              _EmptyRow(height: _rowHeight, slot: i + 1),
+          ],
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(
+        child: Text('加载失败:$e', style: const TextStyle(color: AppStatus.error)),
+      ),
+    );
+  }
+}
+
+/// 均价显示:≥1 元取整(「一顿正餐 43 块」比「43.35 块」好读),<1 元保留小数
+String _avgLabel(double avg) {
+  if (avg >= 1) {
+    return Formatters.amount(avg.roundToDouble(), trimTrailingZeros: true);
+  }
+  return Formatters.amount(avg, trimTrailingZeros: true);
 }
 
 class _TopByCategory extends ConsumerWidget {
