@@ -34,6 +34,9 @@ void refreshAllData(WidgetRef ref) {
   ref.invalidate(monthTransactionsProvider);
   ref.invalidate(statsTransactionsProvider);
   ref.invalidate(expenseByCategoryProvider);
+  // 2026-10-21 D64.92 补:Top 10 支出的「金额」「笔数」两个 tab 共用的 provider
+  //   (之前叫 expenseByCategoryCountProvider,D64.92 改名并扩展成完整统计)
+  ref.invalidate(expenseCategoryStatsProvider);
   ref.invalidate(topExpensesProvider);
   ref.invalidate(monthlyTrendProvider);
   // 2026-10-12 commit 84 补:之前漏了 commit 73 加的 dailyExpenseTrendProvider

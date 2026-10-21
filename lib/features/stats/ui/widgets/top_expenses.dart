@@ -1,17 +1,25 @@
 // lib/features/stats/ui/widgets/top_expenses.dart
-// 报表页 Top 10 区域 —— 单笔 / 分类 两个 Tab 切换。
+// 报表页 Top 10 区域 —— 2 个 Tab 切换,tab 结构随时间窗变。
+//
 // 单笔:每行 = 分类图标 + 名字 + 日期 + 金额(降序前 10)
-// 分类:复用 expenseByCategoryProvider,截取前 10,每行 = 图标 + 名字 + 金额 + 占比
+// 金额:每行 = 分类图标 + 名字 + 「均价 ¥X · 占比%」+ 右侧大号「¥合计」+ 其下小号「N 笔」
+// 笔数:每行 = 分类图标 + 名字 + 「均价 ¥X · 占比%」+ 右侧大号「N 笔」+ 其下小号「¥合计」
 //
 // 2026-10-15 D64.3 改:容器改用 `ChartCard`,TabBar 放 trailing,showDivider=false
-// 2026-10-21 D64.90 改:第一个 tab 随 range 变(年视角不再用"单笔")
-//   - 本月:单笔 / 分类 —— 一个月里房租就是一条,单笔榜信息密度正常,保留
-//   - 本年:笔数 / 分类 —— 年视角下固定开销按月重复(12 个月房租),
-//     "单笔"排序键(单笔金额)被固定开销占满 → top10 霸屏,信息密度归零
-//     (user 2026-10-21 原话:"TOP10 的单笔支出就基本是每个月的房租,
-//       12 个月的话 top10 被它霸屏了,有用的就只有 top10 分类")
-//   - 换成"笔数"维度:揭示钱是被一笔笔小额磨掉的
-//     (例:全年 392 笔正餐、均价 ¥43 —— 按金额排的分类榜 / 单笔榜都看不到这一层)
+//
+// 2026-10-21 D64.90 / D64.92 改:tab 结构 + 行布局重做
+//   D64.90 —— 年视角第一个 tab 从「单笔」换成「笔数」
+//     动机(user UAT):"切换到全年视角的话,TOP10 的单笔支出就基本是每个月的房租,
+//       12 个月的话 top10 被它霸屏了,有用的就只有 top10 分类"
+//     → 年视角下"单笔"排序键(单笔金额)被固定开销占满,信息密度归零
+//   D64.92 —— 拆成「金额」「笔数」两个 tab,行信息完全一致,只是排序键不同
+//     动机(user UAT):"居然这个一排序之后,房租的不在 top10 了"
+//     → 房租是"少而大"(39 笔占 20.8% 的钱),正餐是"多而小"(392 笔占 9.4%)
+//       两个维度都是真相,只按一个排就会丢掉另一半 → 两个 tab 都给,切 tab = 换排序
+//
+//   最终 tab 结构:
+//     本月:单笔 / 金额(「单笔」保留 —— 一个月里房租就一条,信息密度正常)
+//     本年:金额 / 笔数(「单笔」在年视角被固定开销霸屏,去掉)
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -31,7 +39,7 @@ class TopExpenses extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // D64.90:年视角第一个 tab 换口径(笔数),月视角保持单笔
+    // D64.90/D64.92:年视角 = 金额 / 笔数;月视角 = 单笔 / 金额
     final isYear = ref.watch(statsRangeProvider) == StatsRange.thisYear;
     // 2026-10-15 D64.4 修:DefaultTabController 必须包整个 widget,
     // 这样 trailing 里的 TabBar 跟 child 里的 TabBarView 都在
@@ -51,8 +59,8 @@ class TopExpenses extends ConsumerWidget {
             indicatorSize: TabBarIndicatorSize.label,
             labelPadding: const EdgeInsets.symmetric(horizontal: 8),
             tabs: [
-              Tab(text: isYear ? '笔数' : '单笔'),
-              const Tab(text: '分类'),
+              Tab(text: isYear ? '金额' : '单笔'),
+              Tab(text: isYear ? '笔数' : '金额'),
             ],
             // D71.5.5:labelColor / indicatorColor / unselectedLabelColor
             //  都去掉,完全由 app_theme.dart 的 tabBarTheme 接管
@@ -65,8 +73,8 @@ class TopExpenses extends ConsumerWidget {
           child: TabBarView(
             physics: NeverScrollableScrollPhysics(),
             children: isYear
-                ? const [_TopByCount(), _TopByCategory()]
-                : const [_TopList(), _TopByCategory()],
+                ? const [_TopByAmount(), _TopByCount()]
+                : const [_TopList(), _TopByAmount()],
           ),
         ),
       ),
@@ -123,17 +131,17 @@ class _TopList extends ConsumerWidget {
   }
 }
 
-/// 2026-10-21 D64.90 加:年视角「笔数 / 均价」tab
+/// 2026-10-21 D64.90 加 / D64.92 重做:「笔数」tab
 ///
-/// 每行 = 分类图标 + 分类名 + 「均价 ¥X」+ 右侧大号「N 笔」+ 其下小号「¥合计」
+/// 每行 = 分类图标 + 分类名 + 「均价 ¥X · 占比%」+ 右侧大号「N 笔」+ 其下小号「¥合计」
 /// 排序:笔数降序(笔数相同按合计金额降序,再按名称稳定)
 ///
-/// **为什么均价和合计分开放(user 担心副标题太长显示不全)**:
+/// **为什么均价/合计分开放(user 担心副标题太长显示不全)**:
 ///   副标题如果写成「均价 ¥43 · 合计 ¥16,992.33」,窄屏(实测 320/360/390 全部)
 ///   会被 ellipsis 截断 —— 截掉的正好是金额,信息失真。
-///   拆开后:副标题只剩「均价 ¥43」(实测最宽 61px,可用 ≥97px,永不截断),
-///   合计挪到右侧大号「N 笔」下面的小字位 —— 那里本来就是放小字的,
-///   跟「单笔」tab 的日期同一个位置。
+///   拆开后:副标题放「均价 ¥X · 占比%」,合计挪到右侧大号「N 笔」下面的小字位
+///   —— 那里本来就是放小字的(跟「单笔」tab 的日期同一个位置)。
+///   金额类文字再用 FittedBox(scaleDown) 兜底:放不下就缩小,永不截断。
 class _TopByCount extends ConsumerWidget {
   const _TopByCount();
 
@@ -142,12 +150,13 @@ class _TopByCount extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final statsAsync = ref.watch(expenseByCategoryCountProvider);
+    final statsAsync = ref.watch(expenseCategoryStatsProvider);
     final cats =
         ref.watch(allCategoriesProvider).valueOrNull ?? const <Category>[];
     return statsAsync.when(
       data: (data) {
-        final top = data.take(_slotCount).toList();
+        final total = data.fold<double>(0, (s, e) => s + e.amount);
+        final top = sortStatsByCount(data).take(_slotCount).toList();
         if (top.isEmpty) {
           return Column(
             children: List.generate(
@@ -165,10 +174,11 @@ class _TopByCount extends ConsumerWidget {
                 color: Color(top[i].color),
                 iconKey: _iconKeyForCategory(top[i].categoryId, cats),
                 primary: top[i].name,
-                secondary: '均价 ¥${_avgLabel(top[i].avg)}',
+                secondary:
+                    '均价 ¥${_yuanLabel(top[i].avg)} · ${_pct(top[i].amount, total)}',
                 trailing: '${top[i].count} 笔',
                 trailingSub:
-                    '¥${Formatters.amount(top[i].amount, trimTrailingZeros: true)}',
+                    '¥${_yuanLabel(top[i].amount)}',
                 trailingColor: Color(top[i].color),
                 scaleDownTexts: true,
               ),
@@ -186,28 +196,44 @@ class _TopByCount extends ConsumerWidget {
   }
 }
 
-/// 均价显示:≥1 元取整(「一顿正餐 43 块」比「43.35 块」好读),<1 元保留小数
-String _avgLabel(double avg) {
-  if (avg >= 1) {
-    return Formatters.amount(avg.roundToDouble(), trimTrailingZeros: true);
+/// 金额显示:≥1 元取整(「一顿正餐 43 块」比「43.35 块」好读),
+/// <1 元保留小数(取整会把 0.5 元显示成 1 元)
+/// 均价和合计共用 —— 一行里两个数字精度一致,看着才不别扭
+String _yuanLabel(double v) {
+  if (v >= 1) {
+    return Formatters.amount(v.roundToDouble(), trimTrailingZeros: true);
   }
-  return Formatters.amount(avg, trimTrailingZeros: true);
+  return Formatters.amount(v, trimTrailingZeros: true);
 }
 
-class _TopByCategory extends ConsumerWidget {
-  const _TopByCategory();
+/// 占比(整数 %)
+String _pct(double amount, double total) {
+  if (total <= 0) return '0%';
+  return '${(amount / total * 100).toStringAsFixed(0)}%';
+}
+
+/// 2026-10-21 D64.92:「金额」tab(按合计金额降序)
+///
+/// 每行 = 分类图标 + 分类名 + 「均价 ¥X · 占比%」+ 右侧大号「¥合计」+ 其下小号「N 笔」
+/// 跟「笔数」tab **行信息完全一致**,只是排序键不同(切 tab = 换排序)。
+/// 动机(user UAT):"居然这个一排序之后,房租的不在 top10 了"
+///   → 房租是"少而大"(39 笔占 20.8% 的钱),正餐是"多而小"(392 笔占 9.4%)
+///   → 金额 tab 让房租回到第 1,笔数 tab 让正餐第 1,两个真相都在
+class _TopByAmount extends ConsumerWidget {
+  const _TopByAmount();
 
   static const int _slotCount = 10;
   static const double _rowHeight = 50;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final expensesAsync = ref.watch(expenseByCategoryProvider);
+    final statsAsync = ref.watch(expenseCategoryStatsProvider);
     final cats =
         ref.watch(allCategoriesProvider).valueOrNull ?? const <Category>[];
-    return expensesAsync.when(
+    return statsAsync.when(
       data: (data) {
         final total = data.fold<double>(0, (s, e) => s + e.amount);
+        // provider 已按金额降序排好
         final top = data.take(_slotCount).toList();
         if (top.isEmpty) {
           return Column(
@@ -227,9 +253,12 @@ class _TopByCategory extends ConsumerWidget {
                 iconKey: _iconKeyForCategory(top[i].categoryId, cats),
                 primary: top[i].name,
                 secondary:
-                    '${(top[i].amount / total * 100).toStringAsFixed(0)}%',
-                trailing: '¥${Formatters.amount(top[i].amount)}',
+                    '均价 ¥${_yuanLabel(top[i].avg)} · ${_pct(top[i].amount, total)}',
+                trailing:
+                    '¥${_yuanLabel(top[i].amount)}',
+                trailingSub: '${top[i].count} 笔',
                 trailingColor: Color(top[i].color),
+                scaleDownTexts: true,
               ),
             // 不足 10 条,补空行 —— 浅灰显示 "#N" 占位序号
             for (int i = top.length; i < _slotCount; i++)

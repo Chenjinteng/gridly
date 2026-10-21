@@ -188,15 +188,15 @@ final expenseByCategoryProvider = FutureProvider<List<CategoryExpense>>((
   return out;
 });
 
-/// 支出按分类的「笔数 / 均价」汇总(笔数从多到少)
+/// 支出分类的完整统计(笔数 / 合计 / 均价 / 最大单笔)
 ///
-/// 2026-10-21 D64.90 加:年视角 Top 10 支出的新 tab。
-/// 动机(user 2026-10-21 UAT):
-///   "切换到全年视角的话,TOP10 的单笔支出就基本是每个月的房租,12 个月的话 top10 被它霸屏了,
-///    有用的就只有 top10 分类"
-///   → 年视角下"单笔"排序键(单笔金额)天然被固定开销占满,信息密度归零。
-///   → 换成"笔数"维度:揭示钱是被一笔笔小额磨掉的
-///     (例:全年 392 笔正餐、均价 ¥43 —— 按金额排的分类榜和单笔榜都看不到这一层)。
+/// 2026-10-21 D64.90 加, D64.92 扩展:
+///   D64.90 —— 年视角 Top 10 支出新 tab「笔数」(修固定开销霸屏)
+///   D64.92 —— Top 10 支出拆成「金额」「笔数」两个 tab,两个 tab **行信息完全一致**
+///              (均价 + 笔数 + 合计 + 占比),只是排序键不同(切 tab = 换排序)
+///              动机(user 2026-10-21 UAT):"居然这个一排序之后,房租的不在 top10 了"
+///              → 房租是"少而大"(39 笔占 20.8% 的钱),正餐是"多而小"(392 笔占 9.4%)
+///              → 两个维度都是真相,只能选一个当主排序就会丢掉另一半
 ///
 /// 口径跟 `expenseByCategoryProvider` **完全一致**(真支出 + 现金→债务还款作为虚拟分类),
 /// 这样同一张卡的两个 tab 口径可比,用户来回切不会觉得"数字对不上"。
@@ -228,7 +228,10 @@ class CategoryExpenseStat {
   double get avg => count <= 0 ? 0 : amount / count;
 }
 
-final expenseByCategoryCountProvider = FutureProvider<List<CategoryExpenseStat>>((
+/// 支出分类的完整统计(笔数 / 合计 / 均价 / 最大单笔)
+///
+/// 默认按**金额**降序;要按笔数排用 `sortStatsByCount`。
+final expenseCategoryStatsProvider = FutureProvider<List<CategoryExpenseStat>>((
   ref,
 ) async {
   final txs = await ref.watch(statsTransactionsProvider.future);
@@ -282,7 +285,19 @@ final expenseByCategoryCountProvider = FutureProvider<List<CategoryExpenseStat>>
       ),
     );
   }
-  // 笔数降序;笔数相同按合计金额降序;再按名称保证排序稳定(测试可预期)
+  // 默认按金额降序(「金额」tab 的排序键);
+  // 「笔数」tab 用 sortStatsByCount 另排
+  out.sort((a, b) {
+    final m = b.amount.compareTo(a.amount);
+    if (m != 0) return m;
+    return a.name.compareTo(b.name);
+  });
+  return out;
+});
+
+/// 按笔数降序排(笔数相同按合计金额降序;再按名称保证排序稳定,测试可预期)
+List<CategoryExpenseStat> sortStatsByCount(List<CategoryExpenseStat> list) {
+  final out = [...list];
   out.sort((a, b) {
     final c = b.count.compareTo(a.count);
     if (c != 0) return c;
@@ -291,7 +306,7 @@ final expenseByCategoryCountProvider = FutureProvider<List<CategoryExpenseStat>>
     return a.name.compareTo(b.name);
   });
   return out;
-});
+}
 
 /// Top 10 支出单笔(从大到小,按当前时间窗)
 /// D62 改:口径跟 expenseByCategoryProvider 一致
