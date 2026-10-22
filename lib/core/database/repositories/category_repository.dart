@@ -167,6 +167,48 @@ class CategoryRepository {
     }
   }
 
+  /// 2026-10-22 D64.98:按新顺序重排指定 type 的分类(长按拖动排序落库)
+  ///
+  /// **口径**:
+  ///   - 只动 `type` 匹配的分类,别的 type 的 sortOrder 一行不碰
+  ///     (支出和收入的排序互不干扰,各自从 0 开始 —— 跟 `DefaultCategories`
+  ///     里分 type 0-based 的 seed 口径一致)
+  ///   - `orderedIds` = 最终显示顺序;没传进来的分类按原相对次序追加在后面
+  ///     (比如拖动过程中有分类被删了,不至于把剩下的挤掉)
+  ///   - 传进来的 id 不属于该 type 的直接忽略(防呆)
+  ///
+  /// **为什么整体重编号而不是「只改被拖的那几个」**:
+  /// sortOrder 是稠密的相对序号,只改一两个会让排序出现空洞
+  /// (比如 A=0, B=5, C=2 → 显示顺序还是 A,C,B,但空洞会让下次重排更难推理)。
+  /// 整段重编号保证 [byType] 读出来的顺序 = 用户看到的顺序。
+  Future<void> reorderByType(String type, List<int> orderedIds) async {
+    final existing = await byType(type);
+    if (existing.isEmpty) return;
+
+    // 去重 + 只保留属于该 type 的 id
+    final seen = <int>{};
+    final wanted = <int>[];
+    for (final id in orderedIds) {
+      if (seen.add(id) && existing.any((c) => c.id == id)) {
+        wanted.add(id);
+      }
+    }
+    // 没传进来的按原相对次序补在后面
+    for (final c in existing) {
+      if (!seen.contains(c.id)) wanted.add(c.id);
+    }
+
+    await _db.batch((batch) {
+      for (var i = 0; i < wanted.length; i++) {
+        batch.update(
+          _db.categories,
+          CategoriesCompanion(sortOrder: Value(i)),
+          where: (c) => c.id.equals(wanted[i]) & c.type.equals(type),
+        );
+      }
+    });
+  }
+
   /// 全部分类(按 sortOrder 升序)
   Future<List<Category>> all() {
     return (_db.select(
@@ -191,13 +233,28 @@ class CategoryRepository {
   }
 
   /// 新增分类
+  ///
+  /// 2026-10-22 D64.98:`sortOrder` 不传时**落在同类的最后**(max + 1),
+  /// 不再默认 0。
+  /// 原来默认 0 → 新建的分类跟该类型第一类的 sortOrder 撞车,两条都是 0,
+  /// 谁在前面由 SQLite 决定(实际按 rowid)→ **看起来是"随机插在中间"**。
+  /// 用户能拖动排序之后,新建分类明确追加到末尾才说得通(要挪可以自己拖)。
   Future<int> create({
     required String name,
     required String icon,
     required int color,
     required String type,
-    int sortOrder = 0,
-  }) {
+    int? sortOrder,
+  }) async {
+    var order = sortOrder;
+    if (order == null) {
+      final tail = await (_db.select(_db.categories)
+            ..where((c) => c.type.equals(type))
+            ..orderBy([(c) => OrderingTerm.desc(c.sortOrder)])
+            ..limit(1))
+          .get();
+      order = tail.isEmpty ? 0 : tail.first.sortOrder + 1;
+    }
     return _db
         .into(_db.categories)
         .insert(
@@ -207,7 +264,7 @@ class CategoryRepository {
             color: color,
             type: type,
             isSystem: const Value(false),
-            sortOrder: Value(sortOrder),
+            sortOrder: Value(order),
           ),
         );
   }
