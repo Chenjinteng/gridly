@@ -100,7 +100,7 @@ CREATE TABLE IF NOT EXISTS "transactions" (
 | `investment` | 投资     | 投资投入 / 投资收益                   | ❌ 隐藏 |
 | `benefit`    | 福利     | 社保 / 公积金 / 期权                  | ❌ 隐藏 |
 | `liability`  | 债务     | 借出 / 借入(与 `assets.type='receivable'` 对账) | ❌ 隐藏 |
-| `other`      | 其它     | 兜底段                                | ❌ 隐藏 |
+| `other`      | 其它资产 | 兜底段                                | ❌ 隐藏 |
 | `adjust`     | 余额调整 | D72 编辑期初余额时自动生成的平账流水   | ❌ 隐藏 |
 
 > **UI 隐藏 + 自动 fallback** 模式(2026-10-14 P18 起):`investment` / `benefit` / `liability` / `other` / `adjust`
@@ -213,11 +213,12 @@ CREATE TABLE IF NOT EXISTS "transactions" (
 | `benefit`     | 福利       | 社保 / 公积金 / 公司期权                                |
 | `receivable`  | 债务       | 借出 / 借入 / 花呗 / 信用卡                             |
 | `fixed_asset` | 不动产     | 房 / 车                                                 |
-| `other`       | 其它       | 兜底                                                    |
+| `other`       | 其它资产   | 兜底                                                    |
 
 > UI label 以 `AppSegment.labelFor()`(`lib/core/theme/app_colors.dart`)为唯一数据源:
 > - `cash_flow` → **流动资金**(D64.40 从"现金流"改,避免跟"收支流水"混淆)
 > - `receivable` → **债务**(D51 v2 从"负债"改,口语化)
+> - `other` → **其它资产**(D64.95 从"其它"改,跟同名隐藏分类 + 分类「其它支出」区分)
 >
 > **DB enum 保持不变**(`cash_flow` / `receivable`),只改 UI 显示文案 —— 技术命名稳定,不要跟着改 DB 值。
 
@@ -328,10 +329,10 @@ currentBalance = initialBalance
 | 居家  | `chair`             | `home`          | `#D97706` 棕橙 |
 | 美妆  | `spa`               | `beauty`        | `#F43F5E` 玫红 |
 | 宠物  | `pets`              | `pet`           | `#FB923C` 浅橙 |
-| 其他  | `more_horiz`        | `neutral`       | `#A1A1AA` 灰 |
+| 其它支出 | `more_horiz`      | `neutral`       | `#A1A1AA` 灰 |
 
 > 颜色 token 全部来自 `AppCategory`(`lib/core/theme/app_colors.dart`),不硬编码在 seed 文件里。
-> 兜底分类"其他"与"退款"共用中性灰 `neutral`。
+> 兜底分类"其它支出"与"退款"共用中性灰 `neutral`。
 
 #### 6.1.2 收入分类(5 条,`type = 'income'`)
 
@@ -343,18 +344,21 @@ currentBalance = initialBalance
 | 兼职 | `work`            | `parttime`  | 副业(紫)                 |
 | 退款 | `replay`          | `neutral`   | 退款(灰)                 |
 
-#### 6.1.3 UI 隐藏分类(6 条,自动 fallback)
+#### 6.1.3 UI 隐藏分类(7 条,自动 fallback)
 
 | name     | icon              | `type`      | color token | 用途                              |
 | -------- | ----------------- | ----------- | ----------- | --------------------------------- |
 | 投资投入 | `savings`         | `investment`| `invest`    | 投资段投入 / 调拨                 |
 | 投资收益 | `trending_up`     | `investment`| `invest`    | 投资段收益                        |
+| 投资亏损 | `trending_down`   | `investment`| `error`     | D64.77 投资亏损流水(DB 里 amount 为负) |
 | 福利     | `favorite`        | `benefit`   | `benefit`   | 福利段账户收支                    |
 | 债务     | `request_quote`   | `liability` | `liability` | 债务段对账(借出 / 借入)           |
-| 其它     | `category`        | `other`     | `other`     | 其它段账户收支                    |
+| 其它资产 | `category`        | `other`     | `other`     | 其它段账户收支                    |
 | 余额调整 | `tune`            | `adjust`    | `other`     | D72 编辑期初余额时自动生成平账流水 |
 
-> **合计 23 条**(12 + 5 + 6)。全部 `isSystem = true`(`CategoryRepository._toCompanion` 统一写死)。
+> **合计 24 条**(12 + 5 + 7)。全部 `isSystem = true`(`CategoryRepository._toCompanion` 统一写死)。
+> 其中 `余额调整` 不在 `seedDefaultsIfEmpty()` 的插入列表里,由启动时的 `ensureBalanceAdjustCategory()` 补上,
+> 所以新装设备最终也是 24 条。
 >
 > ⚠️ `余额调整` 的 icon `tune` **不在 `CategoryIcons.map` 里**(map 内无此 key),
 > UI 取图标时走 `CategoryIcons.map[icon] ?? Icons.category_rounded` 兜底 → 实际显示为通用 category 图标。
@@ -363,14 +367,31 @@ currentBalance = initialBalance
 **seed 路径**(`lib/main.dart` 启动时按序执行):
 | 顺序 | 调用 | 作用 |
 | ---- | ---- | ---- |
-| 1 | `seedDefaultsIfEmpty()` | 仅当 categories 表为空时,批量插入 expense + income + investment + benefit + liability + other(22 条) |
-| 2 | `syncCategoryIcons()` | 老用户系统分类图标升级到 v2 语义化图标(幂等) |
-| 3 | `syncCategoryColors()` | 老用户系统分类颜色同步到当前代码值(幂等) |
-| 4 | `ensureInvestmentCategories()` | 幂等补 investment 2 条 |
-| 5 | `ensureBenefitCategories()` | 幂等补 benefit 1 条 |
-| 6 | `ensureReceivableCategories()` | 幂等补 liability 1 条 |
-| 7 | `ensureOtherCategories()` | 幂等补 other 1 条 |
-| 8 | `ensureBalanceAdjustCategory()` | 幂等补 adjust 1 条(D72 加) |
+| 1 | `seedDefaultsIfEmpty()` | 仅当 categories 表为空时,批量插入 expense + income + investment + benefit + liability + other(23 条) |
+| 2 | `renameSystemCategories()` | **D64.95**:把老设备上的系统分类旧名改成新名(幂等) |
+| 3 | `syncCategoryIcons()` | 老用户系统分类图标升级到 v2 语义化图标(幂等) |
+| 4 | `syncCategoryColors()` | 老用户系统分类颜色同步到当前代码值(幂等) |
+| 5 | `ensureInvestmentCategories()` | 幂等补 investment 2 条 |
+| 6 | `ensureBenefitCategories()` | 幂等补 benefit 1 条 |
+| 7 | `ensureReceivableCategories()` | 幂等补 liability 1 条 |
+| 8 | `ensureOtherCategories()` | 幂等补 other 1 条 |
+| 9 | `ensureBalanceAdjustCategory()` | 幂等补 adjust 1 条(D72 加) |
+
+#### 6.1.4 系统分类改名(D64.95)
+
+| 旧名 | type | 新名 | 说明 |
+| ---- | ---- | ---- | ---- |
+| `其他` | `expense` | `其它支出` | 系统的可见支出兜底,原本跟用户自建的「其它」一字之差 |
+| `其它` | `other` | `其它资产` | 系统隐藏的其它段标签,跟资产段 label 同名 |
+
+- **只动 `is_system = 1` 的行** —— 用户自建的分类(实测迁移库里有 105 笔流水的「其它」)一行都不碰。
+- **改名不改 `category_id`**,流水引用关系、金额、余额、报表口径全部不变,只是显示文字变。
+- **必须排在 `ensure*Categories()` 之前**:D64.94 起系统隐藏分类的幂等判重按 `(name, type)`,
+  先 ensure 再改名会让老设备补插一条新行 → 变成 2 条 `type='other'`。
+- **改名表**:`kSystemCategoryRenames`(`lib/shared/constants/default_categories.dart`),
+  实现:`CategoryRepository.renameSystemCategories()`。
+- **冲突保护**:新名若已被**同 type** 的行占用(典型:用户自己建了同名分类),跳过这次改名,
+  宁可系统那条留旧名,也不产生两条同名可见分类。同名但**不同** type 不算冲突。
 
 ### 6.2 assets — 3 条(`type = 'cash_flow'`)
 
