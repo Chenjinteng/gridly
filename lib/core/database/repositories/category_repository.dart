@@ -46,47 +46,23 @@ class CategoryRepository {
   }
 
   /// 2026-10-14 P18 加:升级路径 —— 老 user DB 已有 cash_flow 分类但没有投资分类,
-  /// 这里幂等插入,name 已存在就跳过。
+  /// 这里幂等插入,已存在就跳过。
   /// 跟 seedDefaultsIfEmpty 不同:即便 expense/income 已 seed,investment 仍可能缺。
   Future<void> ensureInvestmentCategories() async {
-    final existing = await all();
-    final names = existing.map((c) => c.name).toSet();
-    await _db.batch((batch) {
-      for (final c in DefaultCategories.investment) {
-        if (!names.contains(c.name)) {
-          batch.insert(_db.categories, _toCompanion(c));
-        }
-      }
-    });
+    await _ensureSystemCategories(DefaultCategories.investment);
   }
 
   /// 2026-10-14 加:跟 ensureInvestmentCategories 同结构 ——
-  /// 老 user DB 没 seed 福利分类时幂等插入,name 已存在就跳过。
+  /// 老 user DB 没 seed 福利分类时幂等插入,已存在就跳过。
   Future<void> ensureBenefitCategories() async {
-    final existing = await all();
-    final names = existing.map((c) => c.name).toSet();
-    await _db.batch((batch) {
-      for (final c in DefaultCategories.benefit) {
-        if (!names.contains(c.name)) {
-          batch.insert(_db.categories, _toCompanion(c));
-        }
-      }
-    });
+    await _ensureSystemCategories(DefaultCategories.benefit);
   }
 
   /// 2026-10-14 加:债权段 1 cat 升级路径(负债),
   /// 跟 ensureInvestmentCategories / ensureBenefitCategories 同 pattern,
   /// 幂等插入(老 device DB 没种子时补上)
   Future<void> ensureReceivableCategories() async {
-    final existing = await all();
-    final names = existing.map((c) => c.name).toSet();
-    await _db.batch((batch) {
-      for (final c in DefaultCategories.receivable) {
-        if (!names.contains(c.name)) {
-          batch.insert(_db.categories, _toCompanion(c));
-        }
-      }
-    });
+    await _ensureSystemCategories(DefaultCategories.receivable);
   }
 
   /// 2026-10-19 D72 加:余额调整 1 cat 升级路径,
@@ -94,26 +70,40 @@ class CategoryRepository {
   /// 幂等插入(老 device DB 没种子时补上)。asset_form_page 编辑期初余额时调用,
   /// 自动生成一笔 type='balance' 流水抹平差值,source = 该资产。
   Future<void> ensureBalanceAdjustCategory() async {
-    final existing = await all();
-    final names = existing.map((c) => c.name).toSet();
-    await _db.batch((batch) {
-      for (final c in DefaultCategories.balanceAdjust) {
-        if (!names.contains(c.name)) {
-          batch.insert(_db.categories, _toCompanion(c));
-        }
-      }
-    });
+    await _ensureSystemCategories(DefaultCategories.balanceAdjust);
   }
 
   /// 2026-10-14 D57 加:其它段 1 cat 升级路径(其它),
   /// 跟 ensureInvestmentCategories / ensureBenefitCategories / ensureReceivableCategories 同 pattern,
   /// 幂等插入(老 device DB 没种子时补上)
   Future<void> ensureOtherCategories() async {
+    await _ensureSystemCategories(DefaultCategories.other);
+  }
+
+  /// 2026-10-22 D64.94:隐藏系统分类的幂等插入(5 个 ensure*Categories 共用)
+  ///
+  /// **判重口径从「按 name」改成「按 (name, type)」**
+  ///
+  /// 这批插的都是**隐藏系统分类**,语义由 `type` 决定
+  /// (investment / benefit / liability / other / adjust),名字只是个显示标签。
+  /// 原来只按 name 判重 → 名字被占住,系统那条就永远补不上。
+  ///
+  /// 实测(gridly 迁移库):用户旧账本里的「其它」被迁移脚本带成一条
+  /// **is_system=0 的用户分类**(name=其它 / type=expense / 105 笔流水),
+  /// 而系统隐藏那条是 (name=其它 / type=other) —— **两者同名**。
+  /// → 名字被占 → ensureOtherCategories 永远认为"已存在" → 系统那条补不回来
+  /// → 一旦那条被删,「其它段」账户记流水时 fallback 找不到分类。
+  ///
+  /// 同名但 type 不同是**两条不同的东西**,各管各的,不该互相顶掉。
+  Future<void> _ensureSystemCategories(List<DefaultCategory> seeds) async {
     final existing = await all();
-    final names = existing.map((c) => c.name).toSet();
+    // 判重:同名 **且** 同 type 才算已存在
+    //   (不用拼接 key —— 分类名里可能有空格,拼接会有歧义)
+    bool exists(DefaultCategory c) =>
+        existing.any((e) => e.name == c.name && e.type == c.type);
     await _db.batch((batch) {
-      for (final c in DefaultCategories.other) {
-        if (!names.contains(c.name)) {
+      for (final c in seeds) {
+        if (!exists(c)) {
           batch.insert(_db.categories, _toCompanion(c));
         }
       }
