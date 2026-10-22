@@ -110,6 +110,63 @@ class CategoryRepository {
     });
   }
 
+  /// 2026-10-22 D64.95:系统分类改名(老设备升级路径)
+  ///
+  /// **为什么需要这个方法**:
+  /// 改 `DefaultCategories` 里的名字只对**新装设备**生效(`seedDefaultsIfEmpty`
+  /// 只在 categories 表为空时跑)。老设备库里还是旧名:
+  ///   - 「其他」(type='expense',系统可见的支出兜底)
+  ///   - 「其它」(type='other',系统隐藏的其它段标签)
+  ///
+  /// **为什么不能只改 seed**:
+  /// D64.94 把系统隐藏分类的幂等判重改成了按 `(name, type)`。
+  /// 老设备上「其它」是 type='other',代码里改成「其它资产」之后,
+  /// `ensureOtherCategories()` 会认为"新名不存在" → **补插一条新行**
+  /// → 老行还在 → 变成 2 条 type='other',比改名前更乱。
+  /// 所以本方法**必须在 ensure 之前跑**(main.dart 里保证顺序)。
+  ///
+  /// **冲突处理**:新名如果已经被**同 type** 的行占用
+  /// (典型:用户自己建了个叫「其它支出」的支出分类),就**跳过**这次改名
+  /// —— 宁可系统那条留旧名,也不要产生两条同名可见分类。
+  /// 同名但**不同** type 不算冲突(D64.94 的口径:同名不同 type 是两条不同的东西,
+  /// 用户自建的「其它」expense 跟系统隐藏的「其它」other 本来就各管各的)。
+  ///
+  /// **只动 is_system=1 的行** —— 用户自建的分类一行都不碰。
+  ///
+  /// **幂等**:改完再跑一次,旧名行已经不存在 → 直接跳过。
+  Future<void> renameSystemCategories() async {
+    for (final r in kSystemCategoryRenames) {
+      // 旧名的系统行还在吗?不在 → 已经改过(或本来就没有),跳过
+      final oldRows = await (_db.select(_db.categories)
+            ..where((c) =>
+                c.name.equals(r.oldName) &
+                c.type.equals(r.type) &
+                c.isSystem.equals(true)))
+          .get();
+      if (oldRows.isEmpty) continue;
+
+      // 新名被同 type 的行占用 → 跳过(避免出现两条同名同 type 的分类)
+      final occupied = await (_db.select(_db.categories)
+            ..where((c) => c.name.equals(r.newName) & c.type.equals(r.type)))
+          .get();
+      if (occupied.isNotEmpty) continue;
+
+      await _db.batch((batch) {
+        batch.update(
+          _db.categories,
+          CategoriesCompanion(
+            name: Value(r.newName),
+            updatedAt: Value(DateTime.now()),
+          ),
+          where: (c) =>
+              c.name.equals(r.oldName) &
+              c.type.equals(r.type) &
+              c.isSystem.equals(true),
+        );
+      });
+    }
+  }
+
   /// 全部分类(按 sortOrder 升序)
   Future<List<Category>> all() {
     return (_db.select(

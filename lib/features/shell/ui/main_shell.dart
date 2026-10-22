@@ -119,7 +119,8 @@ class _MainShellState extends ConsumerState<MainShell> {
       //   不动产 6 段保留(资产表单仍能选),只是 Speed Dial 不再暴露入口
       SpeedDialItem(
         key: 'other',
-        label: '其它',
+        // 2026-10-22 D64.95:'其它' → '其它资产'(跟资产段 label + 隐藏分类同名)
+        label: '其它资产',
         icon: Icons.category_rounded,
         color: AppGray.g600,
       ),
@@ -415,6 +416,8 @@ class _MainShellState extends ConsumerState<MainShell> {
                 //     "看起来差不多" + "颜色是黑色而不是灰色"
                 //   - 42be567 commit:再缩 "长按·其它" 5 字 + 灰 #79747E M3 outline
                 //   - 本 commit:dot 换动词 "长按记其它" 5 字(语义更直:动作 + 结果)
+                //   - 2026-10-22 D64.95:第 6 段改名「其它资产」后,这里跟着改 6 字
+                //     "长按记其它资产" —— 6 字在 72dp slot / 11sp 早已验证过能 1 行 fit
                 //   - 字色显式 Color(0xFF79747E)(M3 outline),不复用 g200/g600,
                 //     因为 user 选的就是这个 hex
                 NavigationDestination(
@@ -422,7 +425,7 @@ class _MainShellState extends ConsumerState<MainShell> {
                     padding: const EdgeInsets.only(bottom: AppSpacing.s1),
                     child: _CenterFab(onLongPress: _openSpeedDial),
                   ),
-                  label: '长按记其它',
+                  label: '长按记其它资产',
                   tooltip: '',
                 ),
                 const NavigationDestination(

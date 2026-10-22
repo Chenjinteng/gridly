@@ -18,6 +18,12 @@ void main() async {
   final container = ProviderContainer();
   // 首次启动(或表空时)seed 默认分类
   await container.read(categoryRepositoryProvider).seedDefaultsIfEmpty();
+  // 2026-10-22 D64.95 加:系统分类改名(「其他」→「其它支出」,「其它」→「其它资产」)
+  //   - 只对老设备有意义:新装设备 seed 出来的就是新名,这里是 no-op
+  //   - **必须在下面 5 个 ensure*Categories 之前跑**:
+  //     D64.94 把判重改成按 (name, type),老库里「其它」是 type='other',
+  //     代码里改新名后 ensure 会认为"新名不存在" → 补插一条 → 变成 2 条 type='other'
+  await container.read(categoryRepositoryProvider).renameSystemCategories();
   // 把老用户的系统分类 icon 升级到 v2 语义化图标(幂等,无命中也无害)
   await container.read(categoryRepositoryProvider).syncCategoryIcons();
   // 把老用户的系统分类 color 同步到当前代码值(默认分类颜色在 default_categories.dart 集中定义)

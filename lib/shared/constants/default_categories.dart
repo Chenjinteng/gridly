@@ -197,8 +197,12 @@ class DefaultCategories {
       type: 'expense',
       sortOrder: 10,
     ),
+    // 2026-10-22 D64.95 改:「其他」→「其它支出」
+    //   - 原来叫「其他」,跟用户自建的「其它」(type=expense)一字之差,极易混淆
+    //   - 本条是**流动资金段的支出兜底**,跟「其它」资产段无关 → 不能叫「其它资产」
+    //   - 「其它支出」在支出分类网格 / 支出报表图例里读得通,一眼知道是支出兜底
     DefaultCategory(
-      name: '其他',
+      name: '其它支出',
       icon: 'more_horiz',
       color: AppCategory.neutral,
       type: 'expense',
@@ -320,9 +324,10 @@ class DefaultCategories {
   ///     seed 出来只填 DB NOT NULL 字段(cat.type='other')
   ///   - 跟 investment/benefit/receivable 同 pattern:UI 隐藏 + DB 必填,所以统一 fallback
   ///   - DB schema 不动:cat.type 是 String,'other' 新值不需 migration
+  ///   - 2026-10-22 D64.95 改:'其它'→'其它资产'(跟资产段的 label 同名,口径统一)
   static const List<DefaultCategory> other = [
     DefaultCategory(
-      name: '其它',
+      name: '其它资产',
       icon: 'category', // 复用 v1 几何 icons 里 'category'(label icon 语义)
       color: AppCategory.other,
       type: 'other',
@@ -349,6 +354,43 @@ class DefaultCategories {
   ];
 }
 
+/// 一条系统分类改名记录(旧名 + type → 新名)
+///
+/// 2026-10-22 D64.95 加。**type 必须一起带上**:
+/// 同名不同 type 是两条不同的东西(用户自建的「其它」type=expense
+/// 跟系统隐藏的「其它」type=other 就是这种情况),
+/// 只按名字匹配会误伤用户自己的分类。
+class SystemCategoryRename {
+  const SystemCategoryRename({
+    required this.oldName,
+    required this.type,
+    required this.newName,
+  });
+
+  final String oldName;
+  final String type;
+  final String newName;
+}
+
+/// 2026-10-22 D64.95:系统分类改名映射
+///
+/// **为什么要改名**:gridly 里「其它 / 其他」一度有 3 条:
+///   - 系统可见支出兜底(旧名「其他」)
+///   - 系统隐藏的其它段标签(旧名「其它」)
+///   - 用户自建的「其它」(迁移脚本把旧账本的兜底分类原样搬过来)
+/// 前两条跟第三条一字之差,极易混淆。user 拍板:
+///   - 系统可见支出兜底 → 「其它支出」
+///   - 系统隐藏其它段标签 → 「其它资产」(跟资产段 label 同名,口径统一)
+///   - 用户自建那条 → **保持不变**(105 笔历史流水跟着走)
+///
+/// **怎么落地**:改 seed 只对**新装设备**生效,老设备库里还是旧名。
+/// 由 `CategoryRepository.renameSystemCategories()` 在启动时把
+/// 老设备上的系统行 UPDATE 成新名(见该方法注释)。
+const List<SystemCategoryRename> kSystemCategoryRenames = [
+  SystemCategoryRename(oldName: '其他', type: 'expense', newName: '其它支出'),
+  SystemCategoryRename(oldName: '其它', type: 'other', newName: '其它资产'),
+];
+
 /// v1 → v2 图标 key 迁移表,按 name 匹配老数据。
 /// 老用户数据库里的系统分类可能是 v1 几何 key,这里按名字映射升级。
 const Map<String, String> kIconMigrationV2 = {
@@ -363,6 +405,11 @@ const Map<String, String> kIconMigrationV2 = {
   '居家': 'chair',
   '美妆': 'spa',
   '宠物': 'pets',
+  // 2026-10-22 D64.95:'其他' 改名 '其它支出',两个 key 都留
+  //   - '其它支出' 是正常路径(系统行已被 renameSystemCategories 改成新名)
+  //   - '其他' 是兜底(改名被跳过时,比如用户自建了同名分类)
+  //   两个都指向 more_horiz,重复 UPDATE 无害(幂等)
+  '其它支出': 'more_horiz',
   '其他': 'more_horiz',
   '工资': 'payments',
   '奖金': 'card_giftcard',

@@ -138,7 +138,8 @@ class AssetsManagementPage extends ConsumerWidget {
                     ),
                   if (other.isNotEmpty)
                     _Group(
-                      title: '其它',
+                      // 2026-10-22 D64.95:'其它' → '其它资产'(跟资产段 label 统一)
+                      title: '其它资产',
                       items: other,
                       onEdit: (a) => _showForm(context, a),
                       onDelete: (a) => _confirmDelete(context, ref, a),

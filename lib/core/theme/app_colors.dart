@@ -232,7 +232,11 @@ class AppSegment {
       case 'fixed_asset':
         return '不动产';
       default:
-        return '其它';
+        // 2026-10-22 D64.95 改:'其它' → '其它资产'
+        //   - user 拍板:第 6 段(asset.type='other')的 label 跟它的隐藏分类同名,口径统一
+        //   - 之前叫「其它」,跟分类里的「其它支出」/用户自建的「其它」混在一起分不清
+        //   - 未知 type 也走这个兜底,显示「其它资产」同样能表达"兜底段"
+        return '其它资产';
     }
   }
 
