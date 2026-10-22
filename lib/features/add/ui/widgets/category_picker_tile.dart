@@ -44,6 +44,7 @@ class CategoryPickerTile extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
     this.maxLabelLines = 2,
+    this.isDropTarget = false,
   });
 
   final Category category;
@@ -54,6 +55,12 @@ class CategoryPickerTile extends StatelessWidget {
   /// 超长时仍会 ellipsis 兜底,不会溢出卡片)
   final int maxLabelLines;
 
+  /// 2026-10-22 D64.98 加:当前是长按拖动的**落点**(拖到这里会插到这一格的位置)
+  ///
+  /// 用主题 primary(青 / 粉随主题)而不是分类自己的颜色:
+  /// 分类色已经被「选中态」占用了,再用一次分不清是"选中了"还是"要放这儿"。
+  final bool isDropTarget;
+
   /// label 的行高倍数(固定值 → 每行高度确定 → 2 行盒高确定)
   static const double _labelLineHeightFactor = 1.2;
 
@@ -61,6 +68,7 @@ class CategoryPickerTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final color = Color(category.color);
+    final accent = theme.colorScheme.primary;
 
     return InkWell(
       borderRadius: AppRadius.brLg,
@@ -68,13 +76,19 @@ class CategoryPickerTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.s2),
         decoration: BoxDecoration(
-          color: isSelected
+          color: isDropTarget
+              ? accent.withValues(alpha: 0.12)
+              : isSelected
               ? color.withValues(alpha: 0.12)
               : theme.colorScheme.surfaceContainerLow,
           borderRadius: AppRadius.brLg,
           border: Border.all(
-            color: isSelected ? color : theme.colorScheme.outlineVariant,
-            width: isSelected ? 1.5 : 0.5,
+            color: isDropTarget
+                ? accent
+                : isSelected
+                ? color
+                : theme.colorScheme.outlineVariant,
+            width: isDropTarget || isSelected ? 1.5 : 0.5,
           ),
         ),
         child: Column(

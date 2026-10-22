@@ -38,7 +38,7 @@ import '../../../shared/constants/default_categories.dart';
 import '../../ledger/application/transactions_providers.dart';
 import '../../settings/ui/widgets/asset_tile.dart';
 import 'widgets/amount_display.dart';
-import 'widgets/category_picker_tile.dart';
+import 'widgets/category_reorder_grid.dart';
 import 'widgets/custom_date_picker.dart';
 import 'widgets/numpad.dart';
 import 'widgets/type_toggle.dart';
@@ -1703,7 +1703,11 @@ class _ActionPill extends StatelessWidget {
 /// 即使父级 _saveBar watch 触发了 invalidate,read 不会重新计算 —— picker
 /// 仍显示旧列表,在分类管理加新分类后这里看不到。改成 watch 后 invalidate
 /// 完成时 picker 自动 rebuild 拿到最新分类。
-class _CategoryPickerSheet extends ConsumerWidget {
+///
+/// 2026-10-22 D64.98:ConsumerWidget → ConsumerStatefulWidget。
+/// 原因:长按拖动排序需要**本地工作顺序**(拖动过程中网格要实时重排,
+/// 不能每次都等 DB 回来)。落手后再把新顺序写库 + 刷新 provider。
+class _CategoryPickerSheet extends ConsumerStatefulWidget {
   const _CategoryPickerSheet({
     required this.type,
     required this.selected,
@@ -1714,12 +1718,32 @@ class _CategoryPickerSheet extends ConsumerWidget {
   final ValueChanged<int> onSelect;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_CategoryPickerSheet> createState() => _CategoryPickerSheetState();
+}
+
+class _CategoryPickerSheetState extends ConsumerState<_CategoryPickerSheet> {
+  /// D64.98:长按拖动排序落库
+  ///
+  /// - 只动当前 type 的分类(支出拖动不影响收入的顺序)
+  /// - 写完 invalidate 两个分类 provider(跟 `category_form_sheet` /
+  ///   `category_management_page` 的分类增删改保持同一套刷新口径):
+  ///   分类管理页的分组顺序 / 记一笔的分类选择器 同步更新
+  /// - 分类顺序不影响任何报表口径(报表按分类 id 聚合,不依赖顺序)
+  Future<void> _handleReorder(List<int> orderedIds) async {
+    final repo = ref.read(categoryRepositoryProvider);
+    await repo.reorderByType(widget.type, orderedIds);
+    if (!mounted) return;
+    ref.invalidate(allCategoriesProvider);
+    ref.invalidate(categoriesByTypeProvider);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     // 2026-10-14 简化:删除 forcedCategories 参数,reivable 段不再需要
     //   picker 强制传 2 cat(原 receiv 2 cat 设计) — 现在 receivable 跟福利/投资
     //   同样 UI 隐藏,1 个内置 cat 走自动 fallback,不再调 picker
-    final catsAsync = ref.watch(categoriesByTypeProvider(type));
+    final catsAsync = ref.watch(categoriesByTypeProvider(widget.type));
     // 2026-10-13 P14 UAT 改:DraggableScrollableSheet(0.6/0.3/0.9)→ 极值配置
     //   user:"不要做什么还能往上滑动的操作了"
     //   - max = 0.6 = initial → 上滑无效
@@ -1784,8 +1808,11 @@ class _CategoryPickerSheet extends ConsumerWidget {
                               fontWeight: FontWeight.w700,
                             ),
                           ),
+                          // D64.98:标题右侧加「长按可排序」提示 —— 长按拖动是个
+                          //   不看说明就不知道的功能,给一行字做可发现性
+                          //   (13px,右侧对齐,不会把标题挤掉)
                           Text(
-                            '${cats.length} 个',
+                            '长按可排序 · ${cats.length} 个',
                             style: TextStyle(
                               fontSize: 13,
                               color: theme.colorScheme.onSurfaceVariant,
@@ -1796,29 +1823,16 @@ class _CategoryPickerSheet extends ConsumerWidget {
                     ),
                   ],
                   Expanded(
-                    child: GridView.builder(
-                      controller: scrollController,
-                      padding: const EdgeInsets.all(AppSpacing.s4),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 4,
-                            mainAxisSpacing: AppSpacing.s2,
-                            crossAxisSpacing: AppSpacing.s2,
-                            childAspectRatio: 0.85,
-                          ),
-                      itemCount: cats.length,
-                      itemBuilder: (context, i) {
-                        final c = cats[i];
-                        // 2026-10-22 D64.97:tile 抽成 CategoryPickerTile
-                        //   - 之前是内联在这儿的,没法写 widget test
-                        //   - 抽出来后长分类名换行完整显示(不再 ellipsis 截断),
-                        //     卡片尺寸不变(grid 的 childAspectRatio 0.85 没动)
-                        return CategoryPickerTile(
-                          category: c,
-                          isSelected: c.id == selected,
-                          onTap: () => onSelect(c.id),
-                        );
-                      },
+                    // D64.98:网格换成可长按拖动排序的 CategoryReorderGrid
+                    //   - 4 列 / spacing 8 / padding 16 / childAspectRatio 0.85
+                    //     —— **跟 D64.97 之前的内联 GridView 一模一样**,卡片尺寸没动
+                    //   - scrollController 传进去是为了拖到边缘时自动滚动
+                    child: CategoryReorderGrid(
+                      categories: cats,
+                      selectedId: widget.selected,
+                      onSelect: widget.onSelect,
+                      onReorder: _handleReorder,
+                      scrollController: scrollController,
                     ),
                   ),
                 ],
