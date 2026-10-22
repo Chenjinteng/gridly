@@ -12,6 +12,10 @@
 // (其它, other) 永远补不上 → 一旦它被删,「其它段」账户记流水时
 // fallback 找不到分类 → transactions.category_id NOT NULL 拿不到值。
 //
+// 2026-10-22 D64.95:系统隐藏那条改名「其它」→「其它资产」(跟资产段 label 统一),
+// 用户的「其它」保持不变 → 上面的场景不再天然触发,但**判重口径不能退回按 name**:
+// 用户随时可能自建一个叫「其它资产」的分类,占住名字。下面的夹具已按新名重写。
+//
 // 隐藏分类的语义由 **type** 决定,不是名字 → 判重必须按 (name, type)。
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
@@ -40,10 +44,10 @@ void main() {
 
   test('D64.94:用户自建了同名分类(其它/expense)时,系统隐藏那条(其它/other)仍能补上',
       () async {
-    // 模拟迁移后的库:用户分类「其它」type=expense 已存在
+    // 模拟迁移后的库:用户分类「其它资产」type=expense 已存在
     await db.into(db.categories).insert(
       CategoriesCompanion.insert(
-        name: '其它',
+        name: '其它资产',
         icon: 'more_horiz',
         color: 0xFF9CA3AF,
         type: 'expense',
@@ -60,8 +64,8 @@ void main() {
       hasLength(2),
       reason: '系统隐藏的(其它/other)必须补上 —— 名字被用户分类占了不代表它存在',
     );
-    expect(after.any((c) => c.$2 == '其它' && c.$3 == 'other'), isTrue);
-    expect(after.any((c) => c.$2 == '其它' && c.$3 == 'expense'), isTrue,
+    expect(after.any((c) => c.$2 == '其它资产' && c.$3 == 'other'), isTrue);
+    expect(after.any((c) => c.$2 == '其它资产' && c.$3 == 'expense'), isTrue,
         reason: '用户那条不能被动到');
   });
 
@@ -82,7 +86,7 @@ void main() {
 
   test('D64.94:5 个 ensure*Categories 都能在同名用户分类存在时补上', () async {
     // 一次性把 5 个隐藏分类的名字都占掉(当用户分类,type=expense)
-    for (final name in ['投资投入', '投资收益', '福利', '债务', '其它']) {
+    for (final name in ['投资投入', '投资收益', '福利', '债务', '其它资产']) {
       await db.into(db.categories).insert(
         CategoriesCompanion.insert(
           name: name,
