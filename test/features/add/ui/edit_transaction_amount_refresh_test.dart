@@ -101,9 +101,20 @@ void main() {
     );
     addTearDown(router.dispose);
 
+    // 2026-10-22:跟生产 main.dart 结构**完全一致** —— UncontrolledProviderScope
+    // + 独立 root ProviderContainer(不是 ProviderScope)
+    //   原因:ProviderScope(overrides:) 会额外建一层**子 container**,
+    //   而 Riverpod 的 family provider invalidate 走的是
+    //   `_overrideForFamily[family]?.container ?? _root ?? this` 这条路径,
+    //   root / 子 container 走的是不同的 _stateReaders —— 用错结构测就可能有盲区。
+    final container = ProviderContainer(
+      overrides: [databaseProvider.overrideWith((ref) => db)],
+    );
+    addTearDown(container.dispose);
+
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: [databaseProvider.overrideWith((ref) => db)],
+      UncontrolledProviderScope(
+        container: container,
         child: MaterialApp.router(
           routerConfig: router,
           theme: AppTheme.light(),
