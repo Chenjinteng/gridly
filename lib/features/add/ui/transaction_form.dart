@@ -1811,11 +1811,17 @@ class _CategoryPickerSheetState extends ConsumerState<_CategoryPickerSheet> {
                           // D64.98:标题右侧加「长按可排序」提示 —— 长按拖动是个
                           //   不看说明就不知道的功能,给一行字做可发现性
                           //   (13px,右侧对齐,不会把标题挤掉)
-                          Text(
-                            '长按可排序 · ${cats.length} 个',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: theme.colorScheme.onSurfaceVariant,
+                          //   Flexible + ellipsis 兜底:文案比原来的「N 个」长 4 倍,
+                          //   窄屏 / 大字号下宁可省略号也别把标题顶出屏幕
+                          Flexible(
+                            child: Text(
+                              '长按可排序 · ${cats.length} 个',
+                              textAlign: TextAlign.right,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
                             ),
                           ),
                         ],
