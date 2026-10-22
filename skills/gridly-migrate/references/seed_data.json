@@ -79,7 +79,7 @@
       "color": 4294677052
     },
     {
-      "name": "其他",
+      "name": "其它支出",
       "icon": "more_horiz",
       "type": "expense",
       "sort_order": 99,
@@ -149,7 +149,7 @@
       "color": 4293870660
     },
     {
-      "name": "其它",
+      "name": "其它资产",
       "icon": "category",
       "type": "other",
       "sort_order": 0,

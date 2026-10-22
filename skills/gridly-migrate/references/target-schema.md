@@ -120,7 +120,7 @@ CREATE TABLE "monthly_budgets" (
 | `investment` | 投资段(UI 隐藏,自动 fallback) |
 | `benefit` | 福利段(UI 隐藏) |
 | `liability` | 债务段(UI 隐藏) |
-| `other` | 其它段(UI 隐藏) |
+| `other` | 其它资产段(UI 隐藏) |
 | `adjust` | 余额调整(D72,UI 隐藏) |
 
 ### 3.3 `assets.type` — 6 值
@@ -132,7 +132,7 @@ CREATE TABLE "monthly_budgets" (
 | `benefit` | 福利 | 社保 / 公积金 |
 | `receivable` | 债务 | 借出 / 借入 / 花呗 / 信用卡 |
 | `fixed_asset` | 不动产 | 房 / 车 |
-| `other` | 其它 | 兜底 |
+| `other` | 其它资产 | 兜底 |
 
 ---
 
@@ -156,7 +156,7 @@ CREATE TABLE "monthly_budgets" (
 | 居家 | `chair` | 4293726470 | `0xFFD97706` |
 | 美妆 | `spa` | 4290309214 | `0xFFF43F5E` |
 | 宠物 | `pets` | 4292133948 | `0xFFFB923C` |
-| 其他 | `more_horiz` | 4292364890 | `0xFFA1A1AA` (neutral) |
+| 其它支出 | `more_horiz` | 4292364890 | `0xFFA1A1AA` (neutral) |
 
 > ⚠️ 上表颜色为**按 `AppCategory` token 推导的近似值**,实际以 app 真实库为准。
 > 迁移脚本运行时**必须从参考源读取真实值**,不要硬编码这列。
@@ -184,7 +184,7 @@ CREATE TABLE "monthly_budgets" (
 | 投资收益 | `trending_up` | `investment` | `0xFF22C55E` |
 | 福利 | `favorite` | `benefit` | `0xFFEC4899` |
 | 债务 | `request_quote` | `liability` | `0xFFEF4444` |
-| 其它 | `category` | `other` | `0xFF71717A` |
+| 其它资产 | `category` | `other` | `0xFF71717A` |
 | 余额调整 | `tune` | `adjust` | `0xFF71717A` |
 
 > `余额调整` 的 icon `tune` **不在 `CategoryIcons.map` 里**,app 里会 fallback 成 `category` 图标。
