@@ -38,6 +38,7 @@ import '../../../shared/constants/default_categories.dart';
 import '../../ledger/application/transactions_providers.dart';
 import '../../settings/ui/widgets/asset_tile.dart';
 import 'widgets/amount_display.dart';
+import 'widgets/category_picker_tile.dart';
 import 'widgets/custom_date_picker.dart';
 import 'widgets/numpad.dart';
 import 'widgets/type_toggle.dart';
@@ -1808,47 +1809,14 @@ class _CategoryPickerSheet extends ConsumerWidget {
                       itemCount: cats.length,
                       itemBuilder: (context, i) {
                         final c = cats[i];
-                        final isSelected = c.id == selected;
-                        return InkWell(
-                          borderRadius: AppRadius.brLg,
+                        // 2026-10-22 D64.97:tile 抽成 CategoryPickerTile
+                        //   - 之前是内联在这儿的,没法写 widget test
+                        //   - 抽出来后长分类名换行完整显示(不再 ellipsis 截断),
+                        //     卡片尺寸不变(grid 的 childAspectRatio 0.85 没动)
+                        return CategoryPickerTile(
+                          category: c,
+                          isSelected: c.id == selected,
                           onTap: () => onSelect(c.id),
-                          child: Container(
-                            padding: const EdgeInsets.all(AppSpacing.s2),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? Color(c.color).withValues(alpha: 0.12)
-                                  : theme.colorScheme.surfaceContainerLow,
-                              borderRadius: AppRadius.brLg,
-                              border: Border.all(
-                                color: isSelected
-                                    ? Color(c.color)
-                                    : theme.colorScheme.outlineVariant,
-                                width: isSelected ? 1.5 : 0.5,
-                              ),
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  CategoryIcons.map[c.icon] ??
-                                      Icons.category_rounded,
-                                  color: Color(c.color),
-                                  size: 26,
-                                ),
-                                const SizedBox(height: AppSpacing.s1),
-                                Text(
-                                  c.name,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
-                          ),
                         );
                       },
                     ),
